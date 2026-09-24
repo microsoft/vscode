@@ -49,7 +49,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName 
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -181,7 +181,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		dirty: boolean;
 		request: {
 			changedTurnId: string | undefined;
-			statusBeforeRefresh: ChangesetStatus | undefined;
+			statusBeforeRefresh: ChangesetState | undefined;
 			reportTelemetry: boolean;
 			clientContext: IAgentHostClientTelemetryContext | undefined;
 		};
@@ -189,6 +189,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
+	private readonly _restoredBranchChangesetOwners = new Set<ProtocolURI>();
+	private readonly _pendingBranchChangesetRestores = new Map<ProtocolURI, Promise<void>>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
@@ -231,10 +233,44 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
-		this._stateManager.registerChangeset(buildBranchChangesetUri(this._getBranchChangesetOwner(session)));
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
+		this._stateManager.registerChangeset(buildBranchChangesetUri(branchChangesetOwner));
+		this._restoreScopedBranchChangeset(branchChangesetOwner);
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!isAhpChatChannel(session)) {
 			this._stateManager.registerChangeset(buildSessionChangesetUri(session));
+		}
+	}
+
+	private _restoreScopedBranchChangeset(owner: ProtocolURI): void {
+		if (this._restoredBranchChangesetOwners.has(owner) || this._pendingBranchChangesetRestores.has(owner)) {
+			return;
+		}
+
+		const task = this._doRestoreScopedBranchChangeset(owner);
+		this._pendingBranchChangesetRestores.set(owner, task);
+		void task.then(() => {
+			this._restoredBranchChangesetOwners.add(owner);
+		}, err => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to restore folder-scoped Branch Changes for ${owner}`, err);
+		}).finally(() => {
+			this._pendingBranchChangesetRestores.delete(owner);
+		});
+	}
+
+	private async _doRestoreScopedBranchChangeset(owner: ProtocolURI): Promise<void> {
+		const scope = parseFolderChangesetOwnerUri(owner);
+		if (!scope) {
+			return;
+		}
+
+		const ref = this._sessionDataService.openDatabase(URI.parse(scope.sessionUri));
+		try {
+			const raw = await ref.object.getMetadata(getScopedBranchChangesetMetadataKey(scope.scopeId));
+			const diffs = tryParsePersistedDiffs(raw, scope.sessionUri, 'folder-scoped branch', this._logService);
+			this._seedIfEmpty(owner, 'branch', diffs);
+		} finally {
+			ref.dispose();
 		}
 	}
 
@@ -373,8 +409,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
-		const existing = this._stateManager.getChangesetState(staticChangesetUri(owner, kind));
-		if (existing && existing.files.length > 0) {
+		const changesetUri = staticChangesetUri(owner, kind);
+		const existing = this._stateManager.getChangesetState(changesetUri);
+		if (this._stateManager.hasCompletedChangesetResult(changesetUri) || (existing && existing.files.length > 0)) {
 			return;
 		}
 		this.restoreStaticChangeset(owner, kind, diffs);
@@ -511,14 +548,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		this._unavailableBranchOwners.delete(branchChangesetOwner);
 		this._failedBranchOwners.delete(branchChangesetOwner);
-		this._scheduleStaticRecompute(branchChangesetOwner, 'branch', undefined, this._markStaticChangesetComputing(branchChangesetOwner, 'branch'));
+		this._scheduleStaticRecompute(branchChangesetOwner, 'branch');
 	}
 
 	refreshSessionChangeset(session: ProtocolURI): void {
 		if (isAhpChatChannel(session) || !this._hasWorkingDirectory(session)) {
 			return;
 		}
-		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
+		this._scheduleStaticRecompute(session, 'session');
 	}
 
 	/**
@@ -564,17 +601,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
 		// Turn telemetry is emitted at the turn boundary (onTurnComplete); this subscribe-triggered recompute does not report.
-		return this._computeTurnChangeset(session, turnId, false);
+		return this._queueTurnChangeset(session, turnId, false);
 	}
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
-		const turnUri = this._stateManager.registerChangeset(buildTurnChangesetUri(session, turnId));
-		if (this._stateManager.getChangesetState(turnUri)?.status !== ChangesetStatus.Computing) {
-			this._stateManager.dispatchServerAction(turnUri, {
-				type: ActionType.ChangesetStatusChanged,
-				status: ChangesetStatus.Computing,
-			});
-		}
+		const turnUri = buildTurnChangesetUri(session, turnId);
+		this._markChangesetComputing(turnUri);
 		const stopWatch = StopWatch.create();
 		let outcome: TurnChangesetOutcome = 'error';
 		let result: ITurnDiffResult | undefined;
@@ -719,24 +751,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return this._queueUncommittedChangeset(session, undefined, false);
 	}
 
-	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		if (!this._hasSubscription(session, uncommittedUri)) {
+		if (!this._hasSubscription(session, uncommittedUri) || !this._getEffectiveWorkingDirectories(session)?.[0]) {
+			this._restoreStaticChangesetStatus(uncommittedUri, statusBeforeRefresh);
 			return uncommittedUri;
 		}
 
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-		if (!workingDirectory) {
-			return uncommittedUri;
-		}
-
-		const statusBeforeCompute = this._stateManager.getChangesetState(uncommittedUri)?.status;
-		if (statusBeforeCompute !== ChangesetStatus.Computing) {
-			this._stateManager.dispatchServerAction(uncommittedUri, {
-				type: ActionType.ChangesetStatusChanged,
-				status: ChangesetStatus.Computing,
-			});
-		}
+		this._markChangesetComputing(uncommittedUri);
 
 		const stopWatch = StopWatch.create();
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
@@ -786,7 +808,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const workingDirectory = this._getEffectiveWorkingDirectories(session)?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1220,13 +1242,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (this._shouldScheduleBranchRecompute(session)) {
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
-		this._scheduleStaticRecompute(session, 'session', turnId, undefined, true, clientContext);
+		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
 		this._scheduleBranchRecompute(session, undefined, true);
-		this._scheduleStaticRecompute(session, 'session', undefined, undefined, true);
+		this._scheduleStaticRecompute(session, 'session', undefined, true);
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
@@ -1257,12 +1279,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const branchChangesetOwner = this._getBranchChangesetOwner(session);
 			this._debouncedBranchDiffTimers.set(branchChangesetOwner, disposableTimeout(() => {
 				this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
-				this._scheduleStaticRecompute(branchChangesetOwner, 'branch', turnId, undefined, false, clientContext);
+				this._scheduleStaticRecompute(branchChangesetOwner, 'branch', turnId, false, clientContext);
 			}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 		}
 		this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedSessionDiffTimers.deleteAndDispose(session);
-			this._scheduleStaticRecompute(session, 'session', turnId, undefined, false, clientContext);
+			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1317,7 +1339,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
-		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext).then(() => undefined));
+		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext);
+	}
+
+	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+		this._markChangesetComputing(buildTurnChangesetUri(session, turnId));
+		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext));
 	}
 
 	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1325,17 +1352,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
-		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext));
+		const changesetUri = buildUncommittedChangesetUri(session);
+		let statusBeforeRefresh: ChangesetState | undefined;
+		if (this._hasSubscription(session, changesetUri) && this._getEffectiveWorkingDirectories(session)?.[0]) {
+			statusBeforeRefresh = this._markChangesetComputing(changesetUri);
+		}
+		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext, statusBeforeRefresh));
 	}
 
 	/**
-	 * Schedules a static changeset (`uncommitted` or `session`) recompute,
+	 * Schedules a static changeset (`branch` or `session`) recompute,
 	 * serialised per-session so back-to-back triggers don't race against
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
 	 * but do not fail the turn.
 	 */
-	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
+	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
 		const key = `${session}\u0000${kind}`;
+		const statusBeforeRefresh = this._markChangesetComputing(staticChangesetUri(session, kind));
 		const existing = this._scheduledStaticRecomputes.get(key);
 		if (existing) {
 			existing.dirty = true;
@@ -1372,23 +1405,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private _scheduleBranchRecompute(session: ProtocolURI, changedTurnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): void {
 		const branchChangesetOwner = this._getBranchChangesetOwner(session);
-		this._scheduleStaticRecompute(branchChangesetOwner, 'branch', changedTurnId, undefined, reportTelemetry, clientContext);
+		this._scheduleStaticRecompute(branchChangesetOwner, 'branch', changedTurnId, reportTelemetry, clientContext);
 	}
 
-	private _markStaticChangesetComputing(session: ProtocolURI, kind: StaticChangesetKind): ChangesetStatus | undefined {
-		const changesetUri = staticChangesetUri(session, kind);
+	private _markChangesetComputing(changesetUri: ProtocolURI): ChangesetState | undefined {
 		this._stateManager.registerChangeset(changesetUri);
-		const status = this._stateManager.getChangesetState(changesetUri)?.status;
-		if (status !== ChangesetStatus.Computing) {
+		const previous = this._stateManager.getChangesetState(changesetUri);
+		const status = this._stateManager.hasCompletedChangesetResult(changesetUri) ? ChangesetStatus.Recomputing : ChangesetStatus.Computing;
+		if (previous && previous.status !== status) {
 			this._stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				status: ChangesetStatus.Computing,
+				status,
 			});
 		}
-		return status;
+		return previous;
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
@@ -1416,7 +1449,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		};
 		this._activeStaticComputes.add(changesetUri);
-		const statusBeforeCompute = statusBeforeRefresh ?? this._stateManager.getChangesetState(changesetUri)?.status;
+		const current = this._markChangesetComputing(changesetUri);
+		const statusBeforeCompute = current?.status === ChangesetStatus.Ready || current?.status === ChangesetStatus.Error ? current : statusBeforeRefresh;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
 			ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
@@ -1469,7 +1503,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (!diffs) {
 				if (kind === 'branch') {
 					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
-					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
+					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute?.status ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
 					if (branchResult?.kind === 'nonGit') {
 						this._unavailableBranchOwners.add(session);
 						this._failedBranchOwners.delete(session);
@@ -1550,6 +1584,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
 			const persistenceOwner = kind === ChangesetKind.Branch ? this._getTrackedDatabaseUri(session) : session;
+			if (kind === ChangesetKind.Branch) {
+				const scope = parseFolderChangesetOwnerUri(session);
+				if (scope) {
+					this._persistSessionFlag(scope.sessionUri, getScopedBranchChangesetMetadataKey(scope.scopeId), JSON.stringify(diffs));
+				}
+			}
 			if (!isAhpChatChannel(persistenceOwner)) {
 				this._persistSessionFlag(persistenceOwner, persistKeyFor(kind), JSON.stringify(diffs));
 				if (kind === ChangesetKind.Branch) {
@@ -1586,19 +1626,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Refresh requests optimistically mark static changesets as Computing
-	 * while preserving their current files. Some refresh paths intentionally
-	 * do not publish a replacement file list (for example, uncommitted git
+	 * Refresh requests preserve their current files. Some refresh paths intentionally
+	 * do not publish a replacement file list (for example, branch git
 	 * diff is temporarily unavailable), so restore the previous non-computing
-	 * status instead of leaving a stale cached snapshot stuck as Computing.
+	 * status instead of leaving a stale cached snapshot stuck as Recomputing.
 	 */
-	private _restoreStaticChangesetStatus(changesetUri: ProtocolURI, status: ChangesetStatus | undefined): void {
-		if (!status || status === ChangesetStatus.Computing) {
+	private _restoreStaticChangesetStatus(changesetUri: ProtocolURI, previous: ChangesetState | undefined): void {
+		if (!previous || previous.status === ChangesetStatus.Computing || previous.status === ChangesetStatus.Recomputing) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetStatusChanged,
-			status,
+			status: previous.status,
+			...(previous.status === ChangesetStatus.Error ? { error: previous.error } : {}),
 		});
 	}
 

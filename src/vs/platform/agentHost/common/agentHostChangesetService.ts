@@ -11,6 +11,11 @@ import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.
 /** Metadata key under which the branch changeset's diff list is persisted. */
 export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
 
+/** Returns the containing-session metadata key for one folder-scoped Branch Changes cache. */
+export function getScopedBranchChangesetMetadataKey(scopeId: string): string {
+	return `${META_CHANGESET_BRANCH}.${scopeId}`;
+}
+
 /** Metadata key under which the session-wide changeset's diff list is persisted. */
 export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
 
@@ -94,9 +99,12 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Registers static repository changesets for any owner and the cumulative
-	 * Session Changes resource for session owners.
+	 * Session Changes resource for session owners, initially in `Computing`.
+	 * Folder-scoped Branch Changes are re-seeded from the containing session's
+	 * persisted cache.
 	 *
-	 * Idempotent; safe to call on every create and restore path.
+	 * Idempotent; safe to call on every create and restore path, and does not
+	 * modify catalogue entries.
 	 */
 	registerStaticChangesets(session: ProtocolURI): void;
 
@@ -125,9 +133,8 @@ export interface IAgentHostChangesetService {
 	 * persisted restore and should only be used on real restore/subscribe
 	 * paths that need a subscribable changeset snapshot.
 	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state).
+	 * Honours `seedIfEmpty`: a completed live result, including an empty
+	 * one, takes precedence over persisted diffs.
 	 */
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
 
@@ -224,6 +231,8 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
+	 * A subscription starts this computation without waiting for the result;
+	 * the snapshot has `Computing` or `Recomputing` status until publication.
 	 * Per-turn changesets are not persisted.
 	 */
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;

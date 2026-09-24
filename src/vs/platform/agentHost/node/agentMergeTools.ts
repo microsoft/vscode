@@ -12,14 +12,18 @@ import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentMergeCIEvidence, AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciEvidenceMetadata, ciFailureExcerpt, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from './agentMergeCIEvidence.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
 export interface IAgentMergeTurnContext {
 	readonly session: string;
+	readonly chat: string;
+	readonly folderKey: string;
 	readonly turnId: string;
 	readonly ref: PullRequestRef;
 	readonly headSha: string;
@@ -43,10 +47,11 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	constructor(
 		private readonly _isFeatureEnabled: () => boolean,
-		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
-		private readonly _setEnabled: (session: string, enabled: boolean, overrides?: AgentMergeSessionOverrides) => Promise<void>,
+		private readonly _getTurnContext: (chat: string) => IAgentMergeTurnContext | undefined,
+		private readonly _setEnabled: (chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides) => Promise<void>,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
@@ -57,14 +62,16 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		return this._isFeatureEnabled();
 	}
 
-	async setEnabled(session: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string> {
-		await this._setEnabled(session, enabled, overrides);
-		const updated = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(session));
+	async setEnabled(chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string> {
+		await this._setEnabled(chat, enabled, overrides);
+		const folder = resolveGitHubStateFolder(this._stateManager, chat);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
+		const updated = folder.folderKey === undefined ? undefined : readAgentMergeFolderState(this._configurationService.getSessionConfigValues(folder.sessionUri), folder.folderKey, sessionFolderKey);
 		if (!updated) {
 			throw new Error('Agent Merge configuration is unavailable after the update.');
 		}
 		const configuration = getAgentMergeConfiguration(this._configurationService, updated.overrides);
-		this._logService.info(`[AgentMergeTools] Updated session configuration: session=${session}, enabled=${updated.enabled}, mergePullRequest=${configuration.mergePullRequest}`);
+		this._logService.info(`[AgentMergeTools] Updated folder configuration: session=${folder.sessionUri}, folder=${folder.folderKey}, enabled=${updated.enabled}, mergePullRequest=${configuration.mergePullRequest}`);
 		return JSON.stringify({
 			enabled: updated.enabled,
 			configuration,
@@ -129,7 +136,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	private _assertCurrentCIContext(context: IAgentMergeTurnContext): void {
 		context.signal.throwIfAborted();
-		const current = this._requireTurnAction(context.session, 'fixCI');
+		const current = this._requireTurnAction(context.chat, 'fixCI');
 		if (ciScope(current) !== ciScope(context) || !current.configuration.fixCI) {
 			throw new Error('The CI diagnostic authorization changed during this read.');
 		}

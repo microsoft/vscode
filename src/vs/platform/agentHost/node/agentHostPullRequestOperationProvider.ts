@@ -19,7 +19,7 @@ import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } fr
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
@@ -181,8 +181,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const operations: ChangesetOperation[] = [];
 		if (status.draft) {
-			// Agent Merge follows the session folder's pull request.
-			const agentMergeRunning = resolveGitHubStateFolder(this._stateManager, ownerKey).isSessionFolder && this._isAgentMergeRunning(sessionKey);
+			const agentMergeRunning = this._isAgentMergeRunning(ownerKey);
 			const operationId = agentMergeRunning && status.agentMergeReadyForReview !== true
 				? AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE
 				: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY;
@@ -236,9 +235,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return operations;
 	}
 
-	private _isAgentMergeRunning(sessionKey: string): boolean {
+	private _isAgentMergeRunning(ownerKey: string): boolean {
+		const folder = resolveGitHubStateFolder(this._stateManager, ownerKey);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
 		return this._isAgentMergeEnabled()
-			&& readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
+			&& readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
 	}
 
 	/**

@@ -21,7 +21,7 @@ import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
+import { CHANGES_SUMMARY_METADATA_KEYS, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -1289,6 +1289,132 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createFolderCacheHarness(id: string, sessionDatabase: TestSessionDatabase, peerDatabase: TestSessionDatabase, diffPath: string) {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = AgentSession.uri('mock', id).toString();
+		const peer = buildChatUri(session, 'peer');
+		const peerWorkingDirectories = ['file:///shared'];
+		const scopeId = getWorkingDirectoryScopeId(peerWorkingDirectories);
+		const branchOwner = buildFolderChangesetOwnerUri(session, scopeId);
+		const branchChangeset = buildBranchChangesetUri(branchOwner);
+		const gitService = createNoopGitService();
+		let computeCount = 0;
+		gitService.computeSessionFileDiffs = async () => {
+			computeCount++;
+			const uri = URI.file(diffPath).toString();
+			return [{ after: { uri, content: { uri } }, diff: { added: 1, removed: 0 } }];
+		};
+		const sessionDataService = createSessionDataService(sessionDatabase);
+		const peerDataService = createSessionDataService(peerDatabase);
+		const service = disposables.add(new TestAgentHostChangesetService(
+			stateManager,
+			new NullLogService(),
+			{
+				...sessionDataService,
+				openDatabase: resource => resource.toString() === session
+					? sessionDataService.openDatabase(resource)
+					: peerDataService.openDatabase(resource),
+			},
+			gitService,
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: session,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///main'],
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		stateManager.addChat(session, peer, { workingDirectories: peerWorkingDirectories });
+		testGitStates.set(peer, { branchName: 'feature', baseBranchName: 'main' });
+		return {
+			branchChangeset,
+			computeCount: () => computeCount,
+			metadataKey: getScopedBranchChangesetMetadataKey(scopeId),
+			peer,
+			service,
+			session,
+			stateManager,
+		};
+	}
+
+	async function waitForBranchChangeset(stateManager: AgentHostStateManager, changeset: string): Promise<void> {
+		for (let i = 0; i < 500; i++) {
+			if (stateManager.getChangesetState(changeset)?.status === ChangesetStatus.Ready) {
+				return;
+			}
+			await timeout(1);
+		}
+		assert.fail(`changeset ${changeset} never reached Ready`);
+	}
+
+	test('persists the same folder scope independently in each containing session database', async () => {
+		const firstSessionDatabase = new TestSessionDatabase();
+		const secondSessionDatabase = new TestSessionDatabase();
+		const firstPeerDatabase = new TestSessionDatabase();
+		const secondPeerDatabase = new TestSessionDatabase();
+		const first = createFolderCacheHarness('folder-cache-first', firstSessionDatabase, firstPeerDatabase, '/shared/first.ts');
+		const second = createFolderCacheHarness('folder-cache-second', secondSessionDatabase, secondPeerDatabase, '/shared/second.ts');
+
+		first.service.registerStaticChangesets(first.peer);
+		second.service.registerStaticChangesets(second.peer);
+		first.service.refreshBranchChangeset(first.peer);
+		second.service.refreshBranchChangeset(second.peer);
+		await Promise.all([
+			waitForBranchChangeset(first.stateManager, first.branchChangeset),
+			waitForBranchChangeset(second.stateManager, second.branchChangeset),
+		]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sameMetadataKey: first.metadataKey === second.metadataKey,
+			first: JSON.parse((await firstSessionDatabase.getMetadata(first.metadataKey))!)[0].after.uri,
+			second: JSON.parse((await secondSessionDatabase.getMetadata(second.metadataKey))!)[0].after.uri,
+			firstPeer: await firstPeerDatabase.getMetadata(first.metadataKey),
+			secondPeer: await secondPeerDatabase.getMetadata(second.metadataKey),
+		}, {
+			sameMetadataKey: true,
+			first: URI.file('/shared/first.ts').toString(),
+			second: URI.file('/shared/second.ts').toString(),
+			firstPeer: undefined,
+			secondPeer: undefined,
+		});
+	});
+
+	test('restores one folder-scoped cache for every peer chat sharing that folder', async () => {
+		const sessionDatabase = new TestSessionDatabase();
+		const peerDatabase = new TestSessionDatabase();
+		const harness = createFolderCacheHarness('folder-cache-restore', sessionDatabase, peerDatabase, '/shared/recomputed.ts');
+		const cachedUri = URI.file('/shared/cached.ts').toString();
+		await sessionDatabase.setMetadata(harness.metadataKey, JSON.stringify([
+			{ after: { uri: cachedUri, content: { uri: cachedUri } }, diff: { added: 2, removed: 1 } },
+		]));
+		const secondPeer = buildChatUri(harness.session, 'second-peer');
+		harness.stateManager.addChat(harness.session, secondPeer, { workingDirectories: ['file:///shared'] });
+
+		harness.service.registerStaticChangesets(harness.peer);
+		harness.service.registerStaticChangesets(secondPeer);
+		await waitForBranchChangeset(harness.stateManager, harness.branchChangeset);
+
+		assert.deepStrictEqual({
+			computeCount: harness.computeCount(),
+			files: harness.stateManager.getChangesetState(harness.branchChangeset)?.files.map(file => file.id),
+			peerDatabaseCache: await peerDatabase.getMetadata(harness.metadataKey),
+		}, {
+			computeCount: 0,
+			files: [cachedUri],
+			peerDatabaseCache: undefined,
+		});
+	});
+
 	test('shares Branch Changes by session workspace scope independently of chat and base branch', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const branchComputes: string[] = [];
@@ -1464,14 +1590,17 @@ suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('marks a ready turn changeset as computing until recomputation completes', async () => {
+	test('marks a cached empty turn changeset as recomputing until recomputation completes', async () => {
+		const firstComputeGate = new DeferredPromise<void>();
 		const recomputeGate = new DeferredPromise<void>();
 		let computeCount = 0;
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
 		git.computeFileDiffsBetweenRefs = async () => {
 			computeCount++;
-			if (computeCount > 1) {
+			if (computeCount === 1) {
+				await firstComputeGate.p;
+			} else {
 				await recomputeGate.p;
 			}
 			return [];
@@ -1508,18 +1637,24 @@ suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///repo'],
 		});
-		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+		const turnUri = buildTurnChangesetUri(sessionStr, 'turn-1');
+		const firstCompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
+		const whileComputing = stateManager.getChangesetState(turnUri);
+		firstComputeGate.complete();
+		await firstCompute;
 
 		const recompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
-		const whileRecomputing = stateManager.getChangesetState(turnUri)?.status;
+		const whileRecomputing = stateManager.getChangesetState(turnUri);
 		recomputeGate.complete();
 		await recompute;
 
 		assert.deepStrictEqual({
 			whileRecomputing,
+			whileComputing,
 			afterRecompute: stateManager.getChangesetState(turnUri),
 		}, {
-			whileRecomputing: ChangesetStatus.Computing,
+			whileRecomputing: { status: ChangesetStatus.Recomputing, files: [] },
+			whileComputing: { status: ChangesetStatus.Computing, files: [] },
 			afterRecompute: {
 				status: ChangesetStatus.Ready,
 				files: [],
@@ -1529,11 +1664,11 @@ suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 });
 
 /**
- * Multi-root turn changeset aggregation (AC-2). A separate top-level suite so
+ * Multi-root changeset aggregation and recomputation. A separate top-level suite so
  * these run against the current service (the older `AgentHostChangesetService`
  * suite above is skipped pending an unrelated catalogue refresh).
  */
-suite('AgentHostChangesetService - multi-root turn changeset', () => {
+suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 	const disposables = new DisposableStore();
 	const sessionStr = AgentSession.uri('mock', 'session-mr').toString();
@@ -1655,6 +1790,95 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		}
 		return { svc, stateManager, log };
 	}
+
+	for (const kind of ['branch', 'uncommitted'] as const) {
+		for (const cached of [undefined, [], [gitDiff('/repo/cached.ts')]]) {
+			test(`${kind} refresh returns ${cached ? 'cached' : 'uncached'} ${cached?.length ? 'files' : 'empty files'} while computing`, async () => {
+				const gate = new DeferredPromise<void>();
+				const git = createNoopGitService();
+				git.computeSessionFileDiffs = async () => {
+					await gate.p;
+					return [];
+				};
+				const changesetUri = kind === 'branch'
+					? buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])))
+					: buildUncommittedChangesetUri(sessionStr);
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///repo'],
+					git,
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					subscriptions: kind === 'uncommitted' ? [changesetUri] : [],
+				});
+				stateManager.registerChangeset(changesetUri);
+				if (cached) {
+					stateManager.dispatchServerAction(changesetUri, {
+						type: ActionType.ChangesetContentChanged,
+						files: cached.map(edit => ({ id: edit.after!.uri, edit })),
+					});
+					stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+				}
+
+				let refresh: Promise<string> | undefined;
+				if (kind === 'branch') {
+					svc.refreshBranchChangeset(sessionStr);
+				} else {
+					refresh = svc.computeUncommittedChangeset(sessionStr);
+				}
+				const during = stateManager.getChangesetState(changesetUri);
+				gate.complete();
+				await refresh;
+				await waitForChangesetReady(stateManager, changesetUri);
+
+				assert.deepStrictEqual({
+					during: { status: during?.status, files: during?.files.map(file => file.id) },
+					after: stateManager.getChangesetState(changesetUri)?.status,
+				}, {
+					during: {
+						status: cached ? ChangesetStatus.Recomputing : ChangesetStatus.Computing,
+						files: cached?.map(edit => edit.after!.uri) ?? [],
+					},
+					after: ChangesetStatus.Ready,
+				});
+			});
+		}
+	}
+
+	test('persisted diffs do not overwrite a completed empty changeset', () => {
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
+		svc.restoreStaticChangeset(sessionStr, 'session', []);
+		svc.applyPersistedStaticChangesets(sessionStr, { session: [gitDiff('/repo/stale.ts')] });
+
+		assert.deepStrictEqual(stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)), {
+			status: ChangesetStatus.Ready,
+			files: [],
+		});
+	});
+
+	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+		svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/repo/cached.ts')]);
+		const error = { errorType: 'computeFailed', message: 'Previous refresh failed' };
+		stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Error, error });
+
+		svc.refreshBranchChangeset(sessionStr);
+		const during = stateManager.getChangesetState(changesetUri);
+		for (let i = 0; i < 500 && stateManager.getChangesetState(changesetUri)?.status !== ChangesetStatus.Error; i++) {
+			await timeout(1);
+		}
+
+		assert.deepStrictEqual({
+			during: { status: during?.status, error: during?.error },
+			after: stateManager.getChangesetState(changesetUri),
+		}, {
+			during: { status: ChangesetStatus.Recomputing, error: undefined },
+			after: {
+				status: ChangesetStatus.Error,
+				error,
+				files: [{ id: 'file:///repo/cached.ts', edit: gitDiff('/repo/cached.ts') }],
+			},
+		});
+	});
 
 	test('aggregates turn diffs across all folders of a multi-root session', async () => {
 		const git = createNoopGitService();
@@ -2560,6 +2784,29 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				live: { additions: 0, deletions: 0, files: 0 },
 				persisted: { additions: 0, deletions: 0, files: 0 },
 				listed: { additions: 0, deletions: 0, files: 0 },
+			});
+		});
+
+		test('a main branch refresh persists both legacy and folder-scoped caches', async () => {
+			const db = new TestSessionDatabase();
+			const git = createNoopGitService();
+			const diffs = [gitDiff('/wd/branch.ts', 3, 1)];
+			git.computeSessionFileDiffs = async () => diffs;
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
+			await timeout(0);
+
+			const scopedKey = getScopedBranchChangesetMetadataKey(getWorkingDirectoryScopeId(['file:///wd']));
+			assert.deepStrictEqual({
+				branch: JSON.parse((await db.getMetadata(META_CHANGESET_BRANCH))!),
+				legacy: JSON.parse((await db.getMetadata(META_LEGACY_DIFFS))!),
+				scoped: JSON.parse((await db.getMetadata(scopedKey))!),
+			}, {
+				branch: diffs,
+				legacy: diffs,
+				scoped: diffs,
 			});
 		});
 

@@ -142,8 +142,8 @@ export function createAgentServiceComposition(
 		const agentMergeTools = owned.add(instantiationService.createInstance(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
-			session => agentMergeController.getTurnContext(session),
-			(session, enabled, overrides) => agentMergeController.setEnabled(session, enabled, overrides),
+			chat => agentMergeController.getTurnContext(chat),
+			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };

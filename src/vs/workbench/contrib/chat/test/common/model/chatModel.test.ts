@@ -292,6 +292,47 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('retained terminal identity survives chat serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
+		const terminal = URI.parse('agenthost-terminal://shell/session/tool');
+		model.acceptResponseProgress(request, {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'terminal-full-output',
+			toolName: 'bash',
+			isComplete: true,
+			invocationMessage: 'Running command',
+			pastTenseMessage: 'Ran command',
+			toolSpecificData: {
+				kind: 'terminal',
+				language: 'shellscript',
+				commandLine: { original: 'build' },
+				terminalCommandUri: terminal,
+				terminalCommandOutput: { text: 'Saved to: /artifact/output.txt', truncated: true, fullOutputPreview: 'preview' },
+			},
+		});
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.ok(invocation?.kind === 'toolInvocationSerialized' && invocation.toolSpecificData?.kind === 'terminal');
+		const output = invocation.toolSpecificData.terminalCommandOutput;
+		assert.deepStrictEqual({
+			text: output?.text,
+			truncated: output?.truncated,
+			fullOutputPreview: output?.fullOutputPreview,
+			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
+		}, {
+			text: 'Saved to: /artifact/output.txt',
+			truncated: true,
+			fullOutputPreview: 'preview',
+			terminal: terminal.toString(),
+		});
+	});
+
 	test('voice progress is live-only response metadata', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';
@@ -1730,6 +1771,57 @@ suite('parseChatImport', () => {
 		};
 
 		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	test('rebuilds imported URIs without serialized cache state', () => {
+		const resource = URI.file('/workspace/example.ts');
+		const data = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [{
+					kind: 'workspaceEdit',
+					edits: [{
+						newResource: {
+							...resource.toJSON(),
+							external: 'file:///workspace/example.ts) [Details](command:test.chatImport',
+							fsPath: '/untrusted',
+							_sep: 1,
+						},
+					}],
+				}],
+			}],
+		};
+
+		const imported = parseChatImport(JSON.stringify(data));
+		const response = imported.requests[0].response?.[0];
+		if (!response || !hasKey(response, { kind: true }) || response.kind !== 'workspaceEdit') {
+			assert.fail('Expected a workspace edit');
+		}
+		const newResource = response.edits[0].newResource;
+		assert.deepStrictEqual({
+			uri: newResource?.toString(),
+			fsPath: newResource?.fsPath,
+		}, {
+			uri: resource.toString(),
+			fsPath: resource.fsPath,
+		});
+	});
+
+	test('rejects malformed imported URI components', () => {
+		const createData = (newResource: object) => ({
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				response: [{ kind: 'workspaceEdit', edits: [{ newResource }] }],
+			}],
+		});
+
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: 'file', path: 42 }))), /Invalid chat session data/);
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: '', path: '/workspace/example.ts' }))), /Scheme is missing/);
 	});
 
 	test('preserves unrelated isTrusted properties', () => {

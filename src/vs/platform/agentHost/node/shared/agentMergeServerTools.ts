@@ -19,11 +19,11 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: setAgentMergeEnabledToolName,
 		title: 'Configure Agent Merge',
-		description: 'Enable, disable, or configure Agent Merge for the current session when the user asks to start, stop, or configure Agent Merge, keep a pull request green, or merge it when ready. Not for one-off pull request inspection or repair. This does not change the global Agent Merge setting or GitHub auto-merge. Enablement and supplied options persist for this session. Only change options the user requests. Enabling monitoring alone does not enable automatic merging: for an explicit "merge when green" request, set mergePullRequest to "always", or "ifUnchanged" if the user wants to review agent-made changes first. Use the returned effective configuration when explaining what will happen. Initial enablement captures the current Git branch and returns target.branchName; autonomous work starts after the current turn ends. Calling again updates the configuration even when already enabled without changing the target; omitted options stay unchanged. The current tool-approval policy applies.',
+		description: 'Enable, disable, or configure Agent Merge for the current chat\'s folder when the user asks to start, stop, or configure Agent Merge, keep a pull request green, or merge it when ready. Not for one-off pull request inspection or repair. This does not change the global Agent Merge setting or GitHub auto-merge. Enablement and supplied options persist for this folder within the session; other folders are unchanged. Only change options the user requests. Enabling monitoring alone does not enable automatic merging: for an explicit "merge when green" request, set mergePullRequest to "always", or "ifUnchanged" if the user wants to review agent-made changes first. Use the returned effective configuration when explaining what will happen. Initial enablement captures the current Git branch and returns target.branchName; autonomous work starts after the current turn ends. Calling again updates the configuration even when already enabled without changing the target; omitted options stay unchanged. The current tool-approval policy applies.',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				enabled: { type: 'boolean', description: 'Whether Agent Merge should monitor and act on the pull request for this session. Pass true to update options while keeping it enabled.' },
+				enabled: { type: 'boolean', description: 'Whether Agent Merge should monitor and act on the pull request for this chat\'s folder. Pass true to update options while keeping it enabled.' },
 				addressReviews: { type: 'boolean', description: 'Whether to address new pull request review comments. Omit to preserve the current option.' },
 				fixCI: { type: 'boolean', description: 'Whether to fix failing CI checks. Omit to preserve the current option.' },
 				resolveConflicts: { type: 'boolean', description: 'Whether to resolve merge conflicts and update a behind branch. Omit to preserve the current option.' },
@@ -85,12 +85,13 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	},
 ];
 
+/** Agent Merge tool implementations, each invoked with the chat the tool call comes from. */
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
-	setEnabled(session: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string>;
-	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
-	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
-	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
+	setEnabled(chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string>;
+	readFailedCI(chat: string, request?: AgentMergeCIRequest): Promise<string>;
+	replyToReviewThread(chat: string, threadId: string, body: string, resolve: boolean): Promise<string>;
+	rerunFailedWorkflow(chat: string, runId: string, failedJobsOnly: boolean): Promise<string>;
 }
 
 export interface AgentMergeCIRequest {
@@ -159,6 +160,9 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
 			}
+			// The invoking chat: Agent Merge runs per folder, and a repair turn's
+			// authorization belongs only to the chat running it.
+			const chat = context.chatUri;
 			switch (toolName) {
 				case setAgentMergeEnabledToolName: {
 					const args = asRecord(rawArgs, toolName);
@@ -169,7 +173,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 					if (mergePullRequest !== undefined && !isAgentMergeMergePullRequest(mergePullRequest)) {
 						throw new Error(`Invalid ${toolName} input: mergePullRequest must be always, ifUnchanged, or never.`);
 					}
-					return accessor.setEnabled(context.sessionUri, requiredBoolean(args.enabled, 'enabled', toolName), {
+					return accessor.setEnabled(chat, requiredBoolean(args.enabled, 'enabled', toolName), {
 						...(args.addressReviews !== undefined ? { addressReviews: requiredBoolean(args.addressReviews, 'addressReviews', toolName) } : {}),
 						...(args.fixCI !== undefined ? { fixCI: requiredBoolean(args.fixCI, 'fixCI', toolName) } : {}),
 						...(args.resolveConflicts !== undefined ? { resolveConflicts: requiredBoolean(args.resolveConflicts, 'resolveConflicts', toolName) } : {}),
@@ -177,11 +181,11 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 					});
 				}
 				case readAgentMergeCIToolName:
-					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));
+					return accessor.readFailedCI(chat, parseAgentMergeCIRequest(rawArgs));
 				case replyToAgentMergeReviewThreadToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.replyToReviewThread(
-						context.sessionUri,
+						chat,
 						requiredString(args.threadId, 'threadId', toolName),
 						requiredString(args.body, 'body', toolName),
 						optionalBoolean(args.resolve, 'resolve', toolName) ?? true,
@@ -190,7 +194,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 				case rerunAgentMergeWorkflowToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.rerunFailedWorkflow(
-						context.sessionUri,
+						chat,
 						requiredString(args.runId, 'runId', toolName),
 						optionalBoolean(args.failedJobsOnly, 'failedJobsOnly', toolName) ?? true,
 					);
@@ -291,12 +295,12 @@ function getEnablementConfirmation(enabled: boolean, args: Record<string, unknow
 	}
 	if (changes.length === 0) {
 		return enabled
-			? localize('agentMerge.tool.enable.confirmationMessage', "Allow Agent Merge to monitor this session's pull request and work autonomously using its existing options, including merging if configured?")
-			: localize('agentMerge.tool.disable.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this session?");
+			? localize('agentMerge.tool.enable.confirmationMessage', "Allow Agent Merge to monitor the pull request for this chat's folder and work autonomously using its existing options, including merging if configured?")
+			: localize('agentMerge.tool.disable.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this chat's folder?");
 	}
 	const heading = enabled
-		? localize('agentMerge.tool.configure.confirmationMessage', "Allow Agent Merge to monitor this session's pull request and work autonomously with these option changes? Unspecified options stay unchanged.")
-		: localize('agentMerge.tool.configure.disabled.confirmationMessage', "Stop Agent Merge monitoring and autonomous work, and save these option changes for this session? Unspecified options stay unchanged.");
+		? localize('agentMerge.tool.configure.confirmationMessage', "Allow Agent Merge to monitor the pull request for this chat's folder and work autonomously with these option changes? Unspecified options stay unchanged.")
+		: localize('agentMerge.tool.configure.disabled.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this chat's folder, and save these option changes? Unspecified options stay unchanged.");
 	return [heading, '', ...changes.map(change => `- ${change}`)].join('\n');
 }
 

@@ -11,10 +11,11 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
@@ -35,7 +36,7 @@ suite('Agent Merge server tools', () => {
 	const sessionUri = 'copilot:/merge-session';
 	const workingDirectory = URI.file('/workspace');
 
-	function createHarness(enabled?: boolean) {
+	function createHarness(enabled?: boolean, getTurnContext?: ConstructorParameters<typeof AgentMergeTools>[1]) {
 		const logService = new NullLogService();
 		const stateManager = store.add(new AgentHostStateManager(logService));
 		const configurationService = store.add(new AgentConfigurationService(stateManager, logService));
@@ -56,7 +57,7 @@ suite('Agent Merge server tools', () => {
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			override async getCurrentBranchName(directory: URI): Promise<string | undefined> {
 				branchReads.push(directory);
-				return 'feature';
+				return directory.toString() === workingDirectory.toString() ? 'feature' : 'feature-tools';
 			}
 		}();
 		const gitHubService = new class extends mock<IGitHubService>() { }();
@@ -76,10 +77,11 @@ suite('Agent Merge server tools', () => {
 		));
 		const tools = store.add(new AgentMergeTools(
 			() => controller.isEnabled(),
-			session => controller.getTurnContext(session),
-			(session, enabled, overrides) => controller.setEnabled(session, enabled, overrides),
+			getTurnContext ?? (chat => controller.getTurnContext(chat)),
+			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
 			gitHubService,
 			logService,
+			stateManager,
 			configurationService,
 		));
 		const host = new AgentServerToolHost(stateManager, [createAgentMergeServerToolGroup(tools)]);
@@ -130,10 +132,11 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
-	test('documents session scope and autonomous effects without changing global or GitHub settings', () => {
+	test('documents folder scope and autonomous effects without changing global or GitHub settings', () => {
 		const description = createAgentMergeServerToolGroup().definitions.find(tool => tool.name === setAgentMergeEnabledToolName)!.description!;
 		assert.deepStrictEqual([
-			'current session',
+			'current chat\'s folder',
+			'other folders are unchanged',
 			'Not for one-off pull request inspection or repair',
 			'does not change the global Agent Merge setting or GitHub auto-merge',
 			'Enablement and supplied options persist',
@@ -145,7 +148,7 @@ suite('Agent Merge server tools', () => {
 			'captures the current Git branch and returns target.branchName',
 			'autonomous work starts after the current turn ends',
 			'without changing the target',
-		].map(clause => description.includes(clause)), Array(12).fill(true));
+		].map(clause => description.includes(clause)), Array(13).fill(true));
 	});
 
 	test('validates the required enablement boolean before changing session state', () => {
@@ -209,6 +212,7 @@ suite('Agent Merge server tools', () => {
 		let changes = 0;
 		store.add(configurationService.onDidSessionConfigChange(() => changes++));
 		const chat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, chat);
 		const enabled = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true });
 		const enabledValues = configurationService.getSessionConfigValues(sessionUri);
 		const target = readAgentMergeSessionState(enabledValues)?.target;
@@ -218,8 +222,9 @@ suite('Agent Merge server tools', () => {
 
 		assert.deepStrictEqual({
 			results: [enabled, repeated, disabled].map(result => JSON.parse(result)),
-			enabledValues,
-			disabledValues,
+			enabledAgentMerge: readAgentMergeSessionState(enabledValues),
+			disabledAgentMerge: readAgentMergeSessionState(disabledValues),
+			mode: disabledValues?.[SessionConfigKey.Mode],
 			branchReads,
 			changes,
 			rootEnabled: stateManager.rootState.config?.values[AgentMergeConfigKey.Enabled],
@@ -229,16 +234,9 @@ suite('Agent Merge server tools', () => {
 				{ enabled: true, configuration: { ...defaultAgentMergeConfiguration, ...overrides }, monitoring: 'waitingForPullRequest', target: { branchName: 'feature' } },
 				{ enabled: false, configuration: { ...defaultAgentMergeConfiguration, ...overrides }, monitoring: 'disabled' },
 			],
-			enabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides },
-				[SessionConfigKey.AgentMergeController]: { ...controllerState, target },
-				[SessionConfigKey.Mode]: 'plan',
-			},
-			disabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: false, overrides },
-				[SessionConfigKey.AgentMergeController]: { ...controllerState, target },
-				[SessionConfigKey.Mode]: 'plan',
-			},
+			enabledAgentMerge: { enabled: true, overrides, target },
+			disabledAgentMerge: { enabled: false, overrides },
+			mode: 'plan',
 			changes: 2,
 			branchReads: [workingDirectory],
 			rootEnabled: true,
@@ -246,7 +244,7 @@ suite('Agent Merge server tools', () => {
 	});
 
 	test('updates supplied options while already enabled without resetting the target or other options', async () => {
-		const { configurationService, gitService, branchReads, host } = createHarness(true);
+		const { stateManager, configurationService, gitService, branchReads, host } = createHarness(true);
 		gitService.getCurrentBranchName = async () => {
 			assert.fail('Updating configuration must preserve the captured target without reading Git again.');
 		};
@@ -260,6 +258,7 @@ suite('Agent Merge server tools', () => {
 		let changes = 0;
 		store.add(configurationService.onDidSessionConfigChange(() => changes++));
 		const chat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, chat);
 		const first = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, addressReviews: false, resolveConflicts: false, mergePullRequest: 'ifUnchanged' });
 		const second = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, fixCI: true, mergePullRequest: 'always' });
 		const repeated = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, fixCI: true, mergePullRequest: 'always' });
@@ -272,15 +271,16 @@ suite('Agent Merge server tools', () => {
 
 		assert.deepStrictEqual({
 			results: [first, second, repeated].map(result => JSON.parse(result)),
-			configuration: configurationService.getSessionConfigValues(sessionUri),
+			configuration: readAgentMergeSessionState(configurationService.getSessionConfigValues(sessionUri)),
 			rootMergePullRequest: configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.MergePullRequest),
 			changes,
 			branchReads,
 		}, {
 			results: [response(false, 'ifUnchanged'), response(true, 'always'), response(true, 'always')],
 			configuration: {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { addressReviews: false, fixCI: true, resolveConflicts: false, mergePullRequest: 'always' } },
-				[SessionConfigKey.AgentMergeController]: controller,
+				enabled: true,
+				overrides: { addressReviews: false, fixCI: true, resolveConflicts: false, mergePullRequest: 'always' },
+				...controller,
 			},
 			rootMergePullRequest: 'never',
 			changes: 2,
@@ -359,20 +359,29 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
-	for (const failure of ['missing branch', 'git error'] as const) {
-		test(`rejects ${failure} instead of enabling with a cached branch`, async () => {
-			const { stateManager, configurationService, gitService, tools } = createHarness(true);
-			stateManager.setSessionMeta(sessionUri, withSessionGitState(undefined, { branchName: 'stale-feature' }));
-			gitService.getCurrentBranchName = async () => {
-				if (failure === 'git error') {
-					throw new Error('Git failed');
+	for (const scope of ['session', 'peer'] as const) {
+		for (const failure of ['missing branch', 'git error'] as const) {
+			test(`rejects ${failure} in the ${scope} folder instead of enabling with a cached branch`, async () => {
+				const { stateManager, configurationService, gitService, tools } = createHarness(true);
+				const directory = scope === 'session' ? workingDirectory : URI.file('/other');
+				const chat = scope === 'session' ? buildDefaultChatUri(sessionUri) : buildChatUri(sessionUri, 'peer');
+				if (scope === 'peer') {
+					stateManager.addChat(sessionUri, chat, { workingDirectories: [directory.toString()] });
 				}
-				return undefined;
-			};
+				stateManager.setSessionMeta(sessionUri, withSessionGitState(undefined, { branchName: 'stale-feature' }));
+				const branchReads: URI[] = [];
+				gitService.getCurrentBranchName = async directory => {
+					branchReads.push(directory);
+					if (failure === 'git error') {
+						throw new Error('Git failed');
+					}
+					return undefined;
+				};
 
-			await assert.rejects(tools.setEnabled(sessionUri, true, { mergePullRequest: 'always' }), failure === 'git error' ? /Git failed/ : /current Git branch could not be determined/);
-			assert.deepStrictEqual(configurationService.getSessionConfigValues(sessionUri), {});
-		});
+				await assert.rejects(tools.setEnabled(chat, true, { mergePullRequest: 'always' }), failure === 'git error' ? /Git failed/ : /current Git branch could not be determined/);
+				assert.deepStrictEqual({ values: configurationService.getSessionConfigValues(sessionUri), branchReads: branchReads.map(directory => directory.toString()) }, { values: {}, branchReads: [directory.toString()] });
+			});
+		}
 	}
 
 	test('rejects enablement without a working directory before reading Git', async () => {
@@ -407,6 +416,86 @@ suite('Agent Merge server tools', () => {
 			assert.deepStrictEqual(harness.configurationService.getSessionConfigValues(sessionUri), values);
 		});
 	}
+
+	test('runs each tool for the chat that calls it', async () => {
+		const turnContextRequests: string[] = [];
+		const { stateManager, configurationService, host } = createHarness(true, chat => {
+			turnContextRequests.push(chat);
+			return undefined;
+		});
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peerChat, { workingDirectories: ['file:///other'] });
+
+		await host.executeTool(peerChat, setAgentMergeEnabledToolName, { enabled: true });
+		// No repair turn runs in the peer chat, so its repair tools are not authorized.
+		const repairs: [string, Record<string, unknown>][] = [
+			[readAgentMergeCIToolName, {}],
+			[replyToAgentMergeReviewThreadToolName, { threadId: 'thread', body: 'Done' }],
+			[rerunAgentMergeWorkflowToolName, { runId: '1' }],
+		];
+		for (const [toolName, args] of repairs) {
+			await assert.rejects(async () => host.executeTool(peerChat, toolName, args), /not authorized/);
+		}
+
+		assert.deepStrictEqual({
+			folders: configurationService.getSessionConfigValues(sessionUri)?.[SessionConfigKey.AgentMergeFolders],
+			turnContextRequests,
+		}, {
+			folders: { [getWorkingDirectoryKey('file:///other')]: { enabled: true, chat: peerChat } },
+			turnContextRequests: [peerChat, peerChat, peerChat],
+		});
+	});
+
+	test('keeps other folders and the enabling chat unchanged when updating options', async () => {
+		const { stateManager, configurationService, gitService, host } = createHarness(true);
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		const sameFolderChat = buildChatUri(sessionUri, 'same-folder');
+		const peerDirectory = URI.file('/other');
+		stateManager.addChat(sessionUri, peerChat, { workingDirectories: [peerDirectory.toString()] });
+		stateManager.addChat(sessionUri, sameFolderChat, { workingDirectories: [peerDirectory.toString()] });
+		await host.executeTool(buildDefaultChatUri(sessionUri), setAgentMergeEnabledToolName, { enabled: true, mergePullRequest: 'always' });
+		const peerResult = JSON.parse(await host.executeTool(peerChat, setAgentMergeEnabledToolName, { enabled: true, fixCI: false }));
+		const primaryKey = getWorkingDirectoryKey(workingDirectory.toString());
+		const peerKey = getWorkingDirectoryKey(peerDirectory.toString());
+		const primary = readAgentMergeFolderState(configurationService.getSessionConfigValues(sessionUri), primaryKey, primaryKey);
+		const peerTarget = readAgentMergeFolderState(configurationService.getSessionConfigValues(sessionUri), peerKey, primaryKey)?.target;
+		gitService.getCurrentBranchName = async () => {
+			assert.fail('Updating options must not read Git again.');
+		};
+		const updatedResult = JSON.parse(await host.executeTool(sameFolderChat, setAgentMergeEnabledToolName, { enabled: true, mergePullRequest: 'ifUnchanged' }));
+		const values = configurationService.getSessionConfigValues(sessionUri);
+
+		assert.deepStrictEqual({
+			peerResult,
+			updatedResult,
+			primary: readAgentMergeFolderState(values, primaryKey, primaryKey),
+			peer: readAgentMergeFolderState(values, peerKey, primaryKey),
+		}, {
+			peerResult: { enabled: true, configuration: { ...defaultAgentMergeConfiguration, fixCI: false }, monitoring: 'waitingForPullRequest', target: { branchName: 'feature-tools' } },
+			updatedResult: { enabled: true, configuration: { ...defaultAgentMergeConfiguration, fixCI: false, mergePullRequest: 'ifUnchanged' }, monitoring: 'waitingForPullRequest', target: { branchName: 'feature-tools' } },
+			primary,
+			peer: { enabled: true, chat: peerChat, overrides: { fixCI: false, mergePullRequest: 'ifUnchanged' }, target: peerTarget },
+		});
+	});
+
+	test('preserves the enabling chat when an option update first captures the branch', async () => {
+		const { stateManager, configurationService, host } = createHarness(true);
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		const sameFolderChat = buildChatUri(sessionUri, 'same-folder');
+		const peerDirectory = URI.file('/other').toString();
+		const folderKey = getWorkingDirectoryKey(peerDirectory);
+		stateManager.addChat(sessionUri, peerChat, { workingDirectories: [peerDirectory] });
+		stateManager.addChat(sessionUri, sameFolderChat, { workingDirectories: [peerDirectory] });
+		configurationService.updateSessionConfig(sessionUri, {
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, chat: peerChat } },
+		});
+		await host.executeTool(sameFolderChat, setAgentMergeEnabledToolName, { enabled: true, fixCI: false });
+
+		const folder = readAgentMergeFolderState(configurationService.getSessionConfigValues(sessionUri), folderKey, getWorkingDirectoryKey(workingDirectory.toString()));
+		assert.deepStrictEqual({ chat: folder?.chat, branch: folder?.target?.branchName, overrides: folder?.overrides }, {
+			chat: peerChat, branch: 'feature-tools', overrides: { fixCI: false },
+		});
+	});
 
 	test('rejects unavailable session configuration instead of reporting a successful update', async () => {
 		const { stateManager, configurationService, tools } = createHarness(true);
@@ -479,9 +568,9 @@ suite('Agent Merge server tools', () => {
 			unchanged: confirmation(true, 'ifUnchanged'),
 			disabled: confirmation(false, 'never'),
 		}, {
-			always: ['Allow Agent Merge to monitor this session\'s pull request and work autonomously with these option changes? Unspecified options stay unchanged.', '', ...options, '- Merge the pull request automatically when it is ready, including changes made by Agent Merge.'].join('\n'),
-			unchanged: ['Allow Agent Merge to monitor this session\'s pull request and work autonomously with these option changes? Unspecified options stay unchanged.', '', ...options, '- Merge the pull request automatically when it is ready, only if Agent Merge has not made changes.'].join('\n'),
-			disabled: ['Stop Agent Merge monitoring and autonomous work, and save these option changes for this session? Unspecified options stay unchanged.', '', ...options, '- Do not merge the pull request automatically.'].join('\n'),
+			always: ['Allow Agent Merge to monitor the pull request for this chat\'s folder and work autonomously with these option changes? Unspecified options stay unchanged.', '', ...options, '- Merge the pull request automatically when it is ready, including changes made by Agent Merge.'].join('\n'),
+			unchanged: ['Allow Agent Merge to monitor the pull request for this chat\'s folder and work autonomously with these option changes? Unspecified options stay unchanged.', '', ...options, '- Merge the pull request automatically when it is ready, only if Agent Merge has not made changes.'].join('\n'),
+			disabled: ['Stop Agent Merge monitoring and autonomous work for this chat\'s folder, and save these option changes? Unspecified options stay unchanged.', '', ...options, '- Do not merge the pull request automatically.'].join('\n'),
 		});
 	});
 
@@ -555,10 +644,10 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
-	test('resolves the owning session for a tool invoked from a peer chat', async () => {
+	test('passes the invoking peer chat to the tool', async () => {
 		const sessionUri = 'copilot:/merge-session';
 		const chatUri = buildChatUri(sessionUri, 'peer');
-		let receivedSession: string | undefined;
+		let receivedChat: string | undefined;
 		let receivedRequest: AgentMergeCIRequest | undefined;
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		stateManager.createSession({
@@ -573,8 +662,8 @@ suite('Agent Merge server tools', () => {
 			createAgentMergeServerToolGroup({
 				isEnabled: () => true,
 				setEnabled: async () => '',
-				readFailedCI: async (session, request) => {
-					receivedSession = session;
+				readFailedCI: async (chat, request) => {
+					receivedChat = chat;
 					receivedRequest = request;
 					return 'result';
 				},
@@ -585,8 +674,8 @@ suite('Agent Merge server tools', () => {
 
 		const result = await host.executeTool(chatUri, readAgentMergeCIToolName, { mode: 'search', evidenceId: 'job-evidence', query: 'failure' });
 
-		assert.deepStrictEqual({ result, receivedSession, receivedRequest }, {
-			result: 'result', receivedSession: sessionUri,
+		assert.deepStrictEqual({ result, receivedChat, receivedRequest }, {
+			result: 'result', receivedChat: chatUri,
 			receivedRequest: { mode: 'search', evidenceId: 'job-evidence', query: 'failure', startLine: 1, contextLines: undefined },
 		});
 		stateManager.dispose();

@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -107,6 +107,62 @@ suite('ChangesetSessionCoordinator', () => {
 		), /*strict*/ true));
 		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator, operationService, updateOperationsCalls };
+	}
+
+	for (const cancelled of [false, true]) {
+		test(`cold turn subscription ${cancelled ? 'does not refresh after cancellation' : 'refreshes once after restore'}`, async () => {
+			const { coordinator, stateManager, changesets } = createEnvironment();
+			const session = AgentSession.uri('mock', 'cold-turn').toString();
+			const turn = buildTurnChangesetUri(buildDefaultChatUri(session), 'turn-1');
+			stateManager.registerChangeset(turn);
+			coordinator.onFirstSubscriber(URI.parse(turn));
+			if (cancelled) {
+				coordinator.onLastSubscriber(URI.parse(turn));
+			}
+
+			let restores = 0;
+			const restore = async () => {
+				restores++;
+				createSession(stateManager, session, 'file:///repo');
+			};
+			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(turn), restore);
+			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(turn), restore);
+
+			assert.deepStrictEqual({ restores, turnRefreshes: changesets.turnRefreshes }, {
+				restores: 1,
+				turnRefreshes: cancelled ? [] : [turn],
+			});
+		});
+	}
+
+	for (const kind of ['branch', 'uncommitted'] as const) {
+		test(`cold ${kind} subscription refreshes once after restore`, async () => {
+			const { coordinator, stateManager, changesets, monitor } = createEnvironment();
+			const session = AgentSession.uri('mock', 'cold-static').toString();
+			const owner = kind === 'branch' ? buildBranchChangesetOwner(session, ['file:///repo'])
+				: buildDefaultChatUri(session);
+			const resource = kind === 'branch' ? buildBranchChangesetUri(owner)
+				: buildUncommittedChangesetUri(owner);
+			coordinator.onFirstSubscriber(URI.parse(resource));
+			const refreshes = kind === 'branch' ? changesets.branchRefreshes
+				: changesets.uncommittedRefreshes;
+			const before = refreshes.length;
+
+			let restores = 0;
+			const restore = async () => {
+				restores++;
+				createSession(stateManager, session, 'file:///repo');
+			};
+			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(resource), restore);
+			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(resource), restore);
+			await monitor.waitForAcquisitions(1);
+
+			assert.deepStrictEqual({ restores, refreshes: refreshes.slice(before), monitored: monitor.acquisitions }, {
+				restores: 1,
+				refreshes: [owner],
+				monitored: ['file:///repo'],
+			});
+		});
 	}
 
 	for (const isolation of ['folder', 'worktree', undefined]) {
@@ -419,7 +475,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const { coordinator, stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'ready-catalog').toString();
 		const defaultChat = buildDefaultChatUri(session);
-		createSession(stateManager, session);
+		createSession(stateManager, session, 'file:///repo');
 		const baseline = changesets.catalogRefreshes.length;
 
 		coordinator.onSessionReady(session);
@@ -431,7 +487,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const { stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'agent-merge-catalog').toString();
 		const defaultChat = buildDefaultChatUri(session);
-		createSession(stateManager, session);
+		createSession(stateManager, session, 'file:///repo');
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
 
 		stateManager.dispatchServerAction(session, {
@@ -1321,6 +1377,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly branchRefreshes: string[] = [];
 	readonly catalogRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
+	readonly turnRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
@@ -1375,7 +1432,11 @@ class TestChangesetService implements IAgentHostChangesetService {
 		}
 		return `${session}/changeset/uncommitted`;
 	}
-	async computeTurnChangeset(session: string, turnId: string): Promise<string> { return `${session}/changeset/turn/${turnId}`; }
+	async computeTurnChangeset(session: string, turnId: string): Promise<string> {
+		const resource = buildTurnChangesetUri(session, turnId);
+		this.turnRefreshes.push(resource);
+		return resource;
+	}
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> { return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
@@ -1387,6 +1448,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	clearRefreshes(): void {
 		this.branchRefreshes.length = 0;
 		this.uncommittedRefreshes.length = 0;
+		this.turnRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
 		this.recomputed.length = 0;
 	}

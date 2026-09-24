@@ -13,12 +13,13 @@ import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMar
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
-import { URI, UriDto } from '../../../../../base/common/uri.js';
+import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -2421,7 +2422,16 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 }
 
 export function parseChatImport(content: string): IExportableChatData {
-	const data: unknown = revive(JSON.parse(content));
+	const data: unknown = revive(JSON.parse(content, (_key: string, value: unknown) => {
+		if (value && typeof value === 'object' && '$mid' in value && value.$mid === MarshalledId.Uri) {
+			if (!isUriComponents(value)) {
+				throw new Error('Invalid chat session data');
+			}
+			// URI.revive trusts serialized external and fsPath caches.
+			return URI.from(value, true).toJSON();
+		}
+		return value;
+	}));
 	if (!isExportableSessionData(data)) {
 		throw new Error('Invalid chat session data');
 	}
@@ -3666,10 +3676,15 @@ export namespace ChatResponseResource {
 	export const scheme = Schemas.vscodeChatResponseResource;
 
 	export function createUri(sessionResource: URI, toolCallId: string, index: number, basename?: string): URI {
+		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
+	}
+
+	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: encodeHex(VSBuffer.fromString(sessionResource.toString())),
-			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path,
+			query,
 		});
 	}
 
@@ -3688,22 +3703,23 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		let sessionResource: URI;
+		return {
+			sessionResource: parseSessionResource(uri),
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
+
+	function parseSessionResource(uri: URI): URI {
 		try {
-			sessionResource = URI.parse(decodeHex(uri.authority).toString());
+			return URI.parse(decodeHex(uri.authority).toString());
 		} catch (e) {
 			if (e instanceof SyntaxError) { // pre-1.108 local session ID
-				sessionResource = LocalChatSessionUri.forSession(uri.authority);
+				return LocalChatSessionUri.forSession(uri.authority);
 			} else {
 				throw e;
 			}
 		}
-
-		return {
-			sessionResource,
-			toolCallId: toolCallId,
-			index: Number(index),
-		};
 	}
 }
 
