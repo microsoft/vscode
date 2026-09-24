@@ -43,7 +43,7 @@ interface FindFixtureOptions extends ComponentFixtureContext {
 	matchesPosition?: number;
 }
 
-async function renderFindWidget(options: FindFixtureOptions): Promise<void> {
+function renderFindWidget(options: FindFixtureOptions): void {
 	const { container, disposableStore, theme } = options;
 	container.style.width = '600px';
 	container.style.height = '350px';
@@ -114,9 +114,6 @@ async function renderFindWidget(options: FindFixtureOptions): Promise<void> {
 		isReplaceRevealed: options.showReplace ?? false,
 		replaceString: options.replaceString ?? '',
 	}, false);
-
-	// Wait for the CSS transition (top: -64px → 0, 200ms linear)
-	await new Promise(resolve => setTimeout(resolve, 300));
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
