@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { shouldRetainCodexCommandOutput } from '../../../node/codex/codexTerminalOutput.js';
+import { ToolResultContentType } from '../../../common/state/sessionState.js';
+import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from '../../../node/codex/codexTerminalOutput.js';
 import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
 
 suite('shouldRetainCodexCommandOutput', () => {
@@ -17,5 +18,21 @@ suite('shouldRetainCodexCommandOutput', () => {
 			shouldRetainCodexCommandOutput('x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)),
 			shouldRetainCodexCommandOutput('x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES + 1)),
 		], [false, true]);
+	});
+
+	test('builds a compact preview from the beginning of retained output', () => {
+		const output = `BEGIN\n${'x'.repeat(200)}\nMIDDLE\nEND\n`;
+		const preview = `BEGIN\n${'x'.repeat(80)}…\nMIDDLE\n…`;
+
+		assert.deepStrictEqual(codexRetainedCommandOutputContent('agenthost-terminal://shell/retained', output, 0), [
+			{ type: ToolResultContentType.Text, text: preview },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/retained',
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, preview, truncated: true },
+			},
+		]);
 	});
 });
