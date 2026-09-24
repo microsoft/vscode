@@ -38,13 +38,6 @@ Linux/Windows archives and server/CLI targets do not install shortcuts; Snap ret
 existing direct-launch coverage. `--no-detection` remains download-only and skips these checks.
 Run installed-target tests only on disposable sanity hosts, not a workstation with VS Code installed.
 
-The metadata helper tests are safe to run without downloading builds or installing applications:
-
-```powershell
-npm run compile --prefix test\sanity
-node test\sanity\node_modules\mocha\bin\mocha.js test\sanity\out\launchers.test.js
-```
-
 ### Command-Line Options
 
 |Option|Alias|Description|
