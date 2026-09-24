@@ -753,6 +753,38 @@ suite('HoverService', () => {
 	});
 
 	suite('setupManagedHover', () => {
+		test('updates a pinned hover without losing its content or focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, (_options, focus) => ({
+				persistence: { sticky: focus },
+			})));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Initial'));
+			hover.show(true);
+			await timeout(0);
+			await hover.update('Updated');
+			const element = fixture.querySelector<HTMLElement>('.monaco-hover');
+			assert.deepStrictEqual({
+				text: element?.textContent,
+				focused: !!element?.contains(document.activeElement),
+			}, { text: 'Updated', focused: true });
+		}));
+
+		test('forwards onDidShow only for a displayed managed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const calls: string[] = [];
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Promo', {
+				onDidShow: () => calls.push('show'),
+			}));
+			const blocker = showHover('Locked', undefined, { persistence: { sticky: true } });
+			hover.show();
+			await timeout(0);
+			const blocked = [...calls];
+			blocker.dispose();
+			hover.show();
+			await timeout(0);
+			hover.hide();
+			assert.deepStrictEqual({ blocked, calls }, { blocked: [], calls: ['show'] });
+		}));
+
 		test('should use native title attribute when showNativeHover is true', () => {
 			const target = createTarget();
 			const hover = hoverService.setupManagedHover(

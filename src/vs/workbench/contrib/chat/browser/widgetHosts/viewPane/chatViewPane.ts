@@ -1228,6 +1228,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Model Management
 
+	/** Waits for the initial Chat session to finish restoring. */
+	async whenSessionRestored(): Promise<void> {
+		await this.restoringSession;
+	}
+
 	private applyModel(): void {
 		// Make the initial session resolution cancelable so an explicit request
 		// (e.g. New Local Chat via `startNewLocalSession`) can preempt a slow /
