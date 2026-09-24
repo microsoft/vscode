@@ -567,7 +567,8 @@ function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | und
 	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
-	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
+	// Recorded links carry no folder, so only the session folder adopts them; other folders report only their own associations.
+	const { pullRequests: recordedPullRequests, issues: recordedIssues } = isSessionFolder ? partitionSessionArtifacts(meta) : { pullRequests: [], issues: [] };
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
 		.map(url => ({ url }));
 

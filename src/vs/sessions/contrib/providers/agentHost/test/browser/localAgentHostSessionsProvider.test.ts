@@ -51,7 +51,8 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -6737,6 +6738,99 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				sessionRepository: 'API',
 				peerRepository: undefined,
+			});
+		});
+
+		function recordedGitHubReferences(meta: SessionState['_meta']): SessionState['_meta'] {
+			return withSessionArtifacts(meta, [
+				{ id: 'recorded-pr', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true },
+				{ id: 'recorded-issue', type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: true, link: 'https://github.com/microsoft/vscode/issues/3', isGitHub: true },
+			]);
+		}
+
+		function describeFolderGitHubInfo(chat: IChat | undefined) {
+			return chat?.workspace.get()?.folders.map(folder => {
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+				return {
+					activePullRequest: gitHubInfo?.pullRequest?.number,
+					// What a chat row in the sessions list reads for its pull request status icon.
+					pullRequests: getGitHubPullRequestRefs(gitHubInfo).map(ref => [ref.number, ref.recordedReferenceId]),
+					issues: gitHubInfo?.issues?.map(ref => [ref.number, ref.recordedReferenceId]),
+				};
+			});
+		}
+
+		function createProviderWithPullRequestModels() {
+			const gitHubService = new class extends mock<IGitHubService>() {
+				private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+				override createPullRequestModelReference = () => new ImmortalReference(this._model);
+			}();
+			return createProvider(disposables, agentHost, undefined, { gitHubService });
+		}
+
+		test('adopts recorded pull requests only in the session folder of a multi-folder session', () => {
+			const provider = createProviderWithPullRequestModels();
+			const sessionDirectory = URI.file('/work/vscode');
+			const worktreeDirectory = URI.file('/work/vscode.worktrees/feature');
+			const session = setupMultiChatSession(provider, 'multi-recorded-prs', [sessionDirectory, worktreeDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-recorded-prs').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			// The worktree's own branch has no pull request.
+			let meta: SessionState['_meta'] = {
+				githubData: {
+					[sessionDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
+					[worktreeDirectory.toString()]: { owner: 'microsoft', repo: 'vscode' },
+				},
+			};
+			meta = withWorkingDirectoryKey(meta, sessionDirectory.toString(), sessionDirectory.toString());
+			meta = withWorkingDirectoryKey(meta, worktreeDirectory.toString(), worktreeDirectory.toString());
+
+			agentHost.setSessionState('multi-recorded-prs', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [sessionDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [worktreeDirectory.toString()]),
+			], { defaultChat, meta: recordedGitHubReferences(meta) }));
+
+			const mainChat = session.mainChat.get();
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.deepStrictEqual({
+				mainChat: describeFolderGitHubInfo(mainChat),
+				peerChat: describeFolderGitHubInfo(peer),
+				// The session folder's chat keeps the recorded pull request in its pill.
+				mainChatPill: getSessionGitHubReferences(session, undefined, mainChat).pullRequests.map(ref => [ref.number, ref.recordedReferenceId]),
+				sessionArtifacts: session.artifacts?.get().map(artifact => artifact.id),
+			}, {
+				mainChat: [{ activePullRequest: 2, pullRequests: [[2, 'recorded-pr'], [1, undefined]], issues: [[3, 'recorded-issue']] }],
+				peerChat: [{ activePullRequest: undefined, pullRequests: [], issues: undefined }],
+				mainChatPill: [[2, 'recorded-pr'], [1, undefined]],
+				sessionArtifacts: ['recorded-issue', 'recorded-pr'],
+			});
+		});
+
+		test('adopts recorded pull requests in every chat of a single-folder session', () => {
+			const provider = createProviderWithPullRequestModels();
+			const sessionDirectory = URI.file('/work/vscode');
+			const session = setupMultiChatSession(provider, 'single-folder-recorded-prs', [sessionDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'single-folder-recorded-prs').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const meta = withWorkingDirectoryKey({
+				githubData: { [sessionDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] } },
+			}, sessionDirectory.toString(), sessionDirectory.toString());
+
+			agentHost.setSessionState('single-folder-recorded-prs', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [sessionDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [sessionDirectory.toString()]),
+			], { defaultChat, meta: recordedGitHubReferences(meta) }));
+
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			const expected = [{ activePullRequest: 2, pullRequests: [[2, 'recorded-pr'], [1, undefined]], issues: [[3, 'recorded-issue']] }];
+			assert.deepStrictEqual({
+				session: describeFolderGitHubInfo(session.mainChat.get()),
+				peerChat: describeFolderGitHubInfo(peer),
+			}, {
+				session: expected,
+				peerChat: expected,
 			});
 		});
 
