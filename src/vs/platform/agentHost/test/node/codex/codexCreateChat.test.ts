@@ -25,14 +25,17 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { SessionServerToolName } from '../../../common/serverToolNames.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../../common/serverToolNames.js';
+import { readSessionArtifacts } from '../../../common/sessionArtifacts.js';
+import { AgentServerToolHost } from '../../../node/shared/agentServerToolHost.js';
+import { createArtifactServerToolGroup } from '../../../node/shared/artifactServerTools.js';
 import { sessionServerToolDefinitions } from '../../../node/shared/sessionServerTools.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
@@ -72,7 +75,7 @@ interface ITestWireRequest {
 		readonly beforeTurnId?: string;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
-		readonly dynamicTools?: readonly { readonly name: string }[];
+		readonly dynamicTools?: readonly { readonly name: string; readonly deferLoading?: boolean }[];
 	};
 }
 
@@ -237,7 +240,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	agent['_refreshSkillHookCustomizations'] = async () => { };
-	agent['_refreshSkillExtraRoots'] = async () => { };
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
 	return agent;
@@ -2078,9 +2080,8 @@ suite('CodexAgent createChat', () => {
 			assert.strictEqual(turn.method, 'turn/start');
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
 			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
-			assert.deepStrictEqual(turn.params.additionalContext, {
-				'vscode.agentHost': { kind: 'application', value: 'Rename with exact casing' },
-			});
+			assert.deepStrictEqual(turn.params.additionalContext?.['vscode.agentHost'], { kind: 'application', value: 'Rename with exact casing' });
+			assert.ok(turn.params.additionalContext?.['vscode.clientSkills']?.value.includes('No client skills are currently available.'));
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 		} finally {
@@ -3234,6 +3235,75 @@ suite('CodexAgent exact chat routing', () => {
 		});
 	});
 
+	test('keeps artifact tools eager when native search support is unknown and executes dynamic tool calls', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionUri = AgentSession.uri('codex', 'artifact-tools');
+		const chat = URI.parse(buildDefaultChatUri(sessionUri));
+		const folder = URI.file('/repo/artifact-tools');
+		stateManager.createSession({
+			resource: sessionUri.toString(),
+			provider: 'codex',
+			title: 'Artifacts',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let enabled = true;
+		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
+			isEnabled: () => enabled,
+			persist: () => { },
+		})]));
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		await createSessionBackedChat(agent, chat, { configurationResource: sessionUri, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'artifact-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get('artifact-tools')!.materializePromise;
+
+		let requestId = 9000;
+		const call = async (tool: string, args: object = {}) => {
+			const response = readNextMessage(peer.outbound);
+			peer.push({
+				id: ++requestId,
+				method: 'item/tool/call',
+				params: { threadId: 'artifact-thread', turnId: 'turn', callId: `call-${requestId}`, namespace: null, tool, arguments: args },
+			});
+			return (await response).result;
+		};
+		const added = await call(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' }],
+		});
+		const id = readSessionArtifacts(stateManager.getSessionState(sessionUri.toString())?._meta)[0].id;
+		const listed = await call(ArtifactServerToolName.ListArtifactsAndReferences);
+		const removed = await call(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+		enabled = false;
+		const disabled = await call(ArtifactServerToolName.ListArtifactsAndReferences);
+
+		assert.deepStrictEqual({
+			deferrals: start.params.dynamicTools?.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			added,
+			listed,
+			removed,
+			disabledSuccess: disabled?.success,
+			remaining: readSessionArtifacts(stateManager.getSessionState(sessionUri.toString())?._meta),
+		}, {
+			deferrals: [
+				{ name: ArtifactServerToolName.AddArtifactOrReference, deferLoading: undefined },
+				{ name: ArtifactServerToolName.RemoveArtifactOrReference, deferLoading: undefined },
+				{ name: ArtifactServerToolName.ListArtifactsAndReferences, deferLoading: undefined },
+			],
+			added: { contentItems: [{ type: 'inputText', text: `Added artifact: ${id}` }], success: true },
+			listed: { contentItems: [{ type: 'inputText', text: `${id} (file, artifact) Report — file:///repo/report.md` }], success: true },
+			removed: { contentItems: [{ type: 'inputText', text: `Removed artifact: ${id}` }], success: true },
+			disabledSuccess: false,
+			remaining: [],
+		});
+	});
+
 	test('a peer chat\'s server-tool call uses its exact Agent Host chat channel', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[] = [];
@@ -3309,7 +3379,6 @@ suite('CodexAgent chat backing durability', () => {
 	function connect(agent: CodexAgent, peer: ITestPeer): void {
 		connectPeer(agent, peer);
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 	}
 
 	/**
@@ -3644,6 +3713,50 @@ suite('CodexAgent chat backing durability', () => {
 		} finally {
 			peer.dispose();
 		}
+	});
+
+	test('a late interrupted turn completion preserves the replacement turn identity', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		const session = AgentSession.uri('codex', 'cancel-replace-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/cancel-replace');
+		const threadId = 'cancel-replace-thread';
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await materializeSession(agent, peer, session, chat, folder, threadId);
+		const appTurn = { id: 'app-turn-1', items: [], itemsView: 'notLoaded', status: 'inProgress', error: null, startedAt: 1, completedAt: null, durationMs: null };
+		peer.push({ method: 'turn/started', params: { threadId, turn: appTurn } });
+		const interruptRequest = readNextRequest(peer.outbound);
+		const aborting = agent.chats.abort(chat, session);
+		const interrupt = await interruptRequest;
+		assert.strictEqual(interrupt.method, 'turn/interrupt');
+		// Codex acknowledges the interrupt before publishing turn/completed.
+		peer.push({ id: interrupt.id, result: {} });
+		await aborting;
+
+		const sending = agent.chats.sendMessage(chat, 'replacement', [folder], undefined, 'turn-2', undefined, undefined, session);
+		const replacement = await readNextRequest(peer.outbound);
+		assert.strictEqual(replacement.method, 'turn/start');
+		peer.push({ method: 'turn/completed', params: { threadId, turn: { ...appTurn, status: 'interrupted', completedAt: 2, durationMs: 1000 } } });
+		peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, id: 'app-turn-2' } } });
+		peer.push({ id: replacement.id, result: {} });
+		await sending;
+		peer.push({ method: 'turn/completed', params: { threadId, turn: { ...appTurn, id: 'app-turn-2', status: 'completed', completedAt: 3, durationMs: 1000 } } });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action'
+			&& (signal.action.type === ActionType.ChatTurnCancelled || signal.action.type === ActionType.ChatTurnComplete)
+			? [{ type: signal.action.type, turnId: signal.action.turnId }]
+			: []), [
+			{ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-2' },
+		]);
 	});
 
 	test('passive archive changes use one-off connections without activating Codex', async () => {

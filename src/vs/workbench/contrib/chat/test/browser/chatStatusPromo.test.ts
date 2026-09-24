@@ -30,7 +30,7 @@ import { StatusbarEntryItem } from '../../../../browser/parts/statusbar/statusba
 import { IView } from '../../../../common/views.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { ShowTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
+import { ToggleTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestChatWidgetService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
@@ -313,7 +313,7 @@ suite('ChatStatusPromo', () => {
 			const delegate = store.add(instantiation.createInstance(WorkbenchHoverDelegate, 'element', { dynamicDelay: () => 500 }, (_options, focus) => ({
 				persistence: { hideOnKeyDown: true, sticky: focus },
 			})));
-			const props = () => ({ name: 'Copilot', text: f.entry?.showPip ? '$(copilot-dot)' : '$(copilot)', ariaLabel: f.entry?.ariaLabel ?? 'Copilot', tooltip: f.entry?.tooltip, command: ShowTooltipCommand });
+			const props = () => ({ name: 'Copilot', text: f.entry?.showPip ? '$(copilot-dot)' : '$(copilot)', ariaLabel: f.entry?.ariaLabel ?? 'Copilot', tooltip: f.entry?.tooltip, command: ToggleTooltipCommand });
 			const item = store.add(instantiation.createInstance(StatusbarEntryItem, container, props(), delegate));
 			store.add(f.promo.onDidChange(() => item.update(props())));
 			item.labelContainer.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
@@ -346,6 +346,16 @@ suite('ChatStatusPromo', () => {
 				text: interaction === 'refresh' || interaction === 'pinnedRefresh' ? ' Updated offer' : ' Save 20%',
 				action: 'Try GPT-5', focused: interaction !== 'refresh', pip: false, dismissed: undefined, events: ['chatPromoWidgetShown'],
 			});
+			if (interaction !== 'refresh') {
+				item.labelContainer.click();
+				await timeout(0);
+				const hidden = !hover.getStickyHover(container);
+				item.labelContainer.click();
+				await timeout(0);
+				assert.deepStrictEqual({
+					hidden, reopened: !!hover.getStickyHover(container), dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+				}, { hidden: true, reopened: true, dismissed: undefined });
+			}
 			hover.hideHover(true);
 		}));
 	}

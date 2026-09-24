@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -26,8 +27,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -64,14 +65,6 @@ registerAction2(class CloseSessionAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		sessionsService.openNewSession();
 	}
-});
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.SessionsContrib,
-	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
 
 //  Open Session at Index (Ctrl/Cmd+1..9)
@@ -274,6 +267,15 @@ MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 });
 
 registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
+
+MenuRegistry.appendMenuItem(SessionSectionToolbarMenuId, {
+	submenu: Menus.SessionsViewExternalFilter,
+	title: localize2('configureExternalSessions', "Configure External Sessions"),
+	icon: Codicon.filter,
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
+});
 
 //  Sort / Group Actions
 
@@ -839,6 +841,15 @@ registerAction2(class PinSessionAction extends Action2 {
 			title: localize2('pinSession', "Pin"),
 			icon: Codicon.pin,
 			menu: [{
+				id: Menus.SessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					SessionsListPromoteNewChatActionContext.negate(),
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+				),
+			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -869,6 +880,15 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			title: localize2('unpinSession', "Unpin"),
 			icon: Codicon.pinned,
 			menu: [{
+				id: Menus.SessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					SessionsListPromoteNewChatActionContext.negate(),
+					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+				),
+			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -920,6 +940,37 @@ KeybindingsRegistry.registerKeybindingRule({
 	),
 	primary: KeyCode.Delete,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
+});
+
+registerAction2(class ImportSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.importSession',
+			title: localize2('importSession', "Import"),
+			icon: Codicon.chatImport,
+			precondition: ChatContextKeys.enabled,
+			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
+				id,
+				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_edit',
+				order: 1.5,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemCanImportContext, SessionIsArchivedContext.negate()),
+			})),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessions = getSessionActionTargets(accessor, context).filter(session =>
+			session.isExternal?.get() === true && session.capabilities.get().supportsImport && !session.isArchived.get());
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		for (const session of sessions) {
+			await sessionsManagementService.importSession(session);
+		}
+		if (sessions.length > 0) {
+			status(sessions.length === 1
+				? localize('sessionImported', "Imported {0}.", sessions[0].title.get())
+				: localize('sessionsImported', "Imported {0} sessions.", sessions.length));
+		}
+	}
 });
 
 abstract class BaseArchiveSessionAction extends Action2 {
@@ -1328,7 +1379,7 @@ function getSessionsArchiveActionConstructors(wording: ChatSessionArchiveActionW
 		];
 }
 
-class SessionsArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsArchiveActions';
 

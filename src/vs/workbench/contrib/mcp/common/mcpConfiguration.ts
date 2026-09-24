@@ -292,7 +292,7 @@ export const mcpServerSchema: IJSONSchema = {
 							},
 							headers: {
 								type: 'object',
-								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
+								description: localize('app.mcp.json.headers', "Additional headers sent to the server. These headers are not sent to a different origin, including across redirects."),
 								additionalProperties: { type: 'string' },
 							},
 							oauth: {

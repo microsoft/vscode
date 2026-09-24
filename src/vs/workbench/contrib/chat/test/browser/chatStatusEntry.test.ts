@@ -15,7 +15,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ToggleTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
@@ -23,6 +23,7 @@ import { ChatQuotaResumeState, ChatStatusBarEntry, computeQuotaResumeState } fro
 import { IChatStatusItemService } from '../../browser/chatStatus/chatStatusItemService.js';
 import { ChatStatusPromo } from '../../browser/chatStatus/chatStatusPromo.js';
 import { UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
+import { CHAT_SETUP_ACTION_ID } from '../../browser/actions/chatActions.js';
 
 type Quotas = IChatEntitlementService['quotas'];
 
@@ -265,6 +266,19 @@ suite('ChatStatusBarEntry', () => {
 		fixture.statusbar.visible = true;
 		fixture.visibility.fire({ id: 'chat.statusBarEntry', visible: true });
 		assert.deepStrictEqual(fixture.promoQueries, [false, true]);
+	});
+
+	test('toggles the dashboard while preserving the sign-in command', () => {
+		const signedIn = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: available } });
+		const signedOut = createEntry({ entitlement: ChatEntitlement.Unknown });
+
+		assert.deepStrictEqual({
+			signedIn: signedIn.statusbar.current?.command,
+			signedOut: signedOut.statusbar.current?.command,
+		}, {
+			signedIn: ToggleTooltipCommand,
+			signedOut: CHAT_SETUP_ACTION_ID,
+		});
 	});
 
 	test('renders the blocked quota state and persists it', () => {

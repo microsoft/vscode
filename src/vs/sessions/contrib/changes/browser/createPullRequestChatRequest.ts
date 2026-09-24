@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, effectiveChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
 
@@ -13,9 +13,12 @@ export class CreatePullRequestChatRequest {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) { }
 
-	async send(session: ISession, options: ISessionPullRequestChatOptions, creation: ISessionPullRequestCreation): Promise<void> {
+	/**
+	 * Sends the pull request creation request to `chat`, the chat whose changes
+	 * the pull request is created from; defaults to the session's main chat.
+	 */
+	async send(session: ISession, options: ISessionPullRequestChatOptions, creation: ISessionPullRequestCreation, chat: IChat = session.mainChat.get()): Promise<void> {
 		const request = await creation.prepareChatRequest(createPullRequestMessage(options), options);
-		const chat = session.mainChat.get();
 		if (effectiveChatInteractivity(session.isArchived.get() || chat.isArchived.get(), chat.interactivity.get()) !== ChatInteractivity.Full) {
 			throw new Error(localize('createPR.chat.readOnly', "Cannot send a pull request creation message to a read-only chat."));
 		}

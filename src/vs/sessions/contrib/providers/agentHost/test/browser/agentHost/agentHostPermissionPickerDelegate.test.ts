@@ -125,7 +125,6 @@ interface ITestRig {
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
-	readonly setAssistedPermissionsEnabled: (enabled: boolean) => void;
 	readonly setCustomTerminalToolEnabled: (enabled: boolean) => void;
 	readonly setManagedSandboxEnforced: (enforced: boolean) => void;
 	readonly setConnection: (connection: IAgentConnection | undefined) => void;
@@ -150,7 +149,6 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
-	let assistedPermissionsEnabled = true;
 	let customTerminalToolEnabled = false;
 	const configurationService = new class extends mock<IConfigurationService>() {
 		override readonly onDidChangeConfiguration = Event.None;
@@ -159,11 +157,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		override getValue<T>(overrides: IConfigurationOverrides): T;
 		override getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 		override getValue<T>(section?: string | IConfigurationOverrides): T {
-			return (section === ChatConfiguration.AssistedPermissionsEnabled
-				? assistedPermissionsEnabled
-				: section === AgentHostCustomTerminalToolEnabledSettingId
-					? customTerminalToolEnabled
-					: undefined) as T;
+			return (section === AgentHostCustomTerminalToolEnabledSettingId ? customTerminalToolEnabled : undefined) as T;
 		}
 	}();
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
@@ -202,7 +196,6 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		delegate,
 		provider,
 		activeSessionObs,
-		setAssistedPermissionsEnabled: enabled => assistedPermissionsEnabled = enabled,
 		setCustomTerminalToolEnabled: enabled => customTerminalToolEnabled = enabled,
 		setManagedSandboxEnforced: enforced => managedSandboxEnforced.set(enforced, undefined),
 		setConnection: value => {
@@ -657,9 +650,8 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('hides and rejects Assisted permissions when the setting is disabled', async () => {
-		const { delegate, provider, setAssistedPermissionsEnabled } = setup(store, makeActiveSession(), 'default');
-		setAssistedPermissionsEnabled(false);
+	test('offers and accepts Assisted permissions without an opt-in setting', async () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 
 		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
 
@@ -669,9 +661,10 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}, {
 			available: [
 				ChatPermissionLevel.Default,
+				ChatPermissionLevel.Assisted,
 				ChatPermissionLevel.AutoApprove,
 			],
-			setCalls: [],
+			setCalls: [[SESSION_ID, 'autoApprove', 'assisted']],
 		});
 	});
 

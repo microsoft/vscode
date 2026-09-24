@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -70,7 +70,7 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -421,10 +421,12 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 					if (isSessionPullRequestOperation(op)) {
 						const state = changesViewService.activeSessionStateObs.read(undefined);
 						const session = sessionsService.activeSession.read(undefined);
+						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
+						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
-							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation) : undefined,
+							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation, chat) : undefined,
 							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
 						}, options => {
 							if (!options.draft) {
@@ -692,6 +694,8 @@ export class ChangesViewPane extends ViewPane {
 	private changesProgressBar!: ProgressBar;
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
 	private renderedTreeState: { readonly sessionResource: URI; readonly viewMode: ChangesViewMode } | undefined;
+	/** Folder the rendered rows' relative paths were computed against. */
+	private renderedTreeFolder: URI | undefined;
 	private detailsViewStateTransfer: IChangesDetailsViewStateTransfer | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
 	private splitView: SplitView | undefined;
@@ -1103,6 +1107,8 @@ export class ChangesViewPane extends ViewPane {
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
+			const workspace = this.getActiveChangesetWorkspace(reader);
+			const folder = this.getTreeRootFolder(workspace);
 
 			if (!this.tree || activeSessionLoading) {
 				return;
@@ -1135,7 +1141,7 @@ export class ChangesViewPane extends ViewPane {
 
 			if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
-				const treeRootInfo = this.getTreeRootInfo(changes);
+				const treeRootInfo = this.getTreeRootInfo(changes, folder);
 				const treeChildren = buildTreeChildren(changes, treeRootInfo);
 				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, treeChildren);
 			} else {
@@ -1145,6 +1151,11 @@ export class ChangesViewPane extends ViewPane {
 					collapsible: false,
 				} satisfies IObjectTreeElement<ChangesTreeElement>));
 				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, listChildren);
+			}
+			// Rows kept across updates render file descriptions relative to the previous folder.
+			if (!isEqual(this.renderedTreeFolder, folder?.workingDirectory)) {
+				this.renderedTreeFolder = folder?.workingDirectory;
+				this.tree.rerender();
 			}
 
 			this.fireTreePaneSizeChange();
@@ -1383,14 +1394,20 @@ export class ChangesViewPane extends ViewPane {
 		return selection.filter(item => !!item && isChangesFileItem(item));
 	}
 
-	private getTreeRootInfo(items: readonly IChangesFileItem[]): IChangesTreeRootInfo | undefined {
-		if (items.length === 0) {
-			return undefined;
+	private getActiveChangesetWorkspace(reader: IReader | undefined): ISessionWorkspace | undefined {
+		const activeSession = this.sessionsService.activeSession.read(reader);
+		if (this.changesViewService.activeSessionChangesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
+			return activeSession?.workspace.read(reader);
 		}
+		return activeSession?.activeChat.read(reader).workspace.read(reader);
+	}
 
-		const activeSession = this.sessionsService.activeSession.get();
-		const folder = activeSession?.workspace.get()?.folders[0];
-		if (!folder) {
+	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
+		return workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
+	}
+
+	private getTreeRootInfo(items: readonly IChangesFileItem[], folder: ISessionFolder | undefined): IChangesTreeRootInfo | undefined {
+		if (items.length === 0 || !folder) {
 			return undefined;
 		}
 
@@ -1465,7 +1482,7 @@ export class ChangesViewPane extends ViewPane {
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items)));
+			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
 		} else {
 			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 		}
@@ -1544,8 +1561,7 @@ export class ChangesViewPane extends ViewPane {
 			[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, actionRunner,
 				() => {
 					// Pass in the tree root to be used to compute the label description
-					const activeSession = this.sessionsService.activeSession.get();
-					const folder = activeSession?.workspace.get()?.folders[0];
+					const folder = this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined));
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: folder?.workingDirectory;
@@ -2050,17 +2066,17 @@ class VersionsPickerAction extends Action2 {
 registerAction2(VersionsPickerAction);
 
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _summaryWidget: ChangesSummaryWidget | undefined;
+	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 
 	constructor(
 		action: MenuItemAction,
-		showSummary: boolean,
+		private readonly _showSummary: boolean,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IChangesViewService changesViewService: IChangesViewService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -2089,10 +2105,22 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._summaryWidget = showSummary ? this._register(instantiationService.createInstance(ChangesSummaryWidget)) : undefined;
+		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
+			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
+				return lastValue;
+			}
+
+			return changeset?.label;
+		});
+
+		this._summaryObs = this._showSummary
+			? changesViewService.activeSessionChangesSummaryObs
+			: undefined;
+
 		this._register(autorun(reader => {
-			changesViewService.activeSessionChangesetObs.read(reader);
-			this._summaryWidget?.summary.read(reader);
+			this._labelObs.read(reader);
+			this._summaryObs?.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -2103,18 +2131,19 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+
 		container.classList.add('changes-picker-action-rich');
-		container.classList.toggle('changes-picker-action-with-summary', this._summaryWidget !== undefined);
+		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		const label = this._labelObs.get();
+		if (!label) {
 			return null;
 		}
 
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, changeset.label)];
-		const summary = this._summaryWidget?.summary.get();
+		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label)];
+		const summary = this._summaryObs?.get();
 		if (summary) {
 			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));
 			const summaryElement = dom.$('span.changes-picker-summary', { 'aria-hidden': 'true' });
@@ -2131,20 +2160,21 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		chevron.setAttribute('aria-hidden', 'true');
 		contents.push(chevron);
 		dom.reset(element, ...contents);
+
 		return null;
 	}
 
 	protected override getTooltip(): string {
+		const label = this._labelObs.get();
 		const title = super.getTooltip() || this.action.label;
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		if (!label) {
 			return title;
 		}
 
-		const summary = this._summaryWidget?.summary.get();
+		const summary = this._summaryObs?.get();
 		return summary
-			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, changeset.label, getChangesSummaryLabel(summary))
-			: localize('changesView.picker.tooltip', "{0}: {1}", title, changeset.label);
+			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, label, getChangesSummaryLabel(summary))
+			: localize('changesView.picker.tooltip', "{0}: {1}", title, label);
 	}
 
 	protected override setAriaLabelAttributes(element: HTMLElement): void {

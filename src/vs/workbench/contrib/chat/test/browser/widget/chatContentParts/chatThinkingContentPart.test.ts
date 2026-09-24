@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { $ } from '../../../../../../../base/browser/dom.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -28,7 +30,7 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -150,6 +152,7 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.dispose();
 	});
 
@@ -192,7 +195,137 @@ suite('ChatThinkingContentPart', () => {
 			deleteComments: Codicon.comment,
 			resolveComments: Codicon.comment,
 			viewUnreviewedComments: Codicon.comment,
-			prefixedComment: Codicon.comment,
+			prefixedComment: Codicon.mcp,
+		});
+	});
+
+	test('uses the MCP icon instead of registered or inferred tool icons', () => {
+		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
+		assert.deepStrictEqual({
+			source: getToolInvocationIcon('read_file', undefined, undefined, source),
+			registered: getToolInvocationIcon('search', Codicon.tools, undefined, source),
+			problems: getToolInvocationIcon('get_errors', Codicon.error, 'No problems found', source),
+			agentHost: getToolInvocationIcon('mcp__reference__read', Codicon.book),
+		}, { source: Codicon.mcp, registered: Codicon.mcp, problems: Codicon.mcp, agentHost: Codicon.mcp });
+	});
+
+	suite('Persistent tool previews', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+		});
+
+		function createToolChain(complete = false) {
+			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true, isToolChain: true };
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(), context, mockMarkdownRenderer, complete));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		for (const verbosity of [undefined, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
+			test(`renders ${verbosity ?? 'default'} tool previews while running and after completion`, async () => {
+				await mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
+				const verbose = verbosity === ChatProgressVerbosity.Verbose;
+				assert.deepStrictEqual([false, true].map(complete => {
+					const part = createToolChain(complete);
+					return {
+						expanded: part.expanded.get(),
+						summary: !!part.domNode.querySelector(':scope > .chat-used-context-label'),
+						preview: part.domNode.classList.contains('chat-tool-chain-preview'),
+					};
+				}), [
+					{ expanded: true, summary: !verbose, preview: !verbose },
+					{ expanded: verbose, summary: !verbose, preview: false },
+				]);
+			});
+		}
+
+		test('only queries collapse animations after a preview has been expanded', () => {
+			const part = createToolChain(true);
+			const container = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation')!;
+			const getAnimations = sinon.stub(container, 'getAnimations').returns([]);
+
+			part.getPendingCollapseAnimation();
+			const beforeExpanding = getAnimations.callCount;
+			part.expandContent();
+			part.collapseContentWhenUnfocused();
+			part.getPendingCollapseAnimation();
+
+			assert.deepStrictEqual({ beforeExpanding, afterCollapsing: getAnimations.callCount }, { beforeExpanding: 0, afterCollapsing: 1 });
+		});
+
+		test('restores a generated summary without materializing its tools', async () => {
+			const part = createToolChain(true);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Read renderer', pastTenseMessage: 'Read renderer' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'read', undefined, {},
+			);
+			await tool.didExecuteTool(undefined);
+			tool.generatedTitle = 'Reviewed the progress renderer';
+			let materialized = 0;
+			part.appendItem(() => {
+				materialized++;
+				return { domNode: $('div', undefined, 'Read renderer') };
+			}, tool.toolId, tool);
+			part.finalizeTitleIfDefault();
+			const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+			assert.ok(button);
+			const restored = { expanded: button.ariaExpanded, title: button.textContent, materialized };
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			const expanded = { expanded: button.ariaExpanded, materialized };
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			assert.deepStrictEqual({
+				restored,
+				expanded,
+				collapsed: { expanded: button.ariaExpanded, materialized, label: button.ariaLabel },
+			}, {
+				restored: { expanded: 'false', title: 'Reviewed the progress renderer', materialized: 0 },
+				expanded: { expanded: 'true', materialized: 1 },
+				collapsed: { expanded: 'false', materialized: 1, label: 'Reviewed the progress renderer' },
+			});
+		});
+
+		test('waits for focus to leave the tool preview before collapsing', () => {
+			const part = createToolChain();
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Inspect renderer' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'read', undefined, {},
+			);
+			const action = $('button', undefined, 'Inspect renderer');
+			const secondAction = $('button', undefined, 'Inspect tests');
+			part.appendItem(() => ({ domNode: $('div', undefined, action, secondAction) }), tool.toolId, tool);
+			action.focus();
+			part.collapseContentWhenUnfocused();
+			part.finalizeTitleIfDefault();
+			part.markAsInactive();
+			const whileFocused = { expanded: part.expanded.get(), focused: mainWindow.document.activeElement === action };
+			action.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: secondAction }));
+			const movedWithin = part.expanded.get();
+			action.blur();
+			action.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+			assert.deepStrictEqual({
+				whileFocused,
+				movedWithin,
+				afterLeaving: part.expanded.get(),
+				inert: part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner')?.inert,
+			}, {
+				whileFocused: { expanded: true, focused: true },
+				movedWithin: true,
+				afterLeaving: false,
+				inert: true,
+			});
+		});
+
+		test('does not turn legacy thinking groups into persistent tool previews', () => {
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart('Reviewing the renderer'), createMockRenderContext(), mockMarkdownRenderer, false));
+			assert.deepStrictEqual({
+				toolChain: part.isToolChain,
+				preview: part.domNode.classList.contains('chat-tool-chain-preview'),
+				collapsibleToolChain: part.domNode.classList.contains('chat-tool-chain-collapsible'),
+			}, { toolChain: false, preview: false, collapsibleToolChain: false });
 		});
 	});
 
@@ -1247,6 +1380,309 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				title: 'Analyzing the request',
 				keepsLaterHeader: true,
+			});
+		});
+	});
+
+	suite('Persistent reasoning titles', () => {
+		function createPersistentReasoning(content: IChatThinkingPart, complete = false, markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+		}): ChatThinkingContentPart {
+			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true };
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, markdownRenderer, complete));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		function snapshot(part: ChatThinkingContentPart) {
+			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			return {
+				title: button?.textContent?.trim(),
+				ariaLabel: button?.ariaLabel,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-item p'), paragraph => paragraph.textContent?.trim()),
+			};
+		}
+
+		test('promotes a streamed single heading only after completion and removes its body duplicate', () => {
+			const part = createPersistentReasoning(createThinkingPart('**Evaluating code and'));
+			const initial = snapshot(part);
+			const wrapper = part.domNode.querySelector('.chat-thinking-collapsible');
+			const content = createThinkingPart('**Evaluating code and build processes**\n\nRead the build documentation.');
+			part.updateThinking(content);
+			const streaming = snapshot(part);
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+			const collapsedTitle = snapshot(part).title;
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+			part.finalizeTitleIfDefault();
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				initialTitle: initial.title,
+				streaming,
+				collapsedTitle,
+				completed: snapshot(part),
+				generatedTitle: content.generatedTitle,
+				sameWrapper: part.domNode.querySelector('.chat-thinking-collapsible') === wrapper,
+			}, {
+				initialTitle: 'Thinking',
+				streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code and build processes', 'Read the build documentation.'] },
+				collapsedTitle: 'Thinking',
+				completed: { title: 'Evaluating code and build processes', ariaLabel: 'Evaluating code and build processes', body: ['Read the build documentation.'] },
+				generatedTitle: 'Evaluating code and build processes',
+				sameWrapper: true,
+			});
+		});
+
+		test('a restored single heading replaces an old generated title and is not repeated on expansion', () => {
+			const content = createThinkingPart('**Evaluating code and build processes**\n\nRead the build documentation.');
+			content.generatedTitle = 'An older summary';
+			const part = createPersistentReasoning(content, true);
+			part.finalizeTitleIfDefault();
+			part.expandContent();
+
+			assert.deepStrictEqual(snapshot(part), {
+				title: 'Evaluating code and build processes',
+				ariaLabel: 'Evaluating code and build processes',
+				body: ['Read the build documentation.'],
+			});
+		});
+
+		test('preserves matching inline bold text when removing the promoted heading', () => {
+			const part = createPersistentReasoning(createThinkingPart('**Review** appears inline.\n\n**Review**\n\nCheck the renderer.'));
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual(snapshot(part), {
+				title: 'Review',
+				ariaLabel: 'Review',
+				body: ['Review appears inline.', 'Check the renderer.'],
+			});
+		});
+
+		test('preserves bold lines inside markdown code blocks', () => {
+			const part = createPersistentReasoning(createThinkingPart('Before the example.\n\n```markdown\n**Not a heading**\n```\n\nAfter the example.'));
+			assert.deepStrictEqual({
+				body: snapshot(part).body,
+				code: part.domNode.querySelector('[data-code]')?.textContent,
+			}, {
+				body: ['Before the example.', 'After the example.'],
+				code: '**Not a heading**',
+			});
+		});
+
+		for (const restored of [false, true]) {
+			for (const example of [
+				{ name: 'fenced code', value: 'Before the example.\n\n```markdown\n**Not a heading**\n```', code: '**Not a heading**', title: 'Existing summary' },
+				{ name: 'indented code', value: 'Before the example.\n\n    **Not a heading**', code: '**Not a heading**', title: 'Existing summary' },
+				{ name: 'multiple code lines', value: '```markdown\n**First example**\n\n**Second example**\n```', code: '**First example**\n\n**Second example**', title: 'Existing summary' },
+				{ name: 'matching real heading', value: '**Review**\n\n```markdown\n**Review**\n```', code: '**Review**', title: 'Review' },
+				{ name: 'reference definitions before a heading', value: '[reference]: https://example.invalid\n\n**Review**\n\n```markdown\n**Review**\n```', code: '**Review**', title: 'Review' },
+				{ name: 'CRLF content', value: '**Review**\r\n\r\n```markdown\r\n**Review**\r\n```', code: '**Review**', title: 'Review' },
+				{ name: 'quoted lazy continuation', value: '> Quoted introduction\n**Not a heading**', code: '', title: 'Existing summary' },
+			]) {
+				test(`preserves ${example.name} after reasoning completes (restored=${restored})`, () => {
+					const content = createThinkingPart(example.value);
+					content.generatedTitle = 'Existing summary';
+					const part = createPersistentReasoning(content, restored);
+					part.finalizeTitleIfDefault();
+					part.expandContent();
+
+					assert.deepStrictEqual({
+						title: snapshot(part).title,
+						code: Array.from(part.domNode.querySelectorAll('[data-code]'), element => element.textContent).join('\n'),
+						duplicateHeading: snapshot(part).body.includes(example.title),
+					}, { title: example.title, code: example.code, duplicateHeading: false });
+				});
+			}
+		}
+
+		test('reuses the single-heading wrapper and markdown targets while reasoning streams', () => {
+			const targets: Array<HTMLElement | undefined> = [];
+			const part = createPersistentReasoning(createThinkingPart('**Review**\n\nCheck the renderer.'), false, {
+				render: (markdown, options, target) => {
+					targets.push(target);
+					return renderMarkdown(markdown, options, target);
+				},
+			});
+			const wrapper = part.domNode.querySelector('.chat-thinking-item > div');
+			const sections = Array.from(wrapper?.children ?? []);
+			targets.length = 0;
+
+			part.updateThinking(createThinkingPart('**Review**\n\nCheck the renderer. Keep the wrapper stable.'));
+
+			assert.deepStrictEqual({
+				sameWrapper: part.domNode.querySelector('.chat-thinking-item > div') === wrapper,
+				reusedTargets: targets.map((target, index) => target === sections[index]),
+			}, { sameWrapper: true, reusedTargets: [true, true] });
+		});
+
+		test('preserves a focused heading link until focus moves into the body', () => {
+			const part = createPersistentReasoning(createThinkingPart('**Review `renderer.ts` and [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'));
+			const [headingLink, bodyLink] = part.domNode.querySelectorAll<HTMLAnchorElement>('.chat-thinking-item a');
+			assert.ok(headingLink && bodyLink);
+			headingLink.focus();
+			part.finalizeTitleIfDefault();
+			const whileFocused = { focused: mainWindow.document.activeElement === headingLink, connected: headingLink.isConnected };
+			bodyLink.focus();
+			headingLink.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: bodyLink }));
+			assert.deepStrictEqual({
+				whileFocused,
+				completed: snapshot(part),
+				headingRemoved: !headingLink.isConnected,
+				bodyFocusKept: mainWindow.document.activeElement === bodyLink,
+			}, {
+				whileFocused: { focused: true, connected: true },
+				completed: {
+					title: 'Review renderer.ts and tests',
+					ariaLabel: 'Review renderer.ts and tests',
+					body: ['Keep the build in view.'],
+				},
+				headingRemoved: true,
+				bodyFocusKept: true,
+			});
+		});
+
+		test('removes the owned header without relying on the markdown renderer markup', () => {
+			const part = createPersistentReasoning(createThinkingPart('**Review [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'), false, {
+				render: (markdown, options, target) => renderMarkdown(markdown, {
+					...options,
+					markedExtensions: [{
+						renderer: {
+							strong({ tokens }) {
+								return `<b>${this.parser.parseInline(tokens)}</b>`;
+							},
+						},
+					}],
+				}, target),
+			});
+			const [headingLink, bodyLink] = part.domNode.querySelectorAll<HTMLAnchorElement>('.chat-thinking-item a');
+			assert.ok(headingLink && bodyLink);
+			bodyLink.focus();
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({
+				completed: snapshot(part),
+				headingRemoved: !headingLink.isConnected,
+				bodyConnected: bodyLink.isConnected,
+				bodyFocusKept: mainWindow.document.activeElement === bodyLink,
+			}, {
+				completed: {
+					title: 'Review tests',
+					ariaLabel: 'Review tests',
+					body: ['Keep the build in view.'],
+				},
+				headingRemoved: true,
+				bodyConnected: true,
+				bodyFocusKept: true,
+			});
+		});
+
+		for (const complete of [false, true]) {
+			test(`keeps grouped reasoning while promoting its only heading (restored=${complete})`, () => {
+				const part = createPersistentReasoning(createThinkingPart('**Reviewing the implementation**\n\nCheck the renderer.', 'first'), complete);
+				part.setupThinkingContainer(createThinkingPart('Check the tests.', 'second'));
+				part.finalizeTitleIfDefault();
+				part.expandContent();
+				assert.deepStrictEqual(snapshot(part), {
+					title: 'Reviewing the implementation',
+					ariaLabel: 'Reviewing the implementation',
+					body: ['Check the renderer.', 'Check the tests.'],
+				});
+			});
+		}
+
+		test('a heading without a body becomes a non-expandable completed label', () => {
+			const part = createPersistentReasoning(createThinkingPart('**Reviewed the implementation**'));
+			part.finalizeTitleIfDefault();
+			part.expandContent();
+			assert.deepStrictEqual({
+				...snapshot(part),
+				expanded: part.domNode.querySelector('.monaco-button')?.getAttribute('aria-expanded'),
+			}, {
+				title: 'Reviewed the implementation',
+				ariaLabel: 'Reviewed the implementation',
+				body: [],
+				expanded: 'false',
+			});
+		});
+
+		for (const restoredTitle of ['none', 'content', 'cache'] as const) {
+			test(`summarizes every heading instead of promoting the first (restored title=${restoredTitle})`, async () => {
+				const title = new DeferredPromise<string>();
+				const prompts: string[] = [];
+				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
+				mockLanguageModelsService.sendChatRequest = async (_model, _extension, messages) => {
+					prompts.push(messages.flatMap(message => message.content.flatMap(part => part.type === 'text' ? [part.value] : [])).join('\n'));
+					return {
+						stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
+						result: Promise.resolve({}),
+					};
+				};
+				const content = createThinkingPart('**Evaluating `code`**\n\nCheck the renderer.');
+				if (restoredTitle === 'content') {
+					content.generatedTitle = 'Evaluating `code`';
+				}
+				if (restoredTitle === 'cache') {
+					const storageService = instantiationService.get(IStorageService);
+					const cacheKey = `${chatSessionResourceToId(createMockRenderContext().element.sessionResource)}:${content.id}`;
+					storageService.store('chat.thinkingTitleCache', JSON.stringify({
+						[cacheKey]: { title: 'Evaluating `code`', storedAt: Date.now() },
+					}), StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+				const part = createPersistentReasoning(content);
+				content.value += '\n\n**Reviewing build processes**\n\nCheck the build.';
+				part.updateThinking(content);
+				const streaming = snapshot(part);
+				part.finalizeTitleIfDefault();
+				await timeout(0);
+				const awaitingSummary = snapshot(part).title;
+				await title.complete('Reviewed code and build processes');
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					streaming,
+					awaitingSummary,
+					completed: snapshot(part),
+					promptCount: prompts.length,
+					usedEveryHeading: prompts[0]?.endsWith('Content: Evaluating code, Reviewing build processes'),
+					generatedTitle: content.generatedTitle,
+				}, {
+					streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
+					awaitingSummary: 'Thinking',
+					completed: { title: 'Reviewed code and build processes', ariaLabel: 'Reviewed code and build processes', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
+					promptCount: 1,
+					usedEveryHeading: true,
+					generatedTitle: 'Reviewed code and build processes',
+				});
+			});
+		}
+
+		test('restores a generated summary across separate thinking blocks without hiding any headings', () => {
+			const content = createThinkingPart('**Evaluating code**\n\nCheck the renderer.', 'first');
+			content.generatedTitle = 'Reviewed code and build processes';
+			const part = createPersistentReasoning(content, true);
+			part.setupThinkingContainer(createThinkingPart('**Reviewing build processes**\n\nCheck the build.', 'second'));
+			part.finalizeTitleIfDefault();
+			part.expandContent();
+			assert.deepStrictEqual(snapshot(part), {
+				title: 'Reviewed code and build processes',
+				ariaLabel: 'Reviewed code and build processes',
+				body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'],
+			});
+		});
+
+		test('respects disabled title generation without hiding multiple headings', () => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**'));
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({ ...snapshot(part), modelSelections }, {
+				title: 'Finished with 1 step',
+				ariaLabel: 'Finished with 1 step',
+				body: ['Evaluating code', 'Reviewing build processes'],
+				modelSelections: 0,
 			});
 		});
 	});
@@ -2858,7 +3294,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2915,7 +3351,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 
 			part.appendItem(
@@ -2923,7 +3359,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2959,7 +3395,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2993,7 +3429,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -3025,7 +3461,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 
-		test('opens each file from its first original to its last modified snapshot', () => {
+		test('opens consecutive edits of a file as one interval and unrelated edits separately', () => {
 			let opened: unknown;
 			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 				override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -3047,14 +3483,19 @@ suite('ChatThinkingContentPart', () => {
 			const firstAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const utilEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const lastAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, firstAppEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, utilEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, lastAppEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, { onDidChangeDiff: firstAppEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, { onDidChangeDiff: utilEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, { onDidChangeDiff: lastAppEdit.event, diffData: undefined });
 			part.finalizeTitleIfDefault();
 
-			lastAppEdit.fire(createDiffData(4, 1, 'app.ts', 'last'));
+			// The later app.ts edit starts from the snapshot the earlier one produced, so they chain even
+			// though they arrive out of order; util.ts has a single interval.
+			const chained = (added: number, removed: number, before: string, after: string): IChatContentPartDiffData => ({
+				added, removed, resources: [{ resource: URI.file('/workspace/app.ts'), originalURI: URI.file(`/snapshots/${before}/app.ts`), modifiedURI: URI.file(`/snapshots/${after}/app.ts`) }],
+			});
+			lastAppEdit.fire(chained(4, 1, 'b', 'c'));
 			utilEdit.fire(createDiffData(2, 3, 'util.ts', 'only'));
-			firstAppEdit.fire(createDiffData(5, 0, 'app.ts', 'first'));
+			firstAppEdit.fire(chained(5, 0, 'a', 'b'));
 
 			part.domNode.querySelector<HTMLElement>('.chat-thinking-title-diff')?.click();
 
@@ -3069,8 +3510,8 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				label: 'Section File Changes',
 				resources: [{
-					original: 'file:///snapshots/first/before/app.ts',
-					modified: 'file:///snapshots/last/after/app.ts',
+					original: 'file:///snapshots/a/app.ts',
+					modified: 'file:///snapshots/c/app.ts',
 					goToFileResource: 'file:///workspace/app.ts',
 				}, {
 					original: 'file:///snapshots/only/before/util.ts',
@@ -3104,14 +3545,14 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill-2') }),
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();

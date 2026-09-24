@@ -17,7 +17,7 @@ import { isAbortError } from '../../networking/common/fetcherService';
 import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
+import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
@@ -29,8 +29,8 @@ interface AutoModeCacheEntry {
 	sessionToken: string;
 	/** UNIX seconds at which `sessionToken` expires. */
 	expiresAt: number;
-	/** Routing profile the session was resolved with; a change re-routes. `undefined` while tiers are disabled. */
-	tier: AutoModeTier | undefined;
+	/** Routing profile the session was resolved with; a change re-routes. */
+	tier: AutoModeTier;
 	needsReEval: boolean;
 }
 
@@ -113,18 +113,6 @@ export interface IAutomodeService {
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata;
 
 	/**
-	 * Whether the Auto model should offer the tier picker. Changes are announced
-	 * by {@link onDidChangeAutoModeTierSupport}.
-	 */
-	areAutoModeTiersSupported(): boolean;
-
-	/**
-	 * Fires when {@link areAutoModeTiersSupported} changes, so the Auto model's
-	 * configuration schema can be republished.
-	 */
-	readonly onDidChangeAutoModeTierSupport: Event<void>;
-
-	/**
 	 * Fires when a request starts routing and again once it resolves. Only real
 	 * routing rounds fire — a cached endpoint is silent — and Auto can route
 	 * several times in a turn, e.g. after compaction.
@@ -149,12 +137,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	/** Upper bound on live sessions. See {@link _evictOldestSessions}. */
 	private static readonly CACHE_MAX_ENTRIES = 50;
-	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
-	readonly onDidChangeAutoModeTierSupport = this._onDidChangeAutoModeTierSupport.event;
 	private readonly _onDidRoute = this._register(new Emitter<IAutoModeRoutingState>());
 	readonly onDidRoute = this._onDidRoute.event;
-	/** Last announced {@link areAutoModeTiersSupported}. See {@link _updateAutoModeTierSupport}. */
-	private _tierSupportAnnounced = false;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -166,10 +150,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._tierSupportAnnounced = this.areAutoModeTiersSupported();
-		// Covers both the setting and its experiment treatment: a treatment
-		// refresh is published as a configuration change.
-		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateAutoModeTierSupport()));
 		// Sessions are scoped to the signed-in account, and a routing call
 		// started under the previous one must neither be joined by new callers
 		// nor survive into the new account's cache.
@@ -251,7 +231,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
 		}
 		return this._routingSingler.getOrCreate(
-			`${conversationId}|${tier ?? ''}|${hasImage(chatRequest)}`,
+			`${conversationId}|${tier}|${hasImage(chatRequest)}`,
 			() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
 		);
 	}
@@ -262,7 +242,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 */
 	private async _routeAndCache(
 		prompt: string,
-		tier: AutoModeTier | undefined,
+		tier: AutoModeTier,
 		chatRequest: IAutoModeRoutingRequest | undefined,
 		knownEndpoints: IChatEndpoint[],
 		conversationId: string,
@@ -279,7 +259,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	private async _route(
 		prompt: string,
-		tier: AutoModeTier | undefined,
+		tier: AutoModeTier,
 		chatRequest: IAutoModeRoutingRequest | undefined,
 		knownEndpoints: IChatEndpoint[],
 		conversationId: string,
@@ -361,56 +341,25 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return endpoint;
 	}
 
-	areAutoModeTiersSupported(): boolean {
-		return this._configurationService.getConfig(ConfigKey.Shared.AutoModeTiersEnabled);
-	}
-
 	/**
-	 * Announces a change in {@link areAutoModeTiersSupported}. Its input is the
-	 * tiers setting (and its experiment treatment), so this runs on every
-	 * configuration change.
+	 * Resolves the override, picker preference, or surface default, in that order.
+	 * The workbench materializes picker defaults, so only non-default selections override the inline-chat tier.
 	 */
-	private _updateAutoModeTierSupport(): void {
-		const supported = this.areAutoModeTiersSupported();
-		if (supported !== this._tierSupportAnnounced) {
-			this._tierSupportAnnounced = supported;
-			this._onDidChangeAutoModeTierSupport.fire();
-		}
-	}
-
-	/**
-	 * The routing profile to request for a turn, in precedence order: the
-	 * internal override setting, then an explicit picker selection, then the
-	 * pin inline surfaces trade routing depth for latency with.
-	 *
-	 * Returns `undefined` while tiers are disabled, which omits `tier` from the
-	 * request and leaves the routing profile to the service. The override is
-	 * honored either way, so evals can exercise tiers before the experiment
-	 * reaches them.
-	 *
-	 * The picker selection is honored on inline surfaces too. The schema is
-	 * published per model rather than per surface, so the tier chip renders in
-	 * inline chat as well; unconditionally pinning `fast` there would leave the
-	 * user a visible, persisted control that silently does nothing.
-	 *
-	 * Only a non-default selection counts as explicit: the workbench materializes
-	 * the schema default into `modelConfiguration` and strips a pick of the
-	 * default back out when storing it, so a `balance` entry cannot be told
-	 * apart from "never picked" — reading it as a selection would make the inline
-	 * pin below unreachable.
-	 */
-	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
+	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier {
 		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
 			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if (autoModeTiers.some(tier => tier === normalized)) {
-				return normalized as AutoModeTier;
+			if (isAutoModeTier(normalized)) {
+				return normalized;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
 		}
-		if (!this.areAutoModeTiersSupported()) {
-			return undefined;
+		const source = chatRequest?.modelConfiguration?.tierSource;
+		const selected = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
+		if (((source === 'managed' || source === 'managedFallback' || source === 'session') && isAutoModeTier(selected))
+			|| (source === 'explicit' && isSelectableAutoModeTier(selected))) {
+			return selected;
 		}
 		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
@@ -463,7 +412,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * resolved under the same routing profile, still hold a live token, and
 	 * support vision if the turn attaches an image.
 	 */
-	private _isCacheEntryCompatible(entry: AutoModeCacheEntry, tier: AutoModeTier | undefined, chatRequest: IAutoModeRoutingRequest | undefined): boolean {
+	private _isCacheEntryCompatible(entry: AutoModeCacheEntry, tier: AutoModeTier, chatRequest: IAutoModeRoutingRequest | undefined): boolean {
 		return entry.tier === tier
 			&& !this._isSessionExpired(entry)
 			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);

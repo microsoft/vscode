@@ -59,6 +59,7 @@ steps:
         compile-extension:html-language-features-server \
         compile-extension:ipynb \
         compile-extension:notebook-renderers \
+        compile-extension:json-language-features-client \
         compile-extension:json-language-features-server \
         compile-extension:markdown-language-features \
         compile-extension-media \
@@ -108,24 +109,7 @@ steps:
       displayName: 🧪 Run integration tests (Remote)
       timeoutInMinutes: 20
 
-  - script: |
-      set -e
-      df -h
-      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
-      # keeps `du` on the root filesystem so it does not descend into the large
-      # `/mnt` work volume. This identifies the directory that fills `/` and
-      # crashes the agent worker with "No space left on device".
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /tmp ---"
-      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /var ---"
-      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
     displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
@@ -178,20 +162,7 @@ steps:
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Remote)
 
-  - script: |
-      set -e
-      df -h
-      # Same root-disk breakdown as the "before" step so the delta attributable to
-      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- smoke test data dirs ---"
-      du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"
     displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()

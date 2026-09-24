@@ -2356,6 +2356,58 @@ suite('Sessions - Workbench', () => {
 		controller.dispose();
 	});
 
+	test('keeps the rendered detail width while the outer pane grows until the editor is comfortable', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		const layouts: { editorWidth: number; auxiliaryBarWidth: number }[] = [];
+		let editorWidth = 1200;
+
+		Object.defineProperty(editorContainer, 'clientWidth', { get: () => editorWidth });
+		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
+		editorContainer.getBoundingClientRect = () => ({
+			width: editorWidth,
+			height: 600,
+			top: 0,
+			right: editorWidth,
+			bottom: 600,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => undefined,
+		});
+
+		const auxiliaryBarPart = {
+			getContainer: () => auxiliaryBarContainer,
+			layout: (auxiliaryBarWidth: number) => layouts.push({ editorWidth: editorWidth - auxiliaryBarWidth, auxiliaryBarWidth }),
+		} as unknown as Part;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 820,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTabsHeight: () => 35,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+
+		for (editorWidth of [1200, 700, 900, 1300, 1400, 1500]) {
+			controller.layout();
+		}
+
+		assert.deepStrictEqual(layouts, [
+			{ editorWidth: 380, auxiliaryBarWidth: 820 },
+			{ editorWidth: 300, auxiliaryBarWidth: 400 },
+			{ editorWidth: 500, auxiliaryBarWidth: 400 },
+			{ editorWidth: 900, auxiliaryBarWidth: 400 },
+			{ editorWidth: 1000, auxiliaryBarWidth: 400 },
+			{ editorWidth: 1000, auxiliaryBarWidth: 500 },
+		]);
+
+		controller.dispose();
+	});
+
 	test('keeps the docked detail at its minimum width while editor content yields', () => {
 		assert.deepStrictEqual({
 			comfortable: DockedAuxiliaryBarController.getEffectiveWidth(300, 800),
