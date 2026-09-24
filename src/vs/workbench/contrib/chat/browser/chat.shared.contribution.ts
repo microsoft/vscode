@@ -1689,7 +1689,8 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.copilot.runtimePath', "Absolute path to a local `copilot-runtime` executable. The bundled Copilot SDK wrapper remains in use. Empty uses the bundled runtime. Changing this setting restarts the Copilot SDK client after active turns finish."),
 			default: '',
-			scope: ConfigurationScope.APPLICATION_MACHINE,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
 			tags: ['experimental', 'advanced'],
 			included: false,
 			agentHost: {
