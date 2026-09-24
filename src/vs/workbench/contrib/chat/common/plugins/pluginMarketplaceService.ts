@@ -180,6 +180,8 @@ export interface IPluginMarketplaceService {
 	 * may be added over time; consumers should not assume a specific source.
 	 */
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
+	/** Resolves after installed storage and its current metadata hydration complete. */
+	whenInstalledPluginsReady(): Promise<void>;
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
@@ -318,6 +320,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
 	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
+	private _installedPluginsHydration = Promise.resolve();
 	private _updateChecksInitialized = false;
 	private _updateCheckRunning = false;
 
@@ -437,9 +440,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const entries = this._installedPluginsStore.value.read(reader);
 			const unhydrated = entries.filter(e => !this._pluginMetadata.has(e.pluginUri.toString()));
 			if (unhydrated.length > 0) {
-				this._hydratePluginMetadata(unhydrated);
+				this._installedPluginsHydration = this._installedPluginsHydration.then(() => this._hydratePluginMetadata(unhydrated));
 			}
 		}));
+	}
+
+	async whenInstalledPluginsReady(): Promise<void> {
+		await this._installedPluginsStore.whenInitialized();
+		while (!this._store.isDisposed) {
+			const hydration = this._installedPluginsHydration;
+			await hydration;
+			if (hydration === this._installedPluginsHydration) {
+				return;
+			}
+		}
 	}
 
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
@@ -883,6 +897,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		try {
+			await this.whenInstalledPluginsReady();
+			if (this._store.isDisposed) {
+				return;
+			}
+
 			const installed = this.installedPlugins.get();
 			if (installed.length === 0) {
 				return;
