@@ -89,6 +89,21 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		assert.deepStrictEqual(calls, [`clone:https://github.com/test/repo.git:${targetDir.fsPath}:main`]);
 	});
 
+	test('cloneRepository does not look up a GitHub session before native success', async () => {
+		let sessionLookups = 0;
+		const authenticationService: Partial<IAuthenticationService> = {
+			getSessions: async () => {
+				sessionLookups++;
+				return [];
+			},
+		};
+		const service = createService(createLocalGitStub(), undefined, createFileService(), authenticationService as IAuthenticationService);
+
+		await service.cloneRepository('https://github.com/test/public.git', URI.file('/tmp/repo'));
+
+		assert.strictEqual(sessionLookups, 0);
+	});
+
 	test('cloneRepository forwards an existing GitHub session for canonical GitHub HTTPS URLs', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
 		let deleted = false;
@@ -139,9 +154,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		const authenticationService: Partial<IAuthenticationService> = {
 			getSessions: async (_providerId, scopes) => {
 				sessionLookups.push(Array.isArray(scopes) ? [...scopes] : []);
-				return sessionLookups.length === 1
-					? []
-					: createAuthenticationService('github-token').getSessions('github', ['repo']);
+				return createAuthenticationService('github-token').getSessions('github', ['repo']);
 			},
 		};
 		const service = createService(createLocalGitStub({
@@ -159,7 +172,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			sessionLookups,
 			authentication,
 		}, {
-			sessionLookups: [[], []],
+			sessionLookups: [[]],
 			authentication: {
 				url: 'https://github.com/test/private.git',
 				authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
