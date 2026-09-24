@@ -29,6 +29,7 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -111,7 +112,17 @@ suite('Automation dialog layout', () => {
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptInput = document.createElement('textarea');
 		promptInput.setAttribute('aria-label', 'Prompt');
-		const inputToolbar = DOM.$('.chat-input-toolbar');
+		disposables.add(MenuRegistry.appendMenuItem(Menus.AutomationsDialogInputToolbar, {
+			command: { id: 'test.automation.agent', title: 'Agent' },
+			group: 'navigation',
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(Menus.NewSessionControl, {
+			command: { id: 'test.automation.executionMode', title: 'Interactive' },
+			group: 'navigation',
+		}));
+		const inputToolbarWidget = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, DOM.$('div'), Menus.AutomationsDialogInputToolbar, {}));
+		const inputToolbar = inputToolbarWidget.getElement();
+		inputToolbar.classList.add('chat-input-toolbar');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
 				promptInput.value = value ?? '';
@@ -119,6 +130,7 @@ suite('Automation dialog layout', () => {
 				inputContainer.append(promptInput, inputToolbar);
 			},
 			inputToolbarElement: inputToolbar,
+			setInputToolbarAriaLabel: label => inputToolbarWidget.setAriaLabel(label),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
 				onDidChangeModelContent: Event.None,
@@ -162,9 +174,12 @@ suite('Automation dialog layout', () => {
 			controlsInsideInput: inputContainer.contains(sessionControls),
 			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
 			configurationHeader: form.querySelector('#automation-session-configuration-label'),
-			inputToolbarRole: inputToolbar.getAttribute('role'),
-			inputToolbarLabel: inputToolbar.getAttribute('aria-label'),
-			controlsLabel: sessionControls.getAttribute('aria-label'),
+			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
+			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			inputToolbarLabelCount: form.querySelectorAll('[aria-label="Session configuration options"]').length,
+			controlsWrapperRole: sessionControls.getAttribute('role'),
+			controlsLabel: sessionControls.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			controlsLabelCount: form.querySelectorAll('[aria-label="Session controls"]').length,
 			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
 			targetLabel: 'Target',
@@ -179,9 +194,12 @@ suite('Automation dialog layout', () => {
 			controlsInsideInput: false,
 			controlsAfterInput: true,
 			configurationHeader: null,
-			inputToolbarRole: 'group',
+			inputToolbarWrapperRole: null,
 			inputToolbarLabel: 'Session configuration options',
+			inputToolbarLabelCount: 1,
+			controlsWrapperRole: null,
 			controlsLabel: 'Session controls',
+			controlsLabelCount: 1,
 			inputToolbarHidden: true,
 		});
 

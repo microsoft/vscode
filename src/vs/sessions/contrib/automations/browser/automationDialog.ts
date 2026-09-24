@@ -1372,12 +1372,8 @@ export function renderForm(
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 	const sessionConfigContainer = chatInput.inputToolbarElement;
 	sessionConfigContainer.classList.add('automation-session-config', 'sessions-chat-config-toolbar');
-	sessionConfigContainer.setAttribute('role', 'group');
-	sessionConfigContainer.setAttribute('aria-label', localize('automation.form.sessionConfigurationOptions', "Session configuration options"));
-	const sessionConfiguration = DOM.append(promptSection, $('.automation-session-configuration', {
-		role: 'group',
-		'aria-label': localize('automation.form.sessionControls', "Session controls"),
-	}));
+	chatInput.setInputToolbarAriaLabel(localize('automation.form.sessionConfigurationOptions', "Session configuration options"));
+	const sessionConfiguration = DOM.append(promptSection, $('.automation-session-configuration'));
 	const sessionControlsContainer = DOM.append(sessionConfiguration, $('.automation-session-controls'));
 	const sessionControlsToolbar = disposables.add(createNewSessionControlToolbar(
 		sessionControlsContainer,
