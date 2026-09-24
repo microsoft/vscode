@@ -137,11 +137,13 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		super();
 		// Report whatever has accumulated rather than losing the last window on shutdown.
 		this._register({ dispose: () => this.flushRequestCounts() });
-		this._register({ dispose: () => {
-			for (const connection of this._connections) {
-				connection.dispose();
+		this._register({
+			dispose: () => {
+				for (const connection of this._connections) {
+					connection.dispose();
+				}
 			}
-		} });
+		});
 	}
 
 	trackConnection(stage: CloudSandboxConnectionStage): ICloudSandboxConnectionTelemetry {
