@@ -8,9 +8,11 @@ import * as vscode from 'vscode';
 import { AccountLinks } from '../common/accountLinks';
 import { IGitHubUserInfo } from '../common/gitHubAccount';
 import { Log } from '../common/logger';
+import { Sequencer } from '../common/utils';
 import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
 import { GitHubSignInProvider } from '../flows';
 import { AuthProviderType, GitHubAuthenticationProvider } from '../github';
+import { IGitHubServer } from '../githubServer';
 import { TestMemento } from './testMemento';
 
 interface TestGitHubAuthenticationProvider {
@@ -95,16 +97,8 @@ suite('GitHub session persistence', () => {
 	});
 });
 
-/**
- * The sessions brokered through Microsoft, which only ever live in this process: rebuilding them in
- * a window that never had them, renewing them when their token runs out, and letting go of them.
- *
- * Driven through the real `getSessions`, over the real account-link table, with the provider's own
- * state assigned onto its prototype. Constructing one for real needs a full `ExtensionContext`, and
- * calling the private methods one at a time would test the pieces rather than the order they run in,
- * which is where every one of these bugs lives.
- */
-suite('GitHub Microsoft-brokered sessions', () => {
+/** Exercises session lifecycles through the real provider with fake storage and authentication services. */
+suite('GitHub authentication sessions', () => {
 
 	const STORAGE_KEY = 'github.auth.microsoftAccountLinks';
 	const SCOPES = ['read:user', 'repo'];
@@ -125,12 +119,17 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		_transientSessions: Map<string, ITransientSession>;
 		_renewals: Map<string, Promise<vscode.AuthenticationSession | undefined>>;
 		_restores: Map<string, Promise<vscode.AuthenticationSession | undefined>>;
+		_sessionMutations: Sequencer;
 		_restoresTried: Set<string>;
 		_microsoftGeneration: number;
 		_microsoft: { getAccounts(): Promise<vscode.AuthenticationSessionAccountInformation[]> };
+		_keychain: { setToken(value: string): Promise<void> };
 		_githubServer: {
+			login: IGitHubServer['login'];
+			getUserInfo: IGitHubServer['getUserInfo'];
 			loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken>;
 			renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
+			logout(session: vscode.AuthenticationSession): Promise<void>;
 			sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 		};
 		_sessionChangeEmitter: { fire(e: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent): void };
@@ -167,8 +166,12 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		/** Sessions already held in memory, and how long each has left in milliseconds. */
 		transient?: readonly (readonly [vscode.AuthenticationSession, number])[];
 		microsoftAccounts?: (call: number) => vscode.AuthenticationSessionAccountInformation[];
+		githubLogin?: IGitHubServer['login'];
+		getUserInfo?: IGitHubServer['getUserInfo'];
+		keychainWrite?: (value: string) => Promise<void>;
 		login?: (call: number, scopes: readonly string[], options: IEntraLoginOptions | undefined) => Promise<IEntraExchangedToken>;
 		renew?: (call: number, renewal: IEntraRenewal) => Promise<IEntraRenewedToken>;
+		logout?: (session: vscode.AuthenticationSession) => Promise<void>;
 	} = {}): IHarness {
 		const logins: Array<{ scopes: readonly string[]; options: IEntraLoginOptions | undefined }> = [];
 		const renewals: IEntraRenewal[] = [];
@@ -186,12 +189,16 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			_transientSessions: transientSessions,
 			_renewals: new Map(),
 			_restores: new Map(),
+			_sessionMutations: new Sequencer(),
 			_restoresTried: new Set(),
 			_microsoftGeneration: 0,
 			_microsoft: {
 				getAccounts: async () => overrides.microsoftAccounts?.(microsoftReads++) ?? [MICROSOFT_ACCOUNT]
 			},
+			_keychain: { setToken: async value => { await overrides.keychainWrite?.(value); } },
 			_githubServer: {
+				login: overrides.githubLogin ?? (async () => 'gho_persisted_login'),
+				getUserInfo: overrides.getUserInfo ?? (async () => GITHUB_ACCOUNT),
 				loginWithMicrosoft: async (scopes, options) => {
 					logins.push({ scopes, options });
 					return overrides.login
@@ -204,6 +211,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 						? await overrides.renew(renewals.length - 1, renewal)
 						: { token: `gho_${renewals.length}`, expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
 				},
+				logout: async session => { await overrides.logout?.(session); },
 				sendAdditionalTelemetryInfo: async () => { }
 			},
 			_sessionChangeEmitter: {
@@ -356,6 +364,303 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			sessions: 0,
 			announced: [],
 			held: []
+		});
+	});
+
+	test('does not recreate a GitHub session signed out while renewal was in flight', async () => {
+		const existing = sessionFor('mona_contoso', 'signed-out', 'gho_expiring');
+		const harness: IHarness = await withLink(createHarness({
+			transient: [[existing, 1000]],
+			renew: async (_call, renewal) => {
+				await harness.provider.removeSession(existing.id);
+				return { token: 'gho_late', expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+			},
+		}));
+
+		const sessions = await harness.provider.getSessions([...SCOPES]);
+
+		assert.deepStrictEqual({
+			sessions,
+			held: harness.heldSessions(),
+			links: harness.accountLinks.linkedAccounts(),
+			announced: harness.announced,
+			microsoft: await harness.state._microsoft.getAccounts(),
+		}, {
+			sessions: [],
+			held: [],
+			links: [],
+			announced: ['removed mona_contoso'],
+			microsoft: [MICROSOFT_ACCOUNT],
+		});
+	});
+
+	test('does not restore another scope after GitHub sign-out while the exchange was in flight', async () => {
+		const existing = sessionFor('mona_contoso', 'signed-out', 'gho_valid');
+		const harness: IHarness = await withLink(createHarness({
+			transient: [[existing, 8 * 60 * 60 * 1000]],
+			renew: async (_call, renewal) => {
+				await harness.provider.removeSession(existing.id);
+				return { token: 'gho_late', expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+			},
+		}));
+
+		const sessions = await harness.provider.getSessions(['gist']);
+
+		assert.deepStrictEqual({
+			sessions,
+			held: harness.heldSessions(),
+			links: harness.accountLinks.linkedAccounts(),
+			announced: harness.announced,
+			microsoft: await harness.state._microsoft.getAccounts(),
+		}, {
+			sessions: [],
+			held: [],
+			links: [],
+			announced: ['removed mona_contoso'],
+			microsoft: [MICROSOFT_ACCOUNT],
+		});
+	});
+
+	for (const sessionCount of [1, 2]) {
+		test(`signing out ${sessionCount} session(s) blocks restore publication while a keychain read is pending`, async () => {
+			const exchangeStarted = Promise.withResolvers<void>();
+			const exchange = Promise.withResolvers<IEntraRenewedToken>();
+			const keychainRead = Promise.withResolvers<vscode.AuthenticationSession[]>();
+			const existing = Array.from({ length: sessionCount }, (_, i) => sessionFor('mona_contoso', `signed-out-${i}`, `gho_valid_${i}`));
+			const harness = await withLink(createHarness({
+				transient: existing.map(session => [session, 8 * 60 * 60 * 1000] as const),
+				renew: () => {
+					exchangeStarted.resolve();
+					return exchange.promise;
+				},
+			}));
+			const reading = harness.provider.getSessions(['gist']);
+			await exchangeStarted.promise;
+			harness.state._persistedSessionsPromise = keychainRead.promise;
+			const removals = existing.map(session => harness.provider.removeSession(session.id));
+			const readingDuringRemoval = harness.provider.getSessions(['gist']);
+			exchange.resolve({ token: 'gho_late', expiresAfter: 3600000, account: GITHUB_ACCOUNT, scopes: ['gist'] });
+			let eventsWhilePending: string[];
+			try {
+				// Let the exchange finish while the keychain read is still blocked.
+				await new Promise<void>(resolve => setImmediate(resolve));
+				eventsWhilePending = [...harness.announced];
+			} finally {
+				keychainRead.resolve([]);
+			}
+			const [sessions, laterSessions] = await Promise.all([reading, readingDuringRemoval, ...removals]);
+
+			assert.deepStrictEqual({
+				eventsWhilePending,
+				sessions,
+				laterSessions,
+				held: harness.heldSessions(),
+				links: harness.accountLinks.linkedAccounts(),
+				announced: harness.announced,
+				microsoft: await harness.state._microsoft.getAccounts(),
+			}, {
+				eventsWhilePending: [],
+				sessions: [],
+				laterSessions: [],
+				held: [],
+				links: [],
+				announced: existing.map(() => 'removed mona_contoso'),
+				microsoft: [MICROSOFT_ACCOUNT],
+			});
+		});
+	}
+
+	test('announces persisted sign-in before removal requested during its storage write', async () => {
+		const writeStarted = Promise.withResolvers<void>();
+		const releaseWrite = Promise.withResolvers<void>();
+		let writes = 0;
+		let stored = '';
+		const harness = createHarness({
+			keychainWrite: async value => {
+				if (++writes === 1) {
+					writeStarted.resolve();
+					await releaseWrite.promise;
+				}
+				stored = value;
+			},
+		});
+		const signingIn = harness.provider.createSession(SCOPES);
+		await writeStarted.promise;
+		const [session] = await harness.state._persistedSessionsPromise;
+		const removing = harness.provider.removeSession(session.id);
+		let whileBlocked: { writes: number; announced: string[] };
+		try {
+			await new Promise<void>(resolve => setImmediate(resolve));
+			whileBlocked = { writes, announced: [...harness.announced] };
+		} finally {
+			releaseWrite.resolve();
+		}
+		await Promise.all([signingIn, removing]);
+
+		assert.deepStrictEqual({
+			whileBlocked,
+			stored,
+			sessions: await harness.provider.getSessions(SCOPES),
+			announced: harness.announced,
+		}, {
+			whileBlocked: { writes: 1, announced: [] },
+			stored: '[]',
+			sessions: [],
+			announced: ['added mona_contoso', 'removed mona_contoso'],
+		});
+	});
+
+	for (const stage of ['login', 'identity lookup']) {
+		test(`uses the latest session list without blocking sign-out during persisted ${stage}`, async () => {
+			const acquisitionStarted = Promise.withResolvers<void>();
+			const releaseAcquisition = Promise.withResolvers<void>();
+			const removed = { ...sessionFor('hubot', 'removed-session', 'gho_removed'), account: { id: 'removed-account', label: 'hubot' } };
+			const retained = { ...sessionFor('octocat', 'retained-session', 'gho_retained'), account: { id: 'retained-account', label: 'octocat' } };
+			const harness = createHarness({
+				persisted: [removed],
+				githubLogin: async () => {
+					if (stage === 'login') {
+						acquisitionStarted.resolve();
+						await releaseAcquisition.promise;
+					}
+					return 'gho_persisted_login';
+				},
+				getUserInfo: async () => {
+					if (stage === 'identity lookup') {
+						acquisitionStarted.resolve();
+						await releaseAcquisition.promise;
+					}
+					return GITHUB_ACCOUNT;
+				},
+			});
+			const signingIn = harness.provider.createSession(SCOPES);
+			await acquisitionStarted.promise;
+			// Secret-storage reconciliation replaces the session-list promise while acquisition is pending.
+			harness.state._persistedSessionsPromise = Promise.resolve([removed, retained]);
+			const removing = harness.provider.removeSession(removed.id);
+			let announcedWhileAcquiring: string[];
+			try {
+				await new Promise<void>(resolve => setImmediate(resolve));
+				announcedWhileAcquiring = [...harness.announced];
+			} finally {
+				releaseAcquisition.resolve();
+			}
+			await Promise.all([signingIn, removing]);
+
+			assert.deepStrictEqual({
+				announcedWhileAcquiring,
+				tokens: (await harness.provider.getSessions(SCOPES)).map(session => session.accessToken).sort(),
+				announced: harness.announced,
+			}, {
+				announcedWhileAcquiring: ['removed hubot'],
+				tokens: ['gho_persisted_login', 'gho_retained'],
+				announced: ['removed hubot', 'added mona_contoso'],
+			});
+		});
+	}
+
+	test('persisted sign-in still replaces the same account and scope set', async () => {
+		const existing = sessionFor('mona_contoso', 'old-session', 'gho_old');
+		const harness = createHarness({ persisted: [existing] });
+		const signingIn = await harness.provider.createSession([...SCOPES].reverse());
+
+		assert.deepStrictEqual({
+			sessions: (await harness.provider.getSessions(SCOPES)).map(session => ({
+				isNewSession: session.id === signingIn.id && session.id !== existing.id,
+				token: session.accessToken,
+				scopes: session.scopes,
+			})),
+			announced: harness.announced,
+		}, {
+			sessions: [{ isNewSession: true, token: 'gho_persisted_login', scopes: [...SCOPES].reverse() }],
+			announced: ['added mona_contoso', 'removed mona_contoso'],
+		});
+	});
+
+	test('concurrent restore reads share one exchange and publish its session once', async () => {
+		const exchangeStarted = Promise.withResolvers<void>();
+		const exchange = Promise.withResolvers<IEntraRenewedToken>();
+		const harness = await withLink(createHarness({
+			renew: () => {
+				exchangeStarted.resolve();
+				return exchange.promise;
+			},
+		}));
+		const readings = [harness.provider.getSessions(SCOPES), harness.provider.getSessions(SCOPES)];
+		await exchangeStarted.promise;
+		exchange.resolve({ token: 'gho_restored', expiresAfter: 3600000, account: GITHUB_ACCOUNT, scopes: SCOPES });
+		const [first, second] = await Promise.all(readings);
+
+		assert.deepStrictEqual({
+			exchanges: harness.renewals.length,
+			sameSession: first[0] === second[0],
+			held: harness.heldSessions(),
+			announced: harness.announced,
+		}, {
+			exchanges: 1,
+			sameSession: true,
+			held: ['mona_contoso live'],
+			announced: ['added mona_contoso'],
+		});
+	});
+
+	test('remote OAuth revocation does not hold up restored-session publication', async () => {
+		const logoutStarted = Promise.withResolvers<void>();
+		const logout = Promise.withResolvers<void>();
+		const existing = sessionFor('hubot', 'persisted', 'gho_persisted');
+		const harness = await withLink(createHarness({
+			persisted: [existing],
+			logout: async () => {
+				logoutStarted.resolve();
+				await logout.promise;
+			},
+		}));
+		const removing = harness.provider.removeSession(existing.id);
+		await logoutStarted.promise;
+		const announcedBeforeRevocation = [...harness.announced];
+		let restored = false;
+		const reading = harness.provider.getSessions(SCOPES).then(sessions => {
+			restored = true;
+			return sessions;
+		});
+		let restoredBeforeRevocation: boolean;
+		try {
+			await new Promise<void>(resolve => setImmediate(resolve));
+			restoredBeforeRevocation = restored;
+		} finally {
+			logout.resolve();
+		}
+		const [sessions] = await Promise.all([reading, removing]);
+
+		assert.deepStrictEqual({
+			announcedBeforeRevocation,
+			restoredBeforeRevocation,
+			accounts: sessions.map(session => session.account.label),
+			announced: harness.announced,
+		}, {
+			announcedBeforeRevocation: ['removed hubot'],
+			restoredBeforeRevocation: true,
+			accounts: ['mona_contoso'],
+			announced: ['removed hubot', 'added mona_contoso'],
+		});
+	});
+
+	test('announces persisted-session removal even when remote OAuth revocation fails', async () => {
+		const existing = sessionFor('hubot', 'persisted', 'gho_persisted');
+		const failure = new Error('Remote revocation failed');
+		const harness = createHarness({
+			persisted: [existing],
+			logout: async () => { throw failure; },
+		});
+
+		await assert.rejects(harness.provider.removeSession(existing.id), failure);
+
+		assert.deepStrictEqual({
+			sessions: await harness.provider.getSessions(SCOPES),
+			announced: harness.announced,
+		}, {
+			sessions: [],
+			announced: ['removed hubot'],
 		});
 	});
 

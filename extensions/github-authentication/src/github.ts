@@ -8,7 +8,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { Keychain } from './common/keychain';
 import { GitHubServer, IGitHubServer } from './githubServer';
 import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraRenewedToken } from './entraTokenExchange';
-import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
+import { PromiseAdapter, Sequencer, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { AccountLinks, IAccountLink } from './common/accountLinks';
@@ -178,6 +178,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _renewals = new Map<string, Promise<vscode.AuthenticationSession | undefined>>();
 	/** Restores in flight, by {@link restoreKey}, so concurrent callers share one exchange. */
 	private readonly _restores = new Map<string, Promise<vscode.AuthenticationSession | undefined>>();
+	/** Serializes persisted sign-in and restored-session publication with local sign-out mutations. */
+	private readonly _sessionMutations = new Sequencer();
 	/**
 	 * The restores that have been tried and could not be done, by {@link restoreKey}.
 	 *
@@ -331,7 +333,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(session?: T): session is T => Boolean(session));
 		if (restored.length) {
 			this._logger.info(`Restored ${restored.length} session(s) from a remembered Microsoft account.`);
-			this._sessionChangeEmitter.fire({ added: restored, removed: [], changed: [] });
 		}
 		return restored;
 	}
@@ -399,13 +400,23 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		if (!await this.microsoftAccountStillSignedIn(generation, microsoftAccount.label, `the restored session for ${link.gitHubAccountLabel}`)) {
-			return undefined;
-		}
+		return this._sessionMutations.queue(async () => {
+			if (!await this.microsoftAccountStillSignedIn(generation, microsoftAccount.label, `the restored session for ${link.gitHubAccountLabel}`)) {
+				return undefined;
+			}
+			if (!this._accountLinks.linkedAccounts().some(current =>
+				current.gitHubAccountId === link.gitHubAccountId
+				&& current.gitHubAccountLabel === link.gitHubAccountLabel
+				&& current.microsoftAccountLabel === link.microsoftAccountLabel)) {
+				this._logger.info('Discarding a restored session because its account link was removed or changed.');
+				return undefined;
+			}
 
-		const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]), renewed.expiresAfter);
-		this.afterSessionLoad(session);
-		return session;
+			const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]), renewed.expiresAfter);
+			this.afterSessionLoad(session);
+			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			return session;
+		});
 	}
 
 	/**
@@ -527,6 +538,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	 * `offline_access`, so such a session never also holds a refresh token to spend instead.
 	 */
 	private async renewNow(session: vscode.AuthenticationSession): Promise<vscode.AuthenticationSession | undefined> {
+		const held = this._transientSessions.get(session.id);
+		if (!held) {
+			this._logger.info('Not renewing a session that is no longer signed in.');
+			return undefined;
+		}
 		const generation = this._microsoftGeneration;
 		// Which Microsoft identity this GitHub account was reached through. Renewing against any
 		// other one hands back a token for a different person, so no account means no renewal.
@@ -549,6 +565,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		if (!await this.microsoftAccountStillSignedIn(generation, microsoftAccount.label, `the renewal of session ${session.id}`)) {
+			return undefined;
+		}
+		if (this._transientSessions.get(session.id) !== held) {
+			this._logger.info('Discarding a renewed token because its session was removed or replaced.');
 			return undefined;
 		}
 
@@ -766,23 +786,25 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				return session;
 			}
 
-			const sessions = await this._persistedSessionsPromise;
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
-			const removed = new Array<vscode.AuthenticationSession>();
-			if (sessionIndex > -1) {
-				removed.push(...sessions.splice(sessionIndex, 1, session));
-			} else {
-				sessions.push(session);
-			}
-			await this.storeSessions(sessions);
+			await this._sessionMutations.queue(async () => {
+				const sessions = await this._persistedSessionsPromise;
+				const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
+				const removed = new Array<vscode.AuthenticationSession>();
+				if (sessionIndex > -1) {
+					removed.push(...sessions.splice(sessionIndex, 1, session));
+				} else {
+					sessions.push(session);
+				}
+				await this.storeSessions(sessions);
 
-			this.logSessionChange('interactive-login', 1, removed.length, 0);
-			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
+				this.logSessionChange('interactive-login', 1, removed.length, 0);
+				this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
+			});
 
 			this._logger.info('Login success!');
 
@@ -898,7 +920,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		};
 	}
 
-	public async removeSession(id: string) {
+	public async removeSession(id: string): Promise<void> {
 		try {
 			/* __GDPR__
 				"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out of an account." }
@@ -907,29 +929,31 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			this._logger.info(`Logging out of ${id}`);
 
-			const transient = this._transientSessions.get(id);
-			if (transient) {
-				this._transientSessions.delete(id);
-				// These tokens are not in the Keychain and are not OAuth app tokens we can revoke on
-				// the server, so signing out is purely dropping our copy of them.
-				await this.forgetAccountLinkIfSignedOut(transient.session.account);
-				this._sessionChangeEmitter.fire({ added: [], removed: [transient.session], changed: [] });
-				return;
-			}
+			const sessionToRevoke = await this._sessionMutations.queue(async () => {
+				const transient = this._transientSessions.get(id);
+				if (transient) {
+					this._transientSessions.delete(id);
+					await this.forgetAccountLinkIfSignedOut(transient.session.account);
+					this._sessionChangeEmitter.fire({ added: [], removed: [transient.session], changed: [] });
+					// Brokered tokens have no OAuth app token to revoke.
+					return undefined;
+				}
 
-			const sessions = await this._persistedSessionsPromise;
-			const sessionIndex = sessions.findIndex(session => session.id === id);
-			if (sessionIndex > -1) {
-				const session = sessions[sessionIndex];
-				sessions.splice(sessionIndex, 1);
-
+				const sessions = await this._persistedSessionsPromise;
+				const sessionIndex = sessions.findIndex(session => session.id === id);
+				if (sessionIndex < 0) {
+					this._logger.error('Session not found');
+					return undefined;
+				}
+				const [session] = sessions.splice(sessionIndex, 1);
 				await this.storeSessions(sessions);
-				await this._githubServer.logout(session);
 				await this.forgetAccountLinkIfSignedOut(session.account);
-
 				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
-			} else {
-				this._logger.error('Session not found');
+				return session;
+			});
+
+			if (sessionToRevoke) {
+				await this._githubServer.logout(sessionToRevoke);
 			}
 		} catch (e) {
 			/* __GDPR__
