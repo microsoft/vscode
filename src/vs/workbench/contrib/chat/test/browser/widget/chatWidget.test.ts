@@ -968,6 +968,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,
 			hasPendingProgrammaticModelSelection: false,
+			isSubmissionBlocked: false,
 			generating: undefined,
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
 				entriesMap: observableValue('tools', ToolAndToolSetEnablementMap.fromEntries([])),
@@ -1125,6 +1126,17 @@ suite('ChatWidget - guarded acceptInput', () => {
 	test('does not submit while session preparation is active', async () => {
 		const fixture = createSubmissionWidget();
 		Object.defineProperty(fixture.widget, 'transcriptProgress', { value: { onCancel: () => { } } });
+
+		const result = await fixture.widget.acceptInput('Test and fix the app', fixture.options);
+
+		assert.deepStrictEqual({ result, saves: fixture.editorService.saveAll.callCount, ...fixture.outcome() }, {
+			result: undefined, saves: 0, requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0,
+		});
+	});
+
+	test('does not submit while required plugins are unavailable', async () => {
+		const fixture = createSubmissionWidget();
+		Object.defineProperty(fixture.input, 'isSubmissionBlocked', { value: true });
 
 		const result = await fixture.widget.acceptInput('Test and fix the app', fixture.options);
 

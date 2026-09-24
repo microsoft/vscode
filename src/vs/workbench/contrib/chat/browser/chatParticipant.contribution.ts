@@ -32,7 +32,8 @@ import { IRawChatParticipantContribution } from '../common/participants/chatPart
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
-import { ChatUpdateRequiredView } from './viewsWelcome/chatUpdateRequiredView.js';
+import { ChatPolicyBlockedView } from './viewsWelcome/chatPolicyBlockedView.js';
+import { MANAGED_PLUGINS_VIEW_ID, ManagedPluginsUnavailableContext } from '../common/plugins/managedPluginAvailability.js';
 import { MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../../../services/policies/common/managedSettingsUpdate.js';
 
 // --- Chat Container &  View Registration
@@ -72,6 +73,7 @@ const chatViewDescriptor: IViewDescriptor = {
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.and(
 		ChatContextKeys.accountPolicyGateActive.negate(),
+		ManagedPluginsUnavailableContext.negate(),
 		ContextKeyExpr.or(
 			ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
@@ -85,13 +87,32 @@ const chatViewDescriptor: IViewDescriptor = {
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: MANAGED_PLUGINS_VIEW_ID,
+	name: chatViewDescriptor.name,
+	containerIcon: chatViewIcon,
+	singleViewPaneContainerTitle: chatViewContainer.title.value,
+	canToggleVisibility: false,
+	canMoveView: false,
+	ctorDescriptor: new SyncDescriptor(ChatPolicyBlockedView),
+	when: ContextKeyExpr.and(ManagedPluginsUnavailableContext, ManagedSettingsUpdateRequiredContext.negate(), ChatContextKeys.enabled, ChatContextKeys.accountPolicyGateActive.negate()),
+	openCommandActionDescriptor: {
+		id: 'workbench.action.chat.showRequiredPlugins',
+		title: localize2('chat.requiredPluginsView', "Chat Plugin Requirement"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+		},
+	},
+}], chatViewContainer);
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: MANAGED_SETTINGS_UPDATE_VIEW_ID,
 	name: chatViewDescriptor.name,
 	containerIcon: chatViewIcon,
 	singleViewPaneContainerTitle: chatViewContainer.title.value,
 	canToggleVisibility: false,
 	canMoveView: false,
-	ctorDescriptor: new SyncDescriptor(ChatUpdateRequiredView),
+	ctorDescriptor: new SyncDescriptor(ChatPolicyBlockedView),
 	when: ManagedSettingsUpdateRequiredContext,
 	openCommandActionDescriptor: {
 		id: 'workbench.action.chat.showUpdateRequired',

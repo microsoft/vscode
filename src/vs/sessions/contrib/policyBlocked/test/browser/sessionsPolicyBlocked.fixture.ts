@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mock } from '../../../../../base/test/common/mock.js';
+import { Event } from '../../../../../base/common/event.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { getManagedPluginBlockInfo } from '../../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
@@ -17,6 +19,12 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 	ctx.container.style.width = '600px';
 	ctx.container.style.height = '400px';
 	ctx.container.style.position = 'relative';
+
+	function getContainer(_targetWindow: Window): HTMLElement;
+	function getContainer(_targetWindow: Window, part: Parts): HTMLElement | undefined;
+	function getContainer(_targetWindow: Window, part?: Parts): HTMLElement | undefined {
+		return part === undefined ? ctx.container : undefined;
+	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -26,7 +34,12 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 				override readonly quality = 'insider';
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
-			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container });
+			reg.definePartialInstance(IWorkbenchLayoutService, {
+				mainContainer: ctx.container,
+				mainContainerOffset: { top: 0, quickPickTop: 0 },
+				getContainer,
+				onDidLayoutMainContainer: Event.None,
+			});
 			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
 			reg.definePartialInstance(ISessionsService, { activeSession: constObservable(undefined) });
 		},
@@ -68,6 +81,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				failure: ManagedSettingsFreshnessFailure.Network,
 				lastAttemptAt: Date.now(),
 			},
+		}),
+	}),
+	RequiredPluginsUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => createOverlay(ctx, {
+			reason: SessionsBlockedReason.RequiredPlugins,
+			shouldFocus: false,
+			pluginInfo: getManagedPluginBlockInfo({ kind: 'unavailable', pluginIds: ['required-demo@managed-marketplace'] }),
 		}),
 	}),
 });

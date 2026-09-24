@@ -609,6 +609,10 @@ export class PluginInstallService implements IPluginInstallService {
 			return false;
 		}
 
+		if (this._pluginMarketplaceService.getManagedMarketplace(plugin.marketplaceReference)) {
+			return true;
+		}
+
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
 			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),

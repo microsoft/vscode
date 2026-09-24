@@ -29,6 +29,7 @@ import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.c
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IManagedPluginAvailabilityService, ManagedPluginAvailabilityService } from '../../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
 
 suite('Sessions policy update explanation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +69,7 @@ suite('Sessions policy update explanation', () => {
 		const opened: string[] = [];
 		services.stub(IWorkbenchLayoutService, layout);
 		services.stub(IManagedSettingsUpdateService, { updateInfo });
+		services.stub(IManagedPluginAvailabilityService, new ManagedPluginAvailabilityService());
 		services.stub(IConfigurationService, configuration);
 		services.stub(IAccountPolicyGateService, gate);
 		services.stub(ISessionsService, { activeSession });

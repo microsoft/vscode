@@ -79,6 +79,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private readonly _installed = observableValue<readonly IStoredInstalledPlugin[]>('file/installed.json', []);
 	private readonly _fileUri: URI;
 	private readonly _writeDelayer: ThrottledDelayer<void>;
+	private readonly _initializationPromise: Promise<void>;
 	private _suppressFileWatch = false;
 	private _initialized = false;
 
@@ -94,11 +95,15 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
-		void this._initialize();
+		this._initializationPromise = this._initialize();
 	}
 
 	get(): readonly IStoredInstalledPlugin[] {
 		return this._installed.get();
+	}
+
+	whenInitialized(): Promise<void> {
+		return this._initializationPromise;
 	}
 
 	set(newValue: readonly IStoredInstalledPlugin[], tx: ITransaction | undefined): void {

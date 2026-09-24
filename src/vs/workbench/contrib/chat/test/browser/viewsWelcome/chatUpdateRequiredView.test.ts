@@ -17,9 +17,9 @@ import { DisablementReason, State, UpdateType } from '../../../../../../platform
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService, MANAGED_SETTINGS_UPDATE_VIEW_ID } from '../../../../../services/policies/common/managedSettingsUpdate.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ChatUpdateRequiredView } from '../../../browser/viewsWelcome/chatUpdateRequiredView.js';
+import { ChatPolicyBlockedView } from '../../../browser/viewsWelcome/chatPolicyBlockedView.js';
 
-class TestUpdateRequiredView extends ChatUpdateRequiredView {
+class TestUpdateRequiredView extends ChatPolicyBlockedView {
 	renderForTest(container: HTMLElement): void { this.renderBody(container); }
 	layoutForTest(height: number, width: number): void { this.layoutBody(height, width); }
 }
@@ -74,10 +74,10 @@ suite('Chat update required view', () => {
 		const updated = {
 			message: container.querySelector('.chat-welcome-view-message')?.textContent,
 			buttons: [...container.querySelectorAll('.monaco-button')].map(button => button.textContent),
-			focused: mainWindow.document.activeElement === container.querySelector('.chat-update-required-content'),
+			focused: mainWindow.document.activeElement === container.querySelector('.chat-policy-blocked-content'),
 		};
 		updateInfo.set(undefined, undefined);
-		assert.deepStrictEqual({ updated, remaining: container.querySelector('.chat-update-required-content')?.textContent }, {
+		assert.deepStrictEqual({ updated, remaining: container.querySelector('.chat-policy-blocked-content')?.textContent }, {
 			updated: { message: 'Your organization requires Code 1.142.0 or later to use AI features.', buttons: ['Restart to Update'], focused: true },
 			remaining: '',
 		});
@@ -90,8 +90,8 @@ suite('Chat update required view', () => {
 			updateInfo.set(getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: '1.141.0' }, product, State.Disabled(reason)), undefined);
 			return {
 				buttons: container.querySelectorAll('.monaco-button').length,
-				links: container.querySelectorAll('.chat-update-required-content a').length,
-				focused: mainWindow.document.activeElement === container.querySelector('.chat-update-required-content'),
+				links: container.querySelectorAll('.chat-policy-blocked-content a').length,
+				focused: mainWindow.document.activeElement === container.querySelector('.chat-policy-blocked-content'),
 				administrator: container.textContent!.includes('Contact your administrator'),
 			};
 		});
@@ -109,7 +109,7 @@ suite('Chat update required view', () => {
 	test('renders response metadata as text and keeps the explanation scrollable in small panels', () => {
 		const maliciousVersion = '[Run](command:unexpected.command) https://example.com <a href="command:update.restartToUpdate">Run</a>';
 		const { container } = setup(getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: maliciousVersion }, product, State.Idle(UpdateType.Archive)));
-		const content = container.querySelector<HTMLElement>('.chat-update-required-content')!;
+		const content = container.querySelector<HTMLElement>('.chat-policy-blocked-content')!;
 		const message = container.querySelector<HTMLElement>('.chat-welcome-view-message p')!;
 		assert.deepStrictEqual({
 			message: message.textContent,
@@ -138,7 +138,7 @@ suite('Chat update required view', () => {
 			}();
 			const longInfo = getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: `1.141.0-${'release'.repeat(25)}` }, longProduct, State.Idle(UpdateType.Archive));
 			const { container, updateInfo } = setup(info, width);
-			const fits = () => [...container.querySelectorAll<HTMLElement>('.chat-update-required-content, .chat-welcome-view, .chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-message p, .chat-welcome-view-disclaimer')].every(element => element.scrollWidth <= element.clientWidth);
+			const fits = () => [...container.querySelectorAll<HTMLElement>('.chat-policy-blocked-content, .chat-welcome-view, .chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-message p, .chat-welcome-view-disclaimer')].every(element => element.scrollWidth <= element.clientWidth);
 			const standardFits = fits();
 			updateInfo.set(longInfo, undefined);
 			assert.deepStrictEqual({ standardFits, longTextFits: fits(), button: container.querySelector('.monaco-button')?.textContent }, {

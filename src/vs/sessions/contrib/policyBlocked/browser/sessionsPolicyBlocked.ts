@@ -20,6 +20,8 @@ import { IManagedSettingsUpdateInfo } from '../../../../workbench/services/polic
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { IManagedPluginBlockInfo } from '../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
@@ -30,17 +32,22 @@ export const enum SessionsBlockedReason {
 	/** Signed in but not in an approved org — must switch accounts. */
 	AccountPolicyGate = 'accountPolicyGate',
 	ManagedSettingsRefresh = 'managedSettingsRefresh',
+	RequiredPlugins = 'requiredPlugins',
 	UpdateRequired = 'updateRequired',
 }
 
-export interface ISessionsBlockedOverlayOptions {
-	readonly reason: SessionsBlockedReason;
+interface ISessionsBlockedOverlayBaseOptions {
 	readonly approvedOrganizations?: readonly string[];
 	readonly accountName?: string;
 	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
-	readonly updateInfo?: IManagedSettingsUpdateInfo;
 	readonly shouldFocus?: boolean;
 }
+
+export type ISessionsBlockedOverlayOptions = ISessionsBlockedOverlayBaseOptions & (
+	{ readonly reason: Exclude<SessionsBlockedReason, SessionsBlockedReason.RequiredPlugins | SessionsBlockedReason.UpdateRequired> }
+	| { readonly reason: SessionsBlockedReason.RequiredPlugins; readonly pluginInfo: IManagedPluginBlockInfo }
+	| { readonly reason: SessionsBlockedReason.UpdateRequired; readonly updateInfo: IManagedSettingsUpdateInfo }
+);
 
 /**
  * Full-window impassable overlay shown when the Agents app is blocked.
@@ -49,10 +56,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
 	private readonly previouslyFocused: Element | null;
+	private readonly recoverable: boolean;
 
 	constructor(
 		container: HTMLElement,
-		private readonly options: ISessionsBlockedOverlayOptions,
+		options: ISessionsBlockedOverlayOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
@@ -64,9 +72,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		super();
 
 		this.previouslyFocused = getActiveElement();
+		const recoverable = this.recoverable = options.reason === SessionsBlockedReason.UpdateRequired || options.reason === SessionsBlockedReason.RequiredPlugins;
 		this.overlay = append(container, $('.sessions-policy-blocked-overlay'));
-		this.overlay.setAttribute('role', options.reason === SessionsBlockedReason.UpdateRequired ? 'region' : 'dialog');
-		if (options.reason !== SessionsBlockedReason.UpdateRequired) {
+		this.overlay.setAttribute('role', recoverable ? 'region' : 'dialog');
+		if (!recoverable) {
 			this.overlay.setAttribute('aria-modal', 'true');
 		}
 		this.overlay.tabIndex = -1;
@@ -79,8 +88,8 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		workbenchRoot.classList.add('sessions-policy-blocked');
 		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
 
-		const scrollContent = options.reason === SessionsBlockedReason.UpdateRequired ? $('.sessions-policy-blocked-scroll-content') : this.overlay;
-		const scrollable = options.reason === SessionsBlockedReason.UpdateRequired
+		const scrollContent = recoverable ? $('.sessions-policy-blocked-scroll-content') : this.overlay;
+		const scrollable = recoverable
 			? this._register(new DomScrollableElement(scrollContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false }))
 			: undefined;
 		const revealFocusedAction = () => {
@@ -101,8 +110,8 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			}));
 		}
 		const card = append(scrollContent, $('.sessions-policy-blocked-card'));
-		if (options.reason === SessionsBlockedReason.UpdateRequired) {
-			this.overlay.classList.add('update-required');
+		if (recoverable) {
+			this.overlay.classList.add(options.reason === SessionsBlockedReason.UpdateRequired ? 'update-required' : 'required-plugins');
 			const inertParts = new Map<HTMLElement, boolean>();
 			this._register(toDisposable(() => {
 				for (const [part, inert] of inertParts) {
@@ -126,7 +135,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		}
 
 		this._register(addDisposableListener(getWindow(this.overlay), EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (options.reason === SessionsBlockedReason.UpdateRequired) {
+			if (recoverable) {
 				return;
 			}
 			if (card.contains(e.target as Node)) {
@@ -158,8 +167,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			case SessionsBlockedReason.ManagedSettingsRefresh:
 				this._renderManagedSettingsRefresh(card, options.freshness);
 				break;
+			case SessionsBlockedReason.RequiredPlugins:
 			case SessionsBlockedReason.UpdateRequired: {
-				const button = this._renderUpdateRequired(card, options.updateInfo!);
+				const info = options.reason === SessionsBlockedReason.UpdateRequired ? options.updateInfo : options.pluginInfo;
+				const button = this._renderPolicyBlock(card, info);
 				scrollable?.scanDomNode();
 				if (options.shouldFocus !== false) {
 					button.focus();
@@ -174,12 +185,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	}
 
 	override dispose(): void {
-		const restoreFocus = this.options.reason === SessionsBlockedReason.UpdateRequired && this.hasFocus();
+		const restoreFocus = this.recoverable && this.hasFocus();
 		super.dispose();
 		if (!restoreFocus) {
 			return;
 		}
-
 		if (isHTMLElement(this.previouslyFocused) && this.previouslyFocused.isConnected
 			&& this.previouslyFocused !== this.previouslyFocused.ownerDocument.body
 			&& this.previouslyFocused !== this.previouslyFocused.ownerDocument.documentElement) {
@@ -191,27 +201,27 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 	}
 
-	private _renderUpdateRequired(card: HTMLElement, info: IManagedSettingsUpdateInfo): Button {
+	private _renderPolicyBlock(card: HTMLElement, info: IManagedSettingsUpdateInfo | IManagedPluginBlockInfo): Button {
 		this.overlay.setAttribute('aria-label', info.title);
 		append(card, $('h2', undefined, info.title));
 		append(card, $('p', undefined, info.message));
 		if (info.detail) {
 			append(card, $('p', undefined, info.detail));
 		}
-		if (info.updateStatus) {
+		if (hasKey(info, { updateStatus: true }) && info.updateStatus) {
 			append(card, $('p', undefined, info.updateStatus));
 		}
-		let updateButton: Button | undefined;
+		let recoveryButton: Button | undefined;
 		if (info.action) {
 			const action = info.action;
-			updateButton = this._register(new Button(card, defaultButtonStyles));
-			updateButton.label = action.label;
-			this._register(updateButton.onDidClick(() => this.openerService.open(action.href, { allowCommands: true })));
+			recoveryButton = this._register(new Button(card, defaultButtonStyles));
+			recoveryButton.label = action.label;
+			this._register(recoveryButton.onDidClick(() => this.openerService.open(action.href, { allowCommands: true })));
 		}
 		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('managedSettingsUpdate.openEditorWindow', "Open Editor Window");
 		this._register(button.onDidClick(() => this._openVSCode()));
-		return updateButton ?? button;
+		return recoveryButton ?? button;
 	}
 
 	private _renderAgentDisabled(card: HTMLElement): void {

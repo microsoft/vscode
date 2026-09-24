@@ -153,6 +153,10 @@ export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined
 	return identity ? `${identity.name}@${identity.marketplace}` : undefined;
 }
 
+export function getMarketplacePluginPolicyId(plugin: IMarketplacePlugin): string {
+	return `${plugin.name}@${plugin.marketplace}`;
+}
+
 function getAgentPluginCandidates(discoveries: readonly IDiscoveredAgentPlugins[]): IAgentPluginCandidate[] {
 	const candidates: IAgentPluginCandidate[] = [];
 	for (const discovery of discoveries) {

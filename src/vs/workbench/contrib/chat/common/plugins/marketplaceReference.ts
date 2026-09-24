@@ -56,6 +56,17 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 	// policy. Convert each entry to the nested IExtraMarketplaceObjectEntry shape so that
 	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
 	const extraObj = configurationService.getValue<ExtraKnownMarketplacesConfigDict>(ChatConfiguration.ExtraMarketplaces) ?? {};
+	const extraValues = extraMarketplaceConfigDictToValues(extraObj);
+
+	return {
+		userValues,
+		extraValues,
+		effectiveValues: [...userValues, ...extraValues],
+	};
+}
+
+/** Converts the configuration dictionary into named marketplace entries. */
+export function extraMarketplaceConfigDictToValues(extraObj: ExtraKnownMarketplacesConfigDict): IExtraMarketplaceObjectEntry[] {
 	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).flatMap(([name, value]) => {
 		if (typeof value !== 'string') {
 			return [];
@@ -68,12 +79,7 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 			? { name, autoUpdate, source: { source: 'github' as const, repo: src } }
 			: { name, autoUpdate, source: { source: 'git' as const, url: src } }];
 	});
-
-	return {
-		userValues,
-		extraValues,
-		effectiveValues: [...userValues, ...extraValues],
-	};
+	return extraValues;
 }
 
 function parseExtraMarketplaceConfigValue(value: string): IExtraKnownMarketplaceConfigValue | undefined {

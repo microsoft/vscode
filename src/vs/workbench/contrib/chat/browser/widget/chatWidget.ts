@@ -3126,7 +3126,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} : undefined;
 		validateSession?.();
 
-		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
+		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.input.isSubmissionBlocked) {
 			return undefined;
 		}
 

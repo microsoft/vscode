@@ -15,6 +15,7 @@ import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPol
 import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
+import { getManagedPluginBlockInfo, IManagedPluginAvailabilityService } from '../../../../workbench/contrib/chat/common/plugins/managedPluginAvailability.js';
 import { IManagedSettingsUpdateService } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
@@ -30,11 +31,13 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IManagedPluginAvailabilityService private readonly availabilityService: IManagedPluginAvailabilityService,
 		@IManagedSettingsUpdateService private readonly managedSettingsUpdateService: IManagedSettingsUpdateService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
+			this.availabilityService.state.read(reader);
 			this.managedSettingsUpdateService.updateInfo.read(reader);
 			this.update();
 		}));
@@ -95,6 +98,12 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 
+		const availability = this.availabilityService.state.get();
+		if (availability) {
+			this.showOverlay({ reason: SessionsBlockedReason.RequiredPlugins, pluginInfo: getManagedPluginBlockInfo(availability) });
+			return;
+		}
+
 		this.overlayRef.clear();
 		this.currentOptions = undefined;
 	}
@@ -103,7 +112,8 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		if (equals(this.currentOptions, options)) {
 			return;
 		}
-		const shouldFocus = options.reason !== SessionsBlockedReason.UpdateRequired || !this.overlayRef.value || this.overlayRef.value.hasFocus();
+		const recoverable = options.reason === SessionsBlockedReason.UpdateRequired || options.reason === SessionsBlockedReason.RequiredPlugins;
+		const shouldFocus = !recoverable || !this.overlayRef.value || this.overlayRef.value.hasFocus();
 		this.overlayRef.clear();
 		this.currentOptions = options;
 
