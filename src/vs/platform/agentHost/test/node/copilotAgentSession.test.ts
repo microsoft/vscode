@@ -5497,6 +5497,87 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	for (const restored of [false, true]) {
+		test(`names write-agent recipients known from completion notifications (restored=${restored})`, async () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const notification: SessionEventPayload<'system.notification'>['data'] = {
+				content: 'Agent finished',
+				kind: { type: 'agent_idle', agentId, agentType: 'code-review', displayName: 'Renderer reviewer' },
+			};
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: restored,
+				configureMockSession: restored ? mock => { mock.messages = toSessionEvents([{ type: 'system.notification', data: notification }]); } : undefined,
+			});
+			if (restored) {
+				await session.getMessages();
+			}
+			session.resetTurnState('turn-parent');
+			if (!restored) {
+				mockSession.fire('system.notification', notification);
+			}
+			const parameters = { agent_id: agentId, message: 'Follow up' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: parameters });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
+
+			assert.deepStrictEqual({
+				messages: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
+					? [action.invocationMessage]
+					: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
+						? [action.result.pastTenseMessage] : []),
+				parameters,
+			}, {
+				messages: [{ markdown: 'Write to agent `Renderer reviewer`' }, { markdown: 'Write to agent `Renderer reviewer`' }],
+				parameters: { agent_id: agentId, message: 'Follow up' },
+			});
+		});
+	}
+
+	test('uses runtime task names for writes when no start event was observed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'launch', displayName: 'History reviewer', description: 'Review the history',
+			status: 'idle', agentType: 'code-review', prompt: 'Review the history', startedAt: new Date(0).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
+		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
+			? [action.invocationMessage]
+			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
+				? [action.result.pastTenseMessage] : []), [
+			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: 'Write to agent `History reviewer`' },
+		]);
+	});
+
+	test('restored write labels prefer canonical lifecycle names over notification fallbacks', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: mock => {
+				mock.messages = toSessionEvents([
+					{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'agent-1', agentType: 'code-review', description: 'Review history' } } },
+					{ type: 'subagent.completed', agentId: 'agent-1', data: { toolCallId: 'launch', agentName: 'code-review', agentDisplayName: 'History reviewer' } },
+					{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'agent-1', agentType: 'code-review' } } },
+				]);
+			},
+		});
+		await session.getMessages();
+		session.resetTurnState('turn-parent');
+		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
+		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
+			? [action.invocationMessage]
+			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
+				? [action.result.pastTenseMessage] : []), [
+			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: 'Write to agent `History reviewer`' },
+		]);
+	});
+
 	test('forwards only known subagent task model sources on the started signal', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 

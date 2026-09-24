@@ -467,6 +467,35 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	for (const hasExecutionEvents of [true, false]) {
+		test(`restores write recipients from background completion notifications (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Continue the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'write-request', content: '', toolRequests: [{ toolCallId: 'tc-write', name: 'write_agent', arguments: parameters }] } },
+			];
+			if (hasExecutionEvents) {
+				events.push(
+					{ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } },
+				);
+			}
+			events.push(
+				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'renderer-agent', agentType: 'code-review', displayName: 'Renderer reviewer' } } },
+				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'history-agent', agentType: 'code-review', description: 'Review history', status: 'completed' } } },
+			);
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-write' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: 'Write to agents `Renderer reviewer`, `Review history`' },
+					completed: { markdown: 'Write to agents `Renderer reviewer`, `Review history`' },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+	}
+
 	test('task_complete renders the input summary when tool output is truncated', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
