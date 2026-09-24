@@ -39,7 +39,7 @@ import { IViewsService } from '../../../../../../../workbench/services/views/com
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, INewSessionBranches, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
@@ -145,7 +145,7 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'getNewSessionBranches' | 'isDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
@@ -156,6 +156,8 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	devContainerEnabled = false;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
+	readonly completionQueries: (string | undefined)[] = [];
+	readonly branchSnapshots = new Map<string, INewSessionBranches>();
 
 	constructor(
 		private readonly _emitter: Emitter<string>,
@@ -179,8 +181,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
 	async getSessionConfigCompletions(_sessionId: string, _property: string, query?: string): Promise<readonly SessionConfigValueItem[]> {
+		this.completionQueries.push(query);
 		return query ? this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase())) : this.completions;
 	}
+	getNewSessionBranches(sessionId: string): INewSessionBranches | undefined { return this.branchSnapshots.get(sessionId); }
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
@@ -1065,6 +1069,155 @@ suite('Agent Host Session Config Picker', () => {
 				_meta: { treeish: 'dev' },
 			}],
 			branchSelectionEvents: ['checkout', 'set:dev'],
+		});
+	});
+
+	test('new-session branch picker searches the complete workspace snapshot without more completions', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.branchSnapshots.set(SESSION_ID, {
+			status: 'ready',
+			items: ['main', ...Array.from({ length: 35 }, (_, index) => `feature/${index}`)].map(value => ({ value, label: value })),
+		});
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const initial = services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label);
+		const filtered = await services.actionWidget.delegate?.onFilter?.('FEATURE/34', CancellationToken.None);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			initialCount: initial.length,
+			first: initial[0],
+			last: initial.at(-1),
+			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			initialCount: 25,
+			first: 'main',
+			last: 'feature/23',
+			filtered: ['feature/34'],
+			completionQueries: [],
+		});
+	});
+
+	test('branch loading is announced and a failed load leaves the picker unavailable', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.branchSnapshots.set(SESSION_ID, { status: 'loading', items: [] });
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const loadingTrigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		loadingTrigger.focus();
+		const loading = {
+			ariaBusy: loadingTrigger.getAttribute('aria-busy'),
+			ariaDisabled: loadingTrigger.getAttribute('aria-disabled'),
+		};
+		loadingTrigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		services.provider.branchSnapshots.set(SESSION_ID, { status: 'error', items: [] });
+		services.provider.set(services.provider.config, false);
+		const unavailableTrigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		const focusRestored = document.activeElement === unavailableTrigger;
+		unavailableTrigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			loading,
+			focusRestored,
+			unavailable: {
+				label: unavailableTrigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				ariaLabel: unavailableTrigger.getAttribute('aria-label'),
+				ariaDisabled: unavailableTrigger.getAttribute('aria-disabled'),
+			},
+			pickerOpened: !!services.actionWidget.delegate,
+			completionQueries: services.provider.completionQueries,
+		}, {
+			loading: { ariaBusy: 'true', ariaDisabled: 'true' },
+			focusRestored: true,
+			unavailable: { label: 'Branches unavailable', ariaLabel: 'Base Branch, Branches unavailable', ariaDisabled: 'true' },
+			pickerOpened: false,
+			completionQueries: [],
+		});
+	});
+
+	test('new-session searches use only the workspace snapshot even when no branch matches', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.branchSnapshots.set(SESSION_ID, {
+			status: 'ready',
+			items: Array.from({ length: 25 }, (_, index) => ({ value: `branch-${index}`, label: `branch-${index}` })),
+		});
+		services.provider.completions = [{ value: 'branch-29', label: 'branch-29' }];
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const filtered = await services.actionWidget.delegate?.onFilter?.('branch-29', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			filtered: [],
+			completionQueries: [],
+		});
+	});
+
+	test('an in-flight branch picker cannot open for a superseded workspace', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.branchSnapshots.set(SESSION_ID, {
+			status: 'ready',
+			items: [{ value: 'main', label: 'main' }],
+		});
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		services.sessionObs.set({
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionId: 'local-agent-host:other',
+			workspace: constObservable(makeWorkspace(undefined)),
+		} as IActiveSession, undefined);
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			completionQueries: services.provider.completionQueries,
+			opened: !!services.actionWidget.delegate,
+		}, {
+			completionQueries: [],
+			opened: false,
+		});
+	});
+
+	test('switching workspaces closes an already open branch picker', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.branchSnapshots.set(SESSION_ID, {
+			status: 'ready',
+			items: [{ value: 'main', label: 'main' }],
+		});
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const oldDelegate = services.actionWidget.delegate;
+
+		services.sessionObs.set({
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionId: 'local-agent-host:other',
+			workspace: constObservable(makeWorkspace(undefined)),
+		} as IActiveSession, undefined);
+		oldDelegate?.onSelect({ value: 'main', label: 'main' });
+
+		assert.deepStrictEqual({
+			events: services.actionWidget.events,
+			updates: services.provider.setSessionConfigValueArguments,
+		}, {
+			events: ['hide', 'hide'],
+			updates: [],
 		});
 	});
 

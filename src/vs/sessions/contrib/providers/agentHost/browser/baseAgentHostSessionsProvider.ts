@@ -22,6 +22,7 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeSessionState, rekeyAgentMergeFolders } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { ALL_BRANCH_COMPLETIONS_QUERY } from '../../../../../platform/agentHost/common/agentHostGitService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -63,7 +64,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
-import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, INewSessionBranches, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
@@ -2437,6 +2438,8 @@ class NewSession extends Disposable {
 	private _configOperation: Promise<void> | undefined;
 	private _unresolvedConfigValues: Record<string, unknown> | undefined;
 	private readonly _explicitlySetConfigProperties = new Set<string>();
+	private _branches: INewSessionBranches = { status: 'loading', items: [] };
+	private _branchLoad: Promise<void> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -2873,6 +2876,27 @@ class NewSession extends Disposable {
 			property,
 			query,
 		});
+	}
+
+	get branches() { return this._branches; }
+
+	loadBranches(connection: IAgentConnection): Promise<void> {
+		return this._branchLoad ??= this._loadBranches(connection);
+	}
+
+	private async _loadBranches(connection: IAgentConnection): Promise<void> {
+		this._branches = { status: 'loading', items: [] };
+		try {
+			const { items } = await this.getConfigCompletions(connection, SessionConfigKey.Branch, ALL_BRANCH_COMPLETIONS_QUERY);
+			if (!this._lifetimeCts.token.isCancellationRequested) {
+				this._branches = { status: 'ready', items };
+			}
+		} catch (error) {
+			if (!this._lifetimeCts.token.isCancellationRequested) {
+				this._branches = { status: 'error', items: [] };
+				this._logService.warn(`[${this._providerId}] Failed to load branches for ${this.sessionId}: ${error}`);
+			}
+		}
 	}
 
 	// -- Backend session lifecycle -------------------------------------------
@@ -4225,6 +4249,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
+		if (newSession.workspaceUri) {
+			void newSession.loadBranches(connection).then(() => {
+				if (this._getNewSession(newSession.sessionId) === newSession) {
+					this._onDidChangeSessionConfig.fire(newSession.sessionId);
+				}
+			});
+		}
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick
@@ -4845,6 +4876,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const result = await newSession.getConfigCompletions(connection, property, query);
 		return result.items;
+	}
+
+	getNewSessionBranches(sessionId: string) {
+		return this._getNewSession(sessionId)?.branches;
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {

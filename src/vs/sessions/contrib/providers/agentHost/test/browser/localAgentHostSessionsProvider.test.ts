@@ -17,15 +17,16 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ALL_BRANCH_COMPLETIONS_QUERY } from '../../../../../../platform/agentHost/common/agentHostGitService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -117,6 +118,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
+	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
+	public branchCompletionBarrier: DeferredPromise<void> | undefined;
+	public failBranchCompletions = false;
 	public preparedSessionWorktree = URI.file('/home/user/project.worktrees/prepared');
 	public createDetachedWorktreeCalls: { session: URI; prompt: string }[] = [];
 	public claimedDetachedWorktrees: string[] = [];
@@ -254,6 +259,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			throw new Error('resolveSessionConfig unavailable');
 		}
 		return this.resolveSessionConfigResult;
+	}
+
+	override async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		this.branchCompletionRequests.push(params);
+		await this.branchCompletionBarrier?.p;
+		if (this.failBranchCompletions) {
+			throw new Error('branch completions unavailable');
+		}
+		return { items: this.branchCompletionItems };
 	}
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -721,6 +735,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function waitForBranchStatus(provider: LocalAgentHostSessionsProvider, sessionId: string, status: 'ready' | 'error'): Promise<void> {
+		if (provider.getNewSessionBranches(sessionId)?.status !== status) {
+			await Event.toPromise(Event.filter(provider.onDidChangeSessionConfig, id =>
+				id === sessionId && provider.getNewSessionBranches(id)?.status === status));
+		}
+	}
 
 	// ---- Provider identity -------
 
@@ -4505,6 +4526,106 @@ suite('LocalAgentHostSessionsProvider', () => {
 			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE),
 			nextDraft: provider.getSessionConfig(second.sessionId)?.values.isolation,
 		}, { remembered: undefined, nextDraft: 'worktree' });
+	});
+
+	test('loads branches once per selected workspace draft, not on configuration changes', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.branchCompletionItems = Array.from({ length: 30 }, (_, index) => ({
+			value: `branch-${index}`,
+			label: `branch-${index}`,
+		}));
+		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
+		await waitForBranchStatus(provider, first.sessionId, 'ready');
+		await waitForSessionConfig(provider, first.sessionId, () => !provider.isSessionConfigResolving(first.sessionId).get());
+		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'folder');
+		const firstBranches = provider.getNewSessionBranches(first.sessionId);
+
+		provider.deleteNewSession(first.sessionId);
+		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
+		await waitForBranchStatus(provider, second.sessionId, 'ready');
+
+		assert.deepStrictEqual({
+			firstBranches: firstBranches?.items.length,
+			disposedBranches: provider.getNewSessionBranches(first.sessionId),
+			secondBranches: provider.getNewSessionBranches(second.sessionId)?.items.length,
+			requests: agentHost.branchCompletionRequests.map(request => ({ workingDirectory: request.workingDirectory?.toString(), property: request.property, query: request.query })),
+		}, {
+			firstBranches: 30,
+			disposedBranches: undefined,
+			secondBranches: 30,
+			requests: [
+				{ workingDirectory: URI.file('/project-one').toString(), property: SessionConfigKey.Branch, query: ALL_BRANCH_COMPLETIONS_QUERY },
+				{ workingDirectory: URI.file('/project-two').toString(), property: SessionConfigKey.Branch, query: ALL_BRANCH_COMPLETIONS_QUERY },
+			],
+		});
+	});
+
+	test('an empty branch list does not trigger a second completion request', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.branchCompletionItems = [];
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		await waitForBranchStatus(provider, session.sessionId, 'ready');
+
+		assert.deepStrictEqual({
+			snapshot: provider.getNewSessionBranches(session.sessionId),
+			queries: agentHost.branchCompletionRequests.map(request => request.query),
+		}, {
+			snapshot: { status: 'ready', items: [] },
+			queries: [ALL_BRANCH_COMPLETIONS_QUERY],
+		});
+	});
+
+	test('a snapshot of exactly 25 branches does not search the host again', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.branchCompletionItems = Array.from({ length: 25 }, (_, index) => ({
+			value: `branch-${index}`,
+			label: `branch-${index}`,
+		}));
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		await waitForBranchStatus(provider, session.sessionId, 'ready');
+
+		assert.deepStrictEqual({
+			count: provider.getNewSessionBranches(session.sessionId)?.items.length,
+			queries: agentHost.branchCompletionRequests.map(request => request.query),
+		}, {
+			count: 25,
+			queries: [ALL_BRANCH_COMPLETIONS_QUERY],
+		});
+	});
+
+	test('failed branch loading keeps the draft in an error state without retrying', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.failBranchCompletions = true;
+		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		await waitForBranchStatus(provider, session.sessionId, 'error');
+
+		assert.deepStrictEqual({
+			branches: provider.getNewSessionBranches(session.sessionId),
+			requestCount: agentHost.branchCompletionRequests.length,
+		}, {
+			branches: { status: 'error', items: [] },
+			requestCount: 1,
+		});
+	});
+
+	test('discarding a draft ignores its in-flight branch results', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const barrier = agentHost.branchCompletionBarrier = new DeferredPromise<void>();
+		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
+		provider.deleteNewSession(first.sessionId);
+		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
+		barrier.complete();
+		await waitForBranchStatus(provider, second.sessionId, 'ready');
+
+		assert.deepStrictEqual({
+			first: provider.getNewSessionBranches(first.sessionId),
+			second: provider.getNewSessionBranches(second.sessionId),
+			requestCount: agentHost.branchCompletionRequests.length,
+		}, {
+			first: undefined,
+			second: { status: 'ready', items: [{ value: 'main', label: 'main' }] },
+			requestCount: 2,
+		});
 	});
 
 	test('a rejected first request does not save a workspace isolation preference', async () => {

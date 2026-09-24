@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { ALL_BRANCH_COMPLETIONS_QUERY, BRANCH_COMPLETION_LIMIT, getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -124,7 +124,6 @@ export class SessionWorkingDirectoryMissingError extends Error {
 }
 
 /** Default upper bound on branch names returned for the branch picker. */
-const BRANCH_COMPLETION_LIMIT = 25;
 const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
 export interface ISessionWorktree {
@@ -839,7 +838,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/**
 	 * Branch-name completions for the branch picker. Callers forward this from
 	 * their `sessionConfigCompletions` when the requested property is
-	 * {@link SessionConfigKey.Branch}.
+	 * {@link SessionConfigKey.Branch}. The reserved query requests an unfiltered,
+	 * uncapped list for a new workspace draft; ordinary queries stay capped.
 	 */
 	async branchCompletions(workingDirectory: URI | undefined, query?: string): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
@@ -850,11 +850,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._gitService.getCurrentBranch(workingDirectory),
 			this._gitService.getDefaultBranch(workingDirectory),
 		]);
+		const allBranches = query === ALL_BRANCH_COMPLETIONS_QUERY;
 		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
 			currentBranch,
 			defaultBranch: defaultBranch?.name,
-			query,
-			limit: BRANCH_COMPLETION_LIMIT,
+			query: allBranches ? undefined : query,
+			limit: allBranches ? undefined : BRANCH_COMPLETION_LIMIT,
 		});
 
 		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
