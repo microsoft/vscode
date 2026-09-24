@@ -592,6 +592,11 @@
 	 * and the hover highlight stops short of the right edge. */
 	min-width: 0;
 	outline: none;
+	overflow: hidden;
+}
+
+.action-list-submenu-panel > .hover-row.status-bar {
+	margin: 0 calc(-1 * var(--vscode-spacing-size40, 4px)) calc(-1 * var(--vscode-spacing-size40, 4px));
 }
 
 .action-list-submenu-hover-header {
