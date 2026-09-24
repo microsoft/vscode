@@ -357,6 +357,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			});
 			await input.submit();
 			assert.strictEqual(requests, 0);
+			assert.deepStrictEqual(h.otelRoutes, [{ resource: undefined, sessionType: undefined }]);
 			h.assertFinished(result);
 		});
 	}
@@ -391,6 +392,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				response.disposed.fire();
 			} else {
 				interaction.disposeSource();
+				assert.deepStrictEqual(h.otelRoutes, [{ resource: undefined, sessionType: undefined }]);
 			}
 			h.assertFinished('disposed');
 		});

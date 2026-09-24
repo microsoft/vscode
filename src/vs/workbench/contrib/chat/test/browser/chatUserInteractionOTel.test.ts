@@ -85,6 +85,29 @@ suite('ChatUserInteractionOTel', () => {
 		assert.strictEqual(warnings[0], '[ChatTTFP] OTel export failed');
 	});
 
+	test('does not treat missing routing identity as local chat even with an active extension', async () => {
+		const calls: string[] = [];
+		const warnings: string[] = [];
+		disposables.add(CommandsRegistry.registerCommand(ReportChatUserInteractionCommand, () => { }));
+		const service = new ChatUserInteractionOTelService(
+			upcastPartial<IAgentHostConnectionsService>({}),
+			upcastPartial<ICommandService>({
+				executeCommand: async command => { calls.push(command); return undefined; },
+			}),
+			new class extends NullLogService {
+				override warn(message: string) { warnings.push(message); }
+			}(),
+		);
+		for (const result of ['notDispatched', 'error', 'cancelled', 'hidden', 'disposed'] as const) {
+			service.report({ ...timing, ...service.begin(), result }, undefined, undefined);
+		}
+		assert.deepStrictEqual({ result: await service.flush(), calls, warnings }, {
+			result: { schemaVersion: 1, started: 5, completed: 5, failed: 5 },
+			calls: [],
+			warnings: Array(5).fill('[ChatTTFP] OTel export failed'),
+		});
+	});
+
 	test('routes early remote observations only to their host and fails unroutable observations', async () => {
 		const calls: string[] = [];
 		const warnings: string[] = [];

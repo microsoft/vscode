@@ -50,6 +50,8 @@ Agent Host measurements do not depend on the Copilot extension exporter.
 Observations ending before a response use the submission's session resource for
 routing, including composer session replacement. Unroutable remote observations
 are logged as failed deliveries, never sent to the local extension exporter.
+Observations without a session type or routable host resource, including
+pre-handoff composer terminations, also fail rather than assuming local chat.
 
 The internal `_chat.flushUserInteractionTelemetry` command waits up to 10 seconds
 for active UI observations, then drains renderer deliveries before eval snapshots

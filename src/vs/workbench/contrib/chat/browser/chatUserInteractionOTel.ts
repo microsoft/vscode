@@ -66,6 +66,8 @@ export class ChatUserInteractionOTelService implements IChatUserInteractionOTelS
 			await connection.reportUserInteraction(data);
 		} else if (sessionType && isRemoteAgentHostTarget(sessionType)) {
 			throw new Error('No remote Agent Host routing identity for user interaction telemetry');
+		} else if (!sessionType) {
+			throw new Error('No session type for user interaction telemetry');
 		} else {
 			// Do not activate an extension just to export a UI observation.
 			if (CommandsRegistry.getCommand(ReportChatUserInteractionCommand)) {
