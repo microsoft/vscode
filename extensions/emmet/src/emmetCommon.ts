@@ -157,8 +157,23 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 /**
  * Holds any registered completion providers by their language strings
  */
-const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
+const languageMappingForCompletionProviders: Map<string, string | string[]> = new Map<string, string | string[]>();
 const completionProviderDisposables: vscode.Disposable[] = [];
+
+/**
+ * Helper function to merge trigger characters from multiple languages
+ * @param languages Array of language identifiers to merge trigger characters from
+ * @returns Array of unique trigger characters from all specified languages
+ */
+function mergeTriggerCharacters(languages: string[]): string[] {
+	const triggerChars = new Set<string>();
+	languages.forEach(lang => {
+		if (LANGUAGE_MODES[lang]) {
+			LANGUAGE_MODES[lang].forEach(char => triggerChars.add(char));
+		}
+	});
+	return Array.from(triggerChars);
+}
 
 function refreshCompletionProviders(_: vscode.ExtensionContext) {
 	clearCompletionProviderInfo();
@@ -195,19 +210,27 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 	const useInlineCompletionProvider = vscode.workspace.getConfiguration('emmet').get<boolean>('useInlineCompletions');
 	const includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
-		if (languageMappingForCompletionProviders.has(language) && languageMappingForCompletionProviders.get(language) === includedLanguages[language]) {
-			return;
-		}
+		const mapping = includedLanguages[language];
 
 		if (useInlineCompletionProvider) {
 			const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider);
 			completionProviderDisposables.push(inlineCompletionsProvider);
 		}
 
-		const explicitProvider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
+		// Handle both single string and array of languages
+		let triggerChars: string[];
+		if (typeof mapping === 'string') {
+			triggerChars = LANGUAGE_MODES[mapping] || [];
+		} else if (Array.isArray(mapping)) {
+			triggerChars = mergeTriggerCharacters(mapping);
+		} else {
+			triggerChars = [];
+		}
+
+		const explicitProvider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...triggerChars);
 		completionProviderDisposables.push(explicitProvider);
 
-		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
+		languageMappingForCompletionProviders.set(language, mapping);
 	});
 
 	Object.keys(LANGUAGE_MODES).forEach(language => {
