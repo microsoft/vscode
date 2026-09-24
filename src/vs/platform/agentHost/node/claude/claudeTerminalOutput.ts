@@ -85,6 +85,7 @@ export class ClaudeTerminalOutputs {
 			return result.tool_use_id;
 		} catch (error) {
 			this._logService.warn(`[Claude] Failed to retain shell output for ${result.tool_use_id}`, error);
+			return undefined;
 		} finally {
 			database?.dispose();
 		}
