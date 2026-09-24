@@ -4326,6 +4326,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content, {
 					showSpinner: !context.suppressProgressShimmer,
 					onDidFinishStarting: () => this.showWorkingProgressAfterMcp(context, templateData),
+					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput(),
 				});
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);

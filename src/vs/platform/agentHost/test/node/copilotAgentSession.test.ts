@@ -16129,6 +16129,43 @@ Use the attached image as context.
 
 	suite('MCP server inventory', () => {
 
+		for (const status of ['disabled', 'not_configured', 'stopped'] as const) {
+			for (const enabled of [false, true]) {
+				test(`reconciles ${status} servers with desired enablement ${enabled}`, async () => {
+					const serverName = 'azure';
+					const id = 'mcp-top-level:copilot:test-session-1:azure';
+					const { session, mockSession } = await createAgentSession(disposables, {
+						sessionCustomizations: () => [{
+							type: CustomizationType.McpServer,
+							id,
+							uri: id,
+							name: serverName,
+							state: { kind: McpServerStatus.Stopped },
+						}],
+						resolveCustomizationEnablement: () => ({
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+							enabled,
+							workingDirectory: { kind: 'workspaceless' },
+						}),
+						configureMockSession: mock => {
+							mock.mcpListResult = { servers: [{ name: serverName, status }] };
+						},
+					});
+
+					await session.send('reconcile Azure');
+
+					assert.deepStrictEqual({
+						enable: mockSession.mcpEnableCalls,
+						disable: mockSession.mcpDisableCalls,
+					}, {
+						enable: enabled && status !== 'stopped' ? [{ serverName }] : [],
+						disable: !enabled && status === 'stopped' ? [{ serverName }] : [],
+					});
+				});
+			}
+		}
+
 		test('seeds the initial MCP inventory without starting servers', async () => {
 			const { mockSession } = await createAgentSession(disposables);
 

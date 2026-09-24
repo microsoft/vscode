@@ -3995,7 +3995,7 @@ export class CopilotAgentSession extends Disposable {
 		if (desiredEnablement.size === 0) {
 			return;
 		}
-		const observedEnablement = new Map(servers.map(server => [server.name, server.status !== 'disabled'] as const));
+		const observedEnablement = new Map(servers.map(server => [server.name, server.status !== 'disabled' && server.status !== 'not_configured'] as const));
 		let changed = false;
 		for (const [serverName, desired] of desiredEnablement) {
 			const enabled = observedEnablement.get(serverName);

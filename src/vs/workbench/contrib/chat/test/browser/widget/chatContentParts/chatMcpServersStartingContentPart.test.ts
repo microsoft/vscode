@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -27,7 +27,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
-	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true) {
+	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true, onDidRemoveFocusedAction?: () => void) {
 		const servers$ = observableValue<readonly IChatMcpStartingServer[]>('servers', servers);
 		const data: IChatMcpServersStartingSlow = {
 			kind: 'mcpServersStartingSlow',
@@ -46,9 +46,64 @@ suite('ChatMcpServersStartingContentPart', () => {
 			createSpinner,
 			showSpinner,
 			onDidFinishStarting: () => finishedCount++,
+			onDidRemoveFocusedAction,
 		}));
 		return { part, servers$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
 	}
+
+	function attach(element: HTMLElement): void {
+		document.body.appendChild(element);
+		disposables.add(toDisposable(() => element.remove()));
+	}
+
+	test('preserves Skip focus when remaining servers still block startup', () => {
+		const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+		const { part, servers$ } = createPart([server, { ...server, id: 'b', name: 'beta' }]);
+		attach(part.domNode);
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		assert.ok(link);
+		link.focus();
+
+		servers$.set([server], undefined);
+
+		assert.strictEqual(document.activeElement, part.domNode.querySelector('a[data-href="#skip"]'));
+	});
+
+	for (const allFinished of [false, true]) {
+		test(`returns focus to the input when ${allFinished ? 'all servers finish' : 'startup is no longer blocking'}`, () => {
+			const input = document.createElement('input');
+			attach(input);
+			let fallbackCount = 0;
+			const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+			const { part, servers$ } = createPart([server], true, () => {
+				fallbackCount++;
+				input.focus();
+			});
+			attach(part.domNode);
+			const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+			assert.ok(link);
+			link.focus();
+
+			servers$.set(allFinished ? [] : [{ ...server, blocking: false }], undefined);
+
+			assert.deepStrictEqual({ inputFocused: document.activeElement === input, fallbackCount }, { inputFocused: true, fallbackCount: 1 });
+		});
+	}
+
+	test('does not move focus from outside the part when servers change or finish', () => {
+		const input = document.createElement('input');
+		attach(input);
+		let fallbackCount = 0;
+		const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+		const { part, servers$ } = createPart([server], true, () => fallbackCount++);
+		attach(part.domNode);
+		input.focus();
+
+		servers$.set([{ ...server, name: 'beta' }], undefined);
+		servers$.set([], undefined);
+
+		assert.deepStrictEqual({ inputFocused: document.activeElement === input, fallbackCount }, { inputFocused: true, fallbackCount: 0 });
+	});
 
 	test('reflects the starting servers and hides when empty as the observable updates', () => {
 		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }]);

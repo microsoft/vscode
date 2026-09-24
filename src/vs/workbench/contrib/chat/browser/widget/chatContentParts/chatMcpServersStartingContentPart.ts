@@ -29,6 +29,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
+	private skipAction: HTMLAnchorElement | undefined;
 	private hadStartingServers = false;
 	private didNotifyFinished = false;
 
@@ -38,6 +39,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 			readonly createSpinner?: typeof createPixelSpinner;
 			readonly showSpinner?: boolean;
 			readonly onDidFinishStarting?: () => void;
+			readonly onDidRemoveFocusedAction?: () => void;
 		} | undefined,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
@@ -49,12 +51,17 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	}
 
 	private render(servers: readonly IChatMcpStartingServer[]): void {
+		const actionHadFocus = !!this.skipAction && dom.isActiveElement(this.skipAction);
+		this.skipAction = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
 		this.spinner.clear();
 
 		if (!servers.length) {
 			this.domNode.style.display = 'none';
+			if (actionHadFocus) {
+				this.options?.onDidRemoveFocusedAction?.();
+			}
 			if (this.hadStartingServers && !this.didNotifyFinished) {
 				this.didNotifyFinished = true;
 				this.options?.onDidFinishStarting?.();
@@ -70,15 +77,22 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		const links = visibleServers
 			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
 			.join(', ');
-		this._renderMessage(
+		this.skipAction = this._renderMessage(
 			blockingServers.length
 				? localize('mcp.waiting.for.servers', 'Waiting for MCP servers {0}...', links)
 				: localize('mcp.starting.servers', 'Starting MCP servers {0}...', links),
 			backgroundableServers,
 		);
+		if (actionHadFocus) {
+			if (this.skipAction) {
+				this.skipAction.focus();
+			} else {
+				this.options?.onDidRemoveFocusedAction?.();
+			}
+		}
 	}
 
-	private _renderMessage(content: string, backgroundableServers: readonly IChatMcpStartingServer[]): void {
+	private _renderMessage(content: string, backgroundableServers: readonly IChatMcpStartingServer[]): HTMLAnchorElement | undefined {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		if (this.options?.showSpinner !== false) {
@@ -109,6 +123,8 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
+		// eslint-disable-next-line no-restricted-syntax -- The markdown renderer owns the Skip anchor.
+		return rendered.element.querySelector<HTMLAnchorElement>('a[data-href="#skip"]') ?? undefined;
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
