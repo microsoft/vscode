@@ -2468,6 +2468,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			setCopilotTgrepEnvironment(env, startupConfig.tgrep);
+			if (startupConfig.tgrep) {
+				this._logService.info('[Copilot] Set CLI env: USE_TGREP=true (tgrep indexed search forced on)');
+			}
 
 			// Keep the SDK wrapper and native module paired within one platform package.
 			const nodeModulesUri = getAppNodeModulesUri();
