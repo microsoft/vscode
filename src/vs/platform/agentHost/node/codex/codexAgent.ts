@@ -83,7 +83,7 @@ import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
+import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -5944,12 +5944,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (err) {
 			session.agentMergeTurn = false;
 			const duration = this._clearTurnStopWatch(session);
+			// Codex reports writer contention as InvalidRequest without a dedicated
+			// discriminator. Match the exact backing thread as well as the code.
+			const threadInUse = err instanceof JsonRpcError
+				&& err.code === JsonRpcErrorCode.InvalidRequest
+				&& session.threadId !== undefined
+				&& err.message === `thread ${session.threadId} already has an active writer`;
 			this._fire(sessionUri, {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
 				part: createErrorResponsePart({
-					errorType: 'CodexResumeFailed',
+					errorType: threadInUse ? 'CodexThreadInUse' : 'CodexResumeFailed',
 					message: err instanceof Error ? err.message : String(err),
 				}),
 			});

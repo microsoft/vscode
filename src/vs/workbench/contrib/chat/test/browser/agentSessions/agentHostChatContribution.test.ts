@@ -7095,6 +7095,30 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
 
+		test('Codex writer lock explains the handoff without offering a turn retry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexThreadInUse', message: 'thread locked-thread already has an active writer' } },
+			});
+			const result = await turnPromise;
+
+			assert.deepStrictEqual({
+				errorDetails: result.errorDetails,
+				markdown: collected.flat().filter(part => part.kind === 'markdownContent'),
+			}, {
+				errorDetails: {
+					message: 'This conversation is in use by another Codex app. If you\'re using it in ChatGPT, let any running task finish, then quit the ChatGPT app and send your message again in VS Code. Your message has not been sent.',
+					isExpectedError: true,
+				},
+				markdown: [],
+			});
+		}));
+
 		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],

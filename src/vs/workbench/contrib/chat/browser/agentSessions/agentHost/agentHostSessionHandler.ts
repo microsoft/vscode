@@ -2050,6 +2050,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!error) {
 			return undefined;
 		}
+		if (error.errorType === 'CodexThreadInUse') {
+			return {
+				message: localize('agentHost.codexThreadInUse', "This conversation is in use by another Codex app. If you're using it in ChatGPT, let any running task finish, then quit the ChatGPT app and send your message again in VS Code. Your message has not been sent."),
+				isExpectedError: true,
+			};
+		}
 		const isExecutionInterrupted = error.errorType === 'executionInterrupted';
 		const forwardedDetails = getChatErrorDetailsFromMeta(error, this._chatErrorContext());
 		const details: IChatResponseErrorDetails = isExecutionInterrupted
@@ -3792,13 +3798,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
-			const turnError = getTurnError(lastTurn);
-			if (!opts.suppressErrorMarkdown && turnError) {
-				const forwarded = getChatErrorDetailsFromMeta(turnError, this._chatErrorContext());
-				const content = forwarded
-					? new MarkdownString(`\n\n${forwarded.message}`)
-					: new MarkdownString(`\n\nError: (${turnError.errorType}) ${turnError.message}`);
-				opts.sink([{ kind: 'markdownContent', content }]);
+			if (!opts.suppressErrorMarkdown) {
+				const errorDetails = this._getTurnErrorDetails(lastTurn, false);
+				if (errorDetails) {
+					opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\n${errorDetails.message}`) }]);
+				}
 			}
 			finish(lastTurn);
 		}));
