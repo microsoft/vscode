@@ -1288,7 +1288,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				return;
 			}
 
-			collapseButton.element.classList.add('chat-thinking-title-with-diff');
+			container.classList.add('chat-thinking-title-with-diff');
 			const button = this.diffButtonStore.add(this.instantiationService.createInstance(ChatEditStatsButton, container, localize('chat.thinking.changes.title', "Section File Changes"), 'chat-thinking-title-diff'));
 			this.diffButton = button;
 
@@ -1304,8 +1304,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.diffButtonStore.clear();
 		this.diffButton = undefined;
 		const collapseButton = this._collapseButton;
-		collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
 		const container = collapseButton?.element.parentElement;
+		container?.classList.remove('chat-thinking-title-with-diff');
 		if (collapseButton && container && this._hoverChevron) {
 			if (this.titleDetailContainer?.parentElement === container) {
 				container.appendChild(this._hoverChevron);

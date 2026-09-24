@@ -2226,6 +2226,40 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			test(`denied tools retain their denial icon (restored: ${restored}, grouped: ${grouped})`, async () => {
+				const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				if (grouped) {
+					const first = new ChatToolInvocation(
+						{ invocationMessage: 'Read the first file' },
+						{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						'first', undefined, {},
+					);
+					await first.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, first);
+				}
+				const toolId = grouped ? 'read_file' : 'mcp_read_file';
+				const denied = ChatToolInvocation.createCancelled({
+					toolData: { id: toolId, displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+					toolId,
+					toolCallId: 'denied',
+					chatRequestId: request.id,
+				}, {}, ToolConfirmKind.Denied);
+				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
+				renderer.renderElement(node, 0, template);
+				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');
+				assert.deepStrictEqual({
+					grouped: !!icon?.closest('.chat-thinking-tool-wrapper'),
+					denialIconVisible: !!icon && icon.getClientRects().length > 0 && mainWindow.getComputedStyle(icon).display !== 'none',
+					treatedAsFailure: !!icon?.closest('.chat-tool-call-error'),
+				}, { grouped, denialIconVisible: true, treatedAsFailure: false });
+				request.response?.complete();
+			});
+		}
+	}
+
 	for (const interaction of ['question', 'planReview', 'elicitation'] as const) {
 		test(`persistent progress resumes after ${interaction} submission without provider output`, async () => {
 			const { model, request, response, renderer, template, node } = createPersistentProgressRenderer();
@@ -3670,6 +3704,65 @@ suite('ChatListRenderer', () => {
 				});
 			}
 		}
+	}
+
+	for (const fontSize of [12, 13, 16]) {
+		test(`diff headers center counts and compact chevrons with their title (${fontSize}px)`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				chatMode: ChatModeKind.Agent,
+				progressVerbosity: ChatProgressVerbosity.Compact,
+			});
+			configurePersistentProgressTypography(container, fontSize);
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			for (const name of ['first.ts', 'second.ts']) {
+				model.acceptResponseProgress(request, {
+					kind: 'externalEdit',
+					uri: URI.file(`/workspace/${name}`),
+					editKind: 'edit',
+					beforeContentUri: URI.file(`/before/${name}`),
+					afterContentUri: URI.file(`/after/${name}`),
+					diff: { added: 5, removed: 18 },
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'review', value: '**Reviewing the changes**\nCheck the rendering.' });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The changes are ready.') });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const snapshot = (header: HTMLElement) => {
+				const title = header.querySelector<HTMLElement>(':scope > .monaco-icon-button > .monaco-button-mdlabel');
+				const stats = header.querySelector<HTMLElement>(':scope > .chat-thinking-title-diff, :scope > .chat-edit-stats');
+				const chevron = header.querySelector<HTMLElement>(':scope > .chat-collapsible-hover-chevron');
+				assert.ok(title && stats && chevron);
+				const center = (element: Element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.top + bounds.height / 2;
+				};
+				return {
+					counts: [...stats.children].map(child => child.textContent),
+					countsCentered: [...stats.children].every(child => Math.abs(center(child) - center(title)) < 0.1),
+					chevronCentered: Math.abs(center(chevron) - center(title)) < 0.1,
+					chevronSize: mainWindow.getComputedStyle(chevron).fontSize,
+					compactGlyph: chevron.classList.contains('codicon-chevron-right-compact'),
+				};
+			};
+			const thinkingHeader = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label.chat-thinking-title-with-diff');
+			assert.ok(thinkingHeader);
+			const thinking = snapshot(thinkingHeader);
+			const thinkingHeight = thinkingHeader.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const summary = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary');
+			assert.ok(summary);
+			const expected = { counts: ['+10', '-36'], countsCentered: true, chevronCentered: true, chevronSize: '12px', compactGlyph: true };
+			assert.deepStrictEqual({ thinking, completed: snapshot(summary), thinkingHeight }, {
+				thinking: expected,
+				completed: expected,
+				thinkingHeight: fontSize * 1.5,
+			});
+		});
 	}
 
 	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {

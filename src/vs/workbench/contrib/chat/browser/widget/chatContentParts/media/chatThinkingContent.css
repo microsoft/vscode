@@ -61,9 +61,9 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon .progress-container > .codicon-error-compact,
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon.chat-tool-call-error .progress-container > .codicon-error-compact,
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-error .chat-confirmation-widget-title > .codicon-error-compact,
-.interactive-session .interactive-response .value .chat-thinking-tool-wrapper .progress-container > .codicon-error-compact {
+.interactive-session .interactive-response .value .chat-thinking-tool-wrapper .chat-tool-call-error .progress-container > .codicon-error-compact {
 	display: none;
 }
 
@@ -332,6 +332,16 @@
 
 	> .chat-used-context-label {
 		position: relative;
+
+		&.chat-thinking-title-with-diff {
+			display: flex;
+			align-items: center;
+
+			> .monaco-button.monaco-icon-button {
+				min-width: 0;
+				padding-right: var(--vscode-spacing-size20);
+			}
+		}
 	}
 
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
@@ -339,10 +349,6 @@
 		align-items: center;
 		line-height: 1.5em;
 		font-size: var(--vscode-chat-font-size-body-m);
-
-		&.chat-thinking-title-with-diff {
-			padding-right: var(--vscode-spacing-size20);
-		}
 
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);

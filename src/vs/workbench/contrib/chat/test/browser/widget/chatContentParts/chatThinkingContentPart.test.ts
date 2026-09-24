@@ -3296,14 +3296,16 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual({
 				added: addedEl?.textContent,
 				removed: removedEl?.textContent,
+				headerHasDiff: label?.classList.contains('chat-thinking-title-with-diff'),
 				childClasses: [...label!.children].map(child => child.className),
 				initialExpanded,
 				expandedAfterChevronClick: titleButton?.ariaExpanded,
 			}, {
 				added: '+10',
 				removed: '-3',
+				headerHasDiff: true,
 				childClasses: [
-					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
+					'monaco-button monaco-icon-button monaco-text-button',
 					'monaco-button chat-thinking-title-diff',
 					'chat-collapsible-hover-chevron codicon codicon-chevron-right-compact expanded',
 				],

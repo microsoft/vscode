@@ -3503,7 +3503,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const button = summary.appendChild($('span.monaco-button.monaco-text-button.monaco-icon-button'));
 		const label = button.appendChild($('span.monaco-button-mdlabel'));
 		const chevron = button.appendChild($('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
 

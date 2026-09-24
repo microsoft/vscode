@@ -86,7 +86,7 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
@@ -479,13 +479,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					toolInvocation.requestConfirmation({
 						confirmationMessages: { title: 'Approve tool call?', message: new MarkdownString(part.invocationMessage), confirmResults: part.approval === 'post' },
 					});
-					if (part.approval === 'post') {
+					if (part.approval === 'post' || part.approval === 'denied') {
 						const state = toolInvocation.state.get();
 						if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							throw new Error('Post-approval fixture requires a confirmable tool');
+							throw new Error('The approval fixture requires a confirmable tool');
 						}
-						state.confirm({ type: ToolConfirmKind.ConfirmationNotNeeded });
-						await toolInvocation.didExecuteTool({ content: [] });
+						state.confirm({ type: part.approval === 'denied' ? ToolConfirmKind.Denied : ToolConfirmKind.ConfirmationNotNeeded });
+						if (part.approval === 'post') {
+							await toolInvocation.didExecuteTool({ content: [] });
+						}
 					}
 				} else if (part.complete) {
 					await toolInvocation.didExecuteTool(part.resultDetails || part.resultError ? { content: [], toolResultDetails: part.resultDetails, toolResultError: part.resultError } : undefined);
@@ -1586,7 +1588,7 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 	});
 }
 
-async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw): Promise<void> {
+async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw, withDenied = false): Promise<void> {
 	await renderChatWidget(context, {
 		width: 720,
 		height: 340,
@@ -1610,6 +1612,9 @@ async function renderToolFailures(context: ComponentFixtureContext, grouped: boo
 					source: { type: 'mcp', label: 'Component Explorer', serverLabel: 'Component Explorer', collectionId: 'explorer', definitionId: 'explorer', instructions: '' },
 					resultError: 'The component explorer browser was closed. Restart the preview and try again.',
 				},
+				...(withDenied ? [{
+					kind: 'tool' as const, toolId: 'mcp_read_settings', displayName: 'Read settings', invocationMessage: 'Read workspace settings', approval: 'denied' as const,
+				}] : []),
 			],
 		}],
 	});
@@ -2386,6 +2391,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			Standalone: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, false) }),
 			Grouped: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, true) }),
 			Legacy: defineComponentFixture({ render: context => renderToolFailures(context, false, ChatProgressAnimation.Off) }),
+			WithDenied: defineComponentFixture({ render: context => renderToolFailures(context, false, ChatProgressAnimation.Draw, true) }),
 		}),
 		VerbosityComparison: defineThemedFixtureGroup({
 			VerboseStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, false) }),
