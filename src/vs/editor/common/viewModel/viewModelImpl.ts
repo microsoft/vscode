@@ -1030,6 +1030,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
 		};
 
+		// Not sure?
 		if (hasEmptyRange && emptySelectionClipboard && !isBlock) {
 			// some (maybe all) empty selections
 			let prevModelLineNumber = 0;

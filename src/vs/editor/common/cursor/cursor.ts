@@ -603,6 +603,7 @@ export class CursorsController extends Disposable {
 		const reason = EditSources.cursor({ kind: 'paste', detailedSource: source });
 
 		let didPasteBlock = false;
+		// Why do we need to return didPasteBlock. IsBlock should be enough no?
 		this._executeEdit(() => {
 			const operation = TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || [], isBlock);
 			didPasteBlock = operation.commands[0] instanceof ColumnSelectionPasteCommand;

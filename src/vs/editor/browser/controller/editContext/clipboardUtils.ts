@@ -45,7 +45,7 @@ function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataT
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const isBlock = viewModel.getCursorColumnSelectData().isReal && modelSelections.some(selection => !selection.isEmpty());
+	const isBlock = viewModel.getCursorColumnSelectData().isReal && modelSelections.length === 1;
 	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows, isBlock);
 	const newLineCharacter = viewModel.model.getEOL();
 
@@ -116,7 +116,7 @@ export interface ClipboardStoredMetadata {
 	version: 1;
 	id: string | undefined;
 	isFromEmptySelection: boolean | undefined;
-	isBlock?: boolean;
+	isBlock: boolean;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }

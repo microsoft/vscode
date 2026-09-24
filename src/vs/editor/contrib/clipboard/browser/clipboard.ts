@@ -312,10 +312,12 @@ if (PasteAction) {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let isBlock = false;
 						let pasteOnNewLine = false;
 						let multicursorText: string[] | null = null;
 						let mode: string | null = null;
 						if (metadata) {
+							isBlock = !!metadata.isBlock;
 							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
@@ -325,7 +327,7 @@ if (PasteAction) {
 							text: clipboardText,
 							pasteOnNewLine,
 							multicursorText,
-							isBlock: metadata?.isBlock === true,
+							isBlock,
 							mode
 						});
 					}

@@ -186,18 +186,20 @@ export class NativeEditContext extends AbstractEditContext {
 			if (!pasteEvent.text) {
 				return;
 			}
+			let isBlock = false;
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
 			if (pasteEvent.metadata) {
 				const options = this._context.configuration.options;
 				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				isBlock = !!pasteEvent.metadata.isBlock;
 				pasteOnNewLine = emptySelectionClipboard && !!pasteEvent.metadata.isFromEmptySelection;
 				multicursorText = typeof pasteEvent.metadata.multicursorText !== 'undefined' ? pasteEvent.metadata.multicursorText : null;
 				mode = pasteEvent.metadata.mode;
 			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode, pasteEvent.metadata?.isBlock === true);
+			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode, isBlock);
 		}));
 
 		// Edit context events

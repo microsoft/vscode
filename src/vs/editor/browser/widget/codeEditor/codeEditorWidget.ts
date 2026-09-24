@@ -1134,7 +1134,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 				case editorCommon.Handler.Paste: {
 					const args = <Partial<editorBrowser.PastePayload>>payload;
-					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.isBlock === true, args.clipboardEvent);
+					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.isBlock || false, args.clipboardEvent);
 					return;
 				}
 				case editorCommon.Handler.Cut:
@@ -1210,12 +1210,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const viewModel = this._modelData.viewModel;
 		const startPosition = viewModel.getSelection().getStartPosition();
-		const didPasteBlock = viewModel.paste(text, pasteOnNewLine, multicursorText, source, isBlock);
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source, isBlock);
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				clipboardEvent,
-				isBlock: didPasteBlock,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
 				languageId: mode
 			});

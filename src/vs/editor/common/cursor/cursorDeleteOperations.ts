@@ -240,6 +240,7 @@ export class DeleteOperations {
 			const selection = selections[i];
 
 			if (selection.isEmpty()) {
+				// Why?
 				if (config.emptySelectionClipboard && !isBlock) {
 					// This is a full line cut
 

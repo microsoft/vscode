@@ -48,6 +48,7 @@ suite('Column selection paste', () => {
 		selections: Selection[];
 		expected: string[];
 		pastedText?: string;
+		tabSize?: number;
 		options?: IEditorOptions;
 		payload?: Partial<PastePayload>;
 	}[] = [
@@ -106,22 +107,22 @@ suite('Column selection paste', () => {
 				expected: ['leftA', 'BC', 'Dright']
 			},
 			{
-				name: 'clamps to short and empty lines without padding',
+				name: 'pads short and empty lines to the block column',
 				text: ['left--right', 'x', ''],
 				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA--right', 'xBC', 'D']
+				expected: ['leftA--right', 'x   BC', '    D']
 			},
 			{
 				name: 'appends missing rows without moving the existing suffix',
 				text: ['left--right'],
 				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA--right', 'BC', 'D']
+				expected: ['leftA--right', '    BC', '    D']
 			},
 			{
 				name: 'appends rows when the cursor is at the end of the file',
 				text: ['left'],
 				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA', 'BC', 'D']
+				expected: ['leftA', '    BC', '    D']
 			},
 			{
 				name: 'pastes into an empty document',
@@ -137,17 +138,38 @@ suite('Column selection paste', () => {
 				expected: ['leftA--right', 'left--right', 'leftD--right', 'left--right']
 			},
 			{
+				name: 'pads short lines for empty and trailing copied rows',
+				text: ['left', 'x', '', 'y'],
+				selections: [new Selection(1, 5, 1, 5)],
+				pastedText: 'A\n\nD\n',
+				expected: ['leftA', 'x   ', '    D', 'y   ']
+			},
+			{
 				name: 'appends empty and trailing copied rows',
 				text: ['left'],
 				selections: [new Selection(1, 5, 1, 5)],
 				pastedText: 'A\n\nD\n',
-				expected: ['leftA', '', 'D', '']
+				expected: ['leftA', '    ', '    D', '    ']
 			},
 			{
 				name: 'aligns using visible columns across tabs and spaces',
 				text: ['\tleft', '    left', '  \tleft'],
 				selections: [new Selection(1, 2, 1, 2)],
 				expected: ['\tAleft', '    BCleft', '  \tDleft']
+			},
+			{
+				name: 'pads short lines using the configured tab size',
+				text: ['\t--left', '\t', ''],
+				selections: [new Selection(1, 4, 1, 4)],
+				tabSize: 8,
+				expected: ['\t--Aleft', '\t  BC', '          D']
+			},
+			{
+				name: 'pads using visible widths of graphemes and full-width characters',
+				text: ['left--right', 'e\u0301', '\u4E2D', '\u{1F600}'],
+				selections: [new Selection(1, 5, 1, 5)],
+				pastedText: 'A\nB\nC\nD',
+				expected: ['leftA--right', 'e\u0301   B', '\u4E2D  C', '\u{1F600}  D']
 			},
 			{
 				name: 'uses grapheme boundaries and full-width character columns',
@@ -263,8 +285,8 @@ suite('Column selection paste', () => {
 
 	for (const scenario of cases) {
 		test(scenario.name, () => {
-			withTestCodeEditor(scenario.text, scenario.options ?? {}, editor => {
-				editor.getModel().updateOptions({ tabSize: 4 });
+			withTestCodeEditor(scenario.text, { columnSelectionPaste: 'block', ...scenario.options }, editor => {
+				editor.getModel().updateOptions({ tabSize: scenario.tabSize ?? 4 });
 				editor.setSelections(scenario.selections);
 				paste(editor, scenario.pastedText ?? block, scenario.payload);
 				assert.deepStrictEqual(editor.getModel().getLinesContent(), scenario.expected);
@@ -273,16 +295,16 @@ suite('Column selection paste', () => {
 	}
 
 	test('preserves CRLF line endings', () => {
-		withTestCodeEditor(['left', 'left', 'left'], {}, editor => {
+		withTestCodeEditor(['left', 'x'], { columnSelectionPaste: 'block' }, editor => {
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\r\nBC\r\nD');
-			assert.strictEqual(editor.getModel().getValue(), 'leftA\r\nleftBC\r\nleftD');
+			assert.strictEqual(editor.getModel().getValue(), 'leftA\r\nx   BC\r\n    D');
 		});
 	});
 
 	test('leaves the cursor on an empty trailing pasted row', () => {
-		withTestCodeEditor(['left', 'left', 'left'], {}, editor => {
+		withTestCodeEditor(['left', 'left', 'left'], { columnSelectionPaste: 'block' }, editor => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
@@ -292,8 +314,30 @@ suite('Column selection paste', () => {
 		});
 	});
 
+	test('leaves the cursor after padding on an empty trailing pasted row', () => {
+		withTestCodeEditor(['left', 'x', ''], { columnSelectionPaste: 'block' }, editor => {
+			editor.setPosition(new Position(1, 5));
+			paste(editor, 'A\nBC\n');
+			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
+				text: ['leftA', 'x   BC', '    '],
+				selections: [new Selection(3, 5, 3, 5)]
+			});
+		});
+	});
+
+	test('leaves the cursor after padding on an appended empty row', () => {
+		withTestCodeEditor(['left'], { columnSelectionPaste: 'block' }, editor => {
+			editor.setPosition(new Position(1, 5));
+			paste(editor, 'A\nBC\n');
+			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
+				text: ['leftA', '    BC', '    '],
+				selections: [new Selection(3, 5, 3, 5)]
+			});
+		});
+	});
+
 	test('undo and redo preserve text and the original single selection', () => {
-		withTestCodeEditor(['left--right', 'left--right'], {}, editor => {
+		withTestCodeEditor(['left--right', 'x'], { columnSelectionPaste: 'block' }, editor => {
 			const model = editor.getModel();
 			const selection = new Selection(1, 7, 1, 5);
 			editor.setSelection(selection);
@@ -303,45 +347,45 @@ suite('Column selection paste', () => {
 			const undone = { text: model.getLinesContent(), selections: editor.getSelections() };
 			model.redo();
 			assert.deepStrictEqual({ after, undone, redone: { text: model.getLinesContent(), selections: editor.getSelections() } }, {
-				after: { text: ['leftAright', 'leftBC--right', 'D'], selections: [new Selection(3, 2, 3, 2)] },
-				undone: { text: ['left--right', 'left--right'], selections: [selection] },
-				redone: { text: ['leftAright', 'leftBC--right', 'D'], selections: [new Selection(3, 2, 3, 2)] }
+				after: { text: ['leftAright', 'x   BC', '    D'], selections: [new Selection(3, 6, 3, 6)] },
+				undone: { text: ['left--right', 'x'], selections: [selection] },
+				redone: { text: ['leftAright', 'x   BC', '    D'], selections: [new Selection(3, 6, 3, 6)] }
 			});
 		});
 	});
 
 	test('changes only the row ranges in one content change', () => {
-		withTestCodeEditor(['left--right', 'left--right', 'left--right'], {}, editor => {
+		withTestCodeEditor(['left--right', 'x', ''], { columnSelectionPaste: 'block' }, editor => {
 			const changes: { range: Range; text: string }[][] = [];
 			editor.registerDisposable(editor.onDidChangeModelContent(e => changes.push(e.changes.map(change => ({ range: Range.lift(change.range), text: change.text })))));
 			editor.setPosition(new Position(1, 5));
 			paste(editor);
 			assert.deepStrictEqual(changes, [[
-				{ range: new Range(3, 5, 3, 5), text: 'D' },
-				{ range: new Range(2, 5, 2, 5), text: 'BC' },
+				{ range: new Range(3, 1, 3, 1), text: '    D' },
+				{ range: new Range(2, 2, 2, 2), text: '   BC' },
 				{ range: new Range(1, 5, 1, 5), text: 'A' }
 			]]);
 		});
 	});
 
 	test('reports block pastes but not normal text fallbacks', () => {
-		withTestCodeEditor(['left--right', 'left--right', 'left--right'], {}, editor => {
-			const events: Pick<IPasteEvent, 'isBlock' | 'range'>[] = [];
-			editor.registerDisposable(editor.onDidPaste(e => events.push({ isBlock: e.isBlock, range: e.range })));
+		withTestCodeEditor(['left--right', 'left--right', 'left--right'], { columnSelectionPaste: 'block' }, editor => {
+			const events: Pick<IPasteEvent, 'range'>[] = [];
+			editor.registerDisposable(editor.onDidPaste(e => events.push({ range: e.range })));
 			editor.setSelection(new Selection(1, 5, 1, 5));
 			paste(editor);
 			editor.getModel().undo();
 			editor.setSelection(new Selection(1, 5, 2, 7));
 			paste(editor);
 			assert.deepStrictEqual(events, [
-				{ isBlock: true, range: new Range(1, 5, 3, 6) },
-				{ isBlock: false, range: new Range(1, 5, 3, 2) }
+				{ range: new Range(1, 5, 3, 6) },
+				{ range: new Range(1, 5, 3, 2) }
 			]);
 		});
 	});
 
 	test('responds to block, text, and block configuration transitions', () => {
-		withTestCodeEditor(['left', 'left', 'left'], {}, editor => {
+		withTestCodeEditor(['left', 'x', ''], {}, editor => {
 			const results: string[][] = [];
 			const defaultValue = editor.getOption(EditorOption.columnSelectionPaste);
 			for (const columnSelectionPaste of ['block', 'text', 'block'] as const) {
@@ -352,25 +396,25 @@ suite('Column selection paste', () => {
 				editor.getModel().undo();
 			}
 			assert.deepStrictEqual({ defaultValue, invalidValue: EditorOptions.columnSelectionPaste.validate('invalid'), results }, {
-				defaultValue: 'block',
-				invalidValue: 'block',
+				defaultValue: 'text',
+				invalidValue: 'text',
 				results: [
-					['leftA', 'leftBC', 'leftD'],
-					['leftA', 'BC', 'D', 'left', 'left'],
-					['leftA', 'leftBC', 'leftD']
+					['leftA', 'x   BC', '    D'],
+					['leftA', 'BC', 'D', 'x', ''],
+					['leftA', 'x   BC', '    D']
 				]
 			});
 		});
 	});
 
-	test('respects overtype on each existing row', () => {
+	test('respects overtype and pads short rows', () => {
 		const previousInputMode = InputMode.getInputMode();
 		try {
 			InputMode.setInputMode('overtype');
-			withTestCodeEditor(['left--right', 'left--right', 'left--right'], { overtypeOnPaste: true }, editor => {
+			withTestCodeEditor(['left--right', 'left--right', 'x', ''], { columnSelectionPaste: 'block', overtypeOnPaste: true }, editor => {
 				editor.setPosition(new Position(1, 5));
-				paste(editor);
-				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA-right', 'leftBCright', 'leftD-right']);
+				paste(editor, 'A\nBC\nD\nE');
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA-right', 'leftBCright', 'x   D', '    E']);
 			});
 		} finally {
 			InputMode.setInputMode(previousInputMode);
@@ -508,7 +552,7 @@ suite('Column selection paste', () => {
 				selectColumn(viewModel, new Position(1, 2), new Position(3, 4));
 				const clipboardData = copy(viewModel);
 				InMemoryClipboardMetadataManager.INSTANCE.get('');
-				withTestCodeEditor(['left--right', 'left--right', 'left--right'], {}, target => {
+				withTestCodeEditor(['left--right', 'left--right', 'left--right'], { columnSelectionPaste: 'block' }, target => {
 					target.setPosition(new Position(1, 5));
 					const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
 					paste(target, event.text, { isBlock: event.metadata?.isBlock === true, multicursorText: event.metadata?.multicursorText ?? null });

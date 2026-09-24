@@ -453,8 +453,8 @@ export interface IEditorOptions {
 	 */
 	columnSelection?: boolean;
 	/**
-	 * Paste copied column selections as a block or using normal text pasting.
-	 * Defaults to 'block'; short destination lines are not padded.
+	 * Paste copied column selections as a block, padding short destination lines with spaces, or using normal text pasting.
+	 * Defaults to 'text'.
 	 */
 	columnSelectionPaste?: 'block' | 'text';
 	/**
@@ -6235,14 +6235,14 @@ export const EditorOptions = {
 	)),
 	columnSelectionPaste: register(new EditorStringEnumOption(
 		EditorOption.columnSelectionPaste, 'columnSelectionPaste',
-		'block' as 'block' | 'text',
+		'text' as 'block' | 'text',
 		['block', 'text'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('columnSelectionPaste.block', "Paste rows on successive lines from a single cursor, or replace selected rows when the row counts match. Short lines are not padded, and automatic formatting and paste transformations are not applied."),
-				nls.localize('columnSelectionPaste.text', "Use normal text pasting for copied column selections.")
+				nls.localize('columnSelectionPaste.block', "Paste rows of the column selection on successive destination lines of the single cursor, padding short lines with spaces to align with the cursor."),
+				nls.localize('columnSelectionPaste.text', "Paste rows of the column selection at the cursor position.")
 			],
-			markdownDescription: nls.localize('columnSelectionPaste', "Controls pasting of column selections copied with editor clipboard metadata. Ordinary multi-cursor pasting is controlled by `#editor.multiCursorPaste#`.")
+			markdownDescription: nls.localize('columnSelectionPaste', "Controls pasting of column selection rows into a single selection. Multi-cursor pasting is controlled by `#editor.multiCursorPaste#`.")
 		}
 	)),
 	comments: register(new EditorComments()),

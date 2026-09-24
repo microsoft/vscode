@@ -3608,8 +3608,8 @@ declare namespace monaco.editor {
 		 */
 		columnSelection?: boolean;
 		/**
-		 * Paste copied column selections as a block or using normal text pasting.
-		 * Defaults to 'block'; short destination lines are not padded.
+		 * Paste copied column selections as a block, padding short destination lines with spaces, or using normal text pasting.
+		 * Defaults to 'text'.
 		 */
 		columnSelectionPaste?: 'block' | 'text';
 		/**
@@ -6002,10 +6002,6 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
-		/**
-		 * Whether the paste inserted a rectangular block rather than a contiguous range.
-		 */
-		readonly isBlock?: boolean;
 		readonly clipboardEvent?: ClipboardEvent;
 	}
 

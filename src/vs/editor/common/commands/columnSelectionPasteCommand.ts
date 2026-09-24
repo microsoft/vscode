@@ -32,11 +32,14 @@ export class ColumnSelectionPasteCommand implements ICommand {
 			const lineNumber = selection.startLineNumber + i;
 			if (lineNumber > lineCount) {
 				const endColumn = model.getLineMaxColumn(lineCount);
-				builder.addTrackedEditOperation(new Range(lineCount, endColumn, lineCount, endColumn), '\n' + this._text.slice(i).join('\n'));
+				const padding = ' '.repeat(visibleColumn);
+				const text = '\n' + padding + this._text.slice(i).join('\n' + padding);
+				builder.addTrackedEditOperation(new Range(lineCount, endColumn, lineCount, endColumn), text);
 				break;
 			}
 
 			let range: Range;
+			let text = this._text[i];
 			if (isMultilineSelection) {
 				range = new Range(
 					lineNumber, i === 0 ? selection.startColumn : 1,
@@ -45,13 +48,18 @@ export class ColumnSelectionPasteCommand implements ICommand {
 			} else if (i === 0) {
 				range = selection;
 			} else {
-				const column = CursorColumns.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, this._tabSize);
+				const lineContent = model.getLineContent(lineNumber);
+				const column = CursorColumns.columnFromVisibleColumn(lineContent, visibleColumn, this._tabSize);
 				range = new Range(lineNumber, column, lineNumber, column);
+				if (column === lineContent.length + 1) {
+					const endVisibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, column, this._tabSize);
+					text = ' '.repeat(Math.max(0, visibleColumn - endVisibleColumn)) + text;
+				}
 			}
-			if (i === this._text.length - 1 && this._text[i].length === 0 && range.isEmpty()) {
+			if (i === this._text.length - 1 && text.length === 0 && range.isEmpty()) {
 				this._lastEmptyRowSelectionId = builder.trackSelection(Selection.fromPositions(range.getStartPosition()));
 			}
-			new ChosenReplaceCommand(range, this._text[i]).getEditOperations(model, builder);
+			new ChosenReplaceCommand(range, text).getEditOperations(model, builder);
 		}
 	}
 
