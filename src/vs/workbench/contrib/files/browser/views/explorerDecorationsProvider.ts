@@ -68,6 +68,9 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		this.toDispose.add(explorerRootErrorEmitter.event((resource => {
 			this._onDidChange.fire([resource]);
 		})));
+		this.toDispose.add(explorerService.onDidChangeItemDecorations(uris => {
+			this._onDidChange.fire(uris);
+		}));
 	}
 
 	get onDidChange(): Event<URI[]> {
