@@ -68,11 +68,11 @@ export class InboxAgentMergeAlwaysOptInService {
 	isAlwaysEnabled(kind: InboxAgentMergeActionKind): boolean {
 		switch (kind) {
 			case InboxNotificationActionKind.AgentMergeFixCI:
-				return this.configurationService.getValue<boolean>(AgentMergeSettingId.FixCI) === true;
+				return this.hasExplicitSettingValue(AgentMergeSettingId.FixCI, value => value === true);
 			case InboxNotificationActionKind.AgentMergeAddressReviews:
-				return this.configurationService.getValue<boolean>(AgentMergeSettingId.AddressReviews) === true;
+				return this.hasExplicitSettingValue(AgentMergeSettingId.AddressReviews, value => value === true);
 			case InboxNotificationActionKind.AgentMergeMergePullRequest:
-				return this.configurationService.getValue<string>(AgentMergeSettingId.MergePullRequest) === 'always';
+				return this.hasExplicitSettingValue(AgentMergeSettingId.MergePullRequest, value => value === 'always');
 		}
 	}
 
@@ -94,5 +94,20 @@ export class InboxAgentMergeAlwaysOptInService {
 
 	private storageKey(kind: InboxAgentMergeActionKind, suffix: string): string {
 		return `${AGENT_MERGE_ALWAYS_PROMPT_STORAGE_KEY_PREFIX}.${kind}.${suffix}`;
+	}
+
+	private hasExplicitSettingValue<T>(settingId: string, matches: (value: T) => boolean): boolean {
+		const inspect = this.configurationService.inspect<T>(settingId);
+		const configuredValues: readonly (T | undefined)[] = [
+			inspect.applicationValue,
+			inspect.userValue,
+			inspect.userLocalValue,
+			inspect.userRemoteValue,
+			inspect.workspaceValue,
+			inspect.workspaceFolderValue,
+			inspect.memoryValue,
+			inspect.policyValue,
+		];
+		return configuredValues.some((value): value is T => value !== undefined && matches(value));
 	}
 }

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AgentMergeSettingId } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { InboxNotificationActionKind } from '../../common/inboxNotificationsService.js';
@@ -15,20 +15,32 @@ import { AGENT_MERGE_ALWAYS_PROMPT_INTERVAL, InboxAgentMergeAlwaysOptInService }
 suite('InboxAgentMergeAlwaysOptInService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const createFixture = (initialConfiguration: Record<string, unknown> = {}) => {
+	const createFixture = (
+		initialExplicitConfiguration: Record<string, unknown> = {},
+		initialEffectiveConfiguration: Record<string, unknown> = initialExplicitConfiguration,
+	) => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		const configuration = new Map<string, unknown>(Object.entries(initialConfiguration));
+		const explicitConfiguration = new Map<string, unknown>(Object.entries(initialExplicitConfiguration));
+		const effectiveConfiguration = new Map<string, unknown>(Object.entries(initialEffectiveConfiguration));
 		const updates: Array<{ key: string; value: unknown }> = [];
 		const configurationService = upcastPartial<IConfigurationService>({
 			getValue: <T>(sectionOrOverrides?: string | IConfigurationOverrides): T => {
 				if (typeof sectionOrOverrides === 'string') {
-					return configuration.get(sectionOrOverrides) as T;
+					return effectiveConfiguration.get(sectionOrOverrides) as T;
 				}
 				return undefined as T;
 			},
+			inspect: <T>(key: string): IConfigurationValue<T> => {
+				const hasExplicitValue = explicitConfiguration.has(key);
+				return {
+					userValue: hasExplicitValue ? explicitConfiguration.get(key) as T : undefined,
+					value: effectiveConfiguration.get(key) as T,
+				};
+			},
 			updateValue: async (key: string, value: unknown): Promise<void> => {
 				updates.push({ key, value });
-				configuration.set(key, value);
+				explicitConfiguration.set(key, value);
+				effectiveConfiguration.set(key, value);
 			},
 		});
 
@@ -84,6 +96,23 @@ suite('InboxAgentMergeAlwaysOptInService', () => {
 		}
 
 		assert.deepStrictEqual(promptedAt, []);
+	});
+
+	test('still prompts when action is enabled only by defaults', () => {
+		const fixture = createFixture(
+			{},
+			{ [AgentMergeSettingId.FixCI]: true },
+		);
+
+		const promptedAt: number[] = [];
+		for (let i = 0; i < AGENT_MERGE_ALWAYS_PROMPT_INTERVAL; i++) {
+			const decision = fixture.service.recordUsage(InboxNotificationActionKind.AgentMergeFixCI);
+			if (decision.shouldPrompt) {
+				promptedAt.push(decision.usageCount);
+			}
+		}
+
+		assert.deepStrictEqual(promptedAt, [10]);
 	});
 
 	test('writes expected defaults for always opt-in actions', async () => {

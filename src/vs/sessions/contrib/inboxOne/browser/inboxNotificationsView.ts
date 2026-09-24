@@ -298,6 +298,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.contentElement.appendChild(this.detailPaneElement);
 		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
 		this.detailContentElement.tabIndex = -1;
+		this.detailContentElement.setAttribute('role', 'region');
+		this.detailContentElement.setAttribute('aria-label',
+			localize('inboxNotifications.detail.ariaLabel.empty', "Notification details. Select a notification to see its details."));
 		container.appendChild(this.contentElement);
 		this.loadListPaneWidth();
 		this.createDetailSash();
@@ -1083,7 +1086,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		const target = event.target;
-		if (!isHTMLElement(target) || !this.detailPaneElement.contains(target) || this.isInlineFormInputElement(target)) {
+		if (!isHTMLElement(target) || !this.detailPaneElement.contains(target) || !this.shouldHandleDetailPaneEscape(target)) {
 			return;
 		}
 
@@ -1093,6 +1096,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		event.preventDefault();
 		event.stopPropagation();
+	}
+
+	private shouldHandleDetailPaneEscape(target: HTMLElement): boolean {
+		if (target.isContentEditable) {
+			return false;
+		}
+		const tagName = target.tagName.toLowerCase();
+		return tagName !== 'input' && tagName !== 'textarea' && tagName !== 'select';
 	}
 
 	private isInlineFormInputElement(element: HTMLElement): boolean {
@@ -1304,14 +1315,34 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private isMergedSessionCleanupAlwaysEnabled(actionKind: InboxMergedSessionCleanupActionKind): boolean {
-		const archiveAfterDays = this.configurationService.getValue<number>(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
-		const deleteAfterDays = this.configurationService.getValue<number>(AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
+		const archiveAfterDays = this.getExplicitlyConfiguredNumber(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
+		const deleteAfterDays = this.getExplicitlyConfiguredNumber(AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
 		switch (actionKind) {
 			case InboxNotificationActionKind.ArchiveSession:
 				return archiveAfterDays > 0;
 			case InboxNotificationActionKind.DeleteSession:
 				return archiveAfterDays > 0 && deleteAfterDays > 0;
 		}
+	}
+
+	private getExplicitlyConfiguredNumber(settingId: string): number | undefined {
+		const inspect = this.configurationService.inspect<number>(settingId);
+		const configuredValues = [
+			inspect.applicationValue,
+			inspect.userValue,
+			inspect.userLocalValue,
+			inspect.userRemoteValue,
+			inspect.workspaceValue,
+			inspect.workspaceFolderValue,
+			inspect.memoryValue,
+			inspect.policyValue,
+		];
+		for (const configuredValue of configuredValues) {
+			if (typeof configuredValue === 'number') {
+				return configuredValue;
+			}
+		}
+		return undefined;
 	}
 
 	private async runMergedSessionCleanupAction(item: IInboxNotificationItem, actionKind: InboxMergedSessionCleanupActionKind, enableAlways: boolean): Promise<InboxInteractionResult> {
@@ -1607,47 +1638,17 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		this.applyCardTabStops(selectedId);
 		selectedCard.focus({ preventScroll: true });
+		const win = getWindow(selectedCard);
+		win.setTimeout(() => {
+			if (getActiveElement() !== selectedCard) {
+				selectedCard.focus({ preventScroll: true });
+			}
+		}, 0);
 		return true;
 	}
 
 	private focusDetailPane(): void {
-		const focusTarget = this.getFirstDetailFocusableElement() ?? this.detailContentElement;
-		focusTarget.focus({ preventScroll: true });
-	}
-
-	private getFirstDetailFocusableElement(): HTMLElement | undefined {
-		const focusableSelector = [
-			'button:not([disabled])',
-			'a[href]',
-			'input:not([disabled])',
-			'select:not([disabled])',
-			'textarea:not([disabled])',
-			'[tabindex]:not([tabindex="-1"])',
-		].join(', ');
-
-		const candidates: HTMLElement[] = [];
-		for (const child of this.detailContentElement.children) {
-			if (isHTMLElement(child)) {
-				candidates.push(child);
-			}
-		}
-
-		while (candidates.length > 0) {
-			const element = candidates.shift();
-			if (!element) {
-				continue;
-			}
-			if (element.matches(focusableSelector) && !element.hasAttribute('aria-hidden')) {
-				return element;
-			}
-			for (const child of element.children) {
-				if (isHTMLElement(child)) {
-					candidates.push(child);
-				}
-			}
-		}
-
-		return undefined;
+		this.detailContentElement.focus({ preventScroll: true });
 	}
 
 	private clearSelectedItem(trigger: string): void {
@@ -1711,11 +1712,19 @@ export class InboxNotificationsView extends AbstractCustomView {
 		clearNode(this.detailContentElement);
 
 		if (!item) {
+			this.detailContentElement.setAttribute('aria-label',
+				localize('inboxNotifications.detail.ariaLabel.empty', "Notification details. Select a notification to see its details."));
 			this.detailContentElement.appendChild($('.inbox-notifications-detail-placeholder', undefined,
 				localize('inboxNotifications.detail.placeholder', "Select a notification to see its details.")));
 			this.detailScrollableElement.scanDomNode();
 			return;
 		}
+
+		this.detailContentElement.setAttribute('aria-label', localize(
+			'inboxNotifications.detail.ariaLabel.item',
+			"Notification details for {0}. Press Escape to return to the selected notification.",
+			item.title,
+		));
 
 		const header = this.detailContentElement.appendChild($('.inbox-notifications-detail-header'));
 		const kindLabel = header.appendChild($('.inbox-notifications-detail-kind', undefined, this.kindLabel(item.kind)));

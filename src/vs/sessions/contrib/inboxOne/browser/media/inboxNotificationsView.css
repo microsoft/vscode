@@ -265,6 +265,8 @@
 .inbox-notifications-toolbar {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
+	justify-content: space-between;
 	gap: var(--vscode-spacing-size100);
 }
 
@@ -272,6 +274,7 @@
 	display: flex;
 	gap: var(--vscode-spacing-size80);
 	flex: 0 0 auto;
+	flex-wrap: wrap;
 }
 
 .inbox-notifications-sort-buttons .monaco-button {
@@ -282,8 +285,11 @@
 .inbox-notifications-toolbar-actions {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-start;
 	gap: var(--vscode-spacing-size80);
-	margin-left: auto;
+	flex: 0 1 auto;
+	min-width: 0;
 }
 
 .inbox-notifications-toolbar-actions .monaco-button {
