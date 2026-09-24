@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Separator } from '../../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -66,6 +67,20 @@ suite('ChatCustomConfirmationWidget', () => {
 		widget.runPrimaryAction();
 
 		assert.deepStrictEqual({ initiallyDisabled, clicks }, { initiallyDisabled: [], clicks: ['Reveal Selected'] });
+	});
+
+	test('renders a dropdown only when a button has an additional action', () => {
+		const widget = createWidget([
+			button('Allow'),
+			button('Allow Empty', []),
+			{ ...button('Allow Separator'), moreActions: [new Separator()] },
+			button('Allow More', [button('Always Allow')]),
+		]);
+
+		assert.deepStrictEqual(
+			[...widget.domNode.querySelectorAll('.monaco-button-dropdown')].map(element => element.textContent),
+			['Allow More']
+		);
 	});
 
 	test('preserves focused button when buttons reorder', () => {

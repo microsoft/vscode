@@ -22,7 +22,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker, TipTrackingCommands } from '../../browser/chatTipService.js';
 import { IChatMode, IChatModes } from '../../common/chatModes.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -240,6 +240,41 @@ suite('ChatTipService', () => {
 		}
 	});
 
+	test('btw tip is limited to active side-chat sessions in the Agents window', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.btw');
+		assert.ok(tip?.when);
+
+		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', true);
+		const isArchived = contextKeyService.createKey<boolean>('sessionIsArchived', false);
+		const supportsSideChat = contextKeyService.createKey<boolean>('sessionSupportsSideChat', true);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+
+		isSessionsWindow.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isSessionsWindow.set(true);
+		isCreated.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isCreated.set(true);
+		isArchived.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isArchived.set(false);
+		supportsSideChat.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+
+		assert.deepStrictEqual(
+			eligibility,
+			[true, false, false, false, false],
+		);
+		assert.strictEqual(
+			tip.buildMessage({
+				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
+				experimentalTipMessages: new Map(),
+			}).value,
+			'Use `/btw <question>` to ask a side question without adding it to the current conversation.',
+		);
+	});
+
 	test('records # file reference usage for attach files tip eligibility', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {
@@ -424,6 +459,22 @@ suite('ChatTipService', () => {
 
 		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
 		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND), 'Expected slash usage to be tracked in executed command exclusions');
+	});
+
+	test('removes btw tip from rotation after the slash command is used', () => {
+		const service = createService();
+		contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey<boolean>('sessionIsCreated', true);
+		contextKeyService.createKey<boolean>('sessionIsArchived', false);
+		contextKeyService.createKey<boolean>('sessionSupportsSideChat', true);
+
+		assert.ok(findTipById(service, 'tip.btw'));
+
+		service.recordSlashCommandUsage('btw');
+
+		assertTipNeverShown(service, 'tip.btw');
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(TipTrackingCommands.BtwUsed));
 	});
 
 	test('records fork tip usage for submitted /fork command', () => {

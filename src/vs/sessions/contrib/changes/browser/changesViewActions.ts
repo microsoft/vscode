@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -42,6 +41,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { isChangesFileResource } from './changesViewRenderer.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -78,13 +78,13 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		// Bind context key: true when the active session has changes
+		// Bind context key: true when the active chat has changes
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
-			const changes = activeSession.changes.read(reader);
+			const changes = activeSession.activeChat.read(reader).changes.read(reader);
 			return changes.length > 0;
 		}));
 
@@ -596,7 +596,7 @@ class OpenChangesAction extends Action2 {
 		const sessionChanges = changesViewService.activeSessionChangesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
-			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+			resources.some(resource => isChangesFileResource(change, resource))
 		) ?? [];
 
 		await Promise.all(changes.map(change => editorService.openEditor({

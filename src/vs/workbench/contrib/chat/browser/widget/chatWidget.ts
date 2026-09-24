@@ -393,6 +393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		onCancel?: () => void;
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
+	private readonly transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>(this, undefined);
 	private transcriptProgressActive = false;
 	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
 	private transcriptContext: HTMLElement | undefined;
@@ -443,6 +444,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
 	private bodyDimension: dom.Dimension | undefined;
+	private maximumWidth = 950;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private hasActiveRequest: IContextKey<boolean>;
@@ -1168,6 +1170,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parent: petHost,
 				dragBounds: inputContainer ?? petHost,
 				movementBounds: petMovementBounds ?? parent,
+				transition: this.viewOptions.isSessionsWindow ? 'fall' : undefined,
 				model: this._viewModelObs.map(viewModel => viewModel?.model),
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
@@ -1516,7 +1519,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void }): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
@@ -1547,17 +1550,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.part.domNode.classList.toggle('show-checkmarks', options?.complete === true);
 		this.transcriptProgress.detail.hidden = !message || !options?.detail;
 		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
-		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgress.container.hidden = message === undefined || !!options?.inTranscript;
+		this.transcriptProgressAction.set(message && options?.inTranscript ? options.detail : undefined, undefined);
 		this.transcriptProgress.onDetail = message ? options?.detail?.run : undefined;
 		const wasPreparing = this.isTranscriptProgressActive;
 		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
 		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
 		if (wasPreparing !== this.isTranscriptProgressActive) {
 			this.input.setInputEnabled(!this.isTranscriptProgressActive);
+			this._readOnlyContextKey.set(this._readOnly || this.isTranscriptProgressActive);
+			this._applyRendererEditable(!this._readOnly);
 		}
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();
+		this._layoutListForInputHeight();
 	}
 
 	get isTranscriptProgressActive(): boolean {
@@ -2072,7 +2079,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setReadOnly(readOnly: boolean): void {
 		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
-		this._readOnlyContextKey.set(readOnly);
+		this._readOnlyContextKey.set(readOnly || this.isTranscriptProgressActive);
 		if (readOnly) {
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -2101,7 +2108,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
+		const readOnly = this._readOnly || this.isTranscriptProgressActive;
+		this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly });
 	}
 
 	/**
@@ -2174,7 +2182,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: { ...options, readOnly: this._readOnly },
+				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2251,7 +2259,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	startEditing(requestId: string): void {
-		if (this._readOnly) {
+		if (this._readOnly || this.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -3695,6 +3703,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				CancellationToken.None,
 				requestOptions,
 			);
+			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
 		}
@@ -3758,6 +3767,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			viewModel.sessionResource,
 			CancellationToken.None,
 		);
+		this.chatTipService.recordSlashCommandUsage(command);
 		return true;
 	}
 
@@ -3901,8 +3911,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPartMaxHeightOverride = maxHeight;
 	}
 
+	setMaximumWidth(maximumWidth: number): void {
+		this.maximumWidth = maximumWidth;
+	}
+
 	layout(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._findController?.layout(width);
@@ -3930,7 +3944,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * surfaces and must not call {@link ChatInputPart.layout}.
 	 */
 	layoutForInputHeight(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth);
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._layoutListForInputHeight();
 	}

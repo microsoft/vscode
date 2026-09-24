@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
-import type { IObservable } from '../../../base/common/observable.js';
+import type { IObservable, IReader } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
@@ -132,12 +132,10 @@ export interface IAgentChatMetadata {
 	 */
 	readonly changes?: ChangesSummary;
 	/**
-	 * Catalogue of changesets the agent can produce for this session — the
-	 * {@link Changeset | catalogue} that travels on
-	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
-	 * URI template / aggregate counts) without per-file detail; clients
-	 * subscribe to a specific expanded changeset URI when they need the full
-	 * file list.
+	 * Catalogue of changesets the agent can produce for this chat or session. These are
+	 * lightweight summary entries without per-file detail; clients subscribe
+	 * to a specific expanded changeset URI for the full file list. Chat metadata
+	 * carries chat-owned entries while session metadata carries session-wide entries.
 	 */
 	readonly changesets?: readonly Changeset[];
 	/**
@@ -163,6 +161,12 @@ export interface IAgentChatMetadataOptions {
 /** A provider chat ready to be registered as an Agent Host session. */
 export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
+}
+
+/** A fresh provider transcript for a chat being observed without running a host turn. */
+export interface IAgentChatHistoryChange {
+	readonly chat: URI;
+	readonly turns: readonly Turn[];
 }
 
 /** Returns the candidate session URI keys already present in the host registry. */
@@ -1189,6 +1193,11 @@ export interface IAgentPendingMessageSender {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
+/** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
+export interface IAgentTelemetryContext {
+	readonly copilotSku: string | undefined;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1211,6 +1220,9 @@ export interface IAgent {
 
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
+
+	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
+	getTelemetryContext?(): IAgentTelemetryContext;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
 
@@ -1316,8 +1328,12 @@ export interface IAgent {
 
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+	/** Passive transcript changes from another client; these must not start host-side turn execution. */
+	readonly onDidChangeChatHistory?: Event<IAgentChatHistoryChange>;
+	/** Observe another client's persisted transcript while a host client subscribes to this chat. */
+	watchChatHistory?(chat: URI): IDisposable;
 
-	/** Starts the provider's memoized native chat discovery pass. */
+	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
 	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
@@ -1365,6 +1381,9 @@ export interface IAgent {
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
 
+	/** Whether model-dependent prerequisites for unattended execution are ready; absent means no additional readiness gate. */
+	isReadyForAutomation?(model: ModelSelection | undefined, reader?: IReader): boolean;
+
 	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
 
@@ -1385,8 +1404,8 @@ export interface IAgent {
 	/** Optional host wiring for providers that advertise Agent Host server tools. */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	/** Optional lifecycle operation for providers exposing controllable MCP servers. */
-	startMcpServer?(session: URI, id: string): Promise<void>;
+	/** Starts a controllable MCP server; providers may cooperatively honor cancellation, but in-flight SDK operations may not be cancellable. */
+	startMcpServer?(session: URI, id: string, token: CancellationToken): Promise<void>;
 
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;

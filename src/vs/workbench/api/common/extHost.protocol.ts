@@ -3724,6 +3724,8 @@ export interface IAuthMetadataSource {
 }
 
 export interface MainThreadMcpShape {
+	/** Checks an MCP request destination against current policy, returning the denial reason if blocked. */
+	$checkMcpServerAllowed(id: number, url: string): Promise<string | undefined>;
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;

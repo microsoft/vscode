@@ -35,6 +35,10 @@
 	width: auto;
 }
 
+.agent-sessions-workbench.modern-ui-connected-editor-tabs.dock-detail-panel .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
+	inset-inline: 0;
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
 	height: var(--vscode-spacing-size320);

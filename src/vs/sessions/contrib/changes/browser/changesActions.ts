@@ -32,7 +32,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
@@ -40,6 +40,12 @@ import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } fr
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
+import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
+
+function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
+	const change = changes.find(change => isChangesFileResource(change, resource));
+	return change ? getChangesFileUri(change) : resource;
+}
 
 // --- View All Changes action
 
@@ -115,7 +121,10 @@ class OpenChangedFileAction extends Action2 {
 			return;
 		}
 
-		await accessor.get(IEditorService).openEditor({ resource });
+		const changesViewService = accessor.get(IChangesViewService);
+		await accessor.get(IEditorService).openEditor({
+			resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.get()),
+		});
 	}
 }
 registerAction2(OpenChangedFileAction);
@@ -389,7 +398,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 						await changeset?.invokeOperation(operation.id, {
 							kind: 'resource',
-							resource,
+							resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.read(undefined)),
 						});
 					}
 				}));
@@ -440,7 +449,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				return;
 			}
 
-			const changeset = activeSession.changesets.read(reader)
+			const changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
 				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 			const operations = changeset?.operations.read(reader)
 				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)

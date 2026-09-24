@@ -12,7 +12,7 @@ import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '
  * Reads the target a rendered chat anchor points at. Clicks route through `data-href`, so that
  * attribute carries the semantic target while `href` may be empty or a copy-safe duplicate.
  */
-function getLinkTarget(element: Element): string {
+export function getLinkTarget(element: Element): string {
 	return (element.getAttribute('data-href') || element.getAttribute('href') || '').trim();
 }
 

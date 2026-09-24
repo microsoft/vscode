@@ -7,11 +7,12 @@ import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
-import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -27,6 +28,7 @@ const liveGit = { branchName: 'live-branch', outgoingChanges: 2 };
 const persistedGit = { branchName: 'persisted-branch', outgoingChanges: 5 };
 const liveGitHub = { owner: 'live-owner', repo: 'live-repo' };
 const persistedGitHub = { owner: 'persisted-owner', repo: 'persisted-repo' };
+const liveFolderKey = getWorkingDirectoryKey('file:///live');
 const liveSourceControl = { merge: { commit: 'live-commit' }, latestOutcome: SessionSourceControlOutcome.Merge };
 const persistedSourceControl = { latestOutcome: SessionSourceControlOutcome.PullRequest };
 
@@ -35,7 +37,7 @@ function sourceState(): ICatalogSourceState {
 	meta = withSessionFolderPickerDecision(meta, { hidden: false });
 	meta = withSessionArtifacts(meta, [liveArtifact]);
 	meta = withSessionCreationReference(meta, liveCreationReference);
-	meta = withSessionGitHubState(meta, liveGitHub);
+	meta = withSessionGitHubState(meta, 'file:///live', liveGitHub);
 	meta = withSessionGitState(meta, liveGit);
 	meta = withSessionSourceControlState(meta, liveSourceControl);
 	meta = withSessionWorkspaceless(meta, true);
@@ -105,6 +107,25 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round-trips persisted folder-scoped Git state through the catalog payload', async () => {
+		const scopeId = 'folder-scope';
+		const gitState = { branchName: 'feature', baseBranchName: 'main' };
+		const result = await createResolver({
+			[META_GIT_DATA_STATE]: JSON.stringify({ [scopeId]: gitState }),
+		}).buildCatalogSyncRequest(session, { ...sourceState(), meta: undefined }, {}, true);
+		const encoded = encodeAgentHostCatalogPayload(result.data);
+
+		assert.deepStrictEqual({
+			catalog: result.data._meta?.[SESSION_META_GIT_DATA_KEY],
+			legacy: result.legacyMetadata[META_GIT_DATA_STATE],
+			encoded: encoded.ok,
+		}, {
+			catalog: { [scopeId]: gitState },
+			legacy: JSON.stringify({ [scopeId]: gitState }),
+			encoded: true,
+		});
+	});
 
 	test('consumes the provided database reference and propagates metadata read failures', async () => {
 		const absent = new AgentHostCatalogSourceResolver({
@@ -223,11 +244,12 @@ suite('AgentHostCatalogSourceResolver', () => {
 
 		assert.deepStrictEqual({
 			devContainerWorktree: result.data._meta?.[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
-			gitHub: result.data._meta?.[SESSION_META_GITHUB_KEY],
+			gitHubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
 			persistedDevContainerWorktree: result.legacyMetadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
 		}, {
 			devContainerWorktree,
-			gitHub,
+			// The original single-folder state is migrated to the session folder.
+			gitHubData: { [liveFolderKey]: gitHub },
 			persistedDevContainerWorktree: JSON.stringify(devContainerWorktree),
 		});
 	});
@@ -290,7 +312,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				_meta: {
 					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///live.code-workspace' },
 					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: false },
-					[SESSION_META_GITHUB_KEY]: liveGitHub,
+					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: liveGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: liveSourceControl,
 					[SESSION_META_ARTIFACTS_KEY]: [liveArtifact],
@@ -323,7 +345,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-				[META_GITHUB_STATE]: JSON.stringify(liveGitHub),
+				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: liveGitHub }),
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(liveSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 1, deletions: 2, files: 3 }),
@@ -347,7 +369,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				_meta: {
 					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///persisted.code-workspace' },
 					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///persisted' },
-					[SESSION_META_GITHUB_KEY]: persistedGitHub,
+					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: persistedGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: { merge: undefined, ...persistedSourceControl },
 					[SESSION_META_ARTIFACTS_KEY]: [persistedArtifact],
@@ -378,11 +400,25 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_KEY]: 'Persisted title',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-				[META_GITHUB_STATE]: JSON.stringify(persistedGitHub),
+				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: persistedGitHub }),
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(persistedSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 10, deletions: 20, files: 30 }),
 			},
+		});
+	});
+
+	test('ignores an empty legacy GitHub tombstone when preferring persisted metadata', async () => {
+		const result = await createResolver({
+			[META_GITHUB_STATE]: '',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			githubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
+			legacyGitHub: result.legacyMetadata[META_GITHUB_STATE],
+		}, {
+			githubData: { [liveFolderKey]: liveGitHub },
+			legacyGitHub: undefined,
 		});
 	});
 

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationTelemetryService } from '../../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -25,27 +25,36 @@ suite('CustomizationMigrationTelemetryService', () => {
 	test('reports migration impressions, actions, and outcomes', () => {
 		const telemetryService = new TestTelemetryService();
 		const service = new CustomizationMigrationTelemetryService(telemetryService);
+		const hint = {
+			migrationFlowId: 'migration-flow-id',
+			message: 'Migration hint',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
+		};
 
-		service.hintComputed([{ type: CustomizationMigrationType.PromptFiles, count: 3 }]);
-		service.hintShown(CustomizationMigrationHintTarget.FileMigrations);
-		service.hintClicked(CustomizationMigrationHintTarget.FileMigrations, 'review');
-		service.hintClicked(CustomizationMigrationHintTarget.FileMigrations, 'dismiss');
+		service.hintComputed(hint);
+		service.hintShown(hint);
+		service.hintClicked(hint, 'review');
+		service.hintClicked(hint, 'dismiss');
 		service.pageShown();
 		service.pageShown(CustomizationMigrationType.PromptFiles);
 		service.actionClicked('migrationCategoryClicked', CustomizationMigrationType.PromptFiles);
-		service.migrationClicked(CustomizationMigrationType.PromptFiles, 3);
-		service.migrationCompleted(CustomizationMigrationType.PromptFiles, 3, 2, 1);
+		service.migrationClicked(CustomizationMigrationType.PromptFiles, 3, hint.migrationFlowId);
+		service.migrationCompleted(CustomizationMigrationType.PromptFiles, 3, 2, 1, [
+			FileCustomizationMigrationFailureReason.TargetWriteFailed,
+			FileCustomizationMigrationFailureReason.TargetWriteFailed,
+			FileCustomizationMigrationFailureReason.RollbackFailed,
+		], hint.migrationFlowId);
 
 		assert.deepStrictEqual(telemetryService.events, [
-			{ name: 'chat.customizationMigrationAssessment', data: { category: 'promptFiles', count: 3 } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintShown', target: 'fileMigrations' } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintReviewClicked', target: 'fileMigrations' } },
-			{ name: 'chat.customizationMigration', data: { action: 'hintDismissClicked', target: 'fileMigrations' } },
+			{ name: 'chat.customizationMigrationAssessment', data: { migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintReviewClicked', migrationFlowId: 'migration-flow-id', count: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'hintDismissClicked', migrationFlowId: 'migration-flow-id', count: 3 } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationOverviewShown', category: undefined } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryShown', category: 'promptFiles' } },
 			{ name: 'chat.customizationMigration', data: { action: 'migrationCategoryClicked', category: 'promptFiles' } },
-			{ name: 'chat.customizationMigration', data: { action: 'migrationClicked', category: 'promptFiles', requestedCount: 3 } },
-			{ name: 'chat.customizationMigration', data: { action: 'migrationCompleted', category: 'promptFiles', requestedCount: 3, migratedCount: 2, failedCount: 1 } },
+			{ name: 'chat.customizationMigration', data: { action: 'migrationClicked', category: 'promptFiles', migrationFlowId: 'migration-flow-id', requestedCount: 3 } },
+			{ name: 'chat.customizationMigration', data: { action: 'migrationCompleted', category: 'promptFiles', migrationFlowId: 'migration-flow-id', requestedCount: 3, migratedCount: 2, failedCount: 1, migrationFailedReasons: 'rollbackFailed;targetWriteFailed' } },
 		]);
 	});
 });

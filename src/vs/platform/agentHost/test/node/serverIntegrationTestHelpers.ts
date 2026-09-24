@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import type { IProcessInfo } from '@vscode/windows-process-tree';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { Promises, raceTimeout } from '../../../../base/common/async.js';
-import { getErrorCode } from '../../../../base/common/errors.js';
+import { Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -664,17 +664,81 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
-async function getServerDescendants(pid: number): Promise<number[]> {
+interface IServerDescendant {
+	readonly pid: number;
+	readonly name: string;
+	readonly commandLine: string;
+}
+
+export function collectServerDescendants(pid: number, processList: readonly IProcessInfo[]): IServerDescendant[] {
+	const childrenByParent = new Map<number, IProcessInfo[]>();
+	for (const process of processList) {
+		let children = childrenByParent.get(process.ppid);
+		if (!children) {
+			children = [];
+			childrenByParent.set(process.ppid, children);
+		}
+		children.push(process);
+	}
+
+	const descendants: IServerDescendant[] = [];
+	const visited = new Set([pid]);
+	const collectDescendants = (parentPid: number): void => {
+		for (const process of childrenByParent.get(parentPid) ?? []) {
+			if (visited.has(process.pid)) {
+				continue;
+			}
+			visited.add(process.pid);
+			// Prune protected system branches that stale PPIDs can attach to a reused server PID.
+			if (!process.commandLine) {
+				continue;
+			}
+			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine });
+			collectDescendants(process.pid);
+		}
+	};
+	collectDescendants(pid);
+	return descendants;
+}
+
+async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
 	if (!isWindows) {
 		return [];
 	}
 	// Once the parent exits, taskkill /T can no longer discover its descendants.
-	const { getProcessList } = await import('@vscode/windows-process-tree');
-	return (await promisify(getProcessList)(pid)).filter(process => process.pid !== pid).map(process => process.pid);
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	const processList = await promisify(getProcessList)(pid, ProcessDataFlag.CommandLine);
+	return collectServerDescendants(pid, processList);
 }
 
+async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promise<boolean> {
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	// Signal 0 requires termination access on Windows and can report EPERM while a process exits.
+	return new Promise(resolve => getProcessList(descendant.pid, processList => {
+		const process = processList?.find(process => process.pid === descendant.pid);
+		resolve(process?.name === descendant.name && process.commandLine === descendant.commandLine);
+	}, ProcessDataFlag.CommandLine));
+}
+
+interface IServerProcessOperations {
+	killTree(pid: number, forceful: boolean): Promise<void>;
+	killProcess(pid: number): void;
+	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
+}
+
+const defaultServerProcessOperations: IServerProcessOperations = {
+	killTree,
+	killProcess: pid => { process.kill(pid); },
+	isSameProcessRunning: isSameWindowsProcessRunning,
+};
+
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<void> {
+export async function stopServer(
+	server: IServerHandle | undefined,
+	getDescendants = getServerDescendants,
+	timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS,
+	processOperations = defaultServerProcessOperations,
+): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
@@ -689,7 +753,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 			resolve();
 		}
 	});
-	let descendants: number[] = [];
+	let descendants: IServerDescendant[] = [];
 	let snapshotError: Error | undefined;
 	try {
 		if (serverProcess.pid !== undefined) {
@@ -710,10 +774,11 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 				if (pid === undefined) {
 					throw new Error('Agent Host test server has no process id');
 				}
-				await killTree(pid, true);
+				await processOperations.killTree(pid, true);
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null
+				&& !await raceTimeout(serverExit.then(() => true), 1_000)) {
 				throw error;
 			}
 		}
@@ -723,21 +788,35 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 		throw snapshotError;
 	}
 
-	await Promises.settled(descendants.map(async pid => {
-		try {
-			await killTree(pid, true);
-		} catch (error) {
-			try {
-				process.kill(pid, 0);
-			} catch (probeError) {
-				const errorCode = getErrorCode(probeError);
-				if (errorCode === 'ESRCH' || errorCode === 'EPERM') {
-					return; // The descendant already exited or is no longer controllable.
-				}
-				throw probeError;
-			}
-			throw error;
+	const killResults = await Promises.settled(descendants.map(async descendant => {
+		if (!await processOperations.isSameProcessRunning(descendant)) {
+			return undefined;
 		}
+		try {
+			processOperations.killProcess(descendant.pid);
+		} catch (error) {
+			return { descendant, succeeded: false as const, error };
+		}
+		return { descendant, succeeded: true as const };
+	}));
+	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
+	await Promises.settled(killResults.map(async result => {
+		if (!result) {
+			return;
+		}
+		if (!result.succeeded) {
+			await retry(async () => {
+				if (await processOperations.isSameProcessRunning(result.descendant)) {
+					throw result.error;
+				}
+			}, 50, 5);
+			return;
+		}
+		await retry(async () => {
+			if (await processOperations.isSameProcessRunning(result.descendant)) {
+				throw new Error(`Agent Host test server descendant ${result.descendant.pid} did not exit after termination`);
+			}
+		}, 50, 100);
 	}));
 }
 
