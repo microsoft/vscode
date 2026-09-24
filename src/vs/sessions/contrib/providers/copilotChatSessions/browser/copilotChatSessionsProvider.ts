@@ -69,7 +69,7 @@ import { ReadOnlyChatSession } from '../../../../../workbench/contrib/chat/brows
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
 	id: 'copilot-cloud-agent',
-	label: localize('copilotCloud', "Copilot"),
+	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
 	authRequirement: SessionTypeAuthRequirement.GitHub,
 };

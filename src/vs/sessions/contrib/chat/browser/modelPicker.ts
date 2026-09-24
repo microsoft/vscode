@@ -236,7 +236,7 @@ export class ModelPickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
+class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.contrib.automationModelPicker';
 
 	constructor(
