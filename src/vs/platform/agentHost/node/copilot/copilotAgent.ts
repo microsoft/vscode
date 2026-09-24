@@ -887,7 +887,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _authenticationSequencer = new Sequencer();
 	private _updatingGitHubCredentials = false;
-	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials());
+	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials(() => this._now()));
 	private _githubCredentialInvalid = false;
 	private _telemetryAuthenticationGeneration = 0;
 	private _gitHubEndpointGeneration = 0;
@@ -2187,6 +2187,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// fires during the shutdown window would otherwise call `_ensureClient()`
 		// and resurrect the SDK subprocess after `shutdown()` tore it down.
 		if (this._shutdownPromise) {
+			return;
+		}
+
+		if (this._getEnterpriseHost() && this._githubCredentials.needsRefresh) {
+			this._handleCopilotSessionAuthRequired(false);
 			return;
 		}
 

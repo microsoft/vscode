@@ -1034,6 +1034,8 @@ class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 }
 
 class ResumePathCopilotAgent extends CopilotAgent {
+	readonly createdClientOptions: CopilotClientOptions[] = [];
+
 	constructor(
 		private readonly _copilotClient: ITestCopilotClient,
 		@ILogService logService: ILogService,
@@ -1059,7 +1061,8 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation);
 	}
 
-	protected override _createCopilotClient(): CopilotClient {
+	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
+		this.createdClientOptions.push(options);
 		return this._copilotClient as CopilotClient;
 	}
 }
@@ -1149,7 +1152,7 @@ class TestableCopilotAgent extends CopilotAgent {
 }
 
 function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOptions[] {
-	assert.ok(agent instanceof TestableCopilotAgent);
+	assert.ok(agent instanceof TestableCopilotAgent || agent instanceof ResumePathCopilotAgent);
 	return agent.createdClientOptions;
 }
 
@@ -2961,27 +2964,70 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('uses client authentication when refreshing GitHub Enterprise models', async () => {
+	test('renews expiring GitHub Enterprise client authentication before refreshing models', async () => {
+		let now = 1_000_000;
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
 			name: 'GPT-4o',
 		}]);
 		const endpointService = createTestGitHubEndpointService('https://example.ghe.com');
-		const agent = createTestAgent(disposables, { copilotClient: client, gitHubEndpointService: endpointService }) as TestableCopilotAgent;
+		const { agent, authenticationService } = createTestAgentContext(disposables, { copilotClient: client, gitHubEndpointService: endpointService, now: () => now });
+		const authenticationRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				authenticationRequests.push(requirement);
+			}
+		}));
+		let sessionReads = 0;
+		const getSessions = async () => {
+			sessionReads++;
+			return [{
+				accessToken: sessionReads === 1 ? 'enterprise-model-token' : 'renewed-enterprise-model-token',
+				expiresAfter: 2 * 60 * 60 * 1000,
+			}];
+		};
+		const reconcileAuthentication = async () => {
+			const [session] = await getSessions();
+			await authenticationService.authenticate({
+				resource: endpointService.getCopilotResource().resource,
+				scopes: endpointService.getCopilotResource().scopes_supported,
+				token: session.accessToken,
+				expiresIn: Math.ceil(session.expiresAfter / 1000),
+			}, [agent]);
+		};
 		try {
-			await agent.authenticate(endpointService.getCopilotResource().resource, 'enterprise-model-token');
+			await reconcileAuthentication();
 			await waitForState(agent.models, models => models.length > 0);
-			await agent.authenticate(endpointService.getCopilotResource().resource, 'rotated-enterprise-model-token');
+			await timeout(0);
+			now += 61 * 60 * 1000;
+			await agent.refreshModels();
+			await reconcileAuthentication();
 			await waitForState(agent.models, () => client.modelListRequests.length === 2);
+			await timeout(0);
+			await agent.refreshModels();
 
 			assert.deepStrictEqual({
-				clientToken: getCreatedClientOptions(agent).at(-1)?.gitHubToken,
-				enterpriseHost: getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_GH_HOST'],
+				sessionReads,
+				authenticationRequests,
+				clientTokens: getCreatedClientOptions(agent).map(options => options.gitHubToken),
+				enterpriseHosts: getCreatedClientOptions(agent).map(options => options.env?.['COPILOT_GH_HOST']),
+				clientStarts: client.startCallCount,
+				clientStops: client.stopCallCount,
 				modelListRequests: client.modelListRequests,
+				authenticationRequired: agent.authenticationRequired.get(),
 			}, {
-				clientToken: 'rotated-enterprise-model-token',
-				enterpriseHost: 'example.ghe.com',
-				modelListRequests: [{}, {}],
+				sessionReads: 2,
+				authenticationRequests: [{
+					resource: endpointService.getCopilotResource(),
+					reason: AuthRequiredReason.Expired,
+				}],
+				clientTokens: ['enterprise-model-token', 'renewed-enterprise-model-token'],
+				enterpriseHosts: ['example.ghe.com', 'example.ghe.com'],
+				clientStarts: 2,
+				clientStops: 1,
+				modelListRequests: [{}, {}, {}],
+				authenticationRequired: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -11198,6 +11244,52 @@ suite('CopilotAgent', () => {
 					hasTokenProvider: false,
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('resumeSession relies on client authentication for GitHub Enterprise sessions', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/ghe-client-auth-resume-`);
+			const sessionId = 'enterprise-client-auth-resume';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const endpointService = createTestGitHubEndpointService('https://example.ghe.com');
+			let capturedConfig: Parameters<ITestCopilotClient['resumeSession']>[1] | undefined;
+			client.resumeSession = async (_sessionId, config) => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				gitHubEndpointService: endpointService,
+			});
+			chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
+			chatScopes(agent).set(chat.toString(), session);
+
+			try {
+				await authenticationService.authenticate({
+					resource: endpointService.getCopilotResource().resource,
+					token: 'enterprise-resume-token',
+				}, [agent]);
+				const turns = await agent.chats.getMessages(chat, exactChatContext(session, chat));
+
+				assert.deepStrictEqual({
+					turns,
+					clientToken: getCreatedClientOptions(agent).at(-1)?.gitHubToken,
+					configToken: capturedConfig?.gitHubToken,
+					hasTokenProvider: capturedConfig?.gitHubTokenProvider !== undefined,
+				}, {
+					turns: [],
+					clientToken: 'enterprise-resume-token',
+					configToken: undefined,
+					hasTokenProvider: false,
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});

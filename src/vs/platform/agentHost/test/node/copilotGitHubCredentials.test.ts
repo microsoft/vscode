@@ -55,6 +55,27 @@ suite('CopilotGitHubCredentials', () => {
 		});
 	});
 
+	test('reports when a short-lived credential enters the refresh window', () => {
+		let now = 1_000_000;
+		const credentials = disposables.add(new CopilotGitHubCredentials(() => now));
+
+		credentials.update('static-token', undefined);
+		const staticTokenNeedsRefresh = credentials.needsRefresh;
+		credentials.update('short-lived-token', 7200);
+		const freshTokenNeedsRefresh = credentials.needsRefresh;
+		now += 3601 * 1000;
+
+		assert.deepStrictEqual({
+			staticTokenNeedsRefresh,
+			freshTokenNeedsRefresh,
+			expiringTokenNeedsRefresh: credentials.needsRefresh,
+		}, {
+			staticTokenNeedsRefresh: false,
+			freshTokenNeedsRefresh: false,
+			expiringTokenNeedsRefresh: true,
+		});
+	});
+
 	test('captures credential mode for each SDK session', () => {
 		const credentials = disposables.add(new CopilotGitHubCredentials());
 		credentials.update('static-token', undefined);
