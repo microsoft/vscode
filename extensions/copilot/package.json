@@ -3208,25 +3208,6 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
           },
-          "github.copilot.chat.cloudAgent.sessionVisibility": {
-            "type": "string",
-            "enum": [
-              "24hours",
-              "7days",
-              "30days",
-              "90days",
-              "all"
-            ],
-            "default": "30days",
-            "markdownDescription": "%github.copilot.config.cloudAgent.sessionVisibility%",
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgent.sessionVisibility.24hours%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.7days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.30days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.90days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.all%"
-            ]
-          },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",
             "default": true,
@@ -4155,16 +4136,7 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+          "github.copilot.chat.claudeDefaultReasoningEffort": {
             "type": "string",
             "default": "",
             "enum": [
@@ -4174,7 +4146,7 @@
               "high",
               "max"
             ],
-            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "markdownDescription": "%github.copilot.config.claudeDefaultReasoningEffort%",
             "tags": [
               "experimental",
               "onExp"
@@ -4667,23 +4639,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.inlineChat.reasoningEffort": {
-            "type": "string",
-            "default": "low",
-            "enum": [
-              "none",
-              "minimal",
-              "low",
-              "medium",
-              "high"
-            ],
-            "markdownDescription": "%github.copilot.config.inlineChat.reasoningEffort%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineChat.enableThinking": {
             "type": "boolean",
             "default": false,
@@ -4884,6 +4839,16 @@
             "type": "number",
             "default": 10,
             "markdownDescription": "%github.copilot.config.executionSubagent.toolCallLimit%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.executionSubagent.turnWisePrompting": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.executionSubagent.turnWisePrompting%",
             "tags": [
               "advanced",
               "experimental",
@@ -5166,14 +5131,6 @@
               "readOnly": true
             }
           },
-          "github.copilot.chat.cli.thinkingEffort.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
-            "tags": [
-              "advanced"
-            ]
-          },
           "github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
             "type": "boolean",
             "default": false,
@@ -5373,6 +5330,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.captureIdentity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureIdentity"
+            },
+            "markdownDescription": "Capture the authenticated Copilot account name, operating system username, and machine hostname in OpenTelemetry. **Contains personally identifying data.** Independent of content capture. `null` means no personal preference (off by default). `COPILOT_OTEL_CAPTURE_IDENTITY` overrides personal settings; explicit enterprise policy overrides both. Enabling requires window reload; an effective denial applies immediately to subsequent exports.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.serviceName": {
             "type": "string",
             "default": "",
@@ -5395,7 +5367,7 @@
             "policyReference": {
               "name": "CopilotOtelResourceAttributes"
             },
-            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES` (env values take precedence, including over enterprise-managed values). Requires window reload.",
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES`: enterprise-managed values take precedence over environment values, which take precedence over personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]

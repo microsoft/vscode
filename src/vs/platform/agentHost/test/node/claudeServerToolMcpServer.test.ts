@@ -95,17 +95,15 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 	});
 
 	test('honors per-tool deferral without changing unrelated tools', async () => {
-		for (const useCompactPrompts of [false, true]) {
-			const { sdk, recorded } = makeSdk();
-			const group = createArtifactServerToolGroup({ isEnabled: () => true, useCompactPrompts: () => useCompactPrompts, persist: () => { } });
-			await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [...(group.getDefinitions?.() ?? group.definitions), fakeToolDefinitions[0]]);
-			assert.deepStrictEqual(recorded.map(tool => ({ name: tool.name, options: tool.options })), [
-				{ name: ArtifactServerToolName.AddArtifactOrReference, options: { alwaysLoad: true } },
-				{ name: ArtifactServerToolName.RemoveArtifactOrReference, options: { alwaysLoad: false } },
-				{ name: ArtifactServerToolName.ListArtifactsAndReferences, options: { alwaysLoad: false } },
-				{ name: 'serverToolA', options: undefined },
-			]);
-		}
+		const { sdk, recorded } = makeSdk();
+		const group = createArtifactServerToolGroup({ isEnabled: () => true, persist: () => { } });
+		await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [...group.definitions, fakeToolDefinitions[0]]);
+		assert.deepStrictEqual(recorded.map(tool => ({ name: tool.name, options: tool.options })), [
+			{ name: ArtifactServerToolName.AddArtifactOrReference, options: { alwaysLoad: true } },
+			{ name: ArtifactServerToolName.RemoveArtifactOrReference, options: { alwaysLoad: false } },
+			{ name: ArtifactServerToolName.ListArtifactsAndReferences, options: { alwaysLoad: false } },
+			{ name: 'serverToolA', options: undefined },
+		]);
 	});
 
 	// The native SDK requires SharedArrayBuffer, unavailable in the Electron renderer test runner.
@@ -134,7 +132,6 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
-			useCompactPrompts: () => false,
 			persist: () => { },
 		})]);
 		const server = await buildServerToolMcpServer(host, chatUri, sdk, [...host.definitions, fakeToolDefinitions[0]]);

@@ -83,6 +83,8 @@ export interface IWebPubSubRelayTransportOptions {
 	readonly webSocketFactory?: WebSocketFactory;
 	/** Invoked when an inbound frame can't be parsed or framed. */
 	readonly onProtocolError?: (err: unknown) => void;
+	/** Content-free receive counter, including control, malformed and chunk frames. */
+	readonly onDidReceiveFrame?: () => void;
 	/**
 	 * Records every AHP frame to a JSONL transcript when
 	 * `chat.agentHost.ahpJsonlLoggingEnabled` is on. Cloud sandbox hosts do not implement
@@ -176,6 +178,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			};
 
 			ws.onmessage = event => {
+				if (!this._closed) {
+					this._options.onDidReceiveFrame?.();
+				}
 				let frame: Record<string, unknown>;
 				try {
 					frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
@@ -244,6 +249,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._sweepTimer.cancelAndSet(() => this._reassembler.sweepExpired(), REASSEMBLY_SWEEP_INTERVAL_MS);
 
 		ws.onmessage = event => {
+			if (!this._closed) {
+				this._options.onDidReceiveFrame?.();
+			}
 			let frame: Record<string, unknown>;
 			try {
 				frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;

@@ -8,7 +8,11 @@ import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHos
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -43,27 +47,38 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const ImportSessionExtensionMethod = 'vscode/importSession';
+export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
+/** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	readonly [AgentHostTimingCapabilityMetaKey]?: true;
+	/** Present when Automation execution does not require a client activation or migration handshake. */
+	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
 
+/** Standard AHP initialize response with typed VS Code-specific capability metadata. */
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -90,7 +105,11 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+export const importSessionParamsValidator = vObj({ session: vString() });
+
 export interface IAgentHostExtensionCommandMap {
+	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
+	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };

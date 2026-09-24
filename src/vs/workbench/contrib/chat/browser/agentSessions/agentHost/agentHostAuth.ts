@@ -876,10 +876,13 @@ export async function resolveMcpServerAuthentication(
 			const oauthClientOptions = options.oauthClient
 				? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
 				: {};
-			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
+			const providerOptions = {
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
 				...oauthClientOptions,
+			};
+			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
+				...providerOptions,
 				silent: !options.allowInteraction,
 			}, true);
 			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
@@ -895,13 +898,11 @@ export async function resolveMcpServerAuthentication(
 			const provider = authenticationService.getProvider(providerId);
 			const session = sessions.length
 				? provider.supportsMultipleAccounts
-					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
+					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions, providerOptions)
 					: sessions[0]
 				: await authenticationService.createSession(providerId, [...scopes], {
+					...providerOptions,
 					activateImmediate: true,
-					authorizationServer: authorizationServerUri,
-					resource: protectedResource.resource,
-					...oauthClientOptions,
 				});
 			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 			return true;

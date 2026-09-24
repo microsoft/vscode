@@ -28,6 +28,7 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/wo
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -186,6 +187,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());
+	reg.defineInstance(IEditorResolverService, new class extends mock<IEditorResolverService>() { override getEditors() { return []; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 	reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
 	reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
@@ -318,6 +320,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override supportsDelegationForSessionType() { return false; }
 		override getSessionOption() { return undefined; }
 		override getCapabilitiesForSessionType() { return undefined; }
+		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -331,12 +334,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		// Sign In state) in fixtures.
 		override readonly entitlement = ChatEntitlement.Pro;
 		override readonly sentiment = { completed: true, installed: true };
+		override readonly sentimentObs = constObservable(this.sentiment);
 		override readonly anonymous = false;
 		override readonly hasByokModels = false;
 	}());
 	reg.defineInstance(IChatModeService, new MockChatModeService());
 	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 		override onDidChangeLanguageModels = Event.None;
+		override onDidChangeLanguageModelVendors = Event.None;
 		override onDidChangeModelVisibility = Event.None;
 		override getLanguageModelIds() { return []; }
 		override getVendors() { return []; }

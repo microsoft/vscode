@@ -66,6 +66,8 @@ import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import type { IOSProxyConfig } from '../../platform/native/common/native.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
+import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
@@ -97,7 +99,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -1055,6 +1057,15 @@ export class CodeApplication extends Disposable {
 			return windows.length > 0;
 		}
 
+		const newSessionLink = parseExternalAgentsWindowNewSessionLinkUri(uri, this.productService.urlProtocol);
+		if (newSessionLink) {
+			const windows = await windowsMainService.openAgentsWindow({
+				context: OpenContext.LINK,
+				cli: { ...this.environmentMainService.args },
+			}, newSessionLink.workspaceUri, undefined, AgentsWindowOpenSource.Link, false, newSessionLink.draft);
+			return windows.length > 0;
+		}
+
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
 			uri = uri.with({
@@ -1419,6 +1430,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
+		const tryoutHandoff = disposables.add(accessor.get(IInstantiationService).createInstance(OnboardingTryoutHandoff));
+		mainProcessElectronServer.registerChannel(ONBOARDING_TRYOUT_CHANNEL, ProxyChannel.fromService(tryoutHandoff, disposables));
+
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
 		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
@@ -1502,16 +1516,18 @@ export class CodeApplication extends Disposable {
 
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
-			const agentSessionProtocolUrlIndex = initialProtocolUrls.urls.findIndex(protocolUrl =>
-				parseExternalOpenSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol));
-			if (agentSessionProtocolUrlIndex >= 0) {
-				const [agentSessionProtocolUrl] = initialProtocolUrls.urls.splice(agentSessionProtocolUrlIndex, 1);
-				const agentSessionLink = parseExternalOpenSessionLinkUri(agentSessionProtocolUrl.uri, this.productService.urlProtocol);
+			const agentsWindowProtocolUrlIndex = initialProtocolUrls.urls.findIndex(protocolUrl =>
+				parseExternalOpenSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol)
+				|| parseExternalAgentsWindowNewSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol));
+			if (agentsWindowProtocolUrlIndex >= 0) {
+				const [agentsWindowProtocolUrl] = initialProtocolUrls.urls.splice(agentsWindowProtocolUrlIndex, 1);
+				const agentSessionLink = parseExternalOpenSessionLinkUri(agentsWindowProtocolUrl.uri, this.productService.urlProtocol);
+				const newSessionLink = parseExternalAgentsWindowNewSessionLinkUri(agentsWindowProtocolUrl.uri, this.productService.urlProtocol);
 				return windowsMainService.openAgentsWindow({
 					context: OpenContext.LINK,
 					cli: args,
 					initialStartup: true,
-				}, undefined, agentSessionLink, AgentsWindowOpenSource.Link);
+				}, newSessionLink?.workspaceUri, agentSessionLink, AgentsWindowOpenSource.Link, false, newSessionLink?.draft);
 			}
 
 			// Openables can open as windows directly

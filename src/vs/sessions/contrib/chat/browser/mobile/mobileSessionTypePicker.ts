@@ -13,8 +13,6 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentSdkSetupService } from '../../../../../workbench/services/agentHost/browser/agentSdkSetupService.js';
-import { ICodexAccountService } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -23,6 +21,10 @@ import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePick
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -49,11 +51,13 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService codexAccountService: ICodexAccountService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, agentSdkSetupService, codexAccountService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -100,7 +104,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		for (const [groupTitle, types] of groups) {
 			let isFirstInGroup = true;
 			for (const { providerId, sessionType } of types) {
-				const availability = this._getPickerAvailability(sessionType.chatSessionType ?? sessionType.id);
+				const availability = this._getPickerAvailability(sessionType);
 				sheetItems.push({
 					id: `${providerId}\u0000${sessionType.id}`,
 					label: sessionType.label,

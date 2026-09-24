@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
@@ -147,6 +147,29 @@ suite('AgentHostCatalogProjection', () => {
 			chatOrder: [0, 1],
 		});
 
+	});
+
+	test('rejects prototype keys in catalog records', () => {
+		const data = createData();
+		const source = {
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			data: {
+				...data,
+				_meta: {
+					...data._meta,
+					[SESSION_META_GITHUB_DATA_KEY]: JSON.parse('{"__proto__":{"owner":"octo","repo":"repo"}}'),
+				},
+			},
+		};
+		const decoded = decodeAgentHostCatalogPayload(JSON.stringify(source));
+
+		assert.deepStrictEqual({
+			ok: decoded.ok,
+			error: decoded.ok ? undefined : decoded.error,
+		}, {
+			ok: false,
+			error: 'Error in property \'data\': Error in property \'_meta\': Error in property \'githubData\': Keys must not be prototype properties.',
+		});
 	});
 
 	test('retains detached-head state and the newest bounded artifact suffix', () => {

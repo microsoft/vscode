@@ -64,7 +64,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -760,12 +760,12 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: '1_newChat',
 				order: 0,
-				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});
 	}
@@ -855,7 +855,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		super({
 			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			// Hidden from the palette because closing a chat requires either an
 			// explicit tab context or an active chat group.
 			f1: false,
@@ -906,8 +906,11 @@ registerAction2(class CloseChatAction extends Action2 {
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
 		// outright; a committed chat is hidden (reopenable).
 		if (chat.status.get() === SessionStatus.Untitled) {
-			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			if (await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true })) {
+				await sessionView?.closeChatGroup(chat.resource);
+			}
 		} else {
+			await sessionView?.closeChatGroup(chat.resource);
 			await sessionsService.closeChat(session, chat);
 		}
 	}

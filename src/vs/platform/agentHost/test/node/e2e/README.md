@@ -54,7 +54,7 @@ flowchart LR
 
 Key properties:
 
-- **Sequence-based matching**, keyed by `(method, path)`: the *Nth* request to an endpoint replays the *Nth* recorded response. There is **no request-body matching** — the recorded responses drive the agent, so it reproduces the same call sequence. The recorded request is separately *asserted* (see [Asserting the model request](#asserting-the-model-request)).
+- **Sequence-based matching by default**, keyed by `(method, path)`: the *Nth* request to an endpoint replays the *Nth* recorded response. Tests that intentionally run parent and subagent model calls concurrently can opt into selecting from the remaining responses by the normalized request projection. The recorded request is also separately *asserted* (see [Asserting the model request](#asserting-the-model-request)).
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
 - **Freeform tools**: Responses `custom_tool_call` items retain `format: custom` and their raw string input in captures, so replay preserves native tools such as `apply_patch` rather than converting them to JSON function calls.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
@@ -121,6 +121,8 @@ Use these deterministic E2E tests when the value comes from running the bundled 
 The Codex-specific entry point also checks that invalid workspace skills remain visible with their source paths and grouped validation diagnostics. The worktree scenario checks that existing subscribers receive the resolved directory before the first turn completes, and that the session announcement, subscription, and catalog agree on the materialized workspace.
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
+
+Subagent reopen coverage runs on Windows as well as macOS and Linux for providers that support subagents. It verifies that the parent was reconstructed rather than served from live state, the child transcript contains its sentinel, and the parent transcript does not contain that sentinel.
 
 Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
@@ -224,7 +226,9 @@ Provider availability:
 
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
 
-The lease also owns a fresh suite data directory. Every server it starts uses that directory as its home and VS Code user-data directory and prevents provider-specific config overrides from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
+The lease also owns isolated data directories. Servers normally share one directory as their home and VS Code user-data directory, with provider-specific config overrides prevented from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
+
+On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
@@ -237,6 +241,10 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 **The one invariant: a shared-server test must not leave a turn in flight.** Because one server serves multiple tests, each test's request/response traffic must land inside its own fixture window. If a test returns mid-turn, the SDK's continuation HTTP call fires *after* the fixture is swapped for the next test, landing in that test's window as an unrecorded call. In replay, failure to drain to `turnComplete` is fatal. Direct live recording may use an explicitly bounded best-effort drain because provider latency is not deterministic.
 
 Teardown resolves the default chat's active turn and dispatches the client-supported `chat/turnCancelled` action before disposing the session. Any cancellation, disposal, replay-verification, or server-shutdown failure fails teardown and forces a fresh shared server; cleanup is never silently treated as success.
+
+Windows descendant cleanup verifies process identities before terminating them. Failed kills are rechecked only after all concurrent kills finish, with bounded retries while the process list catches up, so a shared process-list snapshot from an earlier shutdown cannot turn an already-exited process into a teardown failure. A failure remains an error when the same process is still present.
+
+A failed test or teardown also makes the next test use fresh home, user-data, and Codex directories. Restarting only the process would retain any sessions that failed to dispose and could contaminate later session-list assertions. Retired directories remain available for diagnostics until suite teardown removes all of them. Intentional within-test `restart()` / `crashAndRestart()` calls and routine shared-server recycling preserve persistent state.
 
 Remove test workspaces only after disposing the shared server lease in suite teardown. A provider can retain directory watchers after an individual session is released, preventing workspace deletion on Windows while its process is still alive.
 
@@ -407,7 +415,7 @@ Choose the oracle based on what would make a regression understandable:
 - **Use direct assertions** when the primary oracle is outside AHP (filesystem contents, Git state, a live terminal, persisted database state), when one relationship is clearer as a focused comparison, or when the snapshot projection does not retain the relevant payload. Generic request/response commands currently project to the method name plus success/error only, so a snapshot of `completions` does not prove which completion items were returned.
 - **Use both** when the scenario has a meaningful protocol lifecycle and an external or relational outcome. Snapshot the stable AHP sequence, then directly assert the side effect or value that the projection intentionally omits. Avoid adding a snapshot that only duplicates a single focused assertion without preserving additional protocol behavior.
 
-Code-driven scenarios can request the `behavior` snapshot profile when the tested contract is the real tool execution and its observable result rather than provider-specific presentation. That profile retains user turns, tool identity, tool completion success, assistant responses, errors, and turn completion. It omits raw tool output, display strings, usage, repeated ready/delta notifications, confirmation UI traffic, and incidental session updates. Tests whose provider does not reliably report completion for a particular tool can list it in `omitToolCallSuccessForToolNames` when a stronger direct oracle proves the outcome. The tools still execute normally; mutation scenarios assert their filesystem side effects directly in TypeScript, while read-only scenarios retain their final-response assertions. Permission and protocol-lifecycle tests continue to use the default detailed profile.
+Code-driven scenarios can request the `behavior` snapshot profile when the tested contract is the real tool execution and its observable result rather than provider-specific presentation. That profile retains user turns, tool identity, tool completion success, assistant responses, errors, and turn completion. It omits raw tool output, display strings, usage, repeated ready/delta notifications, confirmation UI traffic, and incidental session updates. Tests whose provider does not reliably report completion for a particular tool can list it in `omitToolCallSuccessForToolNames` when a stronger direct oracle proves the outcome. When concurrent channels can emit the same action in either interleaving, list that action in `orderIndependentActionTypes`; snapshots then preserve each channel's order while canonicalizing only their cross-channel interleaving. The tools still execute normally; mutation scenarios assert their filesystem side effects directly in TypeScript, while read-only scenarios retain their final-response assertions. Permission and protocol-lifecycle tests continue to use the default detailed profile.
 
 To accept an AHP output change, run the affected test with `AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1`; the snapshot is rewritten in place and Git shows the diff. If the behavior also changes the LLM request/response sequence, use `AGENT_HOST_UPDATE_SNAPSHOTS=1` instead so both boundaries update in one run. Editing `clientToServer` remains deliberate because it changes the test input.
 
@@ -441,25 +449,25 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `shellToolReplayUnstableOnLinux` | Skips shell-dependent replay tests on **Linux** for that provider. Recording and other platforms remain enabled. |
 | `fileDeleteReplayUnstableOnWindows` | Skips the file-deletion replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
 | `fileCreateReplayUnstableOnWindows` | Skips the file-creation replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
-| `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
 | `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` and internally during the first `AGENT_HOST_UPDATE_SNAPSHOTS=1` pass. The `can abort a running turn` test runs only for direct record mode, not bulk snapshot updates. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
 
-File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. A shell strategy also respects `shellToolReplayUnstableOnLinux`, so enabling Codex file coverage on macOS and Windows does not overstate its packaged-Linux replay support.
+File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. Codex shell-backed file and peer-chat scenarios also run on Linux; the independent shell-result-text and Windows file-creation limitations remain tracked in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 ### Interpreting Codex pending tests
 
-On platforms where Codex unified-shell replay is stable, the baseline suite has 12 intentionally pending registrations:
+The Codex suite intentionally skips scenarios for unsupported capabilities and known limitations:
 
 - freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
 - native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
 - client-plugin discovery, because plugin synchronization can race the first turn and leave it incomplete;
 - the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
 - mid-turn abort, which is record-only for every provider;
-- worktree include-file coverage, which remains behind its documented known-issue gate; and
-- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats.
+- worktree include-file coverage, which remains behind its documented known-issue gate;
+- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats; and
+- scenarios requiring reliable successful shell completion text, plus file creation on Windows, under their separate documented gates.
 
-Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay. Linux can show additional pending shell-backed scenarios under `shellToolReplayUnstableOnLinux`; those are tracked separately in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay.
 
 **Rule of thumb:** if a test relies on real-time behavior, concurrency, or POSIX-specific local execution, gate it rather than fighting the fixture. Prefer a *targeted* gate (per-provider flag or `!isWindows`) so you don't disable coverage where it works.
 
@@ -508,7 +516,9 @@ The fixture was never recorded (or the test title changed and orphaned it). Reco
 
 Usually the *local execution* diverges by platform (the model replay is byte-identical everywhere). Windows shells, `pwd`, `git worktree` paths, and some SDK tool calls behave differently. Gate the test off that platform (`!isWindows` or a per-provider flag) — don't bump timeouts to mask it.
 
-Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool. Packaged Linux still completes those recorded turns without command-execution notifications, so the shell-dependent Codex replay tests are gated there.
+Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool.
+
+Codex also refuses to create helper aliases when `CODEX_HOME` is inside its effective temporary directory. With older bubblewrap versions lacking `--argv0` (including Ubuntu 22.04's 0.6.1), this makes sandbox re-entry fail before the command executes: `bwrap: execvp codex-linux-sandbox`. The private per-runtime `TMPDIR`/`TMP`/`TEMP` introduced in [#334945](https://github.com/microsoft/vscode/pull/334945) separates that directory from the isolated Codex home and fixes this replay failure without disabling sandboxing. Keep those directories separate and assert actual tool output or filesystem effects: replayed assistant success text alone does not prove execution.
 
 ### A replayed MCP call reports that its tool does not exist
 
@@ -528,7 +538,7 @@ The Responses (`/responses`) regenerator announces each output item before strea
 
 ### A test passes on macOS/Linux but fails on Windows
 
-Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
+Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
 
 ### Fixture leaks a username / absolute path / token
 
@@ -616,7 +626,7 @@ The deepest difference is the **unit of storage**, and it's why subagents behave
     - messages: [ …subagent conversation… ]   # separate entry, content-matched
   ```
 
-- **This harness** stores a flat list of **`exchanges`** (request→response pairs) bucketed only by `(method, path)` and matched by **sequence position**; the request is a review-only summary, not matched. Parent and subagent turns land in the *same* `/v1/messages` bucket and match by arrival order, so the harness relies on that order being deterministic. In practice it is (a fresh recording replays reliably), but it makes subagent fixtures the most SDK-version-sensitive — a bump can change the responses enough that a stale recording derails the current SDK, so re-record after bumps.
+- **This harness** stores a flat list of **`exchanges`** (request→response pairs) bucketed by `(method, path)` and matched by **sequence position** unless a concurrency-sensitive test opts into projected-request matching. Parent and subagent turns land in the *same* `/v1/messages` bucket; the retained-background-subagent scenario uses that opt-in because either request can arrive first. Other subagent fixtures remain sequence-based and therefore the most SDK-version-sensitive — a bump can change the responses enough that a stale recording derails the current SDK, so re-record after bumps.
 
 So: **content-keyed conversations vs. sequence-keyed exchanges.** That single choice is the biggest reason the CLI harness replays subagents robustly across SDK changes where this one needs re-records — and it's the natural direction to evolve this harness if that maintenance cost becomes a problem.
 

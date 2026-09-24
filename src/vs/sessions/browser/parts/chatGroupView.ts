@@ -133,6 +133,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _sessionVisible = true;
 	/** Whether this is the first group in the chat grid's logical order. */
 	private _primary = false;
+	/** Whether the chat grid has more than one group. */
+	private _split = false;
 	/** Index of this group within the persisted layout, written into {@link toJSON}. */
 	private _serializationIndex = 0;
 
@@ -185,7 +187,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
+		this._register(this._compositeBar.onDidChangeVisibility(() => {
+			this._contentContainer.classList.toggle('modern-ui-editor-tab-content', this._compositeBar.visible);
+			this._layoutChildren();
+		}));
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 
 		const focusTracker = this._register(trackFocus(this.element));
@@ -194,7 +199,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	setGroupPosition(index: number, count: number): void {
 		this._primary = index === 0;
-		this._currentView.value?.setPrimary(this._primary);
+		this._split = count > 1;
+		this._currentView.value?.setPrimary(this._primary, this._split);
 
 		if (count <= 1) {
 			this.element.removeAttribute('role');
@@ -347,7 +353,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
-				view.setPrimary(this._primary);
+				view.setPrimary(this._primary, this._split);
 				view.setActive(this._sessionActive);
 				view.setVisible(this._sessionVisible);
 				this._layoutChildren();

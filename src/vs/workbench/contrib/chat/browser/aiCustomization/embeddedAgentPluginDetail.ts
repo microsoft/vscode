@@ -26,7 +26,7 @@ import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/th
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -163,7 +163,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private updateEnablementAction: (() => void) | undefined;
 	private pluginVersionRowEl: HTMLElement | undefined;
 	private pluginVersionValueEl: HTMLElement | undefined;
-	private renderedPolicyBlocked = false;
+	private renderedPolicyEnablement: boolean | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -259,17 +259,16 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.current = item;
 		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
-			this.renderedPolicyBlocked = isPluginPolicyBlocked(item.plugin);
+			this.renderedPolicyEnablement = getPluginPolicyEnablement(item.plugin);
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
-				item.plugin.policyBlocked?.read(reader);
+				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
 				item.plugin.version?.read(reader);
 				if (this._store.isDisposed || this.current !== item) {
 					return;
 				}
-				const policyBlocked = isPluginPolicyBlocked(item.plugin);
-				if (policyBlocked !== this.renderedPolicyBlocked) {
-					this.renderedPolicyBlocked = policyBlocked;
+				if (policyEnablement !== this.renderedPolicyEnablement) {
+					this.renderedPolicyEnablement = policyEnablement;
 					this.renderItem();
 					return;
 				}
@@ -440,13 +439,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private renderEnablementSplitButton(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
-		if (isPluginPolicyBlocked(item.plugin)) {
-			const action = createPolicyBlockedEnableAction(item.plugin, this.notificationService);
+		const policyAction = createPolicyManagedEnablementAction(item.plugin, this.notificationService);
+		if (policyAction) {
 			const policyLabel = localize('pluginManagedByOrganization', "Managed by Organization");
 			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: policyLabel }));
 			button.label = policyLabel;
-			this.renderDisposables.add(button.onDidClick(() => action.run()));
-			this.renderDisposables.add(action);
+			this.renderDisposables.add(button.onDidClick(() => policyAction.run()));
+			this.renderDisposables.add(policyAction);
 			return;
 		}
 

@@ -176,6 +176,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
+		options = { ...options, hostVisible: this._isVisibleObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
@@ -314,6 +315,14 @@ export class SessionView extends Disposable implements ISerializableView {
 	focus(): void {
 		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
+	}
+
+	focusWorkspacePicker(): void {
+		this._visibleStandaloneView?.focusWorkspacePicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._visibleStandaloneView?.focusHarnessPicker();
 	}
 
 	/**
