@@ -60,7 +60,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v3';
+const PREVIEW_PROMPT_VERSION = 'v4';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 60;
@@ -96,7 +96,7 @@ const PREVIEW_SYSTEM_PROMPT = [
 	'- Output only the preview text: no quotes, no trailing period, no "Status:"/"Session:" prefix.',
 	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
 	'- Prefer the agent\'s and user\'s own nouns and verbs.',
-	'- You may also get earlier conversation labeled "background only": use it only to understand the situation; lead with the current pending action or choice, and never restate the background.',
+	'- When the card type says the detail is "conversation leading up to a pending decision", the detail is background context, not the request: summarize what the session has been working on (its topic and progress) so the user recalls the situation, and NEVER restate, quote, paraphrase, or answer the pending request itself.',
 	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
 	'',
 	'Examples (card type | latest detail -> preview):',
@@ -605,18 +605,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	 * the latest concrete detail so it can produce a specific, glanceable preview.
 	 */
 	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
-		const { contextLabel, detailText, referenceText } = this.previewContextForItem(item);
+		const { contextLabel, detailText } = this.previewContextForItem(item);
 		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
-		const trimmedReference = referenceText?.replace(/\s+/g, ' ').trim();
 		const inputLines = [
 			`Card type: ${contextLabel}`,
 			`Session title: ${item.title}`,
 		];
 		if (trimmedDetail) {
 			inputLines.push(`Latest detail: ${trimmedDetail}`);
-		}
-		if (trimmedReference) {
-			inputLines.push(`Earlier conversation (background only — do not restate): ${trimmedReference}`);
 		}
 		let inputText = inputLines.join('\n');
 		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
@@ -627,20 +623,23 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	/**
-	 * Input for the one-line card preview. For needs-input items this leads with the *current*
-	 * pending request (the concrete question/confirmation the user must act on now) so the
-	 * preview stays specific to the current decision — and so its input, and therefore its cache
-	 * key, changes as a thread asks successive questions instead of reusing a stale summary of
-	 * earlier turns. The recent conversation is passed as background reference only.
+	 * Input for the one-line card preview. For needs-input items the preview summarizes the
+	 * conversation *leading up to* the pending request — the current request's own prose and
+	 * question are never fed to the model, so it cannot restate the ask (which the on-card widget
+	 * already shows). This keeps the preview about the situation/context of the decision. The
+	 * preceding-context input still evolves as the thread accumulates turns, so successive
+	 * questions do not reuse a stale summary. When there is no preceding context (a first-turn
+	 * ask), fall back to describing the request itself since there is nothing else to show.
 	 */
-	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string; referenceText?: string } {
+	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
 		if (item.needsInputPart) {
-			const pending = this.describeItemForPreview(item);
-			return {
-				contextLabel: pending.contextLabel,
-				detailText: pending.detailText,
-				referenceText: this.getRecentContextText(item),
-			};
+			const context = this.getRecentContextText(item);
+			if (context) {
+				return {
+					contextLabel: 'conversation leading up to a pending decision — summarize the situation, do not restate the request',
+					detailText: context,
+				};
+			}
 		}
 		return this.describeItemForPreview(item);
 	}
@@ -650,10 +649,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		if (!chatModel) {
 			return undefined;
 		}
-		// Background context is the turns leading *up to* the pending request, not the request
-		// turn itself (which the preview already leads with and the on-card widget already shows).
-		// Dropping the response that holds the pending needs-input part also keeps that latest
-		// assistant message from dominating the background.
+		// Only the turns leading *up to* the pending request, never the request turn itself: its
+		// prose and question are the ask, which the preview must not restate and the on-card widget
+		// already shows. Excluding it also lets the preview describe the situation/context instead.
 		const pendingRequestId = item.needsInputPart?.requestId;
 		const responses = chatModel.getRequests()
 			.map(request => request.response)

@@ -399,34 +399,26 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
-	test('preview input leads with the current pending question and changes as new questions arrive', () => {
-		const chatResource = URI.parse('test:///chat/repeat-preview');
+	test('preview input summarizes preceding context and never the pending request', () => {
+		const chatResource = URI.parse('test:///chat/context-preview');
 		const chatService = new TestChatService();
 		const fixture = createFixture([
-			createSession({ id: 'repeat-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+			createSession({ id: 'context-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
 		], undefined, undefined, chatService);
 
-		// A thread whose latest assistant prose stays the same while the carousel advances through
-		// different questions in the same turn (same requestId, different resolveId/question).
 		chatService.setConversationWithPendingQuestion(chatResource, {
-			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry.' }],
-			pending: { requestId: 'turn-2', prose: 'Great choice!', resolveId: 'q-color', message: 'Which color?', questionTitle: 'Blue' },
-		});
-		const first = fixture.service.notifications.get()[0].previewInputText ?? '';
-
-		chatService.setConversationWithPendingQuestion(chatResource, {
-			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry.' }],
+			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry as the favorite food.' }],
 			pending: { requestId: 'turn-2', prose: 'Great choice!', resolveId: 'q-shade', message: 'Which pale blue shade?', questionTitle: 'Sky blue' },
 		});
-		const second = fixture.service.notifications.get()[0].previewInputText ?? '';
 
-		// The preview input leads with the current question, so it is specific to what the user
-		// must decide now...
-		assert.ok(first.includes('Which color?'), `expected first question in preview input, got: ${first}`);
-		assert.ok(second.includes('Which pale blue shade?'), `expected second question in preview input, got: ${second}`);
-		// ...and changes as the thread asks new questions (rather than reusing a stale cache keyed
-		// on the unchanged earlier turns / assistant prose).
-		assert.notStrictEqual(first, second);
+		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
+		// Summarizes the conversation leading up to the ask...
+		assert.ok(input.includes('Tomato and Egg Stir-Fry'), `expected preceding context in preview input, got: ${input}`);
+		// ...and never feeds the current request's prose or question to the model, so the preview
+		// cannot restate the ask (which the on-card widget already shows).
+		assert.ok(!input.includes('Which pale blue shade?'), `did not expect the pending question in preview input, got: ${input}`);
+		assert.ok(!input.includes('Sky blue'), `did not expect the pending question title in preview input, got: ${input}`);
+		assert.ok(!input.includes('Great choice!'), `did not expect the pending turn prose in preview input, got: ${input}`);
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
