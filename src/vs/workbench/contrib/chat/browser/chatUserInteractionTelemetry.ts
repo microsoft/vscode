@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatProgress, IChatToolInvocation } from '../common/chatService/chatService.js';
@@ -17,6 +18,7 @@ export type ChatUserInteractionKind = 'turn' | 'fork';
 export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'navigated' | 'timedOut' | 'disposed';
 
 export interface IChatUserInteractionTimer {
+	readonly id: number;
 	readonly kind: ChatUserInteractionKind;
 	readonly startedAt: number;
 }
@@ -34,85 +36,22 @@ export interface IChatUserInteractionTelemetryContext {
 	readonly harness?: string;
 }
 
-export interface IChatUserInteractionTiming {
+interface IChatUserInteractionStart {
 	readonly timer: IChatUserInteractionTimer;
 	readonly window: Window;
-	readonly elapsedMs?: number;
-	readonly result?: ChatUserInteractionTimingResult;
+}
+
+export interface IChatUserInteractionTiming extends IChatUserInteractionStart {
+	readonly elapsedMs: number;
+	readonly result: ChatUserInteractionTimingResult;
 	readonly context?: IChatUserInteractionTelemetryContext;
 }
 
-function flashMeasurementBoundary(window: Window, color: string): void {
-	const body = window.document?.body;
-	if (!body) {
-		return;
-	}
-	const marker = window.document.createElement('div');
-	marker.setAttribute('aria-hidden', 'true');
-	marker.style.cssText = `position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:${color};`;
-	body.appendChild(marker);
-	window.setTimeout(() => marker.remove(), 200);
-}
-
-const telemetryPropertyTables = new WeakMap<Window, HTMLElement>();
-
-function showTelemetryProperties(window: Window, eventName: string, data: object, writeClipboardText: (text: string) => Promise<void>): void {
-	const body = window.document?.body;
-	if (!body) {
-		return;
-	}
-	telemetryPropertyTables.get(window)?.remove();
-
-	const container = window.document.createElement('div');
-	container.setAttribute('role', 'region');
-	container.setAttribute('aria-label', eventName);
-	container.style.cssText = 'position:fixed;top:16px;left:16px;z-index:2147483647;max-width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:12px;background-color:var(--vscode-editorWidget-background,#252526);color:var(--vscode-editorWidget-foreground,#f0f0f0);border:1px solid var(--vscode-editorWidget-border,#454545);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);font:12px var(--vscode-editor-font-family);';
-	const copyButton = window.document.createElement('button');
-	copyButton.type = 'button';
-	copyButton.textContent = localize('chat.telemetryProperties.copyJson', "Copy JSON");
-	copyButton.style.cssText = 'position:absolute;top:4px;right:32px;height:24px;padding:0 8px;border:1px solid var(--vscode-button-border,transparent);border-radius:2px;background:var(--vscode-button-secondaryBackground,#3a3d41);color:var(--vscode-button-secondaryForeground,#fff);font:12px sans-serif;cursor:pointer;';
-	copyButton.addEventListener('click', async () => {
-		try {
-			await writeClipboardText(JSON.stringify({ eventName, properties: data }, undefined, 2));
-			copyButton.textContent = localize('chat.telemetryProperties.copied', "Copied");
-		} catch {
-			copyButton.textContent = localize('chat.telemetryProperties.copyFailed', "Copy Failed");
-		}
-		window.setTimeout(() => copyButton.textContent = localize('chat.telemetryProperties.copyJson', "Copy JSON"), 1500);
-	});
-	container.appendChild(copyButton);
-	const closeButton = window.document.createElement('button');
-	closeButton.type = 'button';
-	closeButton.textContent = '×';
-	closeButton.setAttribute('aria-label', localize('chat.telemetryProperties.close', "Close telemetry properties"));
-	closeButton.style.cssText = 'position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;border:0;background:transparent;color:inherit;font:20px/24px sans-serif;cursor:pointer;';
-	closeButton.addEventListener('click', () => {
-		if (telemetryPropertyTables.get(window) === container) {
-			telemetryPropertyTables.delete(window);
-		}
-		container.remove();
-	});
-	container.appendChild(closeButton);
-	const table = window.document.createElement('table');
-	table.style.cssText = 'border-collapse:collapse;width:100%;';
-	const caption = window.document.createElement('caption');
-	caption.textContent = eventName;
-	caption.style.cssText = 'padding:0 104px 8px 0;text-align:left;font-weight:600;';
-	table.appendChild(caption);
-
-	for (const [property, value] of Object.entries(data)) {
-		const row = table.insertRow();
-		const nameCell = row.insertCell();
-		nameCell.textContent = property;
-		nameCell.style.cssText = 'padding:3px 12px 3px 0;vertical-align:top;font-weight:600;white-space:nowrap;';
-		const valueCell = row.insertCell();
-		valueCell.textContent = String(value);
-		valueCell.style.cssText = 'padding:3px 0;overflow-wrap:anywhere;';
-	}
-
-	container.appendChild(table);
-	body.appendChild(container);
-	telemetryPropertyTables.set(window, container);
+interface IActiveChatUserInteraction {
+	readonly window: Window;
+	readonly disposables: DisposableStore;
+	context?: IChatUserInteractionTelemetryContext;
+	renderScheduled?: boolean;
 }
 
 export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressResponseContent): boolean {
@@ -120,66 +59,113 @@ export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressRe
 		const values = Array.isArray(part.value) ? part.value : [part.value];
 		return values.some(value => typeof value === 'string' && value.trim().length > 0);
 	}
-	return part.kind === 'markdownContent'
-		|| (part.kind === 'toolInvocation' && !IChatToolInvocation.isEffectivelyHidden(part));
+	if (part.kind === 'markdownContent') {
+		return part.content.value.trim().length > 0;
+	}
+	return part.kind === 'toolInvocation' && !IChatToolInvocation.isEffectivelyHidden(part);
 }
 
 export class ChatUserInteractionTimingTracker extends Disposable {
-	private readonly _active = new WeakSet<IChatUserInteractionTimer>();
-	private readonly _renderScheduled = new WeakSet<IChatUserInteractionTimer>();
-	private readonly _windows = new WeakMap<IChatUserInteractionTimer, Window>();
-	private readonly _contexts = new WeakMap<IChatUserInteractionTimer, IChatUserInteractionTelemetryContext>();
-	private readonly _onDidComplete = this._register(new Emitter<IChatUserInteractionTiming>());
-	readonly onDidComplete: Event<IChatUserInteractionTiming> = this._onDidComplete.event;
-	private readonly _onDidCancel = this._register(new Emitter<IChatUserInteractionTiming>());
-	readonly onDidCancel: Event<IChatUserInteractionTiming> = this._onDidCancel.event;
+	private _nextId = 0;
+	private readonly _active = new Map<IChatUserInteractionTimer, IActiveChatUserInteraction>();
+	private readonly _activeDisposables = this._register(new DisposableStore());
+	private readonly _onDidStart = this._register(new Emitter<IChatUserInteractionStart>());
+	readonly onDidStart: Event<IChatUserInteractionStart> = this._onDidStart.event;
+	private readonly _onDidFinish = this._register(new Emitter<IChatUserInteractionTiming>());
+	readonly onDidFinish: Event<IChatUserInteractionTiming> = this._onDidFinish.event;
+
+	constructor(private readonly _now: () => number = () => globalThis.performance.now()) {
+		super();
+	}
 
 	start(kind: ChatUserInteractionKind, window: Window): IChatUserInteractionTimer {
-		const timer = { kind, startedAt: globalThis.performance.now() };
-		flashMeasurementBoundary(window, 'rgba(255, 191, 0, 0.35)');
-		this._active.add(timer);
-		this._windows.set(timer, window);
+		if (this._store.isDisposed) {
+			throw new BugIndicatingError('Cannot start a disposed chat interaction tracker');
+		}
+		const timer = { id: ++this._nextId, kind, startedAt: this._now() };
+		const disposables = this._activeDisposables.add(new DisposableStore());
+		this._active.set(timer, { window, disposables });
+		disposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
+		this._onDidStart.fire({ timer, window });
 		return timer;
 	}
 
 	setContext(timer: IChatUserInteractionTimer, context: IChatUserInteractionTelemetryContext): void {
-		if (this._active.has(timer)) {
-			this._contexts.set(timer, { ...this._contexts.get(timer), ...context });
+		const active = this._active.get(timer);
+		if (active) {
+			active.context = { ...active.context, ...context };
 		}
 	}
 
 	complete(timer: IChatUserInteractionTimer): void {
-		this._finish(timer, 'success', this._onDidComplete);
+		this._finish(timer, 'success');
 	}
 
-	completeAfterRender(timer: IChatUserInteractionTimer, window: Window): void {
-		if (!this._active.has(timer) || this._renderScheduled.has(timer)) {
+	completeAfterRender(timer: IChatUserInteractionTimer, window: Window, isVisible: () => boolean): void {
+		const active = this._active.get(timer);
+		if (!active || active.renderScheduled) {
 			return;
 		}
-		this._renderScheduled.add(timer);
-		window.requestAnimationFrame(() => window.requestAnimationFrame(() => this.complete(timer)));
+		active.renderScheduled = true;
+		let frame: number | undefined;
+		active.disposables.add(toDisposable(() => {
+			if (frame !== undefined) {
+				window.cancelAnimationFrame(frame);
+			}
+		}));
+		active.disposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
+			if (window.document.visibilityState !== 'visible') {
+				this.cancel(timer, 'navigated');
+			}
+		}));
+		if (window !== active.window) {
+			active.disposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
+		}
+		const checkVisibility = (): boolean => {
+			if (!this._active.has(timer)) {
+				return false;
+			}
+			if (window.document.visibilityState !== 'visible' || !isVisible()) {
+				this.cancel(timer, 'navigated');
+				return false;
+			}
+			return true;
+		};
+		if (checkVisibility()) {
+			frame = window.requestAnimationFrame(() => {
+				frame = undefined;
+				if (checkVisibility()) {
+					frame = window.requestAnimationFrame(() => {
+						frame = undefined;
+						if (checkVisibility()) {
+							this.complete(timer);
+						}
+					});
+				}
+			});
+		}
 	}
 
 	cancel(timer: IChatUserInteractionTimer, result: Exclude<ChatUserInteractionTimingResult, 'success'> = 'cancelled'): void {
-		this._finish(timer, result, this._onDidCancel);
+		this._finish(timer, result);
 	}
 
-	private _finish(timer: IChatUserInteractionTimer, result: ChatUserInteractionTimingResult, emitter: Emitter<IChatUserInteractionTiming>): void {
-		if (!this._active.delete(timer)) {
+	private _finish(timer: IChatUserInteractionTimer, result: ChatUserInteractionTimingResult): void {
+		const active = this._active.get(timer);
+		if (!active) {
 			return;
 		}
-		const window = this._windows.get(timer);
-		if (window) {
-			const endedAt = globalThis.performance.now();
-			flashMeasurementBoundary(window, 'rgba(0, 200, 83, 0.35)');
-			emitter.fire({
-				timer,
-				window,
-				elapsedMs: endedAt - timer.startedAt,
-				result,
-				context: this._contexts.get(timer),
-			});
+		const elapsedMs = this._now() - timer.startedAt;
+		this._active.delete(timer);
+		this._activeDisposables.delete(active.disposables);
+		this._onDidFinish.fire({ timer, window: active.window, elapsedMs, result, context: active.context });
+	}
+
+	override dispose(): void {
+		for (const timer of this._active.keys()) {
+			this.cancel(timer, 'disposed');
 		}
+		super.dispose();
 	}
 }
 
@@ -203,7 +189,7 @@ type ChatUserPerceivedTimeToFirstProgressEvent = {
 };
 
 type ChatUserPerceivedTimeToFirstProgressClassification = {
-	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the user gesture until the first meaningful chat progress has been painted by the workbench.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission or fork entry through two animation frames after meaningful progress is observed in the visible chat widget. This is a render-boundary approximation, not a physical paint timestamp.' };
 	timeToTermination: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the user gesture until the interaction ended without rendering meaningful progress. Undefined on success.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether first progress rendered or why the interaction ended before rendering progress.' };
 	interactionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of chat interaction initiated by the user.' };
@@ -223,24 +209,24 @@ type ChatUserPerceivedTimeToFirstProgressClassification = {
 	comment: 'Measures user-perceived end-to-end time from a chat gesture until first meaningful progress is rendered.';
 };
 
-export const chatUserInteractionTimingTracker = new ChatUserInteractionTimingTracker();
+export const chatUserInteractionTimingTracker = markAsSingleton(new ChatUserInteractionTimingTracker());
 
 export class ChatUserInteractionTelemetryReporter extends Disposable {
 	constructor(
 		tracker: ChatUserInteractionTimingTracker,
 		private readonly _telemetryService: ITelemetryService,
-		private readonly _writeClipboardText: (text: string) => Promise<void> = text => globalThis.navigator.clipboard.writeText(text),
+		private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(tracker.onDidComplete(timing => this._report(timing)));
-		this._register(tracker.onDidCancel(timing => this._report(timing)));
+		this._register(tracker.onDidStart(({ timer }) => {
+			this._logService.trace('[ChatTTFP] start', { interactionId: timer.id, interactionKind: timer.kind });
+		}));
+		this._register(tracker.onDidFinish(timing => this._report(timing)));
 	}
 
 	private _report(timing: IChatUserInteractionTiming): void {
-		const elapsedMs = timing.elapsedMs ?? 0;
-		const result = timing.result ?? 'cancelled';
+		const { elapsedMs, result } = timing;
 		const context = timing.context;
-		const eventName = 'chat.userPerceivedTimeToFirstProgress';
 		const data: ChatUserPerceivedTimeToFirstProgressEvent = {
 			timeToFirstProgress: result === 'success' ? elapsedMs : undefined,
 			timeToTermination: result === 'success' ? undefined : elapsedMs,
@@ -259,9 +245,8 @@ export class ChatUserInteractionTelemetryReporter extends Disposable {
 			windowVisible: timing.window.document.visibilityState === 'visible',
 			windowFocused: timing.window.document.hasFocus(),
 		};
-		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>(eventName, data);
-		flashMeasurementBoundary(timing.window, 'rgba(0, 122, 204, 0.35)');
-		showTelemetryProperties(timing.window, eventName, data, this._writeClipboardText);
+		this._logService.trace('[ChatTTFP] end', { interactionId: timing.timer.id, ...data });
+		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
 	}
 }
 
@@ -270,8 +255,8 @@ export class ChatUserInteractionTelemetryContribution extends ChatUserInteractio
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IClipboardService clipboardService: IClipboardService,
+		@ILogService logService: ILogService,
 	) {
-		super(chatUserInteractionTimingTracker, telemetryService, text => clipboardService.writeText(text));
+		super(chatUserInteractionTimingTracker, telemetryService, logService);
 	}
 }

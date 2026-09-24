@@ -7,9 +7,10 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
+import { CancellationError, ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -30,6 +31,7 @@ import { TestEditorService } from '../../../../../test/browser/workbenchTestServ
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
+import { chatUserInteractionTimingTracker, IChatUserInteractionTiming } from '../../../browser/chatUserInteractionTelemetry.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
@@ -39,7 +41,7 @@ import { clearChatMarks } from '../../../common/chatPerf.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -958,6 +960,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const chatService = mockObject<IChatService>()();
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: 'submitted-request',
+			session: original.model,
 			response: upcastPartial<IChatResponseModel['response']>({ value: [] }),
 			isComplete: true,
 		});
@@ -1238,6 +1241,186 @@ suite('ChatWidget - guarded acceptInput', () => {
 			response: fixture.response,
 		});
 	});
+});
+
+suite('ChatWidget - first visible progress lifecycle', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class CountingDisposableStore extends DisposableStore {
+		readonly entries = new Set<IDisposable>();
+
+		override add<T extends IDisposable>(item: T): T {
+			this.entries.add(item);
+			return super.add(item);
+		}
+
+		override delete<T extends IDisposable>(item: T): void {
+			this.entries.delete(item);
+			super.delete(item);
+		}
+
+		override clear(): void {
+			super.clear();
+			this.entries.clear();
+		}
+	}
+
+	function createWidget() {
+		const widgetStore = disposables.add(new CountingDisposableStore());
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const shown = disposables.add(new Emitter<void>());
+		const viewModelChanged = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		let session = upcastPartial<IChatModel>({ sessionResource: URI.parse('agent-host-copilotcli:/session') });
+		let viewModel = upcastPartial<ChatViewModel>({ model: session, sessionResource: session.sessionResource });
+		let visible = true;
+		let complete = false;
+		const parts: IChatProgressResponseContent[] = [];
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'request',
+			get session() { return session; },
+			get isComplete() { return complete; },
+			response: upcastPartial<IChatResponseModel['response']>({ value: parts }),
+			onDidChange: responseChanged.event,
+		});
+		let submit: () => Promise<IChatResponseModel | undefined> = async () => response;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: widgetStore },
+			_viewModel: { get: () => viewModel },
+			_location: { value: { location: ChatAgentLocation.Chat } },
+			container: { value: mainWindow.document.createElement('div') },
+			visible: { get: () => visible },
+			input: { value: { currentModeInfo: { kind: ChatModeKind.Agent } } },
+			onDidShow: { value: shown.event },
+			onDidChangeViewModel: { value: viewModelChanged.event },
+			_acceptInput: { value: () => submit() },
+		});
+		const results: IChatUserInteractionTiming[] = [];
+		disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => results.push(timing)));
+		disposables.add(toDisposable(() => clearChatMarks(session.sessionResource)));
+		return {
+			widgetStore, response, results, responseChanged, shown, viewModelChanged,
+			accept: () => widget.acceptInput('Test request', { preserveInput: true }),
+			submitWith: (callback: typeof submit) => { submit = callback; },
+			progress: () => {
+				parts.push({ kind: 'markdownContent', content: new MarkdownString('Response') });
+				responseChanged.fire({ reason: 'other' });
+			},
+			completeWithoutProgress: () => {
+				complete = true;
+				responseChanged.fire({ reason: 'completedRequest' });
+			},
+			hide: () => { visible = false; },
+			show: () => {
+				visible = true;
+				shown.fire();
+			},
+			navigate: () => {
+				const previousSessionResource = viewModel.sessionResource;
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('agent-host-copilotcli:/other') });
+				viewModelChanged.fire({ previousSessionResource, currentSessionResource: viewModel.sessionResource });
+			},
+			commitSession: () => {
+				clearChatMarks(session.sessionResource);
+				session = upcastPartial<IChatModel>({ sessionResource: URI.parse('agent-host-copilotcli:/committed') });
+				viewModel = upcastPartial<ChatViewModel>({ model: session, sessionResource: session.sessionResource });
+			},
+		};
+	}
+
+	function renderFrames(): Promise<void> {
+		return new Promise(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+	}
+
+	test('removes per-interaction stores and listeners after every completed turn', async () => {
+		const fixture = createWidget();
+		for (let i = 0; i < 10; i++) {
+			await fixture.accept();
+			fixture.progress();
+			await renderFrames();
+			assert.deepStrictEqual({
+				retainedStores: fixture.widgetStore.entries.size,
+				responseListeners: fixture.responseChanged.hasListeners(),
+				shownListeners: fixture.shown.hasListeners(),
+				navigationListeners: fixture.viewModelChanged.hasListeners(),
+			}, { retainedStores: 0, responseListeners: false, shownListeners: false, navigationListeners: false });
+		}
+		assert.deepStrictEqual(fixture.results.map(result => result.result), Array(10).fill('success'));
+	});
+
+	test('navigation cancels even after the first render callback has been scheduled', async () => {
+		const fixture = createWidget();
+		fixture.progress();
+		await fixture.accept();
+		fixture.navigate();
+		await renderFrames();
+		assert.deepStrictEqual({
+			results: fixture.results.map(result => result.result),
+			retainedStores: fixture.widgetStore.entries.size,
+		}, { results: ['navigated'], retainedStores: 0 });
+	});
+
+	test('waits until a hidden widget is shown before measuring rendered progress', async () => {
+		const fixture = createWidget();
+		fixture.hide();
+		fixture.progress();
+		await fixture.accept();
+		await renderFrames();
+		assert.strictEqual(fixture.results.length, 0);
+		fixture.show();
+		await renderFrames();
+		assert.deepStrictEqual(fixture.results.map(result => result.result), ['success']);
+	});
+
+	test('disposal while submission is pending reports once and attaches no late listeners', async () => {
+		const fixture = createWidget();
+		const pending = new DeferredPromise<IChatResponseModel>();
+		fixture.submitWith(() => pending.p);
+		const accepting = fixture.accept();
+		fixture.widgetStore.dispose();
+		pending.complete(fixture.response);
+		await accepting;
+		assert.deepStrictEqual({
+			results: fixture.results.map(result => result.result),
+			retainedStores: fixture.widgetStore.entries.size,
+			responseListeners: fixture.responseChanged.hasListeners(),
+		}, { results: ['disposed'], retainedStores: 0, responseListeners: false });
+	});
+
+	test('uses the committed response session for attribution after preparation', async () => {
+		const fixture = createWidget();
+		fixture.submitWith(async () => {
+			fixture.commitSession();
+			return fixture.response;
+		});
+		await fixture.accept();
+		fixture.completeWithoutProgress();
+		assert.deepStrictEqual(fixture.results.map(result => ({
+			result: result.result,
+			chatSessionId: result.context?.chatSessionId,
+		})), [{ result: 'completedWithoutProgress', chatSessionId: 'agent-host-copilotcli:/committed' }]);
+	});
+
+	for (const error of [undefined, new CancellationError(), new Error('Submission failed')]) {
+		test(`cleans up when submission ${error ? `throws ${error.name}` : 'is not dispatched'}`, async () => {
+			const fixture = createWidget();
+			fixture.submitWith(async () => {
+				if (error) {
+					throw error;
+				}
+				return undefined;
+			});
+			if (error) {
+				await assert.rejects(fixture.accept(), error);
+			} else {
+				await fixture.accept();
+			}
+			assert.deepStrictEqual({
+				results: fixture.results.map(result => result.result),
+				retainedStores: fixture.widgetStore.entries.size,
+			}, { results: [error instanceof CancellationError ? 'cancelled' : error ? 'error' : 'notDispatched'], retainedStores: 0 });
+		});
+	}
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {

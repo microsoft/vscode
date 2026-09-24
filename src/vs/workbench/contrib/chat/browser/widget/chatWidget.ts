@@ -13,7 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -3126,6 +3126,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		const interaction = chatUserInteractionTimingTracker.start('turn', dom.getWindow(this.container));
+		const interactionStore = this._store.add(new DisposableStore());
+		interactionStore.add(chatUserInteractionTimingTracker.onDidFinish(timing => {
+			if (timing.timer === interaction) {
+				this._store.delete(interactionStore);
+			}
+		}));
+		interactionStore.add(toDisposable(() => chatUserInteractionTimingTracker.cancel(interaction, 'disposed')));
 		const sessionResource = this.viewModel?.sessionResource;
 		const modeInfo = this.input.currentModeInfo;
 		if (sessionResource) {
@@ -3155,6 +3162,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 			chatUserInteractionTimingTracker.setContext(interaction, {
+				...getChatSessionTelemetryContext(response.session.sessionResource),
 				requestId: response.requestId,
 				agent: response.agent?.id,
 				agentExtensionId: response.agent?.extensionId.value,
@@ -3162,52 +3170,44 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
 				chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
 			});
-			this._trackFirstVisibleProgress(response, interaction, dom.getWindow(this.container));
+			this._trackFirstVisibleProgress(response, interaction, dom.getWindow(this.container), interactionStore);
 			return response;
 		} catch (error) {
-			chatUserInteractionTimingTracker.cancel(interaction, 'error');
+			chatUserInteractionTimingTracker.cancel(interaction, isCancellationError(error) ? 'cancelled' : 'error');
 			throw error;
 		}
 	}
 
-	private _trackFirstVisibleProgress(response: IChatResponseModel, interaction: IChatUserInteractionTimer, window: Window): void {
-		const sessionResource = this.viewModel?.sessionResource;
-		const completeIfVisible = (): boolean => {
-			if (response.response.value.some(isChatFirstVisibleProgress)) {
-				if (!this.visible || !isEqual(this.viewModel?.sessionResource, sessionResource)) {
-					return false;
-				}
-				chatUserInteractionTimingTracker.completeAfterRender(interaction, window);
-				return true;
+	private _trackFirstVisibleProgress(response: IChatResponseModel, interaction: IChatUserInteractionTimer, window: Window, listeners: DisposableStore): void {
+		if (listeners.isDisposed) {
+			return;
+		}
+		const sessionResource = response.session.sessionResource;
+		const isVisible = () => !this._store.isDisposed && this.visible && isEqual(this.viewModel?.sessionResource, sessionResource);
+		const completeIfVisible = (): void => {
+			if (!isEqual(this.viewModel?.sessionResource, sessionResource)) {
+				chatUserInteractionTimingTracker.cancel(interaction, 'navigated');
+				return;
 			}
-			if (response.isComplete) {
+			if (response.response.value.some(isChatFirstVisibleProgress)) {
+				if (isVisible() && window.document.visibilityState === 'visible') {
+					chatUserInteractionTimingTracker.completeAfterRender(interaction, window, () => isVisible() && response.response.value.some(isChatFirstVisibleProgress));
+				}
+			} else if (response.isComplete) {
 				chatUserInteractionTimingTracker.cancel(
 					interaction,
 					response.isCanceled ? 'cancelled' : response.result?.errorDetails ? 'error' : 'completedWithoutProgress'
 				);
-				return true;
 			}
-			return false;
 		};
-		if (completeIfVisible()) {
+		completeIfVisible();
+		if (listeners.isDisposed) {
 			return;
 		}
-		const listeners = new DisposableStore();
-		const complete = () => {
-			if (completeIfVisible()) {
-				listeners.dispose();
-			}
-		};
-		listeners.add(response.onDidChange(complete));
-		listeners.add(this.onDidShow(complete));
-		listeners.add(this.onDidChangeViewModel(() => {
-			if (!isEqual(this.viewModel?.sessionResource, sessionResource)) {
-				chatUserInteractionTimingTracker.cancel(interaction, 'navigated');
-				listeners.dispose();
-			}
-		}));
-		this._store.add(listeners);
-		this._store.add({ dispose: () => chatUserInteractionTimingTracker.cancel(interaction, 'disposed') });
+		listeners.add(response.onDidChange(completeIfVisible));
+		listeners.add(this.onDidShow(completeIfVisible));
+		listeners.add(this.onDidChangeViewModel(completeIfVisible));
+		listeners.add(dom.addDisposableListener(window.document, 'visibilitychange', completeIfVisible));
 	}
 
 	async rerunLastRequest(): Promise<void> {
