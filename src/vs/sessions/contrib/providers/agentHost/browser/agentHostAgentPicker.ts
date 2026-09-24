@@ -82,7 +82,7 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
+export class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostAgentPicker';
 
@@ -218,27 +218,18 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		endInternalSet: () => void,
 	): void {
 		const provider = this._getProvider(session, sessionsProvidersService);
-		if (!session || !provider) {
+		if (!session || !provider || selectedAgentUri || !isUntitled) {
 			return;
 		}
 
 		const agents = provider.getCustomAgents(session.sessionId);
-		const storedUri = isUntitled
-			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
-			: undefined;
-		const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
+		const storedUri = this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE);
+		const resolved = resolveAgentHostAgent(agents, undefined, storedUri);
 
-		if (!selectedAgentUri && isUntitled && resolved) {
+		if (resolved) {
 			beginInternalSet();
 			try {
 				this._setAgent(session, provider, resolved);
-			} finally {
-				endInternalSet();
-			}
-		} else if (selectedAgentUri && !resolved && agents.length > 0 && !isUntitled) {
-			beginInternalSet();
-			try {
-				this._setAgent(session, provider, undefined);
 			} finally {
 				endInternalSet();
 			}
