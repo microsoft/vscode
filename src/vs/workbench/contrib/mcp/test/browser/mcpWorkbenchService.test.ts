@@ -1121,6 +1121,21 @@ suite('McpWorkbenchService', () => {
 		});
 	});
 
+	test('marketplace install lookup waits for the gallery manifest to initialize', async () => {
+		const { service, galleryService } = await createFixture([]);
+		const initialized = new DeferredPromise<void>();
+		const enabled = sinon.stub(galleryService, 'isEnabled').returns(false);
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await initialized.p;
+			enabled.returns(true);
+			return [createGallery('startup')];
+		});
+		const pending = service.getMcpServerFromGallery('startup');
+		await initialized.complete();
+		const server = await pending;
+		assert.deepStrictEqual({ lookups: lookup.callCount, name: server?.gallery?.name }, { lookups: 1, name: 'startup' });
+	});
+
 	for (const source of ['name', 'url', 'manifest']) {
 		test(`gallery ${source} link can install alongside a same-name root server`, async () => {
 			const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };

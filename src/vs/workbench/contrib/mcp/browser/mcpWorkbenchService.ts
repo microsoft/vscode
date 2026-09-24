@@ -666,9 +666,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
-		if (!this.mcpGalleryService.isEnabled()) {
-			return undefined;
-		}
 		const registryGeneration = this.registryGeneration;
 		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
 		if (registryGeneration !== this.registryGeneration) {
