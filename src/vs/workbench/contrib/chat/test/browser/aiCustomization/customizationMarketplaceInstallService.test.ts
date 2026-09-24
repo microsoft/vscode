@@ -31,6 +31,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGalleryMcpServer } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mcp/common/mcpGalleryService.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -58,6 +59,7 @@ const sources = [
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
 	CustomizationMarketplaceSources.McpGallery,
+	CustomizationMarketplaceSources.McpGalleryDefault,
 ];
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
@@ -98,7 +100,7 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 		identifier: 'gallery-mcp-resource',
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		version: '1.0.0',
-		installation: { kind: 'mcpGallery', name: 'io.example/demo' },
+		installation: { kind: 'mcpGallery', name: 'io.example/demo', registry: 'custom' },
 	});
 }
 
@@ -224,6 +226,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override local: IWorkbenchMcpServer[] = [];
 			readonly lookups: string[] = [];
 			readonly configuredGalleryLookups: string[] = [];
+			readonly galleryLookupManifests: (string | undefined)[] = [];
 			readonly feedVersions: string[] = [];
 			readonly eligibilityChecks: IWorkbenchMcpServer[] = [];
 			readonly installs: IWorkbenchMcpServer[] = [];
@@ -232,8 +235,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 			eligibility: true | IMarkdownString = true;
 			installError: Error | undefined;
 			onLookup: (() => Promise<IWorkbenchMcpServer | undefined>) | undefined;
-			override async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
+			override async getMcpServerFromGallery(name: string, manifest?: IMcpGalleryManifest): Promise<IWorkbenchMcpServer | undefined> {
 				this.configuredGalleryLookups.push(name);
+				this.galleryLookupManifests.push(manifest?.url);
 				return this.onLookup ? this.onLookup() : this.galleryServer;
 			}
 			override async getMcpServerFromAgentFinder(name: string, version: string): Promise<IWorkbenchMcpServer | undefined> {
@@ -350,6 +354,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
+		instantiationService.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override async getDefaultMcpGalleryManifest() { return { url: 'https://api.mcp.github.com', version: 'v0.1', resources: [] }; }
+		}());
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
@@ -972,6 +979,25 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('MCP servers', () => {
+		test('installs default gallery entries from their pinned registry only while public feed is off', async () => {
+			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
+			const candidate = { ...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGalleryDefault.id,
+				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const } };
+			fixture.mcpService.galleryServer = mcpServer('io.example/demo', McpServerInstallState.Uninstalled, 'io.example/demo', 'https://api.mcp.github.com');
+			await fixture.service.install(candidate);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+			await assert.rejects(fixture.service.install(candidate));
+			assert.deepStrictEqual({
+				lookups: fixture.mcpService.configuredGalleryLookups,
+				manifests: fixture.mcpService.galleryLookupManifests,
+				installs: fixture.mcpService.installs.length,
+			}, {
+				lookups: ['io.example/demo'],
+				manifests: ['https://api.mcp.github.com'],
+				installs: 1,
+			});
+		});
+
 		test('resolves gallery items only through the configured registry and keeps installs distinct from GitHub Feed', async () => {
 			const fixture = await createFixture();
 			const candidate = galleryMcpResource();

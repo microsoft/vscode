@@ -149,6 +149,7 @@ function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 		override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 		override readonly onDidChangeMcpGalleryManifest = Event.None;
 		override async getMcpGalleryManifest() { return null; }
+		override async getDefaultMcpGalleryManifest() { return null; }
 	}();
 }
 

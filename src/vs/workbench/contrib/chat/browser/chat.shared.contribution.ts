@@ -2566,7 +2566,7 @@ configurationRegistry.registerConfiguration({
 		[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "When the customization marketplace is enabled, moves MCP server discovery from the MCP management page to Discover. Discover queries only an explicitly configured custom MCP gallery URL; the default gallery remains available in the MCP management page when the marketplace is disabled."),
+			description: nls.localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "When the customization marketplace is enabled, moves MCP server discovery from the MCP management page to Discover. Discover shows a configured custom MCP gallery and, when the public GitHub Feed is off, the default MCP gallery. The legacy MCP gallery remains available in the MCP management page when the marketplace is disabled."),
 			default: true,
 			experiment: { mode: 'auto' },
 		},

@@ -832,8 +832,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return { items: servers, total: metadata.count >= servers.length ? metadata.count : undefined, nextCursor: metadata.nextCursor };
 	}
 
-	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IIterativePager<IGalleryMcpServer>> {
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IGalleryMcpServer>> {
+		const mcpGalleryManifest = manifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return {
 				firstPage: { items: [], hasMore: false },
@@ -865,8 +865,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	async getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]> {
-		const resolved = await this.resolveMcpServersFromGallery(infos);
+	async getMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<IGalleryMcpServer[]> {
+		const resolved = await this.resolveMcpServersFromGallery(infos, manifest);
 		const mcpServers: IGalleryMcpServer[] = [];
 		for (const result of resolved.values()) {
 			if (result.status === McpGalleryResolveStatus.Found) {
@@ -876,9 +876,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return mcpServers;
 	}
 
-	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
+	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<Map<string, IMcpGalleryServerResolveResult>> {
 		const result = new Map<string, IMcpGalleryServerResolveResult>();
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		const mcpGalleryManifest = manifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			// Without a registry manifest we cannot determine membership; report as failed
 			// (undetermined) so callers do not treat this as a definitive "not found".

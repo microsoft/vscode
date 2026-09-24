@@ -24,6 +24,12 @@ export const CustomizationMarketplaceSources = {
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
 	},
+	McpGalleryDefault: {
+		id: 'mcpGalleryDefault',
+		displayName: localize('customizationMarketplace.defaultMcpGallery', "Default MCP Gallery"),
+		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+		exclusionSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
@@ -35,12 +41,14 @@ export function getEnabledCustomizationMarketplaceSources(configurationService: 
 	if (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true) {
 		return [];
 	}
-	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
+		(!source.exclusionSetting || configurationService.getValue<boolean>(source.exclusionSetting) !== true));
 }
 
 export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
 	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.Enabled)
-		|| sources.some(source => event.affectsConfiguration(source.enablementSetting));
+		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
+			(source.exclusionSetting !== undefined && event.affectsConfiguration(source.exclusionSetting)));
 }
 
 export async function queryEnabledCustomizationMarketplaceSources(

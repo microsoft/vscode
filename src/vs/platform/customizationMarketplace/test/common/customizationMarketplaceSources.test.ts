@@ -48,6 +48,26 @@ suite('CustomizationMarketplaceSources', () => {
 		}, { disabled: [], cancelledListeners: false, enabledFeeds: [true, false] });
 	});
 
+	test('exclusion setting removes the default source and cancels its in-flight request', async () => {
+		const filteredSources = [{ id: 'default', enablementSetting: 'test.default.enabled', exclusionSetting: 'test.public.enabled' }];
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			'test.default.enabled': true,
+			'test.public.enabled': false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, filteredSources, {}, CancellationToken.None, () => deferred.p);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, 'test.public.enabled', true);
+		await cancelled;
+		await deferred.complete({ items: [] });
+		assert.deepStrictEqual({
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, filteredSources),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, { enabled: [], listening: false });
+	});
+
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {

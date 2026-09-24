@@ -35,7 +35,7 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string };
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default' };
 
 export interface ICustomizationMarketplaceEntry {
 	readonly identifier: string;
@@ -125,6 +125,8 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
 	readonly displayName?: string;
 	readonly enablementSetting: string;
+	/** A source omitted when this other feed's setting is enabled. */
+	readonly exclusionSetting?: string;
 }
 
 export interface ICustomizationMarketplaceSourceRecoveryAction {

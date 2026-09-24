@@ -123,6 +123,7 @@ function createManifestService(manifest: IMcpGalleryManifest | null): IMcpGaller
 		onDidChangeMcpGalleryManifestStatus: Event.None,
 		onDidChangeMcpGalleryManifest: Event.None,
 		getMcpGalleryManifest: async () => manifest,
+		getDefaultMcpGalleryManifest: async () => manifest,
 	};
 }
 

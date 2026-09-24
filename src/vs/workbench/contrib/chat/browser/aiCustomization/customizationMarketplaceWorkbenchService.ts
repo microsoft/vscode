@@ -22,7 +22,8 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider)),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'custom')),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGalleryDefault.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'default')),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}

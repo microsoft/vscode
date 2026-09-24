@@ -24,6 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
+import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
@@ -62,6 +63,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IAgentPluginRepositoryService private readonly repositoryService: IAgentPluginRepositoryService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
@@ -321,7 +323,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcpGallery') {
-			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name);
+			const manifest = source.registry === 'default' ? await this.mcpGalleryManifestService.getDefaultMcpGalleryManifest() : undefined;
+			this.checkEnabled(resource.sourceId, token);
+			if (source.registry === 'default' && !manifest) {
+				throw new Error(localize('customizationMarketplace.mcpGalleryUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
+			}
+			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name, manifest ?? undefined);
 			this.checkEnabled(resource.sourceId, token);
 			if (!server || server.gallery?.name !== source.name) {
 				throw new Error(localize('customizationMarketplace.mcpGalleryUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));

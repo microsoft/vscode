@@ -26,7 +26,8 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider)),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'custom')),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGalleryDefault.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'default')),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
 				const channel = sharedProcessService.getChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME);
 				return {

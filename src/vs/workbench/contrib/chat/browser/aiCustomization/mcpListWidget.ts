@@ -20,7 +20,7 @@ import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IQueryOptions, mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
@@ -33,7 +33,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { ConfigureModelAccessAction, DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction, getContextMenuActions, RestartServerAction, ShowSamplingRequestsAction, ShowServerOutputAction, StartServerAction, StopServerAction } from '../../../../contrib/mcp/browser/mcpServerActions.js';
@@ -1479,7 +1479,7 @@ export class McpListWidget extends Disposable {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
@@ -1874,6 +1874,20 @@ export class McpListWidget extends Disposable {
 		void this.queryGallerySnapshot(true);
 	}
 
+	private async queryLegacyGallery(options: IQueryOptions | undefined, token: CancellationToken): Promise<IWorkbenchMcpServer[]> {
+		const [active, fallback] = await Promise.all([
+			this.mcpGalleryManifestService.getMcpGalleryManifest(),
+			this.mcpGalleryManifestService.getDefaultMcpGalleryManifest(),
+		]);
+		const manifests = active && fallback && active.url !== fallback.url ? [active, fallback] : [active ?? fallback ?? undefined];
+		const pages = await Promise.allSettled((manifests[0] ? manifests : [undefined]).map(async manifest =>
+			(await this.mcpWorkbenchService.queryGallery(options, token, manifest)).firstPage.items));
+		if (pages.length && pages.every(page => page.status === 'rejected')) {
+			throw pages[0].reason;
+		}
+		return pages.flatMap(page => page.status === 'fulfilled' ? page.value : []);
+	}
+
 	private async queryGallerySnapshot(revealMarketplace = false): Promise<void> {
 		if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 			return;
@@ -1886,12 +1900,12 @@ export class McpListWidget extends Disposable {
 		}
 
 		try {
-			const pager = await this.mcpWorkbenchService.queryGallery(undefined, cts.token);
+			const servers = await this.queryLegacyGallery(undefined, cts.token);
 			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim()) {
 				return;
 			}
 
-			this.gallerySnapshotServers = pager.firstPage.items;
+			this.gallerySnapshotServers = servers;
 			this.galleryServers = [...this.gallerySnapshotServers];
 			this.gallerySnapshotFailed = false;
 			this.gallerySnapshotLoading = false;
@@ -1927,11 +1941,11 @@ export class McpListWidget extends Disposable {
 		const cts = this.galleryCts = new CancellationTokenSource();
 		this.gallerySearchLoading = true;
 		try {
-			const pager = await this.mcpWorkbenchService.queryGallery({ text: query }, cts.token);
+			const servers = await this.queryLegacyGallery({ text: query }, cts.token);
 			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim() !== query) {
 				return;
 			}
-			this.galleryServers = pager.firstPage.items;
+			this.galleryServers = servers;
 			this.searchInput.hideMessage();
 		} catch {
 			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled && this.searchQuery.trim() === query) {

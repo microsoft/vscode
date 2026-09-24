@@ -214,16 +214,16 @@ export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalle
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
+	query(options?: IQueryOptions, token?: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IGalleryMcpServer>>;
 	queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IMcpGalleryQueryPage>;
-	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<IGalleryMcpServer[]>;
 	/**
 	 * Resolves the given servers against the active registry, distinguishing a
 	 * definitive "not found" from a transient failure so callers can make policy
 	 * decisions without treating an unreachable registry as absence. The returned
 	 * map is keyed by the requested server name.
 	 */
-	resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>>;
+	resolveMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<Map<string, IMcpGalleryServerResolveResult>>;
 	getMcpServer(url: string, manifest?: IMcpGalleryManifest | null, token?: CancellationToken): Promise<IGalleryMcpServer | undefined>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
