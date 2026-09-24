@@ -860,6 +860,7 @@ interface IRenderEditorOptions {
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
+	readonly expectedDiscoveryContentWidth?: number;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -1530,6 +1531,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
 		const browseStatus = browse?.querySelector<HTMLElement>('.customization-discovery-state');
+		const browseScrollHost = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse-scrollable');
 		assert(
 			!header || !searchRow || !browse || !browseStatus
 			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
@@ -1540,6 +1542,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& Math.abs(header.getBoundingClientRect().right - browseStatus.getBoundingClientRect().right) <= 1,
 			'Discover browse content and state must align with the header and search control.',
 		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || !header || !searchRow || !browse
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(browse.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover browse content must use the expected responsive width.',
+		);
+		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
 	if (options.togglePublicFeed) {
@@ -1572,6 +1582,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const resultStatus = resultList?.querySelector<HTMLElement>('.customization-discovery-state');
+		const resultScrollHost = resultList?.querySelector<HTMLElement>('.monaco-scrollable-element');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
 		assert(
@@ -1581,7 +1592,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover results must place source metadata beside the name and the description on the next line.',
 		);
 		assert(
-			header === null || searchRow === null || resultRow === null || resultStatus === null
+			header === null || searchRow === null || resultRow === null || !resultStatus
 			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
 			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
 			&& Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1
@@ -1590,6 +1601,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& Math.abs(header.getBoundingClientRect().right - resultStatus.getBoundingClientRect().right) <= 1,
 			'Discover results, selection bounds, and state must align with the page header and search control.',
 		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || header === null || searchRow === null || resultList === null
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(resultList.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover search content must use the expected responsive width.',
+		);
+		assert(!resultScrollHost || resultScrollHost.scrollWidth <= resultScrollHost.clientWidth, 'Discover search results must not overflow horizontally.');
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
 		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
 		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
@@ -2446,13 +2465,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 1200 }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -2976,17 +2995,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			width: 1200,
 			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 840,
 		}),
 	}),
 
 	DiscoverSearchResultsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover search keeps the title, search control, result selection bounds, and state messages on the same compact horizontal edges without clipping descriptions or actions.'],
+		expectedVisualDescriptions: ['Narrow Discover search keeps the title, search control, result selection bounds, and state messages on the same horizontal inset as Plugins without clipping descriptions or actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			width: 550,
 			height: 500,
 			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 302,
 		}),
 	}),
 

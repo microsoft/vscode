@@ -442,12 +442,6 @@
 	margin-top: var(--vscode-spacing-size80);
 }
 
-.customization-discovery.narrow .customization-discovery-header,
-.customization-discovery.narrow .customization-discovery-browse,
-.customization-discovery.narrow .customization-discovery-results {
-	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
-}
-
 .hc-black .customization-discovery-card:hover,
 .hc-light .customization-discovery-card:hover,
 .hc-black .customization-discovery-card:focus-within,
