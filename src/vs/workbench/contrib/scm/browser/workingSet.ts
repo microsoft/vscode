@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -14,7 +15,7 @@ import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { applyWorkingSetWithPinnedEditors } from './workingSetPins.js';
+import { applyWorkingSetWithPinnedEditors, SCMWorkingSetRestoreQueue } from './workingSetPins.js';
 
 type ISCMSerializedWorkingSet = {
 	readonly providerKey: string;
@@ -34,6 +35,8 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
 
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
+	private readonly _restoreQueue = new SCMWorkingSetRestoreQueue();
+	private _restoreGeneration = 0;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -49,6 +52,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 
 		this._store.add(autorun(reader => {
 			if (!this._enabledConfig.read(reader)) {
+				this._restoreGeneration++; // Discard any queued work from the previous enabled session.
 				this.storageService.remove('scm.workingSets', StorageScope.WORKSPACE);
 				this._repositoryDisposables.clearAndDisposeAll();
 				return;
@@ -75,7 +79,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 			return historyItemRef?.id;
 		});
 
-		disposables.add(autorun(async reader => {
+		disposables.add(autorun(reader => {
 			const historyItemRefIdValue = historyItemRefId.read(reader);
 
 			if (!historyItemRefIdValue) {
@@ -83,23 +87,30 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 			}
 
 			const providerKey = getProviderKey(repository.provider);
-			const repositoryWorkingSets = this._workingSets.get(providerKey);
+			const restoreGeneration = this._restoreGeneration;
 
-			if (!repositoryWorkingSets) {
-				this._workingSets.set(providerKey, { currentHistoryItemGroupId: historyItemRefIdValue, editorWorkingSets: new Map() });
-				return;
-			}
+			// Saving the previous branch and applying the next branch must both
+			// happen inside the queue. Otherwise a quick second branch switch can
+			// save an intermediate layout or overlap pinned-editor reconciliation.
+			void this._restoreQueue.queue(async () => {
+				if (restoreGeneration !== this._restoreGeneration || !this._repositoryDisposables.has(repository)) {
+					return;
+				}
 
-			// Editors for the current working set are automatically restored
-			if (repositoryWorkingSets.currentHistoryItemGroupId === historyItemRefIdValue) {
-				return;
-			}
+				const repositoryWorkingSets = this._workingSets.get(providerKey);
+				if (!repositoryWorkingSets) {
+					this._workingSets.set(providerKey, { currentHistoryItemGroupId: historyItemRefIdValue, editorWorkingSets: new Map() });
+					return;
+				}
 
-			// Save the working set
-			this._saveWorkingSet(providerKey, historyItemRefIdValue, repositoryWorkingSets);
+				// Editors for the current working set are automatically restored.
+				if (repositoryWorkingSets.currentHistoryItemGroupId === historyItemRefIdValue) {
+					return;
+				}
 
-			// Restore the working set
-			await this._restoreWorkingSet(providerKey, historyItemRefIdValue);
+				this._saveWorkingSet(providerKey, historyItemRefIdValue, repositoryWorkingSets);
+				await this._restoreWorkingSet(providerKey, historyItemRefIdValue);
+			}).catch(onUnexpectedError);
 		}));
 
 		this._repositoryDisposables.set(repository, disposables);
@@ -170,6 +181,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	}
 
 	override dispose(): void {
+		this._restoreGeneration++;
 		this._repositoryDisposables.dispose();
 		super.dispose();
 	}
