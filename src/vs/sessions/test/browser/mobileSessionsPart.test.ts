@@ -30,10 +30,8 @@ suite('Sessions - Mobile Sessions Part', () => {
 					contentSize: { width: width - 2, height: height - 4 },
 				};
 			},
-			_gridWidget: {
-				layout: (width: number, height: number, top: number, left: number) => {
-					gridLayoutArgs = [width, height, top, left];
-				},
+			layoutSessionGrid: (width: number, height: number, top: number, left: number) => {
+				gridLayoutArgs = [width, height, top, left];
 			},
 		};
 

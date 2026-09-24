@@ -14,10 +14,50 @@ import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { killServer, stopServer } from './serverIntegrationTestHelpers.js';
+import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
 suite('Agent Host test server cleanup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[]): Promise<{ error: Error | undefined; calls: string[] }> {
+		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
+		const server = spawn(process.execPath, ['-e', `
+			process.stdin.resume();
+			process.stdout.write('ready');
+			process.stdin.once('end', () => process.exit(0));
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		const calls: string[] = [];
+		const killError = new Error('taskkill failed');
+		let identityCheckIndex = 0;
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => [descendant], 5_000, {
+				killTree: async (pid, forceful) => {
+					calls.push(`kill:${pid}:${forceful}`);
+					throw killError;
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
+					const result = isSameProcessRunningResults[identityCheckIndex++];
+					if (result === undefined) {
+						throw new Error('Unexpected process identity check');
+					}
+					return result;
+				},
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			return { error, calls };
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	}
 
 	test('a stalled descendant snapshot still sends EOF and reaches forced shutdown', async function () {
 		this.timeout(15_000);
@@ -30,7 +70,7 @@ suite('Agent Host test server cleanup', () => {
 			stdio: ['pipe', 'pipe', 'pipe'],
 			windowsHide: true,
 		});
-		const snapshot = new DeferredPromise<number[]>();
+		const snapshot = new DeferredPromise<[]>();
 		let stopped: Promise<Error | undefined> | undefined;
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
@@ -53,6 +93,133 @@ suite('Agent Host test server cleanup', () => {
 		} finally {
 			snapshot.complete([]);
 			await stopped;
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
+	test('prunes unreadable stale-PPID branches from the descendant snapshot', () => {
+		assert.deepStrictEqual(collectServerDescendants(100, [
+			{ pid: 100, ppid: 1, name: 'node.exe', commandLine: 'node server.js' },
+			{ pid: 200, ppid: 100, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 201, ppid: 200, name: 'node.exe', commandLine: 'node grandchild.js' },
+			{ pid: 300, ppid: 100, name: 'critical.exe' },
+			{ pid: 301, ppid: 300, name: 'unrelated.exe', commandLine: 'unrelated.exe' },
+		]), [
+			{ pid: 200, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 201, name: 'node.exe', commandLine: 'node grandchild.js' },
+		]);
+	});
+
+	test('ignores a failed descendant kill when the process identity is no longer present', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: ['isSameProcessRunning:123:node.exe:node child.js'],
+		});
+	});
+
+	test('ignores a failed descendant kill when the process exits during taskkill', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('ignores a failed descendant kill after the process list catches up', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('preserves a failed descendant kill when the same process identity is still present', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, true, true, true, true]);
+
+		assert.deepStrictEqual({
+			error: result.error?.message,
+			calls: result.calls,
+		}, {
+			error: 'taskkill failed',
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('ignores a failed server tree kill when the server exits during taskkill', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					server.kill();
+					throw new Error('taskkill failed after the server exited');
+				},
+				isSameProcessRunning: async () => false,
+			});
+			assert.deepStrictEqual(server.exitCode !== null || server.signalCode !== null, true);
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
+	test('preserves a failed server tree kill when the server is still running', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					throw new Error('taskkill failed while server was running');
+				},
+				isSameProcessRunning: async () => false,
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
+		} finally {
 			await killServer({ process: server, port: 0 });
 		}
 	});

@@ -129,6 +129,8 @@ export function createTestActiveSession(sessionId: string, isCreated = true) {
 		override readonly isRead = constObservable(true);
 		override readonly interactivity = constObservable(ChatInteractivity.Full);
 		override readonly capabilities = constObservable({ canRename: true, canDelete: false });
+		override readonly changes = constObservable([]);
+		override readonly changesets = constObservable([]);
 	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = sessionId;
@@ -142,8 +144,6 @@ export function createTestActiveSession(sessionId: string, isCreated = true) {
 		override readonly isCreated = observableValue(this, isCreated);
 		override readonly sticky = constObservable(false);
 		override readonly workspace = constObservable(undefined);
-		override readonly changesets = constObservable(undefined);
-		override readonly changes = constObservable([]);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 		override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
 		override readonly openChats: IObservable<readonly IChat[]> = constObservable([chat]);

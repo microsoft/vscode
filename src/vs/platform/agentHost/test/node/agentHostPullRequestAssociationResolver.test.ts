@@ -96,6 +96,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 		stateManager.setSessionMeta(SESSION, withSessionArtifacts(
 			withSessionGitHubState(
 				withSessionGitState(undefined, options?.gitState ?? { branchName: 'feature', baseBranchName: 'main' }),
+				WORKING_DIRECTORY,
 				options?.gitHubState ?? { owner: 'microsoft', repo: 'vscode' },
 			),
 			options?.artifacts ?? [],
@@ -107,7 +108,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			return state;
 		};
 		const getGitHubState = (): ISessionGitHubState => {
-			const gitHubState = readSessionGitHubState(getSessionState()._meta);
+			const gitHubState = readSessionGitHubState(getSessionState()._meta, WORKING_DIRECTORY);
 			assert.ok(gitHubState);
 			return gitHubState;
 		};
@@ -124,7 +125,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 				isRestrictedMode: () => true,
 			});
 			if (result.kind === 'complete' && result.changed) {
-				stateManager.setSessionMeta(SESSION, withSessionGitHubState(getSessionState()._meta, result.gitHubState));
+				stateManager.setSessionMeta(SESSION, withSessionGitHubState(getSessionState()._meta, WORKING_DIRECTORY, result.gitHubState));
 			}
 			return result;
 		};
@@ -132,7 +133,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			stateManager.setSessionMeta(SESSION, withSessionArtifacts(getSessionState()._meta, artifacts));
 		};
 		const updateGitHubState = (patch: ISessionGitHubState) => {
-			stateManager.setSessionMeta(SESSION, withSessionGitHubState(getSessionState()._meta, { ...getGitHubState(), ...patch }));
+			stateManager.setSessionMeta(SESSION, withSessionGitHubState(getSessionState()._meta, WORKING_DIRECTORY, { ...getGitHubState(), ...patch }));
 		};
 		const setGitState = (gitState: ISessionGitState) => {
 			stateManager.setSessionMeta(SESSION, withSessionGitState(getSessionState()._meta, gitState));

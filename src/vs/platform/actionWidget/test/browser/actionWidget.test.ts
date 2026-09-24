@@ -31,7 +31,7 @@ import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } fro
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function showWidget(filterAsCombobox?: boolean) {
+	function showWidget(filterAsCombobox?: boolean, contextViewLayer?: number) {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionWidgetService)?.[1];
 		assert.ok(descriptor);
 		const container = document.createElement('div');
@@ -72,7 +72,7 @@ suite('ActionWidgetService', () => {
 			focusFilterOnOpen: true,
 			initialFilterValue: 'match',
 			filterAsCombobox,
-		});
+		}, contextViewLayer);
 		const input = instantiationService.get(IContextViewService).getContextViewElement().querySelector<HTMLInputElement>('input');
 		assert.ok(input);
 		return { service, input, selected, cancelled };
@@ -109,6 +109,13 @@ suite('ActionWidgetService', () => {
 			service.hide();
 		});
 	}
+
+	test('renders above a containing context view when requested', () => {
+		const { service, input } = showWidget(undefined, 1);
+
+		assert.strictEqual(input.closest<HTMLElement>('.context-view')?.style.zIndex, '2576');
+		service.hide();
+	});
 
 	test('search navigation keeps input focus and Enter accepts and closes the popup', () => {
 		const { service, input, selected } = showWidget(true);

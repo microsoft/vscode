@@ -83,6 +83,8 @@ export interface IAgentHostGroup {
 	 * `false` for groups whose members connect implicitly. Defaults to `true`.
 	 */
 	readonly connectable?: boolean;
+	/** Provider that creates new environments for this group, without requiring an existing connection. */
+	readonly sessionCreationProviderId?: string;
 }
 
 /**
@@ -236,14 +238,18 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
-	/** Returns the persisted Agent Merge state for a running session. */
-	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
-	/** Returns observable Agent Merge client state while retaining the required session subscription. */
-	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined>;
-	/** Enables or disables Agent Merge while preserving the session's action overrides. */
-	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
-	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */
-	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void>;
+	/**
+	 * Returns the persisted Agent Merge state of a running session's folder.
+	 * Each folder a chat works in has its own Agent Merge; pass `chat` for the
+	 * folder it works in, or omit it for the session folder (the main chat's).
+	 */
+	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined;
+	/** Returns observable Agent Merge client state of a folder (see {@link getAgentMergeSessionState}) while retaining the required session subscription. */
+	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined>;
+	/** Enables or disables Agent Merge for a folder (see {@link getAgentMergeSessionState}) while preserving its action overrides. */
+	setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI): Promise<void>;
+	/** Replaces a folder's Agent Merge action overrides (see {@link getAgentMergeSessionState}); `undefined` follows global defaults. */
+	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI): Promise<void>;
 
 	// -- Root (agent host) Config --
 

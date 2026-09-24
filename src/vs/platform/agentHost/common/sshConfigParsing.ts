@@ -77,6 +77,7 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 
 	return {
 		hostname: map.get('hostname') ?? '',
+		...(map.get('hostkeyalias') ? { hostKeyAlias: map.get('hostkeyalias') } : {}),
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,

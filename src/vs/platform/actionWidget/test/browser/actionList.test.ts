@@ -3083,6 +3083,44 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('hover actions use the standard hover footer', () => {
+		const content = document.createElement('div');
+		content.textContent = 'Rich reference metadata';
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('active'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [
+						{ commandId: 'copy', label: 'Copy URL', run: () => runs.push('copy') },
+						{ commandId: 'remove', label: 'Remove', run: () => runs.push('remove') },
+					],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const footer = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .hover-row.status-bar')!;
+		const actions = [...footer.querySelectorAll<HTMLElement>('.action-container')];
+		actions[1].click();
+
+		assert.deepStrictEqual({
+			footerClassName: footer.className,
+			actions: actions.map(action => action.textContent),
+			runs,
+		}, {
+			footerClassName: 'hover-row status-bar',
+			actions: ['Copy URL', 'Remove'],
+			runs: ['remove'],
+		});
+	});
+
 	test('refresh does not reopen a dismissed tab-through hover', () => {
 		const content = document.createElement('div');
 		const control = document.createElement('button');

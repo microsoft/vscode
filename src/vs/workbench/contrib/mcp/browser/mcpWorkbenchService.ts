@@ -12,6 +12,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { isBoolean, isNumber, isObject, isString, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -663,6 +664,32 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		return [...result.values()];
+	}
+
+	async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
+		const registryGeneration = this.registryGeneration;
+		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+		if (registryGeneration !== this.registryGeneration) {
+			throw new Error(localize('mcpRegistryChangedDuringLookup', "The MCP registry changed. Try installing the server again."));
+		}
+		const gallery = servers.find(server => server.name === name);
+		if (!gallery) {
+			return undefined;
+		}
+		this.rememberGallerySource(gallery, registryGeneration);
+		return this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+	}
+
+	async getMcpServerFromAgentFinder(name: string, version: string, token: CancellationToken = CancellationToken.None): Promise<IWorkbenchMcpServer | undefined> {
+		const gallery = await this.mcpGalleryService.getMcpServer(getAgentFinderMcpServerUrl(name, version), agentFinderMcpRegistryManifest, token);
+		if (!gallery) {
+			return undefined;
+		}
+		if (gallery.name !== name || gallery.version !== version) {
+			throw new Error(localize('mcpAgentFinderMismatchedServer', "The GitHub Feed returned a different MCP server or version than requested."));
+		}
+		this.rememberGallerySource(gallery);
+		return this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 	}
 
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString {

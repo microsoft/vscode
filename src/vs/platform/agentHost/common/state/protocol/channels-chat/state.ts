@@ -8,6 +8,7 @@
 
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -63,6 +64,17 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
+	/**
+	 * Catalogue of changesets the server can produce for this chat. Each entry
+	 * advertises a subscribable view of file changes scoped to the chat's
+	 * effective working directories and the URI template the client expands
+	 * before subscribing. See {@link Changeset} for the full shape and
+	 * {@link /guide/changesets | Changesets} for an overview of the model.
+	 *
+	 * This catalogue is intentionally absent from {@link ChatSummary}; clients
+	 * obtain it by subscribing to the chat channel.
+	 */
+	changesets?: Changeset[];
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -1524,7 +1536,11 @@ export interface ToolResultFileEditContent extends FileEdit {
  * A reference to a terminal whose output is relevant to this tool result.
  *
  * Clients can subscribe to the terminal's URI to stream its output in real
- * time, providing live feedback while a tool is executing.
+ * time, providing live feedback while a tool is executing. The same URI
+ * remains subscribable for historical results: when the referenced resource's
+ * lifecycle is `exited`, subscribing returns an exited {@link TerminalState}
+ * containing the retained terminal content. Servers may reconstruct that state
+ * lazily and do not need to retain a live terminal process.
  *
  * When the command exits, {@link result} is filled in on the completed
  * result, retaining the outcome for clients that did not subscribe. This
@@ -1535,7 +1551,7 @@ export interface ToolResultFileEditContent extends FileEdit {
  */
 export interface ToolResultTerminalContent {
 	type: ToolResultContentType.Terminal;
-	/** Terminal URI (subscribable for full terminal state) */
+	/** Terminal URI (subscribable for live or retained terminal state) */
 	resource: URI;
 	/** Display title for the terminal content */
 	title: string;
