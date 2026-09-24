@@ -579,7 +579,7 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
-		strictEqual(chainedGitConfig.network.allowAllUnixSockets, true, 'Git commands chained with non-Docker commands should allow Unix sockets');
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedGitConfig.network, 'allowAllUnixSockets'), false, 'Mixed command chains should not allow all Unix sockets');
 
 		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(chainedDockerConfig.network, 'allowAllUnixSockets'), false, 'Git commands chained with Docker commands should not allow all Unix sockets');
@@ -594,25 +594,33 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
 	});
 
-	test('should add GnuPG runtime values for chains without Docker commands', () => {
+	test('should only add command-specific runtime values shared by every command', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
 			{ keyword: 'git', args: ['rebase', 'main'] },
 			{ keyword: 'python', args: ['script.py'] },
 			{ keyword: 'echo', args: ['done'] },
 		]);
 
-		deepStrictEqual(config, {
-			network: {
-				allowAllUnixSockets: true
-			},
-			filesystem: {
-				allowRead: ['~/.gnupg'],
-				allowWrite: ['~/.gnupg']
+		const gitConfig = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+			{ keyword: 'git', args: ['status'] },
+			{ keyword: 'git', args: ['rebase', 'main'] },
+		]);
+
+		deepStrictEqual({ config, gitConfig }, {
+			config: {},
+			gitConfig: {
+				network: {
+					allowAllUnixSockets: true
+				},
+				filesystem: {
+					allowRead: ['~/.gnupg'],
+					allowWrite: ['~/.gnupg']
+				}
 			}
 		});
 	});
 
-	test('should skip GnuPG runtime values for chains with Docker-related commands', () => {
+	test('should skip command-specific runtime values for chains with Docker-related commands', () => {
 		for (const keyword of ['docker', 'docker-compose', 'dockerd']) {
 			const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
 				{ keyword: 'git', args: ['rebase', 'main'] },
@@ -620,11 +628,7 @@ suite('TerminalSandboxService - network domains', () => {
 				{ keyword: 'npm', args: ['install'] },
 			]);
 
-			deepStrictEqual(config, {
-				filesystem: {
-					allowWrite: ['~/.volta/']
-				}
-			});
+			deepStrictEqual(config, {});
 		}
 	});
 
@@ -895,12 +899,21 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
-		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
-		ok(chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with non-Docker commands should include GPG write allow-list paths');
+		ok(!chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Mixed command chains should not include GPG read allow-list paths');
+		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Mixed command chains should not include GPG write allow-list paths');
+		ok(!chainedGitConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Mixed command chains should not include SSH read allow-list paths');
+		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Mixed command chains should not include Node write allow-list paths');
+		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Mixed command chains should retain generic Git read allow-list paths');
+		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Mixed command chains should retain generic Node read allow-list paths');
 
 		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
-		ok(chainedDockerConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should retain Git-specific GPG read allow-list paths');
+		ok(!chainedDockerConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should not include GPG read allow-list paths');
 		ok(!chainedDockerConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should not include GPG write allow-list paths');
+
+		const chainedGitOnlyConfig = await getConfigAfterWrap('git status && git rebase main', [{ keyword: 'git', args: ['status'] }, { keyword: 'git', args: ['rebase', 'main'] }]);
+		ok(chainedGitOnlyConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git-only chains should include GPG read allow-list paths');
+		ok(chainedGitOnlyConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git-only chains should include GPG write allow-list paths');
+		ok(chainedGitOnlyConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Git-only chains should include SSH read allow-list paths');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
@@ -928,8 +941,8 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 	});
 
-	test('should add GnuPG read allow-list paths for gpg command keywords', () => {
-		deepStrictEqual(getTerminalSandboxReadAllowListForCommands(OperatingSystem.Linux, ['gpg']), ['~/.gnupg']);
+	test('should add GnuPG read allow-list paths for gpg command details', () => {
+		deepStrictEqual(getTerminalSandboxReadAllowListForCommands(OperatingSystem.Linux, ['gpg'], [{ keyword: 'gpg', args: [] }]), ['~/.gnupg']);
 	});
 
 	test('should not rewrite sandbox config when the parsed command details produce unchanged allow-lists', async () => {
