@@ -1227,6 +1227,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * action, from an experiment or policy refresh, so this must never be paid
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
+	 *
+	 * Returns whether an existing or starting client accepted the restart request.
 	 */
 	private async _requestClientRestart(reason: string): Promise<boolean> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
@@ -1242,7 +1244,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		if (!this._client) {
-			this._pendingClientRestartReasons.delete(reason);
 			return false;
 		}
 		if (this._updatingGitHubCredentials) {

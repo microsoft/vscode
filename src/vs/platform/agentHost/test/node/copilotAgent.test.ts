@@ -2974,10 +2974,26 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate(endpointService.getCopilotResource().resource, 'enterprise-model-token');
 			await waitForState(agent.models, models => models.length > 0);
+			let hasActiveTurn = true;
+			const liveSession = {
+				get hasActiveTurn() { return hasActiveTurn; },
+				usesStaticGitHubToken: false,
+				updateGitHubCredentials: async () => { throw new Error('unexpected credential update'); },
+				dispose() { },
+			} satisfies ICredentialUpdateSession;
+			setDefaultSessionStub(agent, 'enterprise-active-turn', liveSession);
+
 			await agent.authenticate(endpointService.getCopilotResource().resource, 'rotated-enterprise-model-token');
+			const whileTurnActive = {
+				clientStops: client.stopCallCount,
+				modelListRequests: client.modelListRequests.length,
+			};
+			hasActiveTurn = false;
+			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
 			await waitForState(agent.models, () => client.modelListRequests.length === 2);
 
 			assert.deepStrictEqual({
+				whileTurnActive,
 				clientTokens: getCreatedClientOptions(agent).map(options => options.gitHubToken),
 				enterpriseHosts: getCreatedClientOptions(agent).map(options => options.env?.['COPILOT_GH_HOST']),
 				clientStarts: client.startCallCount,
@@ -2985,6 +3001,10 @@ suite('CopilotAgent', () => {
 				modelListRequests: client.modelListRequests,
 				authenticationRequired: agent.authenticationRequired.get(),
 			}, {
+				whileTurnActive: {
+					clientStops: 0,
+					modelListRequests: 1,
+				},
 				clientTokens: ['enterprise-model-token', 'rotated-enterprise-model-token'],
 				enterpriseHosts: ['example.ghe.com', 'example.ghe.com'],
 				clientStarts: 2,
