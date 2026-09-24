@@ -1027,12 +1027,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(
-			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id, supportsWorktreeConfiguration: t.supportsWorktreeConfiguration })),
+			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
 			[
-				{ id: 'copilotcli', icon: 'copilot', supportsWorktreeConfiguration: true },
-				{ id: 'claude', icon: 'claude', supportsWorktreeConfiguration: false },
-				{ id: 'openai', icon: 'openai', supportsWorktreeConfiguration: false },
-				{ id: 'unknown-agent', icon: 'vm', supportsWorktreeConfiguration: false },
+				{ id: 'copilotcli', icon: 'copilot' },
+				{ id: 'claude', icon: 'claude' },
+				{ id: 'openai', icon: 'openai' },
+				{ id: 'unknown-agent', icon: 'vm' },
 			],
 		);
 	});
@@ -1374,7 +1374,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			git: {
 				branchName: 'feature/worktree',
 				baseBranchName: 'main',
-				hasGitRemote: false,
 				hasGitHubRemote: true,
 				upstreamBranchName: 'origin/feature/worktree',
 				incomingChanges: 2,
@@ -1389,12 +1388,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const gitRepository = session.workspace.get()!.folders[0].gitRepository!;
 		assert.deepStrictEqual({
 			branchName: gitRepository.branchName,
-			hasGitRemote: gitRepository.hasGitRemote,
 			uncommittedChanges: gitRepository.uncommittedChanges,
 			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
 		}, {
 			branchName: 'feature/worktree',
-			hasGitRemote: false,
 			uncommittedChanges: 4,
 			changedEvents: [[true]],
 		});
@@ -2149,11 +2146,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			models: snapshot.models.map(model => model.identifier),
 			modelTarget: snapshot.modelTarget,
-			creationModels: provider.getModelsSnapshotForCreation(URI.file('/workspace'), provider.sessionTypes[0].id).models.map(model => model.identifier),
 		}, {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
-			creationModels: ['matching'],
 		});
 	});
 
@@ -2340,7 +2335,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://live', kind: 'agent' });
 	});
 
-	test('restores the selected model and configuration from the default chat draft on resume', () => {
+	test('restores the selected model from the default chat draft on resume', () => {
 		// Mirrors the draft agent restore. Without it a reopened session reports no model at all,
 		// which model selection reads as "this conversation never chose one" and seeds from a
 		// profile-wide preference — writing that through and changing what the session runs on.
@@ -2360,18 +2355,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: ProtocolSessionStatus.Idle,
 			modifiedAt: new Date(0).toISOString(),
 			turns: [],
-			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model', config: { thinkingLevel: 'medium' } } },
+			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model' } },
 		});
 
 		assert.deepStrictEqual({
 			modelId: session!.modelId.get(),
-			modelConfiguration: provider.getAutomationModelConfiguration(session!.sessionId)?.getModelConfiguration('agent-host-copilotcli:resumed-model'),
 			// The conversation's own model, read back from where the host persisted it — so it
 			// outranks `chat.defaultModel` rather than inviting it.
 			modelSource: session!.mainChat.get().modelSource.get(),
 		}, {
 			modelId: 'agent-host-copilotcli:resumed-model',
-			modelConfiguration: { thinkingLevel: 'medium' },
 			modelSource: ChatModelSource.Chosen,
 		});
 	});
@@ -2497,77 +2490,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(committed.mode.get(), { id: 'agent://picked', kind: 'agent' });
-	});
-
-	test('carries the picked model and configuration onto the committed session when a new session graduates', async () => {
-		const modelId = 'agent-host-copilotcli:model';
-		const metadata: ILanguageModelChatMetadata = {
-			...createTestLanguageModel('model'),
-			targetChatSessionType: 'agent-host-copilotcli',
-			configurationSchema: {
-				type: 'object',
-				properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'high' } },
-			},
-		};
-		const sent: IChatSendRequestOptions[] = [];
-		const inputStates: Partial<IChatModelInputState>[] = [];
-		const provider = createProvider(disposables, agentHost, undefined, {
-			openSession: true,
-			languageModelIds: [modelId],
-			lookupLanguageModel: () => metadata,
-			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
-				override readonly inputModel = new class extends mock<IInputModel>() {
-					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
-					override setState(state: Partial<IChatModelInputState>): void {
-						inputStates.push(state);
-					}
-					override clearState(): void { }
-				}();
-			}()),
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
-				if (options) {
-					sent.push(options);
-				}
-				if (sent.length === 1) {
-					agentHost.addSession(createSession('graduated-model', { summary: 'Graduated Model Session' }));
-				}
-				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
-			},
-		});
-
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, {
-			modelId,
-			modelConfiguration: { thinkingLevel: 'medium' },
-		});
-		const chat = await provider.createNewChat(session.sessionId);
-		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
-		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'follow up' });
-
-		assert.deepStrictEqual({
-			modelId: committed.modelId.get(),
-			modelSource: committed.mainChat.get().modelSource.get(),
-			modelConfiguration: provider.getAutomationModelConfiguration(committed.sessionId)?.getModelConfiguration(modelId),
-			inputModelConfigurations: inputStates
-				.filter(state => state.selectedModel?.identifier === modelId)
-				.map(state => state.modelConfiguration),
-			sent: sent.map(options => ({
-				modelId: options.userSelectedModelId,
-				modelConfiguration: options.userSelectedModelConfiguration,
-			})),
-		}, {
-			modelId,
-			modelSource: ChatModelSource.Chosen,
-			modelConfiguration: { thinkingLevel: 'medium' },
-			inputModelConfigurations: [
-				{ thinkingLevel: 'medium' },
-				{ thinkingLevel: 'medium' },
-				{ thinkingLevel: 'medium' },
-			],
-			sent: [
-				{ modelId, modelConfiguration: { thinkingLevel: 'medium' } },
-				{ modelId, modelConfiguration: { thinkingLevel: 'medium' } },
-			],
-		});
 	});
 
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
@@ -4173,7 +4095,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const selectedTargetModels: [string, URI, string, ChatModelSource][] = [];
 		const selectedTargetAgents: [string, string, string][] = [];
 		let targetMetadata: Record<string, unknown> | undefined;
-		let targetModelConfiguration: Pick<ISessionsProviderCreateSessionOptions, 'modelId' | 'modelConfiguration'> | undefined;
 		const sourceAgentUri = 'file:///home/user/project/.github/agents/reviewer.agent.md';
 		const targetAgent: AgentCustomization = {
 			type: CustomizationType.Agent,
@@ -4191,10 +4112,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createNewSession(workspaceUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 				assert.strictEqual(workspaceUri.toString(), remoteWorkspace.toString());
 				targetMetadata = options?.metadata;
-				targetModelConfiguration = {
-					modelId: options?.modelId,
-					modelConfiguration: options?.modelConfiguration,
-				};
 				assert.ok(state.replacement);
 				return state.replacement;
 			}
@@ -4230,9 +4147,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 					desiredModelResolution: { kind: 'notRequested' } as const,
 					modelTarget: 'remote-devcontainer-copilot',
 				};
-			}
-			override getModelsSnapshotForCreation() {
-				return this.getModelsSnapshot();
 			}
 			override setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 				selectedTargetModels.push([sessionId, chatResource, modelId, source]);
@@ -4277,10 +4191,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		state.provider = provider;
-		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
-			modelId: sourceModelId,
-			modelConfiguration: { thinkingLevel: 'high' },
-		});
+		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
 		const sourceBackendSession = AgentSession.uri(provider.sessionTypes[0].id, AgentSession.id(source.resource));
 		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
 		await timeout(0);
@@ -4296,6 +4207,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		};
 		state.replacement = replacement;
 
+		provider.setModel(source.sessionId, source.mainChat.get().resource, sourceModelId, ChatModelSource.Chosen);
 		provider.setAgent(source.sessionId, { uri: sourceAgentUri, name: 'Reviewer' });
 		provider.setDevContainerEnabled(source.sessionId, true);
 		const prepared = await provider.prepareNewSession(source.sessionId, CancellationToken.None, 'Fix the issue');
@@ -4309,7 +4221,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: prepared.session.sessionId,
 			transferredConfig,
 			selectedTargetModels,
-			targetModelConfiguration,
 			selectedTargetAgents,
 			createdWorktree: agentHost.createDetachedWorktreeCalls.map(call => ({ session: call.session.toString(), prompt: call.prompt })),
 			targetMetadata,
@@ -4326,10 +4237,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: replacement.sessionId,
 			transferredConfig: [['isolation', 'folder'], ['mode', 'interactive']],
 			selectedTargetModels: [[replacement.sessionId, replacementResource, targetModelId, ChatModelSource.Chosen]],
-			targetModelConfiguration: {
-				modelId: targetModelId,
-				modelConfiguration: { thinkingLevel: 'high' },
-			},
 			selectedTargetAgents: [[replacement.sessionId, targetAgent.uri, targetAgent.name]],
 			createdWorktree: [{ session: sourceBackendSession.toString(), prompt: 'Fix the issue' }],
 			targetMetadata: {
@@ -5387,35 +5294,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession permission choice overrides remembered approvals before eager creation', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
-			[SessionConfigKey.Mode]: 'autopilot',
-			[SessionConfigKey.AutoApprove]: 'autoApprove',
-		}), StorageScope.PROFILE, StorageTarget.MACHINE);
-		const provider = createProvider(disposables, agentHost, undefined, { storageService });
-		const sessionTypeId = provider.sessionTypes[0].id;
-
-		const defaultSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
-			permissionId: 'default',
-		});
-		await waitForSessionConfig(provider, defaultSession.sessionId, config => config?.values.mode === 'interactive');
-		const allowAllSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
-			permissionId: 'autoApprove',
-		});
-		await waitForSessionConfig(provider, allowAllSession.sessionId, config => config?.values.autoApprove === 'autoApprove');
-
-		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(-2).map(request => request.config), [{
-			mode: 'interactive',
-			autoApprove: 'default',
-			isolation: 'worktree',
-		}, {
-			mode: 'interactive',
-			autoApprove: 'autoApprove',
-			isolation: 'worktree',
-		}]);
-	});
-
 	test('createNewSession restores and captures an Automation session template', async () => {
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',
@@ -5496,25 +5374,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.createSessionConfigs, []);
 	});
 
-	test('forwards programmatic parent session provenance to eager creation', async () => {
-		const provider = createProvider(disposables, agentHost);
-		provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
-			metadata: { existing: 'value' },
-			createdBySession: {
-				session: URI.parse('agent-host-copilotcli:/parent'),
-				chat: URI.parse('agent-host-chat:/parent/default'),
-				turnId: 'turn-1',
-			},
-		});
-		await timeout(0);
-
-		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.metadata, withSessionCreationReference({ existing: 'value' }, {
-			session: 'agent-host-copilotcli:/parent',
-			chat: 'agent-host-chat:/parent/default',
-			turnId: 'turn-1',
-		}));
-	});
-
 	test('Automation model options reach eager creation and the browser-executed first request', async () => {
 		const modelId = 'agent-host-copilotcli:model';
 		const metadata: ILanguageModelChatMetadata = {
@@ -5559,50 +5418,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eagerModel: { id: 'model', config: { thinkingLevel: 'low' } },
 			captured: { thinkingLevel: 'low', futureOption: true },
 			sent: [{ model: modelId, configuration: { thinkingLevel: 'low' } }],
-			sharedWrites: [],
-		});
-	});
-
-	test('Draft-scoped model options reach eager creation and the first request without changing global defaults', async () => {
-		const modelId = 'agent-host-copilotcli:model';
-		const metadata: ILanguageModelChatMetadata = {
-			...createTestLanguageModel('model'),
-			targetChatSessionType: 'agent-host-copilotcli',
-			configurationSchema: {
-				type: 'object',
-				properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' } },
-			},
-		};
-		const sent: IChatSendRequestOptions[] = [];
-		const sharedWrites: Record<string, unknown>[] = [];
-		const provider = createProvider(disposables, agentHost, undefined, {
-			languageModelIds: [modelId],
-			lookupLanguageModel: () => metadata,
-			languageModelsService: {
-				getModelConfiguration: () => ({ thinkingLevel: 'medium' }),
-				setModelConfiguration: async (_modelId, values) => { sharedWrites.push(values); },
-			},
-			sendRequest: async (_resource, _message, options) => {
-				if (options) {
-					sent.push(options);
-				}
-				return { kind: 'rejected', reason: 'Test request captured' };
-			},
-		});
-		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
-			modelId,
-			modelConfiguration: { thinkingLevel: 'high' },
-		});
-		const chat = await provider.createNewChat(session.sessionId);
-		await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Test request captured/);
-
-		assert.deepStrictEqual({
-			eagerModel: agentHost.createSessionConfigs[0]?.model,
-			sent: sent.map(options => ({ model: options.userSelectedModelId, configuration: options.userSelectedModelConfiguration })),
-			sharedWrites,
-		}, {
-			eagerModel: { id: 'model', config: { thinkingLevel: 'high' } },
-			sent: [{ model: modelId, configuration: { thinkingLevel: 'high' } }],
 			sharedWrites: [],
 		});
 	});

@@ -51,10 +51,6 @@ class FakeContextViewService implements Partial<IContextViewService> {
 		return !!this._activeDelegate;
 	}
 
-	get activeLayer(): number | undefined {
-		return this._activeDelegate?.layer;
-	}
-
 	showContextView(delegate: IContextViewDelegate): { close: () => void } {
 		// Tear down any previous render before showing a new one.
 		this.hideContextView();
@@ -235,26 +231,6 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
-	});
-
-	test('passes the requested context view layer to the popup', () => {
-		const { widget, contextView } = createWidget(disposables);
-		const anchor = document.createElement('div');
-		document.body.appendChild(anchor);
-		disposables.add({ dispose: () => anchor.remove() });
-
-		widget.show<ITestItem>({
-			user: 'test',
-			anchor,
-			tabs: [{ id: 'Models' }],
-			initialTab: 'Models',
-			contextViewLayer: 1,
-			createActionList: () => ({ items: [action('a')] }),
-			delegate: { onSelect: () => { }, onHide: () => { } },
-		});
-
-		assert.strictEqual(contextView.activeLayer, 1);
-		widget.hide();
 	});
 
 	test('items receive pointer input immediately after opening', () => {

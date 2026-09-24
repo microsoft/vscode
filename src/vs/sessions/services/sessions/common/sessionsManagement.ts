@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
@@ -75,21 +75,12 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTypeId?: string;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
-	/** Session that created this session, when it should be presented as a child. */
-	readonly createdBySession?: ISessionCreationReference;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
 	 * stranded draft is disposed and the error propagates.
 	 */
 	readonly modelId?: string;
-	/**
-	 * Optional model-specific primitive values to scope to this session.
-	 * Requires {@link modelId} and provider support.
-	 */
-	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
-	/** Provider-owned permission option applied before the first request. */
-	readonly permissionId?: string;
 	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
@@ -279,12 +270,6 @@ export interface ISessionsManagementService {
 	 * Get the session and chat that own the given chat resource URI.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
-
-	/**
-	 * Returns an opaque provider-owned target for reading a chat through the
-	 * provider's session-context tool.
-	 */
-	getSessionContextReference(resource: URI): string | undefined;
 
 	/**
 	 * Get all session types from all registered providers, deduplicated by

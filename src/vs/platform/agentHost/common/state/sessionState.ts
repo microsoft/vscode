@@ -1592,8 +1592,6 @@ export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, d
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
-	/** Whether the working directory has any Git remote. */
-	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
@@ -1804,7 +1802,6 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
-		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
 		isDetachedHead?: boolean;
@@ -1818,7 +1815,6 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
-	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
@@ -2259,43 +2255,6 @@ export function parseSessionCreationReference(value: string | undefined): ISessi
 
 export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
-}
-
-export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
-
-export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
-
-export interface IAgentSessionComparisonMetadata {
-	readonly id: string;
-	readonly role: AgentSessionComparisonRole;
-	readonly attemptIndex?: number;
-	readonly attemptCount: number;
-}
-
-export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
-	const value = meta?.[SESSION_META_COMPARISON_KEY];
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
-		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
-		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
-		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
-		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
-	) {
-		return undefined;
-	}
-	return {
-		id: candidate.id,
-		role: candidate.role,
-		attemptIndex: candidate.attemptIndex as number | undefined,
-		attemptCount: candidate.attemptCount as number,
-	};
-}
-
-export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
 }
 
 /**

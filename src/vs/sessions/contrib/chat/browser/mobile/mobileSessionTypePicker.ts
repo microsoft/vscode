@@ -79,8 +79,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			super._showPicker(anchor);
 			return;
 		}
-		const additionalAction = this._getVisibleAdditionalAction();
-		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction) {
+		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 
@@ -118,16 +117,6 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 				isFirstInGroup = false;
 			}
 		}
-		if (additionalAction) {
-			sheetItems.push({
-				id: additionalAction.id,
-				label: additionalAction.label,
-				description: additionalAction.description,
-				icon: additionalAction.icon,
-				navigates: true,
-				sectionTitle: '',
-			});
-		}
 
 		const trigger = this._triggerElement;
 		if (!trigger) {
@@ -147,11 +136,6 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
-				const additionalAction = this._getVisibleAdditionalAction();
-				if (additionalAction?.id === id) {
-					additionalAction.run();
-					return;
-				}
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
 					await this._selectSessionType({ providerId, sessionTypeId });
