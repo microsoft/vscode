@@ -22,6 +22,7 @@ import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICu
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -48,7 +49,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
-	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other'], visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers]) {
+	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other'], visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers], setupUrl?: URI) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -60,6 +61,13 @@ suite('AICustomizationDiscoveryPage', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const opened: (URI | string)[] = [];
+		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(resource: URI | string): Promise<boolean> {
+				opened.push(resource);
+				return true;
+			}
+		}());
 		const listService = store.add(new ListService());
 		instantiationService.stub(IListService, listService);
 		let sourceMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
@@ -95,7 +103,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		}());
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = Event.None;
-			override getInstallState() { return { kind: 'available' as const }; }
+			override getInstallState(resource: ICustomizationMarketplaceResource) {
+				return setupUrl && resource.identifier === 'unity'
+					? { kind: 'unavailable' as const, message: 'Manual setup required', setupUrl }
+					: { kind: 'available' as const };
+			}
 		}());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override readonly sentiment = { hidden: false };
@@ -130,7 +142,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		return {
-			page, container, configuration, requests, listService, creationEvents, deletions,
+			page, container, configuration, requests, listService, creationEvents, opened, deletions,
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
@@ -378,6 +390,30 @@ suite('AICustomizationDiscoveryPage', () => {
 				cursor: content.includes('demo Cursor plugin'),
 				copilot: content.includes('demo Copilot plugin'),
 			}, { cursor: false, copilot: true });
+		});
+	}
+
+	for (const query of ['', '@type:mcp unity']) {
+		test(`offers publisher setup instead of retrying unsupported MCP installation in ${query ? 'search' : 'browse'}`, async () => {
+			const setupUrl = URI.parse('https://github.com/CoplayDev/unity-mcp');
+			const fixture = createPage(['agentFinder'], undefined, setupUrl);
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [resource('unity')] });
+			await timeout(0);
+			const button = fixture.container.querySelector<HTMLButtonElement>(query
+				? '.customization-discovery-result-actions .monaco-button'
+				: '.customization-discovery-card-actions .monaco-button');
+			assert.ok(button);
+			const presentation = { label: button.textContent, ariaLabel: button.getAttribute('aria-label'), disabled: button.hasAttribute('disabled') };
+			button.click();
+			await timeout(0);
+			assert.deepStrictEqual({ presentation, opened: fixture.opened }, {
+				presentation: { label: 'View Setup', ariaLabel: 'View setup instructions for unity', disabled: false },
+				opened: [setupUrl],
+			});
 		});
 	}
 

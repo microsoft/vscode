@@ -368,10 +368,15 @@ suite('AgentFinderRestProvider', () => {
 			]);
 
 			assert.deepStrictEqual(result.map(item => item.installation), [
-				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp' },
-				{ kind: 'mcp', name: 'ai.bittlebits/bittlebits' },
-				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp' },
+				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp', version: '1.0.0' },
+				{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
+				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp', version: '1.0.0' },
 			]);
+		});
+
+		test('does not install an MCP resource without a pinned feed version', async () => {
+			const result = await resources([{ ...mcpServer, metadata: { ...mcpServer.metadata, version: undefined } }]);
+			assert.strictEqual(result[0].installation, undefined);
 		});
 
 		test('rejects mismatched MCP identities, arbitrary URLs and noncanonical paths', async () => {
@@ -380,6 +385,7 @@ suite('AgentFinderRestProvider', () => {
 				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: 'ai.bittlebits/bittlebits' } },
 				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: ['io.github.pgEdge/postgres-mcp'] } },
 				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: 'io.github.pgEdge/-c' } },
+				{ ...mcpServer, metadata: { ...mcpServer.metadata, version: '1..0' } },
 				{ ...mcpServer, url: 'https://example.com/mcp.json' },
 				{ ...mcpServer, url: mcpServer.url.replace('https:', 'http:') },
 				{ ...mcpServer, url: mcpServer.url.replace('api.mcp.github.com', 'api.mcp.github.com.evil.example') },

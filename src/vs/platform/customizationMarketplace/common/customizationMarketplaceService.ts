@@ -34,7 +34,7 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 /** Source-validated installation provenance; repository paths name the resource directory, not its manifest. */
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
-	| { readonly kind: 'mcp'; readonly name: string };
+	| { readonly kind: 'mcp'; readonly name: string; readonly version: string };
 
 export interface ICustomizationMarketplaceEntry {
 	readonly identifier: string;
