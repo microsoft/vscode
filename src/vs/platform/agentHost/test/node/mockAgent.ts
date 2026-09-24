@@ -699,6 +699,20 @@ export class ScriptedMockAgent implements IAgent {
 				]);
 				break;
 
+			case 'question-tool-error':
+				this._fireSequence([
+					..._toolStart(chat, sessionStr, tid, 'tc-question-error', 'ask_user', 'Ask question', 'Waiting for answer...'),
+					_toolComplete(chat, sessionStr, tid, 'tc-question-error', {
+						success: false,
+						pastTenseMessage: 'Failed to ask the question',
+						error: { message: 'Could not read question input' },
+						content: [],
+					}),
+					_markdown(chat, sessionStr, tid, 'The failed question has no input/output details.'),
+					_idle(chat, sessionStr, tid),
+				]);
+				break;
+
 			case 'error':
 				this._fireSequence([
 					_error(chat, sessionStr, tid, 'test_error', 'Something went wrong'),

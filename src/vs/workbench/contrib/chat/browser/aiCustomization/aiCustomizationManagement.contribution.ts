@@ -61,10 +61,12 @@ import {
 	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
 
 //#region Telemetry
@@ -289,7 +291,6 @@ registerAction2(class extends Action2 {
 });
 
 // Delete action
-const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -830,7 +831,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.showCustomizationMigrationPage(migrationCategory);
+					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 				} else if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 					if (revealUri) {

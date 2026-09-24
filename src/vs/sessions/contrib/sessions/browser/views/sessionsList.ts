@@ -35,6 +35,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -50,7 +51,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -58,7 +60,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../../../browser/sessionActionViewItem.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -93,8 +95,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfer
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
-import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { createSessionSummaryHover, getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -113,6 +114,7 @@ const $ = DOM.$;
 
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
+const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 const SESSIONS_HEADER_SECTION_ID = 'sessionsHeader';
 const SESSIONS_HEADER_DEFAULT_HEIGHT = 32;
 const SESSIONS_HEADER_VERTICAL_SPACING = 10;
@@ -139,6 +141,8 @@ export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sess
 export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('sessionsList.focusedChatItem', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
+export const SessionItemInExternalSectionContext = new RawContextKey<boolean>('sessionItem.inExternalSection', false);
+export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
@@ -234,6 +238,17 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
+function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	const active = activeSession?.read(reader);
+	if (active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource)) {
+		const chatStats = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
+		if (chatStats !== undefined) {
+			return chatStats.insertions > 0 || chatStats.deletions > 0 ? chatStats : undefined;
+		}
+	}
+	return getSessionDiffStats(session, reader);
+}
+
 /** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
@@ -264,6 +279,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.commentDiscussion;
 		case 'pinned':
 			return Codicon.pinned;
+		case EXTERNAL_SESSIONS_SECTION_ID:
+			return Codicon.chatImport;
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
 		case CUSTOMIZATIONS_SECTION_ID:
@@ -319,6 +336,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
+	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
 	/**
 	 * Bottom slack reserved under a chat row's approval prompt. The session row
 	 * absorbs the rendered code-block's line-height rounding in its own bottom
@@ -366,17 +384,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (this._approvalModel) {
-				const approval = this._approvalModel.getApproval(element.chat.resource).get();
-				if (approval) {
-					// Reserve the approval row plus a small bottom slack (the chat row,
-					// unlike the session row, has no bottom padding to absorb the
-					// rendered code-block's line-height rounding). Kept in sync with the
-					// `.session-approval-row.visible` bottom margin in `sessionsList.css`.
-					chatHeight += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
-				}
+			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get())) {
+				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
 			}
-			return this.withInsetRowSpacing(chatHeight);
+			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
 		}
 		if (isSessionSection(element) && element.id === SESSIONS_HEADER_SECTION_ID) {
 			return this._sessionsHeaderHeight?.() || SessionsTreeDelegate.SESSIONS_HEADER_HEIGHT;
@@ -424,6 +435,24 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
 		return this.withInsetRowSpacing(height);
+	}
+
+	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(
+			element,
+			this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT,
+		));
+	}
+
+	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
+		if (!this._approvalModel) {
+			return height;
+		}
+		const approval = this._approvalModel.getApproval(element.chat.resource).get();
+		if (!approval) {
+			return height;
+		}
+		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
@@ -476,6 +505,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 	constructor(
 		private readonly header: HTMLElement,
+		private readonly headerContainer: HTMLElement,
 		private readonly layoutHeader: () => void,
 	) { }
 
@@ -495,39 +525,51 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			}
 			template.container.append(this.header);
 			if (this.elementToRefocusAfterRerender) {
-				this.elementToRefocusAfterRerender.focus({ preventScroll: true });
+				const activeElement = DOM.getActiveElement();
+				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
+					this.elementToRefocusAfterRerender.focus({ preventScroll: true });
+				}
 				this.elementToRefocusAfterRerender = undefined;
 			}
 			this.layoutHeader();
 		}
 	}
 
-	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
+	private preserveFocusedElement(): void {
 		const activeElement = DOM.getActiveElement();
 		if (DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.header)) {
 			this.elementToRefocusAfterRerender = activeElement;
 		}
+	}
+
+	private restoreHeader(template: ISessionsHeaderTemplate): void {
+		if (this.header.parentElement !== template.container) {
+			return;
+		}
+		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
+		const restoredToSource = target !== this.headerContainer;
+		target.append(this.header);
+		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
+		if (restoredToSource) {
+			this.elementToRefocusAfterRerender = undefined;
+		}
+		this.layoutHeader();
+	}
+
+	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
+		this.preserveFocusedElement();
 		if (!template.isSticky && this.sourceContainer === template.container) {
 			this.sourceContainer = undefined;
 		}
-		if (this.header.parentElement === template.container) {
-			if (template.isSticky && this.sourceContainer?.isConnected) {
-				this.sourceContainer.append(this.header);
-				this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
-				this.elementToRefocusAfterRerender = undefined;
-			} else {
-				this.header.remove();
-			}
-		}
+		this.restoreHeader(template);
 	}
 
 	disposeTemplate(template: ISessionsHeaderTemplate): void {
+		this.preserveFocusedElement();
 		if (!template.isSticky && this.sourceContainer === template.container) {
 			this.sourceContainer = undefined;
 		}
-		if (this.header.parentElement === template.container) {
-			this.header.remove();
-		}
+		this.restoreHeader(template);
 		template.disposables.dispose();
 	}
 }
@@ -542,6 +584,8 @@ interface ISessionChatItemTemplate {
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
+	readonly compactHoverDescription: HTMLElement;
+	readonly folderRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
@@ -552,6 +596,34 @@ interface ISessionChatItemTemplate {
 interface IInlineRenameValueState {
 	readonly initialValue: string;
 	value: string;
+}
+
+function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'>): IDelayedHoverOptions {
+	return {
+		...hover,
+		appearance: { showPointer: true },
+		position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+		persistence: { hideOnHover: false },
+	};
+}
+
+function getCreatorHoverData(
+	session: ISession,
+	sessionsManagementService: ISessionsManagementService,
+	agentHostConnectionsService: IAgentHostConnectionsService,
+	openerService: IOpenerService,
+): { readonly title: string; readonly onOpen: () => void } | undefined {
+	const creationReference = session.createdBySession?.get();
+	if (!creationReference) {
+		return undefined;
+	}
+	const creator = sessionsManagementService.getSession(creationReference.session);
+	const resolved = agentHostConnectionsService.resolveSessionResource(creationReference.session);
+	if (!creator || !resolved) {
+		return undefined;
+	}
+	const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
+	return { title: creator.title.get(), onOpen: () => openerService.open(target).catch(onUnexpectedError) };
 }
 
 class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionChatItemTemplate> {
@@ -579,6 +651,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly approvalRowMaxLines: number,
 		private readonly onDidDoubleClickRename: (item: ISessionChatItem) => void,
 		private readonly onDidFinishRename: () => void,
+		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
+		private readonly compact: () => boolean,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -600,6 +674,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const titleContainer = DOM.append(titleRow, $('.session-chat-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
 		const titleInputContainer = DOM.append(titleRow, $('.session-chat-title-input.session-inline-rename-input'));
+		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
+		const folderRow = DOM.append(container, $('.session-chat-folder-row'));
+		folderRow.setAttribute('aria-hidden', 'true');
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
 		}
@@ -615,7 +692,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -628,25 +705,65 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		const chats = getSessionListChats(element.session);
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		let hadFolderRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
+			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
+				? getHighestPriorityPullRequestIcon(
+					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
+						getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
+					) ?? []
+				)
+				: undefined;
 			template.statusIcon.setStatus(
 				status,
 				true,
 				false,
-				undefined,
+				completedStateIcon,
 				element.chat.resource,
 			);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		template.elementDisposables.add(autorun(reader => {
+			const sessionWorkspace = element.session.workspace.read(reader);
+			const chatWorkspace = element.chat.workspace.read(reader);
+			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
+			template.container.classList.toggle('has-folder-label', !!folderLabel);
+			DOM.clearNode(template.compactHoverDescription);
+			if (folderLabel) {
+				const badge = DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, folderLabel));
+				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
+			}
+
+			const showFolderRow = !this.compact() && !!folderLabel;
+			template.folderRow.hidden = !showFolderRow;
+			DOM.clearNode(template.folderRow);
+			if (showFolderRow && folderLabel && chatWorkspace) {
+				const kind = getSessionWorkspaceKind(chatWorkspace, false);
+				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
+				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
+				DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
+				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
+			}
+			if (hadFolderRow === undefined) {
+				hadFolderRow = showFolderRow;
+				// A row sized while offscreen reserved no folder row, since its
+				// workspace was not read then; correct it once it is rendered.
+				if (showFolderRow) {
+					template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
+				}
+			} else if (hadFolderRow !== showFolderRow) {
+				hadFolderRow = showFolderRow;
+				this._onDidChangeItemHeight.fire(element);
+			}
+		}));
+		template.elementDisposables.add(autorun(reader => {
 			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
-			content: getChatTitle(element.chat),
-		}), { groupId: 'sessions-list' }));
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => this.getSummaryHoverOptions(element), { groupId: 'sessions-list' }));
 		template.elementDisposables.add(DOM.addDisposableListener(template.titleContainer, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
 			if (
 				event.button !== 0 ||
@@ -1111,9 +1228,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
+			activeSession?: IObservable<IActiveSession | undefined>;
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
+			isRenderedInExternalSection?: (session: ISession) => boolean;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1132,20 +1251,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
 	) {
-	}
-
-	private getCreatorHoverData(session: ISession): { readonly title: string; readonly onOpen: () => void } | undefined {
-		const creationReference = session.createdBySession?.get();
-		if (!creationReference) {
-			return undefined;
-		}
-		const creator = this.sessionsManagementService.getSession(creationReference.session);
-		const resolved = this.agentHostConnectionsService.resolveSessionResource(creationReference.session);
-		if (!creator || !resolved) {
-			return undefined;
-		}
-		const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
-		return { title: creator.title.get(), onOpen: () => this.openerService.open(target).catch(onUnexpectedError) };
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -1308,12 +1413,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact())).domNode,
-				appearance: { showPointer: true },
-				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-				persistence: { hideOnHover: false },
-			}), { groupId: 'sessions-list' }));
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () =>
+				withSessionsListHoverPresentation(createSessionSummaryHover(
+					element,
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact()),
+					this.preferencesService,
+				)), { groupId: 'sessions-list' }));
 		}
 
 		// Pending voice response indicator: a response arrived while this session
@@ -1338,6 +1443,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
+		SessionItemInExternalSectionContext.bindTo(template.contextKeyService).set(this.options.isRenderedInExternalSection?.(element) ?? false);
+		const canImportContext = SessionItemCanImportContext.bindTo(template.contextKeyService);
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -1383,6 +1490,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.isArchivedContext.set(isArchived);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 			const capabilities = element.capabilities.read(reader);
+			canImportContext.set(element.isExternal?.read(reader) === true && capabilities.supportsImport === true);
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
@@ -1444,12 +1552,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
-			const diffStats = getSessionDiffStats(element, reader);
 			const workspaceBadgeLabel = workspace && (
 				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
 				element.isArchived.read(reader) ||
-				this.options.isRenderedInCustomGroup?.(element)
+				this.options.isRenderedInCustomGroup?.(element) ||
+				this.options.isRenderedInExternalSection?.(element)
 			)
 				? getWorkspaceBadgeLabel(workspace)
 				: undefined;
@@ -1463,6 +1571,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
+			const diffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1
+				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
+				: getSessionDiffStats(element, reader);
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -1753,6 +1864,22 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 export function getSessionArchiveOnboardingTargetId(session: ISession): string {
 	return `sessions.archiveAction.${session.sessionId}`;
+}
+
+/**
+ * The folder a chat works in, shown on its row when the session spans more than
+ * one project and the chat works in exactly one folder.
+ */
+function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefined, chatWorkspace: ISessionWorkspace | undefined): string | undefined {
+	const firstSessionFolder = sessionWorkspace?.folders[0];
+	if (
+		!firstSessionFolder ||
+		!sessionWorkspace.folders.some(folder => !isEqual(folder.root, firstSessionFolder.root)) ||
+		chatWorkspace?.folders.length !== 1
+	) {
+		return undefined;
+	}
+	return chatWorkspace.folders[0].name;
 }
 
 function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
@@ -2352,6 +2479,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly grouping: () => SessionsGrouping;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
+	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
@@ -2374,13 +2502,15 @@ class SessionsAccessibilityProvider {
 
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
 		if (isSessionChatItem(element)) {
-			return derived(this, reader => localize(
-				'sessionChatItemAria',
-				"{0}, chat, updated {1}, {2}",
-				getChatTitle(element.chat, reader),
-				fromNow(element.chat.updatedAt.read(reader), true),
-				getSessionConversationStatusAriaLabel(element.chat.status.read(reader)),
-			));
+			return derived(this, reader => {
+				const title = getChatTitle(element.chat, reader);
+				const updated = fromNow(element.chat.updatedAt.read(reader), true);
+				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
+				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
+				return folderLabel
+					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
+					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
+			});
 		}
 		if (isSessionGroupItem(element)) {
 			return this.getSectionAriaLabel(element.group.name, element.sessions);
@@ -2467,7 +2597,8 @@ class SessionsAccessibilityProvider {
 					this.options.grouping() !== SessionsGrouping.Workspace ||
 					this.options.isPinned(element) ||
 					element.isArchived.read(reader) ||
-					this.options.isRenderedInCustomGroup?.(element)
+					this.options.isRenderedInCustomGroup?.(element) ||
+					this.options.isRenderedInExternalSection?.(element)
 				)
 			) {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
@@ -2513,12 +2644,8 @@ interface ISessionsListDndDelegate {
 	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
 	/** The id of the group the session belongs to, or `undefined`. */
 	getGroupIdOfSession(session: ISession): string | undefined;
-	/**
-	 * The id of the workspace section (`workspace:<label>`) the session belongs
-	 * to, or `undefined` when the list is not sectioned by workspace or the
-	 * session belongs elsewhere (pinned, done, quick chat).
-	 */
-	getWorkspaceSectionIdOfSession(session: ISession): string | undefined;
+	/** The workspace or External section a grouped session can return to, if available. */
+	getUngroupedSectionIdOfSession(session: ISession): string | undefined;
 	/** Add the given sessions to the group. */
 	addSessionsToGroup(sessions: ISession[], groupId: string, target: ISession | undefined, position: 'before' | 'after' | undefined): void;
 	/** Remove the given sessions from their group, optionally placing them before/after a target. */
@@ -2804,12 +2931,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		};
 	}
 
-	/**
-	 * Resolve a drop that takes grouped sessions back out of their custom group
-	 * and into the workspace section they belong to. The drop may land on the
-	 * workspace section header or onto/between the sessions already rendered in
-	 * it; unrelated workspace sections never accept the drop.
-	 */
+	/** Resolves a drop from a custom group back into the session's workspace or External section. */
 	private resolveRemoveFromGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionMembershipDropTarget | undefined {
 		if (!targetElement) {
 			return undefined;
@@ -2818,21 +2940,20 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		let sectionId: string | undefined;
 		let target: ISession | undefined;
 		if (isSessionSection(targetElement)) {
-			sectionId = targetElement.id.startsWith('workspace:') ? targetElement.id : undefined;
+			sectionId = targetElement.id.startsWith('workspace:') || targetElement.id === EXTERNAL_SESSIONS_SECTION_ID ? targetElement.id : undefined;
 		} else if (isSessionItem(targetElement) && this.delegate.getGroupIdOfSession(targetElement) === undefined) {
-			sectionId = this.delegate.getWorkspaceSectionIdOfSession(targetElement);
+			sectionId = this.delegate.getUngroupedSectionIdOfSession(targetElement);
 			target = sectionId === undefined ? undefined : targetElement;
 		}
 		if (sectionId === undefined) {
 			return undefined;
 		}
 
-		// Only sessions that currently render inside a custom group can be
-		// dropped back out, and only into their own workspace section.
+		// Grouped sessions can only return to their own default section.
 		const dragged = this.draggedSessions(data);
 		const canRemove = dragged.every(session =>
 			this.delegate.getGroupIdOfSession(session) !== undefined
-			&& this.delegate.getWorkspaceSectionIdOfSession(session) === sectionId);
+			&& this.delegate.getUngroupedSectionIdOfSession(session) === sectionId);
 		if (dragged.length === 0 || !canRemove) {
 			return undefined;
 		}
@@ -2929,16 +3050,13 @@ function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 
 
 //#region Sessions List Control
 
-export interface ISessionsListControlOptions {
+interface ISessionsListControlBaseOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
-	readonly sessionsHeader?: HTMLElement;
-	readonly sessionsHeaderContainer?: HTMLElement;
-	readonly layoutSessionsHeader?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -2957,6 +3075,16 @@ export interface ISessionsListControlOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
+
+export type ISessionsListControlOptions = ISessionsListControlBaseOptions & ({
+	readonly sessionsHeader: HTMLElement;
+	readonly sessionsHeaderContainer: HTMLElement;
+	readonly layoutSessionsHeader?: () => void;
+} | {
+	readonly sessionsHeader?: undefined;
+	readonly sessionsHeaderContainer?: undefined;
+	readonly layoutSessionsHeader?: undefined;
+});
 
 /**
  * @deprecated Use {@link ISessionsListControlOptions} instead.
@@ -3048,12 +3176,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly findFocusRestore = this._register(new MutableDisposable());
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
-	 * approval state. Owned by the list (not the row templates), so an approval
-	 * that appears, clears, or changes line count while a row is virtualized
-	 * offscreen still corrects the ListView's cached height. Re-established after
-	 * every {@link update} because chat items are rebuilt each render.
+	 * approval and workspace state. Owned by the list (not the row templates), so
+	 * changes while a row is virtualized offscreen still correct the ListView's
+	 * cached height. Re-established after every {@link update} because chat items
+	 * are rebuilt each render.
 	 */
-	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
+	private readonly chatRowHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
@@ -3175,6 +3303,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
+		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
+			throw new Error('Sessions header and its container must be provided together.');
+		}
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
@@ -3224,7 +3355,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.update();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.update();
 			}
 		}));
@@ -3236,6 +3367,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				grouping: this.options.grouping,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
+				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
@@ -3250,6 +3382,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onDidFinishRename: () => this.tree.domFocus(),
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
+				activeSession: this._sessionsService.activeSession,
 				collapsedSessionIds: this.collapsedSessionIds,
 				archiveOnboardingSession: this.archiveOnboardingSession,
 			},
@@ -3273,7 +3406,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, this.contextViewService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, item => this.preservePendingOpenFocus(item.session, item.chat), () => this.tree.domFocus(), this.activeGuideSessionIds);
+		const chatRenderer = new SessionChatItemRenderer(
+			hoverService,
+			instantiationService,
+			this._sessionsManagementService,
+			this.contextViewService,
+			markdownRendererService,
+			approvalModel,
+			DEFAULT_APPROVAL_ROW_MAX_LINES,
+			item => this.preservePendingOpenFocus(item.session, item.chat),
+			() => this.tree.domFocus(),
+			item => withSessionsListHoverPresentation(createSessionSummaryHover(
+				item.session,
+				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
+				this.preferencesService,
+			)),
+			() => this.isCompact(),
+			this.activeGuideSessionIds,
+		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
@@ -3336,6 +3486,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 		);
 		this._delegate = delegate;
+		const sessionsHeaderRenderer = this.options.sessionsHeader
+			? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
+			: [];
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -3345,7 +3498,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[
 				sessionRenderer,
 				chatRenderer,
-				...(this.options.sessionsHeader ? [new SessionsHeaderRenderer(this.options.sessionsHeader, () => this.options.layoutSessionsHeader?.())] : []),
+				...sessionsHeaderRenderer,
 				shortcutSectionRenderer,
 				sectionRenderer,
 				groupRenderer,
@@ -3357,6 +3510,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					grouping: this.options.grouping,
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
+					isRenderedInExternalSection: session => this.isRenderedInExternalSection(session),
 					compact: () => this.isCompact(),
 					approvalModel,
 					aggregateChatApprovals: false,
@@ -3372,7 +3526,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
 					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
 					getGroupIdOfSession: session => this._sessionGroupsService.getGroupOfSession(session.sessionId),
-					getWorkspaceSectionIdOfSession: session => this.getWorkspaceSectionIdOfSession(session),
+					getUngroupedSectionIdOfSession: session => this.getUngroupedSectionIdOfSession(session),
 					addSessionsToGroup: (sessions, groupId, target, position) => this.addSessionsToGroup(sessions, groupId, target, position),
 					removeSessionsFromGroup: (sessions, target, position) => this.removeSessionsFromGroup(sessions, target, position),
 					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
@@ -3764,6 +3918,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
 				getSessionListChats(session, reader);
+				session.isExternal?.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.update();
@@ -3862,7 +4017,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)));
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), this.groupExternalSessions);
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
@@ -4075,14 +4230,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				renderGroupById(id);
 			}
 			for (const section of sections) {
-				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID) {
+				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
 					continue;
 				}
 				children.push(renderSection(section));
-			}
-			const archived = sections.find(s => s.id === 'archived');
-			if (archived) {
-				children.push(renderSection(archived));
 			}
 		} else {
 			// Workspace grouping: groups and (primary) workspace sections share one
@@ -4125,12 +4276,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 					});
 				}
 			}
+		}
 
-			// The archived section is always the very last entry.
-			const archivedSection = sections.find(s => s.id === 'archived');
-			if (archivedSection) {
-				children.push(renderSection(archivedSection));
-			}
+		const externalSection = sections.find(s => s.id === EXTERNAL_SESSIONS_SECTION_ID);
+		if (externalSection) {
+			children.push(renderSection(externalSection));
+		}
+		const archivedSection = sections.find(s => s.id === 'archived');
+		if (archivedSection) {
+			children.push(renderSection(archivedSection));
 		}
 
 		if (showNavigationShortcuts && this.options.sessionsHeader) {
@@ -4152,7 +4306,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
-		this.reconcileChatApprovalHeights();
+		this.reconcileChatRowHeights();
 		this._onDidUpdate.fire();
 	}
 
@@ -4176,14 +4330,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * (Re-)establish the list-owned autorun that keeps each chat row's cached
-	 * height in sync with its live approval state, independent of whether the row
-	 * is currently rendered. Chat items are rebuilt on every {@link update}, so
-	 * the autorun is recreated to track the current set. Height updates are safe
-	 * to apply to offscreen elements — the ListView corrects its cached size so
-	 * the row shows the right height (and never clips the Allow control) when it
-	 * is next scrolled into view.
+	 * height in sync with its live approval and workspace state, independent of
+	 * whether the row is currently rendered. Chat items are rebuilt on every
+	 * {@link update}, so the autorun is recreated to track the current set.
 	 */
-	private reconcileChatApprovalHeights(): void {
+	private reconcileChatRowHeights(): void {
 		const chatItems: ISessionChatItem[] = [];
 		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionChatItem(node.element)) {
@@ -4196,17 +4347,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 		collect(this.tree.getNode());
 
 		if (chatItems.length === 0) {
-			this.chatApprovalHeightReconcile.clear();
+			this.chatRowHeightReconcile.clear();
 			return;
 		}
 
-		this.chatApprovalHeightReconcile.value = autorun(reader => {
+		this.chatRowHeightReconcile.value = autorun(reader => {
 			for (const chatItem of chatItems) {
-				// Read the approval so the autorun re-runs when it changes; the
-				// delegate derives the row height from the same live model.
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
-				if (this.tree.hasElement(chatItem)) {
+				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {
+					chatItem.session.workspace.read(reader);
+					chatItem.chat.workspace.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
+				} else if (this.tree.hasElement(chatItem)) {
+					this.tree.updateElementHeight(chatItem, this._delegate.getHeightWithoutChatWorkspace(chatItem));
 				}
 			}
 		});
@@ -4452,6 +4605,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (dragged.some(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) !== targetGroup)) {
 			return false;
 		}
+		const targetExternal = this.isRenderedInExternalSection(target);
+		if (dragged.some(s => this.isRenderedInExternalSection(s) !== targetExternal)) {
+			return false;
+		}
+		if (targetExternal) {
+			return true;
+		}
 		if (targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
 			const targetLabel = sessionWorkspaceLabel(target);
 			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
@@ -4480,7 +4640,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!targetPinned) {
 			const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
 			scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
-			if (targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
+			const targetExternal = this.isRenderedInExternalSection(target);
+			scope = scope.filter(s => this.isRenderedInExternalSection(s) === targetExternal);
+			if (!targetExternal && targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
 				const targetLabel = sessionWorkspaceLabel(target);
 				scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
 			}
@@ -4701,16 +4863,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	/**
-	 * The id of the workspace section a session belongs to, or `undefined` when
-	 * the list does not section by workspace or the session belongs to another
-	 * section (Pinned, Done, or the "Chats" section for quick chats).
-	 */
-	private getWorkspaceSectionIdOfSession(session: ISession): string | undefined {
-		if (this.options.grouping() !== SessionsGrouping.Workspace
-			|| session.isArchived.get()
-			|| this.isSessionPinned(session)
-			|| isQuickChatSession(session)) {
+	/** The section a grouped session can return to by dragging it out of its custom group. */
+	private getUngroupedSectionIdOfSession(session: ISession): string | undefined {
+		if (session.isArchived.get() || this.isSessionPinned(session)) {
+			return undefined;
+		}
+		if (this.groupExternalSessions && session.isExternal?.get()) {
+			return EXTERNAL_SESSIONS_SECTION_ID;
+		}
+		if (this.options.grouping() !== SessionsGrouping.Workspace || isQuickChatSession(session)) {
 			return undefined;
 		}
 		return `workspace:${sessionWorkspaceLabel(session)}`;
@@ -4834,6 +4995,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
+			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
+			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
@@ -5003,6 +5166,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
+		if (section.id === EXTERNAL_SESSIONS_SECTION_ID) {
+			const contextKeyService = this.contextKeyService.createOverlay([[SessionSectionTypeContext.key, EXTERNAL_SESSIONS_SECTION_ID]]);
+			actions.push(...getFlatContextMenuActions(this.menuService.getMenuActions(SessionSectionToolbarMenuId, contextKeyService, { arg: section, shouldForwardArgs: true })), new Separator());
+		}
 		if (this.options.grouping() === SessionsGrouping.Workspace && section.id.startsWith('workspace:')) {
 			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => sessionWorkspaceLabel(session) === section.label)), new Separator());
 		}
@@ -5079,6 +5246,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isRenderedInCustomGroup(session: ISession): boolean {
 		return this.getRenderedSessionGroup(session) !== undefined;
+	}
+
+	private get groupExternalSessions(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) !== false;
+	}
+
+	private isRenderedInExternalSection(session: ISession): boolean {
+		return this.groupExternalSessions
+			&& session.isExternal?.get() === true
+			&& !session.isArchived.get()
+			&& !this.isSessionPinned(session)
+			&& !this.isRenderedInCustomGroup(session);
 	}
 
 	/** Whether any registered provider can create quick chats (gates the always-visible "Chats" section). */
@@ -5561,13 +5740,14 @@ export function groupSessionsForList(
 	isSessionPinned: (session: ISession) => boolean,
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
+	groupExternalSessions = true,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 
-	// Archived wins over pinned (done sessions stay grouped); pinned wins over the
-	// quick-chats bucket so a pinned quick chat still surfaces in Pinned.
+	// Archived and explicit pins take precedence over the automatic buckets.
 	const pinned: ISession[] = [];
 	const archived: ISession[] = [];
+	const external: ISession[] = [];
 	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
 	for (const session of sorted) {
@@ -5575,6 +5755,8 @@ export function groupSessionsForList(
 			archived.push(session);
 		} else if (isSessionPinned(session)) {
 			pinned.push(session);
+		} else if (groupExternalSessions && session.isExternal?.get()) {
+			external.push(session);
 		} else if (isQuickChatSession(session)) {
 			quickChats.push(session);
 		} else {
@@ -5596,6 +5778,10 @@ export function groupSessionsForList(
 	sections.push(...(grouping === SessionsGrouping.Workspace
 		? groupByWorkspace(regular)
 		: groupByDate(regular, sorting, getSortKey)));
+
+	if (external.length > 0) {
+		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
+	}
 
 	if (archived.length > 0) {
 		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });

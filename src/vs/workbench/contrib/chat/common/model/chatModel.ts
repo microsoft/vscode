@@ -13,12 +13,13 @@ import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMar
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
-import { URI, UriDto } from '../../../../../base/common/uri.js';
+import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -66,6 +67,8 @@ export interface IChatPendingRequest {
  * Excludes observables and non-serializable fields.
  */
 export interface ISerializableSendOptions {
+	agentHostMessageOrigin?: IChatSendRequestOptions['agentHostMessageOrigin'];
+	metadata?: IChatSendRequestOptions['metadata'];
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
 	userSelectedModelConfiguration?: IStringDictionary<unknown>;
@@ -809,6 +812,13 @@ class AbstractResponse implements IResponse {
 					: resultDetails.input;
 				text += `\n${resultPrefix} with input: ${resultInput}`;
 			}
+		}
+
+		const error = IChatToolInvocation.resultError(toolInvocation);
+		if (error) {
+			text += '\n' + (typeof error === 'string'
+				? localize('toolExecutionFailedWithMessage', "Tool execution failed: {0}", error)
+				: localize('toolExecutionFailed', "Tool execution failed"));
 		}
 
 		return { text, isBlock: true };
@@ -2418,12 +2428,42 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 		typeof (obj as IExportableChatData).responderUsername === 'string';
 }
 
-export function extractExportableSessionData(data: IExportableChatData): IExportableChatData {
+export function parseChatImport(content: string): IExportableChatData {
+	const data: unknown = revive(JSON.parse(content, (_key: string, value: unknown) => {
+		if (value && typeof value === 'object' && '$mid' in value && value.$mid === MarshalledId.Uri) {
+			if (!isUriComponents(value)) {
+				throw new Error('Invalid chat session data');
+			}
+			// URI.revive trusts serialized external and fsPath caches.
+			return URI.from(value, true).toJSON();
+		}
+		return value;
+	}));
+	if (!isExportableSessionData(data)) {
+		throw new Error('Invalid chat session data');
+	}
+
+	removeImportedMarkdownTrust(data.requests);
 	return {
 		initialLocation: data.initialLocation,
 		requests: data.requests,
 		responderUsername: data.responderUsername,
 	};
+}
+
+function removeImportedMarkdownTrust(value: unknown): void {
+	if (!value || typeof value !== 'object') {
+		return;
+	}
+
+	// Unlike isMarkdownString, this must also match markdown with malformed optional flags.
+	if ('value' in value && typeof value.value === 'string' && 'isTrusted' in value) {
+		value.isTrusted = false;
+	}
+
+	for (const child of Object.values(value)) {
+		removeImportedMarkdownTrust(child);
+	}
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -3604,6 +3644,8 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
  */
 export function serializeSendOptions(options: IChatSendRequestOptions): ISerializableSendOptions {
 	return {
+		agentHostMessageOrigin: options.agentHostMessageOrigin,
+		metadata: options.metadata,
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
 		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
@@ -3641,10 +3683,15 @@ export namespace ChatResponseResource {
 	export const scheme = Schemas.vscodeChatResponseResource;
 
 	export function createUri(sessionResource: URI, toolCallId: string, index: number, basename?: string): URI {
+		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
+	}
+
+	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: encodeHex(VSBuffer.fromString(sessionResource.toString())),
-			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path,
+			query,
 		});
 	}
 
@@ -3663,22 +3710,23 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		let sessionResource: URI;
+		return {
+			sessionResource: parseSessionResource(uri),
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
+
+	function parseSessionResource(uri: URI): URI {
 		try {
-			sessionResource = URI.parse(decodeHex(uri.authority).toString());
+			return URI.parse(decodeHex(uri.authority).toString());
 		} catch (e) {
 			if (e instanceof SyntaxError) { // pre-1.108 local session ID
-				sessionResource = LocalChatSessionUri.forSession(uri.authority);
+				return LocalChatSessionUri.forSession(uri.authority);
 			} else {
 				throw e;
 			}
 		}
-
-		return {
-			sessionResource,
-			toolCallId: toolCallId,
-			index: Number(index),
-		};
 	}
 }
 

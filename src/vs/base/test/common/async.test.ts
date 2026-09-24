@@ -290,6 +290,43 @@ suite('Async', () => {
 			return Promise.all(promises);
 		});
 
+		for (const activeRejects of [false, true]) {
+			test(`propagates queued errors after the active task ${activeRejects ? 'fails' : 'succeeds'}`, async () => {
+				const throttler = store.add(new async.Throttler());
+				const activeTask = new async.DeferredPromise<number>();
+				const activeError = new Error('Active task failed');
+				const queuedError = new Error('Queued task failed');
+				let queuedCalls = 0;
+				const factory = async () => {
+					queuedCalls++;
+					throw queuedError;
+				};
+				const results = Promise.allSettled([
+					throttler.queue(() => activeTask.p),
+					throttler.queue(factory),
+					throttler.queue(factory),
+				]);
+
+				if (activeRejects) {
+					activeTask.error(activeError);
+				} else {
+					activeTask.complete(1);
+				}
+
+				const settled = await results;
+				const recovered = await throttler.queue(async () => 2);
+				assert.deepStrictEqual({ settled, queuedCalls, recovered }, {
+					settled: [
+						activeRejects ? { status: 'rejected', reason: activeError } : { status: 'fulfilled', value: 1 },
+						{ status: 'rejected', reason: queuedError },
+						{ status: 'rejected', reason: queuedError },
+					],
+					queuedCalls: 1,
+					recovered: 2,
+				});
+			});
+		}
+
 		test('disposal after queueing', async () => {
 			let factoryCalls = 0;
 			const factory = async () => {

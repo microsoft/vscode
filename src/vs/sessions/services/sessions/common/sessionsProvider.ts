@@ -54,6 +54,10 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Initial model identifier selected for the draft. */
+	readonly modelId?: string;
+	/** Model-specific primitive values applied only to this draft. */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -239,6 +243,8 @@ export interface ISessionsProvider {
 
 	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether model-specific configuration can be scoped to a newly created draft. */
+	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -353,6 +359,12 @@ export interface ISessionsProvider {
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
+	 * Get selectable models before creating a session.
+	 * Providers apply the same availability, visibility, and identifier-resolution rules as {@link getModelsSnapshot}.
+	 */
+	getModelsSnapshotForCreation?(workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
+
+	/**
 	 * Get the presentation options for the sessions-core model picker for the
 	 * given session. The provider — not the core picker — decides how its models
 	 * are presented (grouping, featured models, whether the manage-models action
@@ -435,6 +447,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to archive.
 	 */
 	archiveSession(sessionId: string): Promise<void>;
+
+	/** Permanently imports an external session without sending a message or changing its identity. */
+	importSession?(sessionId: string): Promise<void>;
 
 	/**
 	 * Unarchive a session.

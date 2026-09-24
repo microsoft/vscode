@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -22,7 +23,7 @@ import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../..
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -45,7 +46,7 @@ import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/change
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
@@ -55,7 +56,7 @@ import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
-function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string): ISessionWorkspace {
 	const root = URI.file('/repo');
 	return {
 		uri: root,
@@ -71,6 +72,7 @@ function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'mai
 				workTreeUri: undefined,
 				branchName,
 				baseBranchName: undefined,
+				upstreamBranchName,
 				uncommittedChanges,
 				gitHubInfo: constObservable(undefined),
 			},
@@ -154,6 +156,8 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	devContainerEnabled = false;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
+	readonly completionQueries: (string | undefined)[] = [];
+	completionBarrier: DeferredPromise<void> | undefined;
 
 	constructor(
 		private readonly _emitter: Emitter<string>,
@@ -176,7 +180,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this._emitter.fire(sessionId);
 	}
 	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
-	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
+	async getSessionConfigCompletions(_sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]> {
+		this.completionQueries.push(query);
+		await this.completionBarrier?.p;
+		return property === SessionConfigKey.Branch || !query
+			? this.completions
+			: this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase()));
+	}
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
@@ -227,6 +237,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	focusedItem: IActionListItem<IConfigPickerItem> | undefined;
 	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
@@ -251,8 +262,12 @@ function setupServices(
 		hide: () => actionWidget.events.push('hide'),
 		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
+			actionWidget.focusedItem = undefined;
 			actionWidget.delegate = delegate;
 			actionWidget.accessibilityProvider = accessibilityProvider;
+		},
+		focusItemById: (id: string) => {
+			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
@@ -331,12 +346,16 @@ function setupServices(
 		}
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace = workspace;
+		override readonly changesets = changesetsObs;
+	}();
 	const activeSession = new class extends mock<IActiveSession>() {
 		override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly sessionId = SESSION_ID;
 		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
-		override readonly changesets = changesetsObs;
+		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
@@ -348,6 +367,15 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 	const container = document.createElement('div');
 	picker.render(container);
 	return { picker, container };
+}
+
+function otherActiveSession(activeSession: IActiveSession): IActiveSession {
+	return new class extends mock<IActiveSession>() {
+		override readonly providerId = activeSession.providerId;
+		override readonly sessionId = 'local-agent-host:other';
+		override readonly workspace = constObservable(makeWorkspace(undefined));
+		override readonly activeChat = activeSession.activeChat;
+	}();
 }
 
 suite('Agent Host Session Config Picker', () => {
@@ -391,8 +419,10 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('contributes repository toolbar actions in the configured layout order', async () => {
+	test('contributes worktree before branch in the new session composer layout', async () => {
 		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
+		await services.configurationService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
 			override register() { return toDisposable(() => { }); }
@@ -405,30 +435,12 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
-		const getEntries = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		const orders = [getEntries()];
-		const setSetting = async (setting: string, value: boolean) => {
-			await services.configurationService.setUserConfiguration(setting, value);
-			services.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-				override affectsConfiguration(section: string): boolean {
-					return section === setting;
-				}
-			}());
-			orders.push(getEntries());
-		};
-		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
-		await setSetting(UNIFIED_WORKSPACE_PICKER_SETTING, true);
-		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, false);
 
-		assert.deepStrictEqual(orders, [
-			['Isolation', 'Base Branch'],
-			['Isolation', 'Base Branch'],
-			['Base Branch', 'Isolation'],
-			['Isolation', 'Base Branch'],
-		]);
+		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -862,7 +874,7 @@ suite('Agent Host Session Config Picker', () => {
 					kind: ActionListItemKind.Action,
 					label: 'main',
 					icon: Codicon.gitBranch.id,
-					checked: true,
+					checked: undefined,
 					detail: undefined,
 					ariaDescription: undefined,
 					toolbarActions: undefined,
@@ -880,7 +892,7 @@ suite('Agent Host Session Config Picker', () => {
 					kind: ActionListItemKind.Action,
 					label: 'dev',
 					icon: Codicon.gitBranchChanges.id,
-					checked: false,
+					checked: undefined,
 					detail: '2 uncommitted files',
 					ariaDescription: '2 uncommitted files',
 					toolbarActions: [{
@@ -898,6 +910,141 @@ suite('Agent Host Session Config Picker', () => {
 				label: 'Show Changes',
 			}],
 			singleResultKinds: [ActionListItemKind.Action],
+		});
+	});
+
+	test('worktree branch picker groups the tracked upstream with the current branch and selects it', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'feature', label: 'feature' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const items = services.actionWidget.items.map(item => ({
+			kind: item.kind,
+			label: item.label,
+			value: item.item?.value,
+			checked: item.item?.checked,
+			icon: item.group?.icon?.id,
+			accessibleChecked: services.actionWidget.accessibilityProvider?.isChecked?.(item),
+		}));
+		services.actionWidget.delegate?.onSelect({ value: 'origin/feature', label: 'origin/feature' });
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			items,
+			focusedBranch: services.actionWidget.focusedItem?.item?.value,
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+		}, {
+			items: [
+				{ kind: ActionListItemKind.Action, label: 'origin/feature', value: 'origin/feature', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'feature', value: 'feature', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', value: undefined, checked: undefined, icon: undefined, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'dev', value: 'dev', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, label: 'main', value: 'main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+			],
+			focusedBranch: 'origin/feature',
+			configUpdates: [{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'origin/feature' }],
+			checkoutInvocations: [],
+		});
+	});
+
+	test('groups the current branch and its upstream when either is selected in worktree mode', async () => {
+		const cases = [
+			{ isolation: 'folder', selected: 'feature', upstream: 'origin/feature', branches: ['dev', 'feature'], expected: ['feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: undefined, branches: ['dev', 'feature'], expected: ['feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'main', upstream: 'origin/feature', branches: ['dev', 'feature', 'main'], expected: ['main', '|', 'dev', 'feature'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: 'origin/feature', branches: ['dev', 'origin/feature', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'origin/feature', upstream: 'origin/feature', branches: ['dev', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'origin/feature', upstream: 'origin/feature', branches: ['dev', 'origin/feature', 'feature'], expected: ['origin/feature', 'feature', '|', 'dev'] },
+			{ isolation: 'worktree', selected: 'feature', upstream: 'upstream/feature', branches: ['dev', 'feature'], expected: ['upstream/feature', 'feature', '|', 'dev'] },
+		] as const;
+		const results: string[][] = [];
+		for (const scenario of cases) {
+			const services = setupServices(store);
+			services.provider.config = makeDynamicBranchConfig(scenario.selected, scenario.isolation);
+			services.provider.completions = scenario.branches.map(value => ({ value, label: value }));
+			services.workspaceObs.set(makeWorkspace(undefined, 'feature', scenario.upstream), undefined);
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			results.push(services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? '|' : item.label ?? ''));
+		}
+
+		assert.deepStrictEqual(results, cases.map(scenario => scenario.expected));
+	});
+
+	test('focuses the upstream without checking it when selected', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('origin/main', 'worktree');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', 'origin/main'), undefined);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			label: branchLabel(container),
+			focusedBranch: services.actionWidget.focusedItem?.item?.value,
+			items: services.actionWidget.items.map(item => ({
+				kind: item.kind,
+				value: item.item?.value,
+				checked: item.item?.checked,
+				icon: item.group?.icon?.id,
+				accessibleChecked: services.actionWidget.accessibilityProvider?.isChecked?.(item),
+			})),
+		}, {
+			label: 'origin/main',
+			focusedBranch: 'origin/main',
+			items: [
+				{ kind: ActionListItemKind.Action, value: 'origin/main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, value: 'main', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Separator, value: undefined, checked: undefined, icon: undefined, accessibleChecked: undefined },
+				{ kind: ActionListItemKind.Action, value: 'dev', checked: undefined, icon: Codicon.gitBranch.id, accessibleChecked: undefined },
+			],
+		});
+	});
+
+	test('filters the tracked upstream and stops offering it when New Worktree is unchecked', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
+		services.provider.completions = [
+			{ value: 'feature', label: 'feature' },
+			{ value: 'development', label: 'development' },
+		];
+		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature'), undefined);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const filter = async (query: string) => (await services.actionWidget.delegate!.onFilter!(query, CancellationToken.None))
+			.map(item => item.kind === ActionListItemKind.Separator ? '|' : item.label);
+
+		const upstream = await filter('origin/feature');
+		const matching = await filter('feature');
+		const other = await filter('develop');
+		services.provider.set(makeDynamicBranchConfig('origin/feature', 'worktree'), false);
+		const selectedUpstream = await filter('origin/feature');
+		const selectedMatching = await filter('feature');
+		services.provider.set(makeDynamicBranchConfig('feature', 'folder'), false);
+		const unchecked = await filter('origin/feature');
+
+		assert.deepStrictEqual({ upstream, matching, other, selectedUpstream, selectedMatching, unchecked }, {
+			upstream: ['origin/feature'],
+			matching: ['origin/feature', 'feature'],
+			other: ['development'],
+			selectedUpstream: ['origin/feature'],
+			selectedMatching: ['origin/feature', 'feature'],
+			unchecked: [],
 		});
 	});
 
@@ -933,6 +1080,172 @@ suite('Agent Host Session Config Picker', () => {
 				_meta: { treeish: 'dev' },
 			}],
 			branchSelectionEvents: ['checkout', 'set:dev'],
+		});
+	});
+
+	test('new-session branch picker filters the full list locally without refetching on search', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = ['main', ...Array.from({ length: 35 }, (_, index) => `feature/${index}`)].map(value => ({ value, label: value }));
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const initial = services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label);
+		const filtered = await services.actionWidget.delegate?.onFilter?.('FEATURE/34', CancellationToken.None);
+		const queriesAfterFilter = [...services.provider.completionQueries];
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			initialCount: initial.length,
+			first: initial[0],
+			last: initial.at(-1),
+			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			queriesAfterFilter,
+			completionQueries: services.provider.completionQueries,
+		}, {
+			initialCount: 25,
+			first: 'main',
+			last: 'feature/23',
+			filtered: ['feature/34'],
+			queriesAfterFilter: [undefined],
+			completionQueries: [undefined, undefined],
+		});
+	});
+
+	test('branch picker filters and caps unfiltered host completions locally', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = ['main', ...Array.from({ length: 35 }, (_, index) => `feature/${index}`)]
+			.map(value => ({ value, label: value }));
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const initial = services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label);
+		const filtered = await services.actionWidget.delegate?.onFilter?.('FEATURE/34', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			count: initial.length,
+			last: initial.at(-1),
+			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			count: 25,
+			last: 'feature/23',
+			filtered: ['feature/34'],
+			completionQueries: [undefined],
+		});
+	});
+
+	test('static branch picker does not request dynamic completions', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main');
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			items: services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			items: ['main', 'dev'],
+			completionQueries: [],
+		});
+	});
+
+	test('branch picker waits for pending completions before opening', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const openedWhileLoading = !!services.actionWidget.delegate;
+		barrier.complete();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			openedWhileLoading,
+			items: services.actionWidget.items.map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			openedWhileLoading: false,
+			items: ['main'],
+			completionQueries: [undefined],
+		});
+	});
+
+	test('new-session searches use only the loaded list even when no branch matches', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = Array.from({ length: 25 }, (_, index) => ({ value: `branch-${index}`, label: `branch-${index}` }));
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const filtered = await services.actionWidget.delegate?.onFilter?.('branch-29', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			completionQueries: services.provider.completionQueries,
+		}, {
+			filtered: [],
+			completionQueries: [undefined],
+		});
+	});
+
+	test('an in-flight branch picker cannot open for a superseded workspace', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+		barrier.complete();
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			completionQueries: services.provider.completionQueries,
+			opened: !!services.actionWidget.delegate,
+		}, {
+			completionQueries: [undefined],
+			opened: false,
+		});
+	});
+
+	test('switching workspaces closes an already open branch picker', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const oldDelegate = services.actionWidget.delegate;
+		const listFocus = document.createElement('input');
+		document.body.appendChild(listFocus);
+		store.add(toDisposable(() => listFocus.remove()));
+		listFocus.focus();
+
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+		const replacementTrigger = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+		const focusRestored = document.activeElement === replacementTrigger;
+		oldDelegate?.onSelect({ value: 'main', label: 'main' });
+
+		assert.deepStrictEqual({
+			events: services.actionWidget.events,
+			updates: services.provider.setSessionConfigValueArguments,
+			focusRestored,
+		}, {
+			events: ['hide', 'hide'],
+			updates: [],
+			focusRestored: true,
 		});
 	});
 
@@ -1491,7 +1804,10 @@ suite('Agent Host Session Config Picker', () => {
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionId: OTHER_SESSION_ID,
 			workspace: constObservable(makeWorkspace(undefined)),
-		} as IActiveSession, undefined);
+			activeChat: constObservable(new class extends mock<IChat>() {
+				override readonly changesets = constObservable([]);
+			}),
+		} as unknown as IActiveSession, undefined);
 
 		assert.strictEqual(Array.from(cache.keys()).some(key => key.startsWith(`${SESSION_ID}\0`)), false, 'stale entries for the previous session are evicted');
 		picker.dispose();

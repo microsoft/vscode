@@ -6,7 +6,6 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IPromptsService } from '../../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService, NullWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
@@ -91,11 +90,6 @@ class TestMetadataStore extends mock<IChatSessionMetadataStore>() {
 	override updateRequestDetails = vi.fn(async () => { });
 }
 
-class TestConfigurationService extends mock<IConfigurationService>() {
-	declare readonly _serviceBrand: undefined;
-	override getConfig = vi.fn(() => undefined as any);
-}
-
 class TestLogService extends mock<ILogService>() {
 	declare readonly _serviceBrand: undefined;
 	override trace = vi.fn();
@@ -157,7 +151,6 @@ function createInitializer(overrides?: {
 	promptsService?: TestPromptsService;
 	metadataStore?: TestMetadataStore;
 	logService?: TestLogService;
-	configurationService?: TestConfigurationService;
 }) {
 	const sessionService = overrides?.sessionService ?? new TestSessionService();
 	const folderRepoManager = overrides?.folderRepoManager ?? new TestFolderRepositoryManager();
@@ -169,8 +162,6 @@ function createInitializer(overrides?: {
 	const promptsService = overrides?.promptsService ?? new TestPromptsService();
 	const metadataStore = overrides?.metadataStore ?? new TestMetadataStore();
 	const logService = overrides?.logService ?? new TestLogService();
-	const configurationService = overrides?.configurationService ?? new TestConfigurationService();
-
 	const initializer = new CopilotCLIChatSessionInitializer(
 		sessionService,
 		folderRepoManager,
@@ -179,10 +170,9 @@ function createInitializer(overrides?: {
 		agents,
 		promptsService,
 		logService,
-		configurationService,
 	);
 
-	return { initializer, sessionService, folderRepoManager, worktreeService, workspaceFolderService, models, agents, promptsService, metadataStore, logService, configurationService };
+	return { initializer, sessionService, folderRepoManager, worktreeService, workspaceFolderService, models, agents, promptsService, metadataStore, logService };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -16,15 +17,27 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeCustomizations: Event<void>;
+
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMcpService mcpService: IMcpService,
 	) {
 		super();
+		this.onDidChangeCustomizations = Event.any(
+			promptsService.onDidChangeSlashCommands,
+			promptsService.onDidChangeInstructions,
+			promptsService.onDidChangeAgentInstructions,
+			promptsService.onDidChangeSkills,
+			customizationHarnessService.onDidChangeCustomAgents,
+			Event.fromObservableLight(mcpService.servers),
+		);
 	}
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
@@ -115,8 +128,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			+ migratableMcpServerCount;
 		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		return workspaceCount + userCount > 0 ? {
-			hintId: this.generateHintId(),
-			message: localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount),
+			migrationFlowId: this.generateMigrationFlowId(),
+			message: this.getMigrationHintMessage(workspaceCount, userCount),
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
 				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
@@ -124,6 +137,20 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount },
 			].filter(({ count }) => count > 0),
 		} : undefined;
+	}
+
+	private getMigrationHintMessage(workspaceCount: number, userCount: number): string {
+		if (userCount === 0) {
+			return workspaceCount === 1
+				? localize('customizationMigrationHintWorkspaceCountSingular', "{0} workspace customization needs an update to keep working.", workspaceCount)
+				: localize('customizationMigrationHintWorkspaceCountPlural', "{0} workspace customizations need an update to keep working.", workspaceCount);
+		}
+		if (workspaceCount === 0) {
+			return userCount === 1
+				? localize('customizationMigrationHintUserCountSingular', "{0} user customization needs an update to keep working.", userCount)
+				: localize('customizationMigrationHintUserCountPlural', "{0} user customizations need an update to keep working.", userCount);
+		}
+		return localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
@@ -165,7 +192,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return this.configurationService.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true;
 	}
 
-	protected generateHintId(): string {
+	protected generateMigrationFlowId(): string {
 		return generateUuid();
 	}
 }
