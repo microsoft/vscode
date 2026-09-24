@@ -830,8 +830,9 @@ export class PluginListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) ||
-				e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
+				e.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) &&
+				this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceSnapshotCts?.dispose(true);
 				this.marketplaceSnapshot.reset();

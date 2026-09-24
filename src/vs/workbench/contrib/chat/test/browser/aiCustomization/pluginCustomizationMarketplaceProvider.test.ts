@@ -110,6 +110,27 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
+	test('does not report failures from the omitted default marketplace', async () => {
+		const builtIn = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
+		const service = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override async fetchMarketplacePlugins(_token: CancellationToken, _ids?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions) {
+				options?.onMarketplaceError?.(builtIn, new Error('Unavailable'));
+				return [plugin];
+			}
+		}();
+		const page = await createProvider(service, configuration).query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: page.items.map(item => item.displayName),
+			warning: page.warning,
+		}, {
+			items: ['Review'],
+			warning: undefined,
+		});
+	});
+
 	test('keeps custom entries ahead of the default across browse and search pages', async () => {
 		const builtIn = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
 		const service = new class extends mock<IPluginMarketplaceService>() {

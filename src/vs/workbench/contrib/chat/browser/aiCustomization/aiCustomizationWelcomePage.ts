@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,10 +19,6 @@ import { AICustomizationDiscoveryPage } from './aiCustomizationDiscoveryPage.js'
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
 
 const $ = DOM.$;
-
-export function shouldShowCustomizationDiscover(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
-	return getVisibleCustomizationMarketplaceSources(configurationService, sources).length > 0;
-}
 
 /**
  * A migration flow offered on the overview, already resolved to display copy.
@@ -117,12 +113,12 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
-			this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting));
+		return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
+			|| this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting));
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return shouldShowCustomizationDiscover(this.configurationService, this.marketplaceService.sources);
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
 	}
 
 	private createImplementation(): void {

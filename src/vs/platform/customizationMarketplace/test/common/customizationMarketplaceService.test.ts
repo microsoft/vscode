@@ -678,7 +678,6 @@ suite('CustomizationMarketplaceService', () => {
 			next: undefined,
 			calls: 1,
 		});
-
 	});
 
 	test('non-terminal source warnings persist while buffered entries and later native pages remain available', async () => {

@@ -3826,7 +3826,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.viewMode === 'editor') {
 				this.goBackToList();
 			}
-
 			if (this.viewMode === 'migration') {
 				this.viewMode = 'list';
 			}

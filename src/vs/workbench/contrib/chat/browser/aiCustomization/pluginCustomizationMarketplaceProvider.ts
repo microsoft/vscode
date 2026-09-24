@@ -70,15 +70,20 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 			continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize)) {
 			throw new Error(localize('pluginMarketplace.invalidPage', "The plugin marketplace page is invalid. Start a new search."));
 		}
+		const includeDefaultMarketplace = this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true;
 		const errors: string[] = [];
 		const plugins = continuation ? [] : await this.marketplaceService.fetchMarketplacePlugins(token, undefined, {
-			onMarketplaceError: (reference, error) => errors.push(`${reference.displayLabel}: ${getErrorMessage(error)}`),
+			onMarketplaceError: (reference, error) => {
+				if (includeDefaultMarketplace || reference.canonicalId !== defaultMarketplaceId) {
+					errors.push(`${reference.displayLabel}: ${getErrorMessage(error)}`);
+				}
+			},
 		});
 		if (token.isCancellationRequested || generation !== this.generation) {
 			throw new CancellationError();
 		}
 		const customPlugins = plugins.filter(plugin => plugin.marketplaceReference.canonicalId !== defaultMarketplaceId);
-		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true) {
+		if (includeDefaultMarketplace) {
 			customPlugins.push(...plugins.filter(plugin => plugin.marketplaceReference.canonicalId === defaultMarketplaceId));
 		}
 		const entries = continuation?.entries ?? customPlugins.flatMap(plugin => {

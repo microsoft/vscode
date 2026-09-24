@@ -837,7 +837,6 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
-	readonly marketplaceEnabled?: boolean;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
@@ -885,8 +884,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? options.marketplaceEnabled ?? false;
-	const marketplaceEnabled = marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
+	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? false;
+	const discoverEnabled = marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -1496,8 +1495,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
-	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
-	if (!marketplaceEnabled && !options.selectedSection) {
+	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (!discoverEnabled && !options.selectedSection) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
 		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave Overview available.');
@@ -1537,17 +1536,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.toggleMarketplace) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
-		await configuration.setUserConfiguration(setting, !marketplaceEnabled);
+		await configuration.setUserConfiguration(setting, !marketplaceVisibilityEnabled);
 		await Promise.resolve();
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }
 		}());
 		const home = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
 		const discover = home?.querySelector('.customization-discovery');
-		assert(Boolean(discover) === !marketplaceEnabled, 'Switching Marketplace visibility must replace the home surface.');
-		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === marketplaceEnabled, 'Overview must be visible only when Marketplace is hidden.');
-		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(marketplaceEnabled ? 'Overview' : 'Discover') === true, 'Home navigation must match the selected surface.');
-		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to overview' : 'Back to Customizations'), 'Home tooltip must update when Marketplace visibility changes.');
+		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
+		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
+		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
+		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Discover' : 'Overview') === true, 'Home navigation must match the selected surface.');
+		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		assert(customizationMarketplaceQueryCount === 1, 'Toggling the marketplace must query its catalog only while a feed is enabled.');
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
 	}
@@ -2427,13 +2427,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceEnabled: true }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceEnabled: true, width: 550, height: 500 }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -2909,9 +2909,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	OverviewWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when Marketplace visibility is disabled, even with a source enabled.'],
+		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			agentFinderPublicFeedEnabled: false,
 		}),
 	}),
 
@@ -2928,7 +2930,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			agentFinderPublicFeedEnabled: false,
 			otherSourceEnabled: true,
 			customizationMarketplaceState: 'empty',
@@ -2947,7 +2949,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			toggleMarketplace: true,
 		}),
 	}),
@@ -2956,7 +2958,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			isSessionsWindow: true,
 		}),
 	}),
@@ -2966,7 +2968,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 		}),
 	}),
@@ -2976,7 +2978,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			clearDiscoveryQuery: true,
 		}),
@@ -2987,7 +2989,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'correctness',
 			selectDiscoveryResult: true,
 		}),
@@ -2998,7 +3000,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			customizationMarketplaceState: 'loadingMore',
 		}),
@@ -3008,7 +3010,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: '@installed',
 		}),
 	}),
@@ -3017,7 +3019,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'error',
 		}),
 	}),
@@ -3026,7 +3028,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
 		}),
 	}),
@@ -3035,7 +3037,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceInstallationState: 'mixed',
 		}),
 	}),
@@ -3045,7 +3047,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['The first resource has an installation error and Retry Install action while the remaining Discover results stay available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			customizationMarketplaceInstallationState: 'error',
 		}),

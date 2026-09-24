@@ -143,7 +143,6 @@ suite('CustomizationMarketplaceSources', () => {
 			} else {
 				await assert.rejects(query, isCancellationError);
 			}
-
 			assert.deepStrictEqual({
 				enabled: getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
 				calls,

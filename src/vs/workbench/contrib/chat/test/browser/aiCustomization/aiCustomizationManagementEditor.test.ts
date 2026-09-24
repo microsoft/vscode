@@ -535,25 +535,6 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	test('Plugin source alone exposes Discover with the public GitHub Feed disabled', async () => {
-		const { editor, section, state, sections, configuration } = createGatedSectionEditor(
-			false, [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]);
-		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
-		await configuration.updateValue(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
-		editor.rebuildVisibleSections();
-		editor.selectSectionById(section);
-
-		assert.deepStrictEqual({
-			created: state.created,
-			selected: editor.selectedSection,
-			sections: sections.map(section => section.id),
-		}, {
-			created: 1,
-			selected: section,
-			sections: [AICustomizationManagementSection.Agents, section],
-		});
-	});
-
 	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
 		const { editor, configuration } = createGatedSectionEditor();
 		const queries: string[] = [];

@@ -227,9 +227,16 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
+		const isPluginMarketplace = resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id;
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
-		operationDisposables.add(this.configurationService.onDidChangeConfiguration(() => {
-			if (!this.isSourceEnabled(resource.sourceId)) {
+		if (isPluginMarketplace) {
+			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
+		}
+		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
+			if (!this.isSourceEnabled(resource.sourceId) || isPluginMarketplace && (
+				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)
+			)) {
 				operationDisposables.dispose();
 			}
 		}));

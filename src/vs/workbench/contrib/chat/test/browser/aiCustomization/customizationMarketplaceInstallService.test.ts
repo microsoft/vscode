@@ -182,7 +182,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		provider.writes.length = 0;
 
 		const installedPlugins = observableValue<readonly IMarketplaceInstalledPlugin[]>('installedPlugins', []);
+		const marketplaceChanges = store.add(new Emitter<void>());
 		const marketplaceService = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
 			readCount = 0;
 			availablePlugins: IMarketplaceInstalledPlugin['plugin'][] = [];
 			override async fetchMarketplacePlugins() { return this.availablePlugins; }
@@ -363,7 +365,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ILogService, logService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
-			service, fileService, provider, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, mcpService, mcpChanges,
+			service, fileService, provider, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, mcpService, mcpChanges,
 			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
@@ -906,6 +908,50 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: fixture.service.getInstallState(candidate).kind,
 			}, { calls: 1, cancelledBeforeInstallerResolves: true, state: 'unavailable' });
 		});
+
+		for (const change of ['configured marketplaces', 'strict policy', 'public feed selection'] as const) {
+			test(`cancels an install when its ${change} change`, async () => {
+				const fixture = await createFixture();
+				await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
+				const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
+				fixture.marketplaceService.availablePlugins = [plugin];
+				const candidate = resource({
+					sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+					identifier: getPluginMarketplaceIdentifier(plugin),
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					installation: undefined,
+				});
+				if (isWeb) {
+					await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+					assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
+					return;
+				}
+				const started = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				let installerToken: CancellationToken | undefined;
+				fixture.pluginService.onDirectInstall = async token => {
+					installerToken = token;
+					await started.complete();
+					await release.p;
+				};
+				const install = fixture.service.install(candidate);
+				await started.p;
+				if (change === 'configured marketplaces') {
+					fixture.marketplaceChanges.fire();
+				} else {
+					fireConfigurationChange(fixture.configurationService, change === 'strict policy'
+						? ChatConfiguration.StrictMarketplaces
+						: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled);
+				}
+				const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
+				await release.complete();
+				await assert.rejects(install, isCancellationError);
+				assert.deepStrictEqual({
+					calls: fixture.pluginService.directInstalls.length,
+					cancelledBeforeInstallerResolves,
+				}, { calls: 1, cancelledBeforeInstallerResolves: true });
+			});
+		}
 
 		for (const path of ['plugins/demo', '']) {
 			test(`delegates the exact repository, revision and ${path ? 'subdirectory' : 'root directory'} to the existing installer`, async () => {
