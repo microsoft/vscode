@@ -1820,6 +1820,136 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('launches a configured local Copilot runtime executable', async () => {
+		const directory = await fs.mkdtemp(`${os.tmpdir()}/copilot-runtime-override-`);
+		const runtimePath = join(directory, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime');
+		await fs.writeFile(runtimePath, '');
+		if (process.platform !== 'win32') {
+			await fs.chmod(runtimePath, 0o700);
+		}
+		const client = new TestCopilotClient([]);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.RuntimePath]: runtimePath },
+		});
+		try {
+			await agent.listChatsToMigrate();
+			const connection = getCreatedClientOptions(agent).at(-1)?.connection;
+
+			assert.deepStrictEqual({
+				kind: connection?.kind,
+				path: connection?.kind === 'stdio' ? connection.path : undefined,
+			}, {
+				kind: 'stdio',
+				path: runtimePath,
+			});
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects an invalid configured Copilot runtime path without falling back', async () => {
+		const directory = await fs.mkdtemp(`${os.tmpdir()}/copilot-runtime-invalid-`);
+		const client = new TestCopilotClient([]);
+		const { agent, configurationService } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.RuntimePath]: 'copilot-runtime' },
+		});
+		try {
+			await assert.rejects(
+				() => agent.listChatsToMigrate(),
+				/Invalid chat\.agentHost\.copilot\.runtimePath: expected an absolute path, got 'copilot-runtime'/,
+			);
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.RuntimePath]: directory });
+			await assert.rejects(
+				() => agent.listChatsToMigrate(),
+				/Invalid chat\.agentHost\.copilot\.runtimePath .*: expected a file/,
+			);
+			assert.deepStrictEqual({
+				createdClients: getCreatedClientOptions(agent).length,
+				clientStarts: client.startCallCount,
+			}, {
+				createdClients: 0,
+				clientStarts: 0,
+			});
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects a configured runtime file without execute permission', async () => {
+		if (process.platform === 'win32') {
+			return;
+		}
+		const directory = await fs.mkdtemp(`${os.tmpdir()}/copilot-runtime-non-executable-`);
+		const runtimePath = join(directory, 'copilot-runtime');
+		await fs.writeFile(runtimePath, '');
+		await fs.chmod(runtimePath, 0o600);
+		const client = new TestCopilotClient([]);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.RuntimePath]: runtimePath },
+		});
+		try {
+			await assert.rejects(
+				() => agent.listChatsToMigrate(),
+				/Invalid chat\.agentHost\.copilot\.runtimePath .*: file is not executable/,
+			);
+			assert.deepStrictEqual({
+				createdClients: getCreatedClientOptions(agent).length,
+				clientStarts: client.startCallCount,
+			}, {
+				createdClients: 0,
+				clientStarts: 0,
+			});
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('restarts the Copilot client when the configured runtime path changes', async () => {
+		const directory = await fs.mkdtemp(`${os.tmpdir()}/copilot-runtime-restart-`);
+		const firstRuntimePath = join(directory, process.platform === 'win32' ? 'copilot-runtime-a.exe' : 'copilot-runtime-a');
+		const secondRuntimePath = join(directory, process.platform === 'win32' ? 'copilot-runtime-b.exe' : 'copilot-runtime-b');
+		await Promise.all([
+			fs.writeFile(firstRuntimePath, ''),
+			fs.writeFile(secondRuntimePath, ''),
+		]);
+		if (process.platform !== 'win32') {
+			await Promise.all([
+				fs.chmod(firstRuntimePath, 0o700),
+				fs.chmod(secondRuntimePath, 0o700),
+			]);
+		}
+		const client = new TestCopilotClient([]);
+		const { agent, configurationService } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.RuntimePath]: firstRuntimePath },
+		});
+		try {
+			await agent.listChatsToMigrate();
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.RuntimePath]: secondRuntimePath });
+			await agent.listChatsToMigrate();
+
+			assert.deepStrictEqual({
+				runtimePaths: getCreatedClientOptions(agent).map(options => {
+					const connection = options.connection;
+					return connection?.kind === 'stdio' ? connection.path : undefined;
+				}),
+				stopCallCount: client.stopCallCount,
+			}, {
+				runtimePaths: [firstRuntimePath, secondRuntimePath],
+				stopCallCount: 1,
+			});
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('promotes the forwarded secondary assignment context to a telemetry-wide property', async () => {
 		const client = new TestCopilotClient([]);
 		const telemetryService = new RecordingTelemetryService();
