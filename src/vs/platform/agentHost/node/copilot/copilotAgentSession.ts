@@ -1015,7 +1015,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
-	getTurnClientType(turnId: string): AgentHostClientType | undefined { return this._clientTypesByTurnId.get(turnId); }
+	get clientTypesByTurnId(): ReadonlyMap<string, AgentHostClientType> { return this._clientTypesByTurnId; }
 
 	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 		let result: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>;

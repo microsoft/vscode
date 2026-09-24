@@ -2048,7 +2048,10 @@ suite('CopilotAgent', () => {
 				sessionId: 'sdk-session',
 				get currentTurnId() { return activeTurn; },
 				currentTurnClientType: AgentHostClientType.AgentsWindow,
-				getTurnClientType: () => AgentHostClientType.EditorWindow,
+				clientTypesByTurnId: new Map([
+					['subagent-turn', AgentHostClientType.EditorWindow],
+					['original-logical-turn', AgentHostClientType.EditorWindow],
+				]),
 				modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
 				isDisposed: false,
 			}, chat);

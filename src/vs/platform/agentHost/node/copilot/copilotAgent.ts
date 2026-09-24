@@ -3296,7 +3296,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string, initiatorClientType?: AgentHostClientType): void {
 		const session = this._findChatByUri(chat);
 		if (session) {
-			const resolvedInitiatorClientType = initiatorClientType ?? session.getTurnClientType?.(turnId) ?? session.currentTurnClientType ?? AgentHostClientType.Unknown;
+			const resolvedInitiatorClientType = initiatorClientType ?? session.clientTypesByTurnId?.get(turnId) ?? session.currentTurnClientType ?? AgentHostClientType.Unknown;
 			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId, resolvedInitiatorClientType);
 			if (status !== 'duplicate') {
 				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, resolvedInitiatorClientType, status);
