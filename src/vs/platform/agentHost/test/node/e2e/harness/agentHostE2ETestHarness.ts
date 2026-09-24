@@ -196,6 +196,11 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+/** Captures whose providers can issue recorded parent and subagent turns concurrently. */
+const PROJECTED_REQUEST_MATCHING_CAPTURES = new Set<string>([
+	'copilotcli:retained background subagent completes repeated follow-up turns',
+]);
+
 const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
 	status: 400,
 	headers: {
@@ -220,14 +225,15 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; matchModelRequestsByProjection: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
+	const matchModelRequestsByProjection = PROJECTED_REQUEST_MATCHING_CAPTURES.has(key);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, matchModelRequestsByProjection, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -385,15 +391,10 @@ export interface IAgentHostE2EProviderConfig {
 	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/** Provider intermittently completes successful shell calls without exposing result text. */
 	readonly shellToolResultTextUnreliable?: boolean;
-	/**
-	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
-	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
-	 * on-disk `subagents/agent-*.jsonl` files — not reliably visible on Windows
-	 * right after the turn, so the transcript can come back empty. macOS/Linux keep
-	 * full coverage; providers that rebuild from the in-process event log (Copilot)
-	 * are unaffected and stay enabled on Windows.
-	 */
-	readonly subagentReplayUnstableOnWindows?: boolean;
+	/** Provider's file-delete shell turn can terminate its bundled runtime during Windows replay. */
+	readonly fileDeleteReplayUnstableOnWindows?: boolean;
+	/** Provider's file-create shell turn can report success during Windows replay without writing the file. */
+	readonly fileCreateReplayUnstableOnWindows?: boolean;
 	/** Provider-specific observable used to exercise entering and leaving plan mode. */
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
@@ -876,7 +877,8 @@ export class AgentHostE2EServerLease {
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
-	private _dataDir: string | undefined;
+	private readonly _dataDirs: string[] = [];
+	private _needsFreshDataDirectory = false;
 	/**
 	 * Number of **model-backed** tests served by the current shared server. A
 	 * single long-lived host caches one provider SDK/CLI subprocess and reuses it
@@ -890,24 +892,18 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
-		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
-		const codexHomeDir = join(dataDir, '.codex');
-		mkdirSync(codexHomeDir);
-		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
-			codexHomeDir,
-			homeDir: dataDir,
-			userDataDir: join(dataDir, 'user-data'),
+			...this._createDataDirectories(),
 			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
@@ -917,8 +913,20 @@ export class AgentHostE2EServerLease {
 		this._shared = !RECORD;
 	}
 
+	private _createDataDirectories() {
+		const homeDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		this._dataDirs.push(homeDir);
+		const codexHomeDir = join(homeDir, '.codex');
+		mkdirSync(codexHomeDir);
+		return { homeDir, userDataDir: join(homeDir, 'user-data'), codexHomeDir };
+	}
+
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+		if (this._needsFreshDataDirectory) {
+			this._startOptions = { ...this._startOptions, ...this._createDataDirectories() };
+			this._needsFreshDataDirectory = false;
+		}
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
 		this._currentCapiReplay = capiReplay;
 		// Bound both provider-model load and host-owned resource accumulation.
@@ -933,7 +941,10 @@ export class AgentHostE2EServerLease {
 			if (!proxy) {
 				throw new Error('[agent-host-e2e] shared replay server has no capiReplay proxy to reset');
 			}
-			proxy.resetForReplay(capiReplay.fixturePath, capiReplay.allowStaleRecordedRequest);
+			proxy.resetForReplay(capiReplay.fixturePath, {
+				allowStaleRecordedRequest: capiReplay.allowStaleRecordedRequest,
+				matchModelRequestsByProjection: capiReplay.matchModelRequestsByProjection,
+			});
 		} else {
 			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
@@ -1049,25 +1060,17 @@ export class AgentHostE2EServerLease {
 		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
 	}
 
-	/** The bundled `@github/copilot` CLI is the only provider whose runtime logs we capture / run verbosely. */
+	/** The bundled `@github/copilot` CLI is the only provider whose own runtime logs we capture / run verbosely. */
 	private get _isCopilotProvider(): boolean {
 		return this._config.provider === 'copilotcli';
 	}
 
 	/**
-	 * Tail the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`
-	 * into the test output. This is the SDK/CLI's own diagnostics — the key signal
-	 * when a turn hangs or times out, which the AHP assertions alone don't explain.
-	 * The runtime writes these under `${COPILOT_HOME}/logs`, and the harness pins
-	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
-	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
-	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
-	 * `teardown`, right before the failure is re-raised). Output goes to
-	 * `process.stdout` directly (not `console.*`): the integration harness overrides
-	 * `console.*` and fails the test on ANY unexpected console output during a test,
-	 * and `currentTest` is still set during `teardown`.
+	 * Tail the Agent Host log and, for Copilot, the bundled CLI log into the test
+	 * output. Best-effort: never throws because it runs during failed-test teardown.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
+		this._dumpAgentHostLogOnFailure(label);
 		if (!this._isCopilotProvider) {
 			return;
 		}
@@ -1097,30 +1100,50 @@ export class AgentHostE2EServerLease {
 				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
 				return;
 			}
-			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
-			const tail = lines.slice(-200);
-			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
-			for (const ln of tail) {
-				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
-			}
-			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
+			this._dumpLogTail('Copilot runtime', label, newest.full);
 		} catch {
 			// never let diagnostics break teardown
 		}
 	}
 
+	private _dumpAgentHostLogOnFailure(label: string): void {
+		try {
+			const logsDir = join(this._startOptions.userDataDir, 'logs');
+			const newest = readdirSync(logsDir, { withFileTypes: true })
+				.filter(entry => entry.isDirectory())
+				.map(entry => join(logsDir, entry.name, 'agenthost-server.log'))
+				.flatMap(path => {
+					try {
+						const stat = statSync(path);
+						return stat.isFile() ? [{ path, mtimeMs: stat.mtimeMs }] : [];
+					} catch {
+						return [];
+					}
+				})
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Agent Host log for failed test "${label}" under ${logsDir}\n`);
+				return;
+			}
+			this._dumpLogTail('Agent Host', label, newest.path);
+		} catch {
+			// Never let diagnostics break teardown.
+		}
+	}
+
+	private _dumpLogTail(name: string, label: string, path: string): void {
+		const lines = readFileSync(path, 'utf8').split(/\r?\n/);
+		const tail = lines.slice(-200);
+		process.stdout.write(`[agent-host-e2e] --- ${name} log for failed test "${label}" (${path}; last ${tail.length} of ${lines.length} lines) ---\n`);
+		for (const line of tail) {
+			process.stdout.write(`[agent-host-e2e] # ${line}\n`);
+		}
+		process.stdout.write(`[agent-host-e2e] --- end ${name} log ---\n`);
+	}
+
 	/**
-	 * Release a test: dispose its sessions, disconnect the client, and verify the
-	 * replay traffic. A shared server is normally kept alive (with its cached SDK
-	 * client) for the next test; a per-test server is stopped.
-	 *
-	 * Pass `forceRestart` when the just-run test failed. A failed test can leave
-	 * a mid-turn session that wedges (or has already killed) the shared host, so
-	 * reusing it would cascade `ECONNREFUSED` / `createSession` timeouts into the
-	 * next, unrelated test. Restarting isolates the failure to the one test that
-	 * caused it. The strict cache-miss assertion is also skipped on restart: the
-	 * test already failed for its own reason, and a secondary cache-miss throw
-	 * would only obscure it.
+	 * Dispose the test's sessions and verify replay, reusing a healthy shared server.
+	 * Pass `forceRestart` after a failed test to isolate the next test without obscuring the original failure.
 	 */
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
@@ -1210,6 +1233,9 @@ export class AgentHostE2EServerLease {
 				this._testsOnCurrentServer = 0;
 			}
 		}
+		if (forceRestart || cleanupErrors.length > 0) {
+			this._needsFreshDataDirectory = true;
+		}
 		if (cleanupErrors.length > 0) {
 			if (forceRestart) {
 				process.stdout.write(`[agent-host-e2e] cleanup reported ${cleanupErrors.length} secondary error(s) after the test failed:\n`);
@@ -1222,10 +1248,8 @@ export class AgentHostE2EServerLease {
 		}
 	}
 
-	/** Tear down a shared server at the end of the suite (no-op for per-test). */
+	/** Stop the server and remove all isolated homes, including those retired after failures. */
 	async dispose(): Promise<void> {
-		const dataDir = this._dataDir;
-		this._dataDir = undefined;
 		try {
 			if (this._server) {
 				try {
@@ -1236,9 +1260,7 @@ export class AgentHostE2EServerLease {
 				}
 			}
 		} finally {
-			if (dataDir) {
-				await removeTempDirs([dataDir]);
-			}
+			await removeTempDirs(this._dataDirs);
 		}
 	}
 }

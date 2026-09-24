@@ -6,12 +6,14 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -22,10 +24,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -85,7 +87,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
-	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; count: number }>();
+	private readonly _explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -106,10 +109,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
-		// Subscribe to provider changes for session type updates
+		// Subscribe to provider changes for session and session type updates
 		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
 			this._onProvidersChanged(e);
 			this._updateSessionTypes();
@@ -145,14 +149,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const provider of e.removed) {
 			this._providerListeners.deleteAndDispose(provider.id);
 		}
-		if (e.added.length) {
-			this._subscribeToProviders(e.added);
-		}
+		const added = this._subscribeToProviders(e.added);
+		// Provider disappearance hides sessions; reporting removals would trigger deletion cleanup.
+		this._onDidChangeSessions.fire({ added, removed: [], changed: [] });
 	}
 
-	private _subscribeToProviders(providers: readonly ISessionsProvider[]): void {
+	private _subscribeToProviders(providers: readonly ISessionsProvider[]): ISession[] {
+		const added: ISession[] = [];
 		for (const provider of providers) {
+			// Reading can synchronously announce cache population, so seed before subscribing.
+			const sessions = provider.getSessions();
+			if (this.sessionsProvidersService.getProvider(provider.id) !== provider) {
+				continue;
+			}
 			const disposables = new DisposableStore();
+			this._providerListeners.set(provider.id, disposables);
+			added.push(...sessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
@@ -160,8 +172,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
-			this._providerListeners.set(provider.id, disposables);
 		}
+		return added;
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
@@ -231,12 +243,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return Array.from(this._inFlightNewSessionRequests.values(), entry => entry.session);
 	}
 
-	private trackInFlightNewSessionRequest(session: ISession): IDisposable {
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined {
+		return this._inFlightNewSessionRequests.get(resource)?.input;
+	}
+
+	private trackInFlightNewSessionRequest(session: ISession, options?: ISendRequestOptions): IDisposable {
 		const entry = this._inFlightNewSessionRequests.get(session.resource);
 		if (entry) {
 			entry.count++;
 		} else {
-			this._inFlightNewSessionRequests.set(session.resource, { session, count: 1 });
+			this._inFlightNewSessionRequests.set(session.resource, {
+				session,
+				input: options ? { query: options.query, attachedContext: options.attachedContext?.slice() } : undefined,
+				count: 1,
+			});
 		}
 
 		return toDisposable(() => {
@@ -513,6 +533,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
+		if (provider.automations?.catalogueState.get() !== 'ready') {
+			throw new Error(localize('automationProviderUnavailable', "The selected provider does not currently provide Automation configuration."));
+		}
 		const previousAutomationSession = this._automationSession.get();
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
@@ -597,6 +620,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
+		if (provider.automations?.catalogueState.get() !== 'ready') {
+			throw new Error(localize('automationProviderUnavailable', "The selected provider does not currently provide Automation configuration."));
+		}
 		const previousAutomationSession = this._automationSession.get();
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
@@ -611,11 +637,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		if (options?.modelConfiguration && !options.modelId) {
+			throw new Error('Session model configuration requires a model identifier.');
+		}
+		if (options?.modelConfiguration && provider.supportsModelConfigurationForCreation !== true) {
+			throw new Error(`Sessions provider '${provider.id}' does not support model configuration during session creation.`);
+		}
 		const automationConfiguration = sessionTemplate
 			? { sessionTemplate }
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
+			...(options?.modelId && options.modelConfiguration ? {
+				modelId: options.modelId,
+				modelConfiguration: options.modelConfiguration,
+			} : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
@@ -739,13 +775,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
-		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
+		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {
 			this._newSession.set(undefined, undefined);
 			void this._prepareAndSendNewChatRequestInBackground(provider, session, options)
 				.catch(e => {
-					this.logService.error('[SessionsManagement] Failed to send background request:', e);
+					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
+						this.logService.error('[SessionsManagement] Failed to send background request:', e);
+						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+					}
 				})
 				.finally(() => inFlightRequest?.dispose());
 			return;
@@ -1197,7 +1236,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
-		const resource = session.mainChat.get().resource;
+		await this._cancelChatRequest(session.mainChat.get());
+	}
+
+	private async _cancelChatRequest(chat: IChat): Promise<void> {
+		const resource = chat.resource;
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
 		if (!modelRef) {
@@ -1211,6 +1254,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
+		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
+			await this._cancelChatRequest(session.mainChat.get());
+		}
+		for (const chat of activeChats) {
+			await this._cancelChatRequest(chat);
+		}
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);
 	}
@@ -1221,10 +1271,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
+		// Record intent before the provider can synchronously notify active-session observers.
+		if (isRead) {
+			this._explicitlyMarkedUnreadSessions.delete(session.resource);
+		} else {
+			this._explicitlyMarkedUnreadSessions.add(session.resource);
+		}
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
-	markRead(session: ISession): Promise<void> {
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void> {
+		if (options?.preserveExplicitUnread && this._explicitlyMarkedUnreadSessions.has(session.resource)) {
+			return Promise.resolve();
+		}
 		return this.setSessionReadState(session, true);
 	}
 
@@ -1238,6 +1297,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async deleteSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.deleteSession(session.sessionId);
+		this._explicitlyMarkedUnreadSessions.delete(session.resource);
 		this._onDidDeleteSession.fire(session);
 	}
 
@@ -1261,6 +1321,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			try {
 				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
 				for (const session of providerSessions) {
+					this._explicitlyMarkedUnreadSessions.delete(session.resource);
 					this._onDidDeleteSession.fire(session);
 				}
 			} catch (error) {
@@ -1273,11 +1334,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
-		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
+	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
 			this._onDidDeleteChat.fire(session);
 		}
+		return deleted;
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
@@ -1296,6 +1358,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.removeSessionArtifact.unsupported', "Removing artifacts is not supported for this session."));
 		}
 		await provider.removeSessionArtifact(session.sessionId, artifactId);
+	}
+
+	async importSession(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.isExternal?.get()) {
+			return;
+		}
+		if (!session.capabilities.get().supportsImport || !provider?.importSession) {
+			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
+		}
+		await provider.importSession(session.sessionId);
 	}
 }
 

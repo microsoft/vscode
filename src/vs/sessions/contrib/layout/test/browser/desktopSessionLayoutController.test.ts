@@ -9,7 +9,7 @@ import { errorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -21,7 +21,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesEditorTransitionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -196,7 +196,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.openedViews = [];
 		harness.openedViewContainers = [];
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		assert.deepStrictEqual({
 			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
@@ -1059,7 +1059,7 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		harness.openedViewContainers = [];
 		harness.openedViews = [];
@@ -1264,7 +1264,7 @@ suite('LayoutController (desktop)', () => {
 		harness.setPartHiddenCalls = [];
 
 		// Changes appear, which re-triggers the aux bar sync autorun.
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		assert.ok(
 			!harness.openedViews.includes(CHANGES_VIEW_ID) && !harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
@@ -2131,7 +2131,7 @@ suite('LayoutController (desktop)', () => {
 				isQuickChat.set(false, tx);
 			});
 			await timeout(0);
-			(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/changed.ts')], undefined);
+			(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/changed.ts')], undefined);
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -2902,6 +2902,129 @@ suite('LayoutController (desktop)', () => {
 		return harness.activeGroupEditors.some(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined);
 	}
 
+	test('[managed tabs / session switch] keeps the Changes header active while the working set replaces its editor', async () => {
+		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+
+		const first = makeSession(URI.parse('session:first'));
+		harness.activeSessionObs.set(first, undefined);
+		await settle();
+		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
+		assert.ok(harness.activeEditorInput);
+		harness.onDidActiveEditorChange.fire();
+
+		const before = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const during: boolean[] = [];
+		harness.onApplyWorkingSet = () => {
+			harness.activeEditorInput = undefined;
+			harness.onDidActiveEditorChange.fire();
+			during.push(harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key) === true);
+		};
+		harness.activeSessionObs.set(makeSession(URI.parse('session:second')), undefined);
+		await settle();
+		const after = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+
+		assert.deepStrictEqual({ before, during, after }, {
+			before: false,
+			during: [true],
+			after: false,
+		});
+	});
+
+	test('[managed tabs / session switch] keeps the Changes header while workspace folders delay the restore', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const first = makeSession(URI.parse('session:first'));
+		harness.activeSessionObs.set(first, undefined);
+		await settle();
+		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
+		assert.ok(harness.activeEditorInput);
+		harness.onDidActiveEditorChange.fire();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:second')), undefined);
+		await settle();
+		harness.activeEditorInput = undefined;
+		harness.onDidActiveEditorChange.fire();
+		const whileWaitingForWorkspace = {
+			workingSetsApplied: harness.applyWorkingSetCalls.length,
+			keepChangesHeader: harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key),
+		};
+		harness.activeEditorInput = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.onDidActiveEditorChange.fire();
+		const whileFileIsActive = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		harness.activeSessionObs.set(undefined, undefined);
+		const afterLeaving = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+
+		assert.deepStrictEqual({ whileWaitingForWorkspace, whileFileIsActive, afterLeaving }, {
+			whileWaitingForWorkspace: { workingSetsApplied: 0, keepChangesHeader: true },
+			whileFileIsActive: false,
+			afterLeaving: false,
+		});
+	});
+
+	test('[managed tabs / session switch] preserves the Changes header until a non-quick session workspace hydrates', async () => {
+		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+
+		const first = makeSession(URI.parse('session:first'));
+		harness.activeSessionObs.set(first, undefined);
+		await settle();
+		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
+		assert.ok(harness.activeEditorInput);
+		harness.onDidActiveEditorChange.fire();
+
+		const workspace = observableValue<ISessionWorkspace | undefined>('pendingWorkspace', undefined);
+		const base = makeSession(URI.parse('session:pending'));
+		const chat = { ...base.activeChat.get(), workspace };
+		const pending = {
+			...base,
+			workspace,
+			activeChat: observableValue('activeChat', chat),
+			mainChat: constObservable(chat),
+			chats: observableValue('chats', [chat]),
+			openChats: observableValue('openChats', [chat]),
+			visibleChatTabs: constObservable([chat]),
+		};
+		harness.activeSessionObs.set(pending, undefined);
+		await settle();
+		harness.activeEditorInput = undefined;
+		harness.onDidActiveEditorChange.fire();
+		const beforeHydration = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		workspace.set(first.workspace.get(), undefined);
+		await settle();
+		const afterHydration = {
+			keepChangesHeader: harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key),
+			hasIncomingChangesTab: harness.activeGroupEditors.some(editor =>
+				!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
+		};
+
+		assert.deepStrictEqual({ beforeHydration, afterHydration }, {
+			beforeHydration: true,
+			afterHydration: { keepChangesHeader: false, hasIncomingChangesTab: true },
+		});
+	});
+
+	test('[managed tabs / session switch] does not retain the Changes header for a quick chat', async () => {
+		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+
+		const first = makeSession(URI.parse('session:first'));
+		harness.activeSessionObs.set(first, undefined);
+		await settle();
+		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
+		assert.ok(harness.activeEditorInput);
+		harness.onDidActiveEditorChange.fire();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key), false);
+	});
+
 	test('[managed tabs] ensures the Changes and Files tabs for a created session under suppression', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
@@ -3050,7 +3173,7 @@ suite('LayoutController (desktop)', () => {
 
 		const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
 		const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 
 		assert.deepStrictEqual({
@@ -3082,7 +3205,7 @@ suite('LayoutController (desktop)', () => {
 
 		const changesResource = harness.sessionChangesService.getChangesEditorResource(committedResource);
 		const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
-		(committed.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(committed.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 
 		assert.deepStrictEqual({
@@ -3118,7 +3241,7 @@ suite('LayoutController (desktop)', () => {
 		// Submit A: this queues a reconcile that opens the Changes tab *active*; it
 		// stalls awaiting the gated open.
 		(sessionA.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		(sessionA.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(sessionA.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 		const aActiveCalls = harness.openChangesEditorCalls.filter(c => isEqual(c.sessionResource, sessionA.resource) && c.active);
 		assert.strictEqual(aActiveCalls.length, 1, 'A\'s submit should open its Changes tab active (and stall on the gate)');

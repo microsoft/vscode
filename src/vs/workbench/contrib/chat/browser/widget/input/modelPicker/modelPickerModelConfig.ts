@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
+import { localize } from '../../../../../../../nls.js';
+import { getModelContextWindowTotal, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
+import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
@@ -31,7 +33,7 @@ export function getModelConfigProperty(
 	configurationAccess: IModelConfigurationAccess,
 	group: string,
 ): IModelConfigProperty | undefined {
-	const properties = model?.metadata.configurationSchema?.properties;
+	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
 	if (!properties) {
 		return undefined;
 	}
@@ -47,6 +49,9 @@ export function getModelConfigProperty(
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
 export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, value: unknown): string {
+	if (value === 'fast' && schema.enum?.includes('efficiency') && !schema.enum.includes('fast')) {
+		return localize('chat.modelPicker.automaticTier', "Automatic");
+	}
 	const index = schema.enum?.indexOf(value) ?? -1;
 	const label = index >= 0 ? schema.enumItemLabels?.[index] : undefined;
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));
@@ -62,19 +67,43 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 	return values.length > 1 && property.value === values[values.length - 1];
 }
 
-/**
- * A short read-out of the model settings the user changed, e.g. "Extra high · 1M".
- *
- * Only values that differ from the model's own defaults are named: a model left alone
- * has nothing to report, so the read-out marks the models that were deliberately tuned
- * rather than restating a default on every row.
- */
+/** A short readout of the effective effort and context, including defaults. */
 export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 ): string | undefined {
-	const parts = getChangedModelConfigProperties(model, configurationAccess).map(property => getModelConfigValueLabel(property.schema, property.value));
+	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.label);
 	return parts.length ? parts.join(' \u00b7 ') : undefined;
+}
+
+/** Names each displayed setting for assistive technology. */
+export function getModelConfigDescription(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: IModelConfigurationAccess,
+): string | undefined {
+	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.description);
+	return parts.length ? parts.join(', ') : undefined;
+}
+
+function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: IModelConfigurationAccess): { label: string; description: string }[] {
+	const values: { label: string; description: string }[] = [];
+	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
+		const property = getModelConfigProperty(model, configurationAccess, group);
+		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
+			const label = getModelConfigValueLabel(property.schema, property.value);
+			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
+				? localize('chat.effort.header', "Thinking Effort")
+				: localize('chat.context.header', "Context"));
+			values.push({ label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
+		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
+			const total = getModelContextWindowTotal(model.metadata);
+			if (Number.isFinite(total) && total > 0) {
+				const label = formatTokenCount(total);
+				values.push({ label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
+			}
+		}
+	}
+	return values;
 }
 
 /** The effort and context properties whose effective values differ from their defaults. */

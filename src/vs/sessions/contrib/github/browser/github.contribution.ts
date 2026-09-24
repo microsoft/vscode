@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { autorun, derived, derivedOpts, IReader, IReaderWithStore } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -11,11 +12,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
-import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
+import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
+import { getPullRequestKey } from '../common/utils.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -25,7 +28,7 @@ import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
-export { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
+export { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
@@ -174,6 +177,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	private _hasSamePollingSource(first: ISession, second: ISession): boolean {
 		return isEqual(first.resource, second.resource)
 			&& first.workspace === second.workspace
+			&& first.artifacts === second.artifacts
 			&& first.isArchived === second.isArchived;
 	}
 
@@ -207,25 +211,24 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					return { kind: 'archived' };
 				}
 
-				const workspace = session.workspace.read(reader);
-				if (!workspace) {
-					return { kind: 'no-workspace' };
-				}
-
-				const gitRepository = workspace.folders[0]?.gitRepository;
-				if (!gitRepository) {
-					return { kind: 'no-git-repository' };
-				}
-
-				const gitHubInfo = gitRepository.gitHubInfo.read(reader);
-				const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
+				const { pullRequests } = getSessionGitHubReferences(session, reader);
 				if (pullRequests.length === 0) {
+					const workspace = session.workspace.read(reader);
+					if (!workspace) {
+						return { kind: 'no-workspace' };
+					}
+					if (!workspace.folders[0]?.gitRepository) {
+						return { kind: 'no-git-repository' };
+					}
 					return { kind: 'no-pull-request' };
 				}
 
 				return {
 					kind: 'ok',
-					pullRequests: pullRequests.map(({ owner, repo, number: prNumber }) => ({ owner, repo, prNumber })),
+					pullRequests: distinct(
+						pullRequests.map(({ owner, repo, number: prNumber }) => ({ owner, repo, prNumber })),
+						ref => getPullRequestKey(ref.owner, ref.repo, ref.prNumber).toLowerCase(),
+					),
 				};
 			});
 

@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { parseChatUri } from '../../common/state/sessionState.js';
 import type { SessionAction } from '../../common/state/sessionActions.js';
@@ -27,6 +27,11 @@ export interface ISdkMcpServer {
 	readonly name: string;
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
+	/**
+	 * Allows this exact starting update to replace an auth challenge. Absent by
+	 * default so other providers retain the sticky auth-required behavior.
+	 */
+	readonly allowAuthRequiredToStarting?: boolean;
 	/** Explicit runtime enablement when the SDK distinguishes disabled from stopped. */
 	readonly enabled?: boolean;
 }
@@ -104,6 +109,8 @@ interface ILiveEntry {
 	readonly publishedId: string;
 	/** Top-level customization id (when no child match was found). */
 	readonly topLevelId?: string;
+	/** Container that published this child, retained across its transient Loading snapshot. */
+	readonly childContainerId?: string;
 	readonly topLevelCustomization?: McpServerCustomization;
 }
 
@@ -137,7 +144,8 @@ export function buildMcpChannel(chatUri: URI, serverName: string): string {
  * after a richer {@link McpServerStatus.AuthRequired} state, the controller
  * preserves the auth-required state until a definitive
  * {@link McpServerStatus.Ready}, {@link McpServerStatus.Error}, or
- * {@link McpServerStatus.Stopped} update arrives.
+ * {@link McpServerStatus.Stopped} update arrives. A provider can opt a
+ * specific SDK starting update out of that preservation.
  */
 export class McpCustomizationController extends Disposable {
 
@@ -151,12 +159,8 @@ export class McpCustomizationController extends Disposable {
 
 	/**
 	 * Snapshot of every live server's runtime {@link IMcpServerRuntimeState},
-	 * keyed by the customization id under which it is published (the
-	 * minted top-level id, or the plugin-derived child id resolved from session
-	 * state). Derived from {@link _live}. Callers mirror
-	 * this into their own published customizations so a wholesale republish
-	 * preserves live MCP status. Servers whose child id cannot currently be
-	 * resolved are omitted.
+	 * keyed by its retained published customization id. Child entries keep that
+	 * id while their owning container is transiently Loading.
 	 */
 	readonly runtimeStates: IObservable<ReadonlyMap<string, IMcpServerRuntimeState>>;
 
@@ -179,11 +183,7 @@ export class McpCustomizationController extends Disposable {
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
 			for (const entry of this._live.read(reader).values()) {
-				const id = entry.topLevelId ?? this._resolveChildId(entry.serverName);
-				if (id === undefined) {
-					continue;
-				}
-				out.set(id, { state: entry.state, channel: this._buildChannel(entry.serverName, entry.state) });
+				out.set(entry.publishedId, { state: entry.state, channel: this._buildChannel(entry.serverName, entry.state) });
 			}
 			return out;
 		});
@@ -245,7 +245,7 @@ export class McpCustomizationController extends Disposable {
 		return published?.topLevelId ?? published?.childId;
 	}
 
-	/** Returns the live server name associated with a customization id. */
+	/** Returns the server name associated with a live or currently published customization id. */
 	serverNameForCustomizationId(id: string): string | undefined {
 		for (const entry of this._live.get().values()) {
 			const entryId = entry.topLevelId ?? this._resolveChildId(entry.serverName);
@@ -253,7 +253,8 @@ export class McpCustomizationController extends Disposable {
 				return entry.serverName;
 			}
 		}
-		return undefined;
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		return findMcpServerName(customizations, id);
 	}
 
 	/** Returns the last live state recorded for the MCP server named `serverName`. */
@@ -311,14 +312,14 @@ export class McpCustomizationController extends Disposable {
 		});
 	}
 
-	/** Upserts a single server. */
-	applyOne(server: ISdkMcpServer): void {
-		transaction(tx => this._applyOne(server, tx));
+	/** Upserts a single server; `force` republishes retained state after an optimistic client update. */
+	applyOne(server: ISdkMcpServer, force = false): void {
+		transaction(tx => this._applyOne(server, tx, force));
 	}
 
 	private _applyOne(server: ISdkMcpServer, tx: ITransaction, force = false): void {
 		const previous = this._live.get().get(server.name);
-		const state = this._stateForUpdate(previous?.state, server.state);
+		const state = this._stateForUpdate(previous?.state, server.state, server.allowAuthRequiredToStarting === true);
 		const enabled = server.enabled ?? previous?.enabled ?? true;
 		// Once promoted to a top-level entry, stay top-level for the
 		// session — flipping back to a child mid-stream would orphan the
@@ -326,11 +327,15 @@ export class McpCustomizationController extends Disposable {
 		let topLevelId = previous?.topLevelId;
 		if (topLevelId === undefined) {
 			const published = this._findPublishedMcpCustomization(server.name);
-			const childId = published?.childId;
+			const retainChildIdentity = published === undefined
+				&& previous?.childContainerId !== undefined
+				&& this._isContainerLoading(previous.childContainerId);
+			const childId = published?.childId ?? (retainChildIdentity ? previous?.publishedId : undefined);
+			const childContainerId = published?.childContainerId ?? (retainChildIdentity ? previous?.childContainerId : undefined);
 			if (childId !== undefined) {
-				const stateChanged = force || previous?.topLevelId !== undefined || previous?.publishedId !== childId || !equals(previous?.state, state);
+				const stateChanged = force || previous?.topLevelId !== undefined || previous?.publishedId !== childId || previous?.childContainerId !== childContainerId || !equals(previous?.state, state);
 				if (stateChanged || previous?.enabled !== enabled) {
-					this._setLiveEntry(server.name, { serverName: server.name, state, enabled, publishedId: childId, topLevelId: undefined }, tx);
+					this._setLiveEntry(server.name, { serverName: server.name, state, enabled, publishedId: childId, topLevelId: undefined, childContainerId }, tx);
 				}
 				if (!stateChanged) {
 					return;
@@ -419,8 +424,8 @@ export class McpCustomizationController extends Disposable {
 		this._live.set(next, tx);
 	}
 
-	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState): McpServerState {
-		if (previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
+	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState, allowAuthRequiredToStarting: boolean): McpServerState {
+		if (!allowAuthRequiredToStarting && previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
 			return previous;
 		}
 		return next;
@@ -434,14 +439,29 @@ export class McpCustomizationController extends Disposable {
 		return this._findPublishedMcpCustomization(serverName)?.childId;
 	}
 
-	private _findPublishedMcpCustomization(serverName: string): { readonly topLevelId?: string; readonly childId?: string } | undefined {
+	private _findPublishedMcpCustomization(serverName: string): { readonly topLevelId?: string; readonly childId?: string; readonly childContainerId?: string } | undefined {
 		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
 		const topLevel = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === serverName);
 		if (topLevel?.type === CustomizationType.McpServer) {
 			return { topLevelId: topLevel.id };
 		}
-		const childId = findMcpChildId(customizations, serverName);
-		return childId === undefined ? undefined : { childId };
+		for (const customization of customizations) {
+			if (customization.type === CustomizationType.McpServer) {
+				continue;
+			}
+			const child = customization.children?.find(candidate => candidate.type === CustomizationType.McpServer && candidate.name === serverName);
+			if (child?.type === CustomizationType.McpServer) {
+				return { childId: child.id, childContainerId: customization.id };
+			}
+		}
+		return undefined;
+	}
+
+	private _isContainerLoading(id: string): boolean {
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		return customizations.some(customization => customization.type !== CustomizationType.McpServer
+			&& customization.id === id
+			&& customization.load?.kind === CustomizationLoadStatus.Loading);
 	}
 
 	private _buildChannel(serverName: string, state: McpServerState): string | undefined {

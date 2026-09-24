@@ -930,6 +930,39 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		assert.strictEqual(manager.getTerminalState(uri), undefined);
 	});
 
+	test('replaces streamed content with authoritative completed output', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-authoritative';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/s1',
+				chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			},
+		});
+		manager.appendOutputTerminalData(uri, 'partial output');
+		manager.replaceOutputTerminalData(uri, 'authoritative output');
+
+		assert.deepStrictEqual({
+			content: manager.getTerminalState(uri)?.content,
+			dispatched,
+		}, {
+			content: [{ type: 'unclassified', value: 'authoritative output' }],
+			dispatched: [
+				{ type: ActionType.TerminalData, data: 'partial output' },
+				{ type: ActionType.TerminalCleared },
+				{ type: ActionType.TerminalData, data: 'authoritative output' },
+			],
+		});
+	});
+
 	test('records an output-only terminal exit without an exit code', () => {
 		const { manager, stateManager } = createManager();
 		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-3';
@@ -954,4 +987,5 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			dispatched: [{ type: ActionType.TerminalExited }],
 		});
 	});
+
 });

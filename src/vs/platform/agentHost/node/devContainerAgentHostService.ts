@@ -6,16 +6,17 @@
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { join, posix } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { vArray, vLiteral, vObj, vString } from '../../../base/common/validation.js';
+import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -43,13 +44,60 @@ import {
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
+const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
 export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+}
+
+/** Waits for the relay WebSocket to open while observing every terminal startup condition. */
+export function waitForDevContainerRelayConnection(
+	webSocket: NodeEventEmitter,
+	child: NodeEventEmitter,
+	token: CancellationToken,
+	timeoutMs = DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS,
+): Promise<void> {
+	if (token.isCancellationRequested) {
+		return Promise.reject(new CancellationError());
+	}
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const finish = (error?: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeoutHandle);
+			cancellationListener.dispose();
+			webSocket.off('open', onOpen);
+			webSocket.off('error', onError);
+			webSocket.off('close', onWebSocketClose);
+			child.off('error', onError);
+			child.off('close', onChildClose);
+			if (error) {
+				reject(error);
+			} else {
+				resolve();
+			}
+		};
+		const onOpen = () => finish();
+		const onError = (error: Error) => finish(error);
+		const onWebSocketClose = (code: number) => finish(new Error(`Dev Container relay WebSocket closed before connecting (code ${code})`));
+		const onChildClose = (code: number | null, signal: NodeJS.Signals | null) => finish(new Error(`Dev Container relay process exited before connecting (exit code ${code ?? 'unknown'}${signal ? `, signal ${signal}` : ''})`));
+		const timeoutHandle = setTimeout(() => finish(new Error(`Timed out waiting for Dev Container relay to connect after ${timeoutMs}ms`)), timeoutMs);
+		const cancellationListener = token.onCancellationRequested(() => finish(new CancellationError()));
+
+		webSocket.once('open', onOpen);
+		webSocket.once('error', onError);
+		webSocket.once('close', onWebSocketClose);
+		child.once('error', onError);
+		child.once('close', onChildClose);
+	});
 }
 
 interface IDevContainerUpResult {
@@ -61,6 +109,7 @@ interface IDevContainerMount {
 	readonly Type: string;
 	readonly Source: string;
 	readonly Destination: string;
+	readonly Name?: string;
 }
 
 interface IGitIdentity {
@@ -78,6 +127,7 @@ const devContainerMountsValidator = vArray(vObj({
 	Type: vString(),
 	Source: vString(),
 	Destination: vString(),
+	Name: vOptionalProp(vString()),
 }));
 
 /** Testable relay abstraction owned by the shared-process launcher. */
@@ -106,8 +156,8 @@ class DevContainerRelay extends Disposable implements IDevContainerRelay {
 	}
 }
 
-/** Launches Dev Containers and relays their Agent Host protocol through the shared process. */
-export class DevContainerAgentHostMainService extends Disposable implements IDevContainerAgentHostMainService {
+/** Launches Dev Containers and relays their Agent Host protocol on the owning host. */
+export abstract class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
@@ -134,7 +184,6 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
@@ -142,18 +191,23 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
-		await this.disconnect(config.connectionId);
+		this._disconnect(config.connectionId);
 		const store = new DisposableStore();
 		const tokenSource = store.add(new CancellationTokenSource());
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
-		store.add(toDisposable(() => this._connectionTokenSources.delete(config.connectionId)));
+		store.add(toDisposable(() => {
+			if (this._connectionTokenSources.get(config.connectionId) === tokenSource) {
+				this._connectionTokenSources.delete(config.connectionId);
+			}
+		}));
 		this._connectionStores.set(config.connectionId, store);
 
 		try {
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
+			const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
 			const up = await this._runDevContainer(
 				config.connectionId,
-				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder],
+				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder, ...cacheMountArgs],
 				tokenSource.token,
 			);
 			const upResult = parseDevContainerUpResult(up.stdout);
@@ -192,6 +246,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 
 			const serverDataFolderName = this._productService.serverDataFolderName ?? '.vscode-server-oss';
 			const quality = this._productService.quality || 'insider';
+			const cliCacheDir = await this._configureCaches(config.connectionId, upResult.containerId, serverDataFolderName, platform, exec, tokenSource.token);
 			const cliInstallation = await ensureRemoteAgentHostCliInstalled(exec, platform, {
 				serverDataFolderName,
 				quality,
@@ -199,6 +254,8 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				reportInstalling: () => this._logService.info(`${LOG_PREFIX} Installing VS Code CLI in Dev Container...`),
 				logService: this._logService,
 				logPrefix: LOG_PREFIX,
+				cliCacheDir,
+				reportCacheStatus: message => this._reportOutput(config.connectionId, `${message}\n`),
 			});
 			const { cliBin } = cliInstallation;
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
@@ -241,6 +298,10 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				endpoint.connectionToken,
 				tokenSource.token,
 			);
+			if (tokenSource.token.isCancellationRequested) {
+				relay.dispose();
+				throw new CancellationError();
+			}
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
 
@@ -249,10 +310,83 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				address: `devcontainer:${upResult.containerId}`,
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
+				hostWorkspaceFolder: config.workspaceFolder,
 			};
 		} catch (error) {
-			this._connectionStores.deleteAndDispose(config.connectionId);
+			if (this._connectionStores.get(config.connectionId) === store) {
+				this._connectionStores.deleteAndDispose(config.connectionId);
+			}
 			throw error;
+		}
+	}
+
+	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
+		try {
+			const config = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '--include-merged-configuration'], token);
+			if (config.code !== 0) {
+				throw new Error(`Cannot read Dev Container configuration (exit ${config.code}): ${config.stderr}`);
+			}
+			if (canAddDevContainerServerCacheMount(config.stdout)) {
+				return ['--mount', devContainerServerCacheMount];
+			}
+			this._logService.info(`${LOG_PREFIX} Keeping configured container mounts; server cache sharing requires an existing vscode volume mount`);
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			this._logService.warn(`${LOG_PREFIX} Cannot add optional shared server cache mount`, error);
+			this._reportOutput(connectionId, `Cannot add optional shared server cache mount: ${getErrorMessage(error)}\n`);
+		}
+		return [];
+	}
+
+	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
+		const reportError = (kind: string, error: Error) => {
+			this._logService.warn(`${LOG_PREFIX} Shared ${kind} cache unavailable; keeping the existing CLI cache`, error);
+			this._reportOutput(connectionId, `Shared ${kind} cache unavailable; keeping the existing CLI cache: ${getErrorMessage(error)}\n`);
+		};
+		try {
+			const mounts = await this._getContainerMounts(connectionId, containerId, token);
+			if (!mounts.some(mount => mount.Type === 'volume' && mount.Name === 'vscode' && mount.Destination === '/vscode')
+				|| mounts.some(mount => mount.Destination.startsWith('/vscode/'))) {
+				throw new Error('The shared vscode volume is not mounted at /vscode without nested mounts');
+			}
+			const { stdout } = await exec('id -u; id -g');
+			const [uid, gid] = stdout.trim().split(/\r?\n/);
+			let cliCacheDir: string | undefined;
+			for (const kind of ['server', 'CLI'] as const) {
+				if (kind === 'CLI' && !this._productService.commit) {
+					continue;
+				}
+				try {
+					const cachePath = kind === 'server' ? getDevContainerServerCachePath(serverDataFolderName, platform) : getDevContainerCliCachePath(serverDataFolderName, platform);
+					const created = await this._runLocalCommand('docker', [
+						'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerCacheCommand(cachePath, uid, gid),
+					], await this._resolveShellEnvironment(), token);
+					if (created.code !== 0) {
+						throw new Error(`Unable to prepare shared ${kind} cache (exit ${created.code}): ${created.stderr}`);
+					}
+					if (kind === 'server') {
+						await exec(buildLinkDevContainerServerCacheCommand(serverDataFolderName, cachePath));
+						this._logService.info(`${LOG_PREFIX} Using shared server cache at ${cachePath}`);
+						this._reportOutput(connectionId, `Using shared server cache at ${cachePath}\n`);
+					} else {
+						cliCacheDir = cachePath;
+					}
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw error;
+					}
+					reportError(kind, error);
+				}
+			}
+			return cliCacheDir;
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			reportError('server', error);
+			return undefined;
 		}
 	}
 
@@ -465,19 +599,9 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		const webSocket = new WS(url, { createConnection: () => duplex });
 
 		try {
-			await new Promise<void>((resolve, reject) => {
-				const onOpen = () => {
-					webSocket.off('error', onError);
-					resolve();
-				};
-				const onError = (error: Error) => {
-					webSocket.off('open', onOpen);
-					reject(error);
-				};
-				webSocket.once('open', onOpen);
-				webSocket.once('error', onError);
-			});
+			await waitForDevContainerRelayConnection(webSocket, child, token);
 		} catch (error) {
+			webSocket.once('error', closeError => this._logService.trace(`${LOG_PREFIX} relay WebSocket close error: ${getErrorMessage(closeError)}`));
 			webSocket.close();
 			if (!child.killed) {
 				child.kill();
@@ -566,14 +690,8 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._nativeRequire;
 	}
 
-	protected _resolveUserShellEnvironment(): Promise<typeof process.env> {
-		return getResolvedShellEnv(
-			this._configurationService,
-			this._logService,
-			{ ...this._environmentService.args, 'force-user-env': true },
-			process.env,
-		);
-	}
+	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
+	protected abstract _useSystemCertificates(): boolean;
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
 		this._shellEnvironment ??= this._doResolveShellEnvironment();
@@ -607,7 +725,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
 			return environment;
 		}
-		if (this._configurationService.getValue<boolean>('http.systemCertificates') === false) {
+		if (!this._useSystemCertificates()) {
 			return environment;
 		}
 		const certificates = await this._requestService.loadCertificates();
@@ -696,8 +814,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	): ChildProcessWithoutNullStreams {
 		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
 			stdio: ['pipe', 'pipe', 'pipe'],
-			env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+			env: this._getDevContainerSpawnEnvironment(environment),
 		});
+	}
+
+	protected _getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		const spawnEnvironment: NodeJS.ProcessEnv = { ...environment, ELECTRON_RUN_AS_NODE: '1' };
+		delete spawnEnvironment.NODE_OPTIONS;
+		delete spawnEnvironment.VSCODE_INSPECTOR_OPTIONS;
+		return spawnEnvironment;
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
@@ -709,9 +834,53 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
+		this._disconnect(connectionId);
+	}
+
+	private _disconnect(connectionId: string): void {
 		this._connectionTokenSources.get(connectionId)?.cancel();
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
+	}
+
+	override dispose(): void {
+		for (const tokenSource of this._connectionTokenSources.values()) {
+			tokenSource.cancel();
+		}
+		super.dispose();
+	}
+}
+
+/** Shared-process adapter that preserves the desktop's shell and certificate settings. */
+export class DevContainerAgentHostMainService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _mainLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
+		@IRequestService requestService: IRequestService,
+	) {
+		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService);
+	}
+
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return getResolvedShellEnv(this._configurationService, this._mainLogService, { ...this._nativeEnvironmentService.args, 'force-user-env': true }, process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
+	}
+}
+
+/** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
+export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return Promise.resolve(process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return true;
 	}
 }
 

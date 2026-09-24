@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
@@ -105,13 +106,56 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
+export interface IAgentsWindowDraft {
+	readonly inputText: string;
+	/** URI-aware serialized chat attachments, including exported image data. */
+	readonly attachments: string;
+}
+
+export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
+	const draft = value as Partial<IAgentsWindowDraft> | undefined;
+	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
+export interface IAgentsWindowNewSessionLink {
+	readonly workspaceUri: URI;
+	readonly draft: IAgentsWindowDraft;
+}
+
+export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, productUrlProtocol: string): IAgentsWindowNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || parsed.path !== '/new') {
+		return undefined;
+	}
+
+	const params = new URLSearchParams(parsed.query);
+	const workspace = params.get('workspace');
+	const prompt = params.get('prompt');
+	if (!workspace || !prompt) {
+		return undefined;
+	}
+
+	try {
+		const workspaceUri = URI.parse(workspace, true);
+		return {
+			workspaceUri,
+			draft: { inputText: prompt, attachments: '[]' },
+		};
+	} catch {
+		return undefined;
+	}
+}
+
 export const enum AgentsWindowOpenSource {
 	CommandPalette = 'commandPalette',
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
-	ChatHandoff = 'chatHandoff',
-	Banner = 'banner',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	WelcomeTryOut = 'welcomeTryOut',
+	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
 	Link = 'link',
 	Unknown = 'unknown',
@@ -123,8 +167,11 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
-		case AgentsWindowOpenSource.ChatHandoff:
-		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.WelcomeTryOut:
+		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
 		case AgentsWindowOpenSource.Unknown:
