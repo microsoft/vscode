@@ -1704,7 +1704,7 @@ export class ActionListWidget<T> extends Disposable {
 		const preserveHover = !this._currentSubmenuWidget && dom.isHTMLElement(preservedContent) && this._submenuContainer.contains(preservedContent);
 		const preserveSubmenu = !!this._currentSubmenuWidget && !!preservedItem?.submenuActions?.length;
 		const preservePanel = preserveHover || preserveSubmenu;
-		if (!preservePanel && typeof content === 'function' && dom.isHTMLElement(preservedContent)) {
+		if (!preserveHover && typeof content === 'function' && dom.isHTMLElement(preservedContent)) {
 			preservedItem?.hover?.disposeContent?.(preservedContent);
 		}
 		const previousRow = options?.animateItemMove && preservePanel && this._currentSubmenuElement

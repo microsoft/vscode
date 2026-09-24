@@ -86,6 +86,7 @@ export class ManagedHoverWidget implements IDisposable {
 
 	private show(content: IManagedHoverResolvedContent, focus: boolean | undefined, options: IManagedHoverOptions | undefined, contentOwnsPadding: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
+		this._hoverWidget = undefined;
 
 		if (this.hasContent(content)) {
 			const hoverWidgetRef: { value?: IHoverWidget } = {};

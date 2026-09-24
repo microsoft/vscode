@@ -3214,6 +3214,39 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('refresh disposes a rejected hover candidate while preserving a submenu', () => {
+		const currentContent = document.createElement('div');
+		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent }, submenuActions: [submenuAction] }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+			},
+			submenuActions: [submenuAction],
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			submenuVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, {
+			disposeCount: 1,
+			submenuVisible: true,
+		});
+	});
+
 	for (const zoom of [1, 1.25]) {
 		test(`refresh retains the live hover and its origin while the focused row moves at ${zoom} zoom`, async () => {
 			const content = document.createElement('div');
