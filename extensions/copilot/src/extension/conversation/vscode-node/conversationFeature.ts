@@ -304,7 +304,7 @@ export class ConversationFeature implements IExtensionContribution {
 				if (terminal && quotedMessage) {
 					terminal.sendText(`git commit -m ${quotedMessage}`, false);
 				} else {
-					// The message can't be typed into this terminal safely, so hand it to the commit box instead.
+					// Can't be typed into this terminal safely, so use the commit box.
 					repository.inputBox.value = commitMessage;
 					await vscode.commands.executeCommand('workbench.view.scm');
 				}

@@ -8,8 +8,7 @@ import { quoteShellArgument } from '../../common/shellQuoting';
 
 describe('quoteShellArgument', () => {
 
-	// These stand in for a generated commit message, which is derived from repository content
-	// and so must never be able to end the quoted argument or trigger expansion in the terminal.
+	// Generated commit messages are derived from repository content, so treat them as hostile.
 	const values = [
 		'plain message',
 		'test" --flag injected "',
