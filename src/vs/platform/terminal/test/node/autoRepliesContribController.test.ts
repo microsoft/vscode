@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITerminalChildProcess } from '../../common/terminal.js';
@@ -16,7 +17,7 @@ suite('AutoRepliesPtyServiceContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not duplicate replies when a persistent process becomes ready again', async () => {
+	test('does not duplicate replies when a persistent process becomes ready again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const data = store.add(new Emitter<string>());
 		const replies: string[] = [];
 		const process = new class extends mock<ITerminalChildProcess>() {
@@ -34,8 +35,8 @@ suite('AutoRepliesPtyServiceContribution', () => {
 			assert.deepStrictEqual(replies, ['reply']);
 		} finally {
 			contribution.handleProcessDispose(1);
-			// Let the response throttle finish before checking disposable ownership.
+			// Let the response throttle finish (in virtual time) before checking disposable ownership.
 			await timeout(1100);
 		}
-	});
+	}));
 });
