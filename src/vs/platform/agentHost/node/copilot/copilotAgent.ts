@@ -85,7 +85,7 @@ import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
-import { CopilotGitHubCredentials } from './copilotGitHubCredentials.js';
+import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
@@ -1177,6 +1177,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._gitHubEndpointService.getEnterpriseHost();
 	}
 
+	private _getGitHubSessionCredentials(): CopilotGitHubSessionCredentials {
+		const credentials = this._githubCredentials.forSession();
+		return this._getEnterpriseHost()
+			? CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token)
+			: credentials;
+	}
+
 	private _isSystemProxyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
 	}
@@ -1250,10 +1257,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * action, from an experiment or policy refresh, so this must never be paid
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
+	 *
+	 * Returns whether an existing or starting client accepted the restart request.
 	 */
-	private async _requestClientRestart(reason: string): Promise<void> {
+	private async _requestClientRestart(reason: string): Promise<boolean> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
-			return;
+			return false;
 		}
 		this._pendingClientRestartReasons.add(reason);
 		if (this._clientStarting) {
@@ -1261,22 +1270,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._clientStarting;
 			} catch {
 				this._pendingClientRestartReasons.delete(reason);
-				return;
+				return false;
 			}
 		}
 		if (!this._client) {
-			return;
+			return false;
 		}
 		if (this._updatingGitHubCredentials) {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until GitHub credential updates finish`);
-			return;
+			return true;
 		}
 		const busyChats = this._chatsWithActiveTurn();
 		if (busyChats > 0) {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} in-flight turn(s) finish`);
-			return;
+			return true;
 		}
 		await this._applyPendingClientRestart();
+		return true;
 	}
 
 	/**
@@ -1932,10 +1942,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		const host = this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
-		let restartRequired = tokenProviderModeChanged;
+		const useClientAuthentication = this._getEnterpriseHost() !== undefined;
+		let restartRequired = tokenProviderModeChanged || useClientAuthentication;
 		this._updatingGitHubCredentials = true;
 		try {
-			if (!tokenProviderModeChanged) {
+			if (!tokenProviderModeChanged && !useClientAuthentication) {
 				for (const session of this._allLiveSessions()) {
 					// Provider-backed SDK sessions receive this token through their registered callback.
 					if (!session.usesStaticGitHubToken) {
@@ -1959,14 +1970,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._updatingGitHubCredentials = false;
 			await this._applyPendingClientRestart();
 		}
-		if (restartRequired) {
-			await this._requestClientRestart(tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
-		}
+		const restartWillRefreshModels = restartRequired
+			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
 		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== token) {
 			return;
 		}
 		await this._resolveCopilotSku(token);
-		void this._scheduleModelRefresh();
+		if (!useClientAuthentication || !restartWillRefreshModels) {
+			void this._scheduleModelRefresh();
+		}
 	}
 
 	private _handleCopilotSessionAuthRequired(credentialInvalid = true): void {
@@ -2584,9 +2596,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
+			const gitHubToken = startupConfig.enterpriseHost ? this._githubCredentials.token : undefined;
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
+				gitHubToken,
 				connection: RuntimeConnection.forStdio({ path: runtimePath }),
 				env,
 				clientInfo: {
@@ -3188,7 +3202,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const { models } = await client.rpc.models.list({ gitHubToken });
+		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
@@ -4237,7 +4251,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
-				githubCredentials: this._githubCredentials.forSession(),
+				githubCredentials: this._getGitHubSessionCredentials(),
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
@@ -4789,7 +4803,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
-					githubCredentials: this._githubCredentials.forSession(),
+					githubCredentials: this._getGitHubSessionCredentials(),
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else {
@@ -4804,7 +4818,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, chatSdkId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
-					githubCredentials: this._githubCredentials.forSession(),
+					githubCredentials: this._getGitHubSessionCredentials(),
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -5273,7 +5287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					disabledRootMcpServers: await this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
-					githubCredentials: this._githubCredentials.forSession(),
+					githubCredentials: this._getGitHubSessionCredentials(),
 					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
@@ -5865,7 +5879,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sessionId, snapshot),
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
-			githubCredentials: this._githubCredentials.forSession(),
+			githubCredentials: this._getGitHubSessionCredentials(),
 			workspaceless: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,
