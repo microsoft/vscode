@@ -14,7 +14,6 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { chatUserInteractionTimingTracker } from '../../../../workbench/contrib/chat/browser/chatUserInteractionTelemetry.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1717,7 +1716,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			window: dom.getWindow(this._editorContainer),
 			visible: this.options.inputVisible ?? constObservable(true),
 			hostVisible: this.options.hostVisible,
-		}, chatUserInteractionTimingTracker);
+		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });

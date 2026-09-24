@@ -7,324 +7,186 @@ import assert from 'assert';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatUserInteractionTelemetryReporter, ChatUserInteractionTimingResult, ChatUserInteractionTimingTracker, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
-import { IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
+import { IChatProgress, IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
+import { createChatUserInteractionTestHarness } from './chatUserInteractionTestUtils.js';
 
 suite('ChatUserInteractionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-		override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-			if (eventName && data) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
-
-	class TestLogService extends NullLogService {
-		readonly entries: { readonly message: string; readonly args: unknown[] }[] = [];
-
-		override trace(message: string, ...args: unknown[]): void {
-			this.entries.push({ message, args });
-		}
-	}
-
-	function createWindow() {
-		const windowEvents = new EventTarget();
-		const documentEvents = new EventTarget();
-		let visibilityState: DocumentVisibilityState = 'visible';
-		let focused = true;
-		let nextFrame = 0;
-		const callbacks = new Map<number, FrameRequestCallback>();
-		const cancelledFrames: number[] = [];
-		const window = upcastPartial<Window>({
-			document: upcastPartial<Document>({
-				get visibilityState() { return visibilityState; },
-				hasFocus: () => focused,
-				createElement: () => { throw new Error('Telemetry must not create DOM elements, including in auxiliary windows'); },
-				addEventListener: (...args: Parameters<EventTarget['addEventListener']>) => documentEvents.addEventListener(...args),
-				removeEventListener: (...args: Parameters<EventTarget['removeEventListener']>) => documentEvents.removeEventListener(...args),
-			}),
-			addEventListener: (...args: Parameters<EventTarget['addEventListener']>) => windowEvents.addEventListener(...args),
-			removeEventListener: (...args: Parameters<EventTarget['removeEventListener']>) => windowEvents.removeEventListener(...args),
-			requestAnimationFrame: callback => {
-				const id = ++nextFrame;
-				callbacks.set(id, callback);
-				return id;
-			},
-			cancelAnimationFrame: id => {
-				cancelledFrames.push(id);
-				callbacks.delete(id);
-			},
-		});
-		return {
-			window,
-			callbacks,
-			cancelledFrames,
-			frame: () => {
-				const pending = [...callbacks.values()];
-				callbacks.clear();
-				for (const callback of pending) {
-					callback(0);
-				}
-			},
-			hide: () => {
-				visibilityState = 'hidden';
-				documentEvents.dispatchEvent(new globalThis.Event('visibilitychange'));
-			},
-			show: () => {
-				visibilityState = 'visible';
-				documentEvents.dispatchEvent(new globalThis.Event('visibilitychange'));
-			},
-			blur: () => { focused = false; },
-			close: () => windowEvents.dispatchEvent(new globalThis.Event('pagehide')),
-		};
-	}
-
-	function createHarness() {
-		let now = 100;
-		const tracker = disposables.add(new ChatUserInteractionTimingTracker(() => now));
-		const telemetryService = new TestTelemetryService();
-		const logService = new TestLogService();
-		const reporter = disposables.add(new ChatUserInteractionTelemetryReporter(tracker, telemetryService, logService));
-		return { tracker, reporter, telemetryService, logService, setTime: (value: number) => { now = value; } };
-	}
-
 	test('uses provider-neutral meaningful progress semantics', () => {
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'thinking' }), false);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'thinking', value: '' }), false);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'thinking', value: [' ', ''] }), false);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'thinking', value: 'Reasoning' }), true);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'thinking', value: ['', 'Reasoning'] }), true);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'progressMessage', content: new MarkdownString('Thinking'), shimmer: true }), false);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'markdownContent', content: new MarkdownString(' \n') }), false);
-		assert.strictEqual(isChatFirstVisibleProgress({ kind: 'markdownContent', content: new MarkdownString('Response') }), true);
-		assert.strictEqual(isChatFirstVisibleProgress(upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', presentation: ToolInvocationPresentation.Hidden })), false);
-		assert.strictEqual(isChatFirstVisibleProgress(upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' })), true);
+		const cases: [IChatProgress | IChatProgressResponseContent, boolean][] = [
+			[{ kind: 'thinking' }, false],
+			[{ kind: 'thinking', value: '' }, false],
+			[{ kind: 'thinking', value: [' ', ''] }, false],
+			[{ kind: 'thinking', value: 'Reasoning' }, true],
+			[{ kind: 'thinking', value: ['', 'Reasoning'] }, true],
+			[{ kind: 'progressMessage', content: new MarkdownString('Thinking'), shimmer: true }, false],
+			[{ kind: 'markdownContent', content: new MarkdownString(' \n') }, false],
+			[{ kind: 'markdownContent', content: new MarkdownString('Response') }, true],
+			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', presentation: ToolInvocationPresentation.Hidden }), false],
+			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' }), true],
+		];
+		for (const [part, expected] of cases) {
+			assert.strictEqual(isChatFirstVisibleProgress(part), expected, JSON.stringify(part));
+		}
 	});
 
-	test('completes once after two animation frames', () => {
-		const target = createWindow();
-		const { tracker, telemetryService, setTime } = createHarness();
-		const timer = tracker.start('turn', target.window);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		assert.strictEqual(target.callbacks.size, 1);
-		setTime(200);
-		target.frame();
-		assert.strictEqual(telemetryService.events.length, 0);
-		setTime(350);
-		target.frame();
-		tracker.complete(timer);
-		tracker.cancel(timer);
-		assert.deepStrictEqual(telemetryService.events.map(event => ({
-			result: event.data.result,
-			timeToFirstProgress: event.data.timeToFirstProgress,
-			timeToTermination: event.data.timeToTermination,
-		})), [{ result: 'success', timeToFirstProgress: 250, timeToTermination: undefined }]);
-		assert.strictEqual(target.callbacks.size, 0);
-	});
-
-	test('cancellation clears pending animation frames and prevents completion', () => {
-		const target = createWindow();
-		const { tracker, telemetryService } = createHarness();
-		const timer = tracker.start('turn', target.window);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		target.frame();
-		tracker.cancel(timer, 'cancelled');
-		target.frame();
-		tracker.complete(timer);
-		assert.deepStrictEqual({
-			pendingFrames: target.callbacks.size,
-			cancelledFrames: target.cancelledFrames,
-			results: telemetryService.events.map(event => event.data.result),
-		}, { pendingFrames: 0, cancelledFrames: [2], results: ['cancelled'] });
-	});
-
-	test('logs correlated start and end boundaries without creating DOM elements', () => {
-		const target = createWindow();
-		const { tracker, telemetryService, logService, setTime } = createHarness();
-		const timer = tracker.start('turn', target.window);
-		tracker.setContext(timer, {
-			chatSessionId: 'session-id',
-			sessionType: 'remote-agent-host',
-			harness: 'copilotcli',
+	test('reports the exact schema and correlated boundaries once after two frames, even without focus', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const response = h.createResponse(undefined, {
+			agent: upcastPartial<NonNullable<IChatResponseModel['agent']>>({ id: 'agent-id', extensionId: new ExtensionIdentifier('publisher.extension') }),
+			request: upcastPartial<IChatRequestModel>({
+				modelId: 'model-id',
+				modeInfo: {
+					kind: ChatModeKind.Agent, isBuiltin: true, telemetryModeName: 'agent', permissionLevel: ChatPermissionLevel.AutoApprove,
+					modeInstructions: undefined, telemetryModeId: undefined, applyCodeBlockSuggestionId: undefined,
+				},
+			}),
 		});
-		tracker.setContext(timer, {
-			requestId: 'request-id',
-			agent: 'agent-id',
-		});
-		tracker.completeAfterRender(timer, target.window, () => true);
-		setTime(350);
-		target.frame();
-		target.frame();
-		tracker.setContext(timer, { requestId: 'too-late' });
+		const view = h.createWidget(response.response);
+		const timer = h.createInteraction({ context: { location: ChatAgentLocation.Chat, model: 'preparation-model' } });
+		assert.strictEqual(timer.startedAt, 100);
+		let finished = 0;
+		timer.addDisposable(timer.onDidFinish(() => finished++));
+		timer.observeResponse(response.response, () => view.widget);
+		timer.setContext({ requestId: 'request-id' });
+		h.blur();
+		response.progress();
+		timer.checkResponse();
+		assert.strictEqual(h.frames.size, 1);
+		h.setTime(200);
+		h.frame();
+		assert.strictEqual(h.events.length, 0);
+		h.setTime(350);
+		h.frame();
+		timer.cancel('cancelled');
+		timer.setContext({ requestId: 'too-late' });
+		timer.observeResponse(response.response, () => view.widget);
 		const data = {
-			timeToFirstProgress: 250,
-			timeToTermination: undefined,
-			result: 'success',
-			interactionKind: 'turn',
-			requestId: 'request-id',
-			chatSessionId: 'session-id',
-			agent: 'agent-id',
-			agentExtensionId: undefined,
-			location: undefined,
-			model: undefined,
-			permissionLevel: undefined,
-			chatMode: undefined,
-			sessionType: 'remote-agent-host',
-			harness: 'copilotcli',
-			windowVisible: true,
-			windowFocused: true,
+			timeToFirstProgress: 250, timeToTermination: undefined, result: 'success', interactionKind: 'turn',
+			requestId: 'request-id', chatSessionId: 'agent-host-copilotcli:/session',
+			agent: 'agent-id', agentExtensionId: 'publisher.extension', location: ChatAgentLocation.Chat,
+			model: 'model-id', permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
+			sessionType: 'agent-host-copilotcli', harness: undefined, windowVisible: true, windowFocused: false,
 		};
-		assert.deepStrictEqual({ events: telemetryService.events, logs: logService.entries }, {
+		assert.deepStrictEqual({ events: h.events, logs: h.logs, finished, observing: response.hasListeners() }, {
 			events: [{ name: 'chat.userPerceivedTimeToFirstProgress', data }],
 			logs: [
 				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn' }] },
 				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data }] },
 			],
+			finished: 1, observing: false,
 		});
+		h.assertFinished('success');
 	});
 
 	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
-		test(`reports ${result} without a time to first progress`, () => {
-			const target = createWindow();
-			const { tracker, telemetryService, setTime } = createHarness();
-			target.blur();
-			const timer = tracker.start('fork', target.window);
-			setTime(175);
-			tracker.cancel(timer, result);
-			assert.deepStrictEqual(telemetryService.events.map(event => ({
-				result: event.data.result,
-				interactionKind: event.data.interactionKind,
-				timeToFirstProgress: event.data.timeToFirstProgress,
-				timeToTermination: event.data.timeToTermination,
-				windowVisible: event.data.windowVisible,
-				windowFocused: event.data.windowFocused,
-			})), [{ result, interactionKind: 'fork', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: true, windowFocused: false }]);
+		test(`reports ${result} with only a termination duration`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const timer = h.createInteraction();
+			h.blur();
+			h.setTime(175);
+			timer.cancel(result);
+			timer.dispose();
+			assert.deepStrictEqual(h.events, [{
+				name: 'chat.userPerceivedTimeToFirstProgress',
+				data: { result, interactionKind: 'turn', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: true, windowFocused: false },
+			}]);
+			h.assertFinished(result);
 		});
 	}
 
-	for (const frameCount of [0, 1]) {
-		test(`rechecks widget visibility after ${frameCount} animation frames`, () => {
-			const target = createWindow();
-			const { tracker, telemetryService } = createHarness();
-			const timer = tracker.start('turn', target.window);
-			let visible = true;
-			tracker.completeAfterRender(timer, target.window, () => visible);
-			for (let i = 0; i < frameCount; i++) {
-				target.frame();
+	for (const frames of [-1, 0, 1]) {
+		test(`document hiding ${frames < 0 ? 'before progress' : `after ${frames} frames`} never resumes`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const response = h.createResponse();
+			const view = h.createWidget(response.response);
+			const timer = h.createInteraction();
+			timer.observeResponse(response.response, () => view.widget);
+			if (frames >= 0) {
+				response.progress();
+				h.frame(frames);
 			}
-			visible = false;
-			target.frame();
-			assert.deepStrictEqual(telemetryService.events.map(event => event.data.result), ['hidden']);
-			assert.strictEqual(target.callbacks.size, 0);
+			h.setTime(160);
+			h.setDocumentVisible(false);
+			h.setTime(1000);
+			h.setDocumentVisible(true);
+			response.progress();
+			h.frame(2);
+			assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.timeToTermination, response.hasListeners()], [undefined, 60, false]);
+			h.assertFinished('hidden');
 		});
 	}
 
-	test('hiding the render document cancels a pending render measurement', () => {
-		const source = createWindow();
-		const target = createWindow();
-		const { tracker, telemetryService } = createHarness();
-		const timer = tracker.start('fork', source.window);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		target.hide();
-		assert.deepStrictEqual({
-			results: telemetryService.events.map(event => event.data.result),
-			pendingFrames: target.callbacks.size,
-		}, { results: ['hidden'], pendingFrames: 0 });
-	});
+	for (const frames of [0, 1]) {
+		test(`rechecks widget visibility after ${frames} frames`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const response = h.createResponse();
+			const view = h.createWidget(response.response);
+			h.createInteraction().observeResponse(response.response, () => view.widget);
+			response.progress();
+			h.frame(frames);
+			view.hide();
+			h.frame();
+			view.show();
+			h.frame(2);
+			h.assertFinished('hidden');
+		});
+	}
 
-	test('hiding before progress ends the observation and showing never resumes it', () => {
-		const target = createWindow();
-		const { tracker, telemetryService, setTime } = createHarness();
-		const timer = tracker.start('turn', target.window);
-		setTime(160);
-		target.hide();
-		setTime(1000);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		target.show();
-		target.frame();
-		target.frame();
-		tracker.complete(timer);
-		assert.deepStrictEqual(telemetryService.events.map(event => ({
-			result: event.data.result,
-			timeToFirstProgress: event.data.timeToFirstProgress,
-			timeToTermination: event.data.timeToTermination,
-		})), [{ result: 'hidden', timeToFirstProgress: undefined, timeToTermination: 60 }]);
-		assert.strictEqual(tracker.isActive(timer), false);
-	});
+	for (const hidden of ['document', 'widget'] as const) {
+		test(`initially hidden ${hidden} reports synchronously and installs no late observers`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			h.setDocumentVisible(hidden !== 'document');
+			const timer = h.createInteraction({ visible: hidden !== 'widget', context: { sessionType: 'local' } });
+			h.assertFinished('hidden');
+			const response = h.createResponse();
+			h.setDocumentVisible(true);
+			timer.observeResponse(response.response, () => h.createWidget(response.response).widget);
+			response.progress();
+			assert.deepStrictEqual([timer.isActive, response.hasListeners(), h.events[0].data.sessionType, h.events[0].data.timeToTermination], [false, false, 'local', 0]);
+			h.assertFinished('hidden');
+		});
+	}
 
-	for (const hiddenSource of ['document', 'widget'] as const) {
-		test(`a submission starting in a hidden ${hiddenSource} is ineligible`, () => {
-			const target = createWindow();
-			const { tracker, telemetryService } = createHarness();
-			if (hiddenSource === 'document') {
-				target.hide();
+	for (const [source, auxiliary] of [
+		['window', false], ['window', true], ['render window', true], ['render document', true],
+		['model', false], ['owner', false], ['cancellation', false],
+	] as const) {
+		test(`${source} termination ${auxiliary ? 'across windows ' : ''}clears the pending second frame and listeners`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const render = auxiliary ? createChatUserInteractionTestHarness(disposables) : h;
+			const response = h.createResponse();
+			const view = render.createWidget(response.response);
+			const timer = h.createInteraction();
+			timer.observeResponse(response.response, () => view.widget);
+			response.progress();
+			render.frame();
+			if (source === 'window') {
+				h.close();
+			} else if (source === 'render window') {
+				render.close();
+			} else if (source === 'render document') {
+				render.setDocumentVisible(false);
+				render.setDocumentVisible(true);
+			} else if (source === 'model') {
+				response.disposed.fire();
+			} else if (source === 'owner') {
+				timer.dispose();
+			} else {
+				timer.cancel('cancelled');
 			}
-			const timer = tracker.start('turn', target.window, { sessionType: 'local' }, hiddenSource !== 'widget');
-			target.show();
-			tracker.completeAfterRender(timer, target.window, () => true);
-			target.frame();
-			assert.deepStrictEqual(telemetryService.events.map(event => ({
-				result: event.data.result,
-				sessionType: event.data.sessionType,
-				timeToFirstProgress: event.data.timeToFirstProgress,
-				timeToTermination: event.data.timeToTermination,
-			})), [{ result: 'hidden', sessionType: 'local', timeToFirstProgress: undefined, timeToTermination: 0 }]);
+			render.frame(2);
+			assert.deepStrictEqual({ cancelledFrames: render.cancelledFrames, observing: response.hasListeners() }, { cancelledFrames: [2], observing: false });
+			h.assertFinished(source === 'cancellation' ? 'cancelled' : source === 'render document' ? 'hidden' : 'disposed');
+			if (auxiliary) {
+				render.assertFinished();
+			}
 		});
 	}
-
-	test('losing focus alone does not end a visible observation', () => {
-		const target = createWindow();
-		const { tracker, telemetryService, setTime } = createHarness();
-		const timer = tracker.start('turn', target.window);
-		target.blur();
-		tracker.completeAfterRender(timer, target.window, () => true);
-		setTime(180);
-		target.frame();
-		target.frame();
-		assert.deepStrictEqual(telemetryService.events.map(event => ({
-			result: event.data.result,
-			timeToFirstProgress: event.data.timeToFirstProgress,
-			windowVisible: event.data.windowVisible,
-			windowFocused: event.data.windowFocused,
-		})), [{ result: 'success', timeToFirstProgress: 80, windowVisible: true, windowFocused: false }]);
-	});
-
-	test('closing the source or render window disposes the interaction', () => {
-		const source = createWindow();
-		const target = createWindow();
-		const { tracker, telemetryService } = createHarness();
-		const pending = tracker.start('turn', source.window);
-		source.close();
-		const rendering = tracker.start('fork', source.window);
-		tracker.completeAfterRender(rendering, target.window, () => true);
-		target.close();
-		tracker.complete(pending);
-		assert.deepStrictEqual({
-			results: telemetryService.events.map(event => event.data.result),
-			pendingFrames: target.callbacks.size,
-		}, { results: ['disposed', 'disposed'], pendingFrames: 0 });
-	});
-
-	test('disposing the tracker ends all active interactions and releases frames', () => {
-		const target = createWindow();
-		const { tracker, telemetryService } = createHarness();
-		tracker.start('turn', target.window);
-		const timer = tracker.start('fork', target.window);
-		tracker.completeAfterRender(timer, target.window, () => true);
-		tracker.dispose();
-		target.close();
-		target.frame();
-		assert.deepStrictEqual({
-			results: telemetryService.events.map(event => event.data.result),
-			pendingFrames: target.callbacks.size,
-		}, { results: ['disposed', 'disposed'], pendingFrames: 0 });
-	});
 });

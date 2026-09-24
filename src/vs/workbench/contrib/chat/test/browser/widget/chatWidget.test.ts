@@ -9,7 +9,6 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError, ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +21,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -31,7 +31,7 @@ import { TestEditorService } from '../../../../../test/browser/workbenchTestServ
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
-import { chatUserInteractionTimingTracker, IChatUserInteractionTiming } from '../../../browser/chatUserInteractionTelemetry.js';
+import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
@@ -41,7 +41,7 @@ import { clearChatMarks } from '../../../common/chatPerf.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -50,6 +50,7 @@ import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModel
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 
 suite('ChatWidget', () => {
 
@@ -908,6 +909,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const pendingRequests: IChatPendingRequest[] = [];
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
+			onDidDispose: store.add(new Emitter<void>()).event,
 			hasActiveRequest,
 			requestInProgress,
 			requestNeedsInput,
@@ -961,6 +963,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: 'submitted-request',
 			session: original.model,
+			onDidChange: store.add(new Emitter<ChatResponseModelChangeReason>()).event,
 			response: upcastPartial<IChatResponseModel['response']>({ value: [] }),
 			isComplete: true,
 		});
@@ -984,7 +987,8 @@ suite('ChatWidget - guarded acceptInput', () => {
 			parseChatRequestWithReferences: () => parsedInput,
 		});
 		const instantiationService = mockObject<IInstantiationService>()();
-		instantiationService.createInstance.returns(parser);
+		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
+			ctor === ChatUserInteraction ? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService()) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
 		const rebind = (newViewModel: ChatViewModel | undefined) => {
 			const previousSessionResource = viewModel?.sessionResource;
@@ -1268,176 +1272,97 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 	}
 
 	function createWidget() {
+		const h = createChatUserInteractionTestHarness(disposables);
 		const widgetStore = disposables.add(new CountingDisposableStore());
-		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
-		const shown = disposables.add(new Emitter<void>());
-		const hidden = disposables.add(new Emitter<void>());
-		const viewModelChanged = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
-		let session = upcastPartial<IChatModel>({ sessionResource: URI.parse('agent-host-copilotcli:/session') });
-		let viewModel = upcastPartial<ChatViewModel>({ model: session, sessionResource: session.sessionResource });
-		let visible = true;
-		let complete = false;
-		const parts: IChatProgressResponseContent[] = [];
-		const response = upcastPartial<IChatResponseModel>({
-			requestId: 'request',
-			get session() { return session; },
-			get isComplete() { return complete; },
-			response: upcastPartial<IChatResponseModel['response']>({ value: parts }),
-			onDidChange: responseChanged.event,
-		});
-		let submit: () => Promise<IChatResponseModel | undefined> = async () => response;
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		let submit: () => Promise<IChatResponseModel | undefined> = async () => response.response;
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
+			...Object.getOwnPropertyDescriptors(view.widget),
 			_store: { value: widgetStore },
-			_viewModel: { get: () => viewModel },
 			_location: { value: { location: ChatAgentLocation.Chat } },
-			container: { value: mainWindow.document.createElement('div') },
-			visible: { get: () => visible },
+			container: { value: h.element },
 			input: { value: { currentModeInfo: { kind: ChatModeKind.Agent } } },
-			onDidShow: { value: shown.event },
-			onDidHide: { value: hidden.event },
-			onDidChangeViewModel: { value: viewModelChanged.event },
+			instantiationService: { value: h.instantiationService },
 			_acceptInput: { value: () => submit() },
 		});
-		const results: IChatUserInteractionTiming[] = [];
-		disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => results.push(timing)));
-		disposables.add(toDisposable(() => clearChatMarks(session.sessionResource)));
+		disposables.add(toDisposable(() => clearChatMarks(response.response.session.sessionResource)));
 		return {
-			widgetStore, response, results, responseChanged, shown, hidden, viewModelChanged,
+			...h, ...view, widgetStore, response,
 			accept: () => widget.acceptInput('Test request', { preserveInput: true }),
 			submitWith: (callback: typeof submit) => { submit = callback; },
-			progress: () => {
-				parts.push({ kind: 'markdownContent', content: new MarkdownString('Response') });
-				responseChanged.fire({ reason: 'other' });
-			},
-			completeWithoutProgress: () => {
-				complete = true;
-				responseChanged.fire({ reason: 'completedRequest' });
-			},
-			hide: () => {
-				visible = false;
-				hidden.fire();
-			},
-			show: () => {
-				visible = true;
-				shown.fire();
-			},
-			navigate: () => {
-				const previousSessionResource = viewModel.sessionResource;
-				viewModel = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('agent-host-copilotcli:/other') });
-				viewModelChanged.fire({ previousSessionResource, currentSessionResource: viewModel.sessionResource });
-			},
-			commitSession: () => {
-				clearChatMarks(session.sessionResource);
-				session = upcastPartial<IChatModel>({ sessionResource: URI.parse('agent-host-copilotcli:/committed') });
-				viewModel = upcastPartial<ChatViewModel>({ model: session, sessionResource: session.sessionResource });
+			assertFinished: (...results: ChatUserInteractionTimingResult[]) => {
+				h.assertFinished(...results);
+				assert.strictEqual(widgetStore.entries.size, 0);
 			},
 		};
-	}
-
-	function renderFrames(): Promise<void> {
-		return new Promise(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
 	}
 
 	test('removes per-interaction stores and listeners after every completed turn', async () => {
 		const fixture = createWidget();
 		for (let i = 0; i < 10; i++) {
+			fixture.response.progress([]);
 			await fixture.accept();
-			fixture.progress();
-			await renderFrames();
-			assert.deepStrictEqual({
-				retainedStores: fixture.widgetStore.entries.size,
-				responseListeners: fixture.responseChanged.hasListeners(),
-				shownListeners: fixture.shown.hasListeners(),
-				hiddenListeners: fixture.hidden.hasListeners(),
-				navigationListeners: fixture.viewModelChanged.hasListeners(),
-			}, { retainedStores: 0, responseListeners: false, shownListeners: false, hiddenListeners: false, navigationListeners: false });
+			fixture.response.progress();
+			fixture.frame(2);
+			fixture.assertFinished(...Array<ChatUserInteractionTimingResult>(i + 1).fill('success'));
 		}
-		assert.deepStrictEqual(fixture.results.map(result => result.result), Array(10).fill('success'));
+		assert.strictEqual(new Set(fixture.starts).size, 10);
 	});
 
 	test('navigation cancels even after the first render callback has been scheduled', async () => {
 		const fixture = createWidget();
-		fixture.progress();
+		fixture.response.progress();
 		await fixture.accept();
-		fixture.navigate();
-		await renderFrames();
-		assert.deepStrictEqual({
-			results: fixture.results.map(result => result.result),
-			retainedStores: fixture.widgetStore.entries.size,
-		}, { results: ['navigated'], retainedStores: 0 });
+		fixture.bind(fixture.createResponse(URI.parse('agent-host-copilotcli:/other')).response);
+		fixture.frame(2);
+		fixture.assertFinished('navigated');
 	});
 
-	test('a hidden submission remains ineligible after the widget is shown', async () => {
-		const fixture = createWidget();
-		fixture.hide();
-		fixture.progress();
-		await fixture.accept();
-		await renderFrames();
-		fixture.show();
-		await renderFrames();
-		assert.deepStrictEqual({
-			results: fixture.results.map(result => result.result),
-			retainedStores: fixture.widgetStore.entries.size,
-		}, { results: ['hidden'], retainedStores: 0 });
-	});
-
-	test('submit, hide before progress, receive progress and show never reports successful latency', async () => {
-		const fixture = createWidget();
-		const response = await fixture.accept();
-		fixture.hide();
-		fixture.progress();
-		fixture.show();
-		await renderFrames();
-		assert.strictEqual(response, fixture.response);
-		assert.deepStrictEqual({
-			results: fixture.results.map(result => result.result),
-			retainedStores: fixture.widgetStore.entries.size,
-			responseListeners: fixture.responseChanged.hasListeners(),
-		}, { results: ['hidden'], retainedStores: 0, responseListeners: false });
-	});
-
-	test('hiding during preparation terminates only measurement, not the submission', async () => {
-		const fixture = createWidget();
-		const pending = new DeferredPromise<IChatResponseModel>();
-		fixture.submitWith(() => pending.p);
-		const accepting = fixture.accept();
-		fixture.hide();
-		pending.complete(fixture.response);
-		assert.strictEqual(await accepting, fixture.response);
-		fixture.progress();
-		fixture.show();
-		await renderFrames();
-		assert.deepStrictEqual(fixture.results.map(result => result.result), ['hidden']);
-	});
-
-	test('disposal while submission is pending reports once and attaches no late listeners', async () => {
-		const fixture = createWidget();
-		const pending = new DeferredPromise<IChatResponseModel>();
-		fixture.submitWith(() => pending.p);
-		const accepting = fixture.accept();
-		fixture.widgetStore.dispose();
-		pending.complete(fixture.response);
-		await accepting;
-		assert.deepStrictEqual({
-			results: fixture.results.map(result => result.result),
-			retainedStores: fixture.widgetStore.entries.size,
-			responseListeners: fixture.responseChanged.hasListeners(),
-		}, { results: ['disposed'], retainedStores: 0, responseListeners: false });
-	});
+	for (const stage of ['initially hidden', 'preparation', 'before progress', 'during render', 'disposed'] as const) {
+		test(`${stage} ends measurement without stopping submission or installing late listeners`, async () => {
+			const fixture = createWidget();
+			const pending = new DeferredPromise<IChatResponseModel>();
+			fixture.submitWith(() => pending.p);
+			if (stage === 'initially hidden') {
+				fixture.hide();
+			}
+			const accepting = fixture.accept();
+			if (stage === 'preparation') {
+				fixture.hide();
+			}
+			if (stage === 'disposed') {
+				fixture.widgetStore.dispose();
+			}
+			await pending.complete(fixture.response.response);
+			assert.strictEqual(await accepting, fixture.response.response);
+			if (stage === 'before progress') {
+				fixture.hide();
+			}
+			fixture.response.progress();
+			if (stage === 'during render') {
+				fixture.frame();
+				fixture.hide();
+			}
+			fixture.show();
+			fixture.frame(2);
+			fixture.assertFinished(stage === 'disposed' ? 'disposed' : 'hidden');
+		});
+	}
 
 	test('uses the committed response session for attribution after preparation', async () => {
 		const fixture = createWidget();
+		const committed = fixture.createResponse(URI.parse('agent-host-copilotcli:/committed'));
 		fixture.submitWith(async () => {
-			fixture.commitSession();
-			return fixture.response;
+			fixture.bind(committed.response);
+			return committed.response;
 		});
 		await fixture.accept();
-		fixture.completeWithoutProgress();
-		assert.deepStrictEqual(fixture.results.map(result => ({
-			result: result.result,
-			chatSessionId: result.context?.chatSessionId,
-		})), [{ result: 'completedWithoutProgress', chatSessionId: 'agent-host-copilotcli:/committed' }]);
+		committed.complete();
+		assert.strictEqual(fixture.events[0].data.chatSessionId, 'agent-host-copilotcli:/committed');
+		assert.strictEqual(committed.hasListeners(), false);
+		fixture.assertFinished('completedWithoutProgress');
 	});
 
 	for (const error of [undefined, new CancellationError(), new Error('Submission failed')]) {
@@ -1454,10 +1379,7 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 			} else {
 				await fixture.accept();
 			}
-			assert.deepStrictEqual({
-				results: fixture.results.map(result => result.result),
-				retainedStores: fixture.widgetStore.entries.size,
-			}, { results: [error instanceof CancellationError ? 'cancelled' : error ? 'error' : 'notDispatched'], retainedStores: 0 });
+			fixture.assertFinished(error instanceof CancellationError ? 'cancelled' : error ? 'error' : 'notDispatched');
 		});
 	}
 });

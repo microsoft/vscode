@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,7 +12,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ForkConversationAction, IForkConversationOptions } from '../../../browser/actions/chatForkActions.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { chatUserInteractionTimingTracker, IChatUserInteractionTiming } from '../../../browser/chatUserInteractionTelemetry.js';
 import { IChatEditorOptions } from '../../../browser/widgetHosts/editor/chatEditor.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -31,20 +27,6 @@ class TestForkConversationAction extends ForkConversationAction {
 
 suite('ForkConversationAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	setup(() => {
-		disposables.add(chatUserInteractionTimingTracker.onDidStart(({ timer }) => {
-			disposables.add(toDisposable(() => chatUserInteractionTimingTracker.cancel(timer, 'disposed')));
-		}));
-	});
-
-	function forkWidget(resource: URI): IChatWidget {
-		return upcastPartial<IChatWidget>({
-			domNode: mainWindow.document.createElement('div'),
-			visible: true,
-			viewModel: upcastPartial<IChatViewModel>({ sessionResource: resource }),
-		});
-	}
 
 	test('opens a fork with the current session selection reason', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -113,7 +95,7 @@ suite('ForkConversationAction', () => {
 			}));
 			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getContentProviderSchemes: () => [] }));
 			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-				getWidgetBySessionResource: resource => resource.toString() === fork.toString() ? forkWidget(fork) : undefined,
+				getWidgetBySessionResource: () => undefined,
 				lastFocusedWidget: upcastPartial<IChatWidget>({
 					viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse('test-chat:/unrelated') }),
 				}),
@@ -156,7 +138,7 @@ suite('ForkConversationAction', () => {
 		const hooks: { source: URI; request: IChatSessionRequestHistoryItem | undefined; options: IForkConversationOptions | undefined }[] = [];
 		const opens: { source: URI; resource: URI; options: IForkConversationOptions | undefined }[] = [];
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: resource => resource.toString() === fork.toString() ? forkWidget(fork) : undefined }));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined }));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 			getContentProviderSchemes: () => [source.scheme],
 			getOrCreateChatSession: async () => upcastPartial<IChatSession>({ history: [request] }),
@@ -167,9 +149,9 @@ suite('ForkConversationAction', () => {
 			},
 		}));
 		const action = new class extends ForkConversationAction {
-			protected override async _tryForkAsChat(_instantiationService: IInstantiationService, source: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<URI | undefined> {
+			protected override async _tryForkAsChat(_instantiationService: IInstantiationService, source: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<boolean> {
 				hooks.push({ source, request, options });
-				return undefined;
+				return false;
 			}
 			protected override async _openForkedSession(_instantiationService: IInstantiationService, source: URI, resource: URI, options?: IForkConversationOptions): Promise<void> {
 				opens.push({ source, resource, options });
@@ -230,7 +212,6 @@ suite('ForkConversationAction', () => {
 		}));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			openSession: async () => undefined,
-			getWidgetBySessionResource: () => undefined,
 		}));
 
 		await instantiationService.invokeFunction(accessor => new ForkConversationAction().run(accessor, sourceSessionResource));
@@ -244,100 +225,4 @@ suite('ForkConversationAction', () => {
 			modelDisposed: true,
 		});
 	});
-
-	for (const source of [undefined, URI.parse('vscode-chat-session://missing')]) {
-		test(`does not report a successful measurement without ${source ? 'a source model' : 'a selected request'}`, async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IChatService, upcastPartial<IChatService>({ getSession: () => undefined }));
-			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getContentProviderSchemes: () => [] }));
-			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
-			const results: IChatUserInteractionTiming[] = [];
-			disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => results.push(timing)));
-
-			await instantiationService.invokeFunction(accessor => new ForkConversationAction().run(accessor, source));
-
-			assert.deepStrictEqual(results.map(result => result.result), ['notDispatched']);
-		});
-	}
-
-	for (const visible of [false, true]) {
-		test(`waits for contributed slash-command navigation and checks visibility (${visible})`, async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			const source = URI.parse('contributed:/source');
-			const fork = URI.parse('contributed:/fork');
-			const navigationStarted = new DeferredPromise<void>();
-			const navigationFinished = new DeferredPromise<void>();
-			const measured = new DeferredPromise<IChatUserInteractionTiming>();
-			const results: IChatUserInteractionTiming[] = [];
-			const target = forkWidget(fork);
-			instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-				getWidgetBySessionResource: resource => visible && resource.toString() === fork.toString() ? target : undefined,
-			}));
-			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
-				getContentProviderSchemes: () => [source.scheme],
-				forkChatSession: async () => ({ resource: fork, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } }),
-			}));
-			disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => {
-				results.push(timing);
-				measured.complete(timing);
-			}));
-			const action = new class extends ForkConversationAction {
-				protected override async _openForkedSession(): Promise<void> {
-					navigationStarted.complete();
-					await navigationFinished.p;
-				}
-			};
-			const run = instantiationService.invokeFunction(accessor => action.run(accessor, source));
-			await navigationStarted.p;
-			assert.deepStrictEqual(results, []);
-			navigationFinished.complete();
-			await run;
-			const result = await measured.p;
-			assert.deepStrictEqual({
-				result: result.result,
-				source: result.context?.chatSessionId,
-				count: results.length,
-			}, { result: visible ? 'success' : 'completedWithoutProgress', source: source.toString(), count: 1 });
-		});
-	}
-
-	test('measures the destination returned by the peer-chat fork hook', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const source = URI.parse('agent-host-copilotcli:/source');
-		const peer = URI.parse('agent-host-copilotcli:/peer');
-		const measured = new DeferredPromise<IChatUserInteractionTiming>();
-		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getContentProviderSchemes: () => [source.scheme] }));
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-			getWidgetBySessionResource: resource => resource.toString() === peer.toString() ? forkWidget(peer) : undefined,
-		}));
-		disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => measured.complete(timing)));
-		const action = new class extends ForkConversationAction {
-			protected override async _tryForkAsChat(): Promise<URI | undefined> { return peer; }
-		};
-		await instantiationService.invokeFunction(accessor => action.run(accessor, source));
-		assert.strictEqual((await measured.p).result, 'success');
-	});
-
-	for (const error of [new CancellationError(), new Error('Fork failed')]) {
-		test(`reports ${error.name} from deferred navigation`, async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			const source = URI.parse('contributed:/source');
-			const fork = URI.parse('contributed:/fork');
-			const results: IChatUserInteractionTiming[] = [];
-			instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
-			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
-				getContentProviderSchemes: () => [source.scheme],
-				forkChatSession: async () => ({ resource: fork, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } }),
-			}));
-			disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => results.push(timing)));
-			const action = new class extends ForkConversationAction {
-				protected override async _openForkedSession(): Promise<void> { throw error; }
-			};
-			await assert.rejects(instantiationService.invokeFunction(accessor => action.run(accessor, source)), error);
-			assert.deepStrictEqual(results.map(result => result.result), [error instanceof CancellationError ? 'cancelled' : 'error']);
-		});
-	}
 });

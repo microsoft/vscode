@@ -17,7 +17,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 registerAction2(class extends ForkConversationAction {
-	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<URI | undefined> {
+	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<boolean> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
 			const sessionsService = accessor.get(ISessionsService);
@@ -27,7 +27,7 @@ registerAction2(class extends ForkConversationAction {
 			const session = sessionsManagementService.getSession(sourceSessionResource)
 				?? sessionsManagementService.getSessionForChatResource(sourceSessionResource)?.session;
 			if (!session?.capabilities.get().supportsMultipleChats || !isAgentHostProviderId(session.providerId)) {
-				return undefined;
+				return false;
 			}
 
 			const requests = chatService.getSession(sourceSessionResource)?.getRequests();
@@ -35,14 +35,14 @@ registerAction2(class extends ForkConversationAction {
 			if (request) {
 				const requestIdx = requests?.findIndex(r => r.id === request.id) ?? -1;
 				if (requestIdx <= 0) {
-					return undefined;
+					return false;
 				}
 				turnId = requests![requestIdx - 1].id;
 			} else {
 				turnId = requests?.at(-1)?.id;
 			}
 			if (!turnId) {
-				return undefined;
+				return false;
 			}
 
 			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId);
@@ -52,7 +52,7 @@ registerAction2(class extends ForkConversationAction {
 				await sessionsService.openChat(session, newChat.resource);
 			}
 			logService.trace(`[AgentHostSessions] Forked conversation into new chat ${newChat.resource.toString()} in session ${session.sessionId}`);
-			return newChat.resource;
+			return true;
 		});
 	}
 

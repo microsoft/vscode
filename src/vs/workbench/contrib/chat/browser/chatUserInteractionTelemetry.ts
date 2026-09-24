@@ -3,25 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IChatWidget } from './chat.js';
 import { IChatProgress, IChatToolInvocation } from '../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../common/constants.js';
-import { IChatProgressResponseContent } from '../common/model/chatModel.js';
+import { getChatSessionTelemetryContext } from '../common/chatService/chatServiceTelemetry.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
+import { IChatProgressResponseContent, IChatResponseModel } from '../common/model/chatModel.js';
 
-export type ChatUserInteractionKind = 'turn' | 'fork';
 export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'navigated' | 'hidden' | 'timedOut' | 'disposed';
-
-export interface IChatUserInteractionTimer {
-	readonly id: number;
-	readonly kind: ChatUserInteractionKind;
-	readonly startedAt: number;
-}
 
 export interface IChatUserInteractionTelemetryContext {
 	readonly requestId?: string;
@@ -36,23 +29,11 @@ export interface IChatUserInteractionTelemetryContext {
 	readonly harness?: string;
 }
 
-interface IChatUserInteractionStart {
-	readonly timer: IChatUserInteractionTimer;
+export interface IChatUserInteractionOptions {
 	readonly window: Window;
-}
-
-export interface IChatUserInteractionTiming extends IChatUserInteractionStart {
-	readonly elapsedMs: number;
-	readonly result: ChatUserInteractionTimingResult;
+	readonly visible: boolean;
 	readonly context?: IChatUserInteractionTelemetryContext;
-}
-
-interface IActiveChatUserInteraction {
-	readonly window: Window;
-	readonly disposables: DisposableStore;
-	context?: IChatUserInteractionTelemetryContext;
-	renderScheduled?: boolean;
-	renderDisposables?: DisposableStore;
+	readonly now?: () => number;
 }
 
 export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressResponseContent): boolean {
@@ -60,238 +41,209 @@ export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressRe
 		const values = Array.isArray(part.value) ? part.value : [part.value];
 		return values.some(value => typeof value === 'string' && value.trim().length > 0);
 	}
-	if (part.kind === 'markdownContent') {
-		return part.content.value.trim().length > 0;
-	}
-	return part.kind === 'toolInvocation' && !IChatToolInvocation.isEffectivelyHidden(part);
+	return part.kind === 'markdownContent' ? part.content.value.trim().length > 0
+		: part.kind === 'toolInvocation' && !IChatToolInvocation.isEffectivelyHidden(part);
 }
 
-export class ChatUserInteractionTimingTracker extends Disposable {
-	private _nextId = 0;
-	private readonly _active = new Map<IChatUserInteractionTimer, IActiveChatUserInteraction>();
-	private readonly _activeDisposables = this._register(new DisposableStore());
-	private readonly _onDidStart = this._register(new Emitter<IChatUserInteractionStart>());
-	readonly onDidStart: Event<IChatUserInteractionStart> = this._onDidStart.event;
-	private readonly _onDidFinish = this._register(new Emitter<IChatUserInteractionTiming>());
-	readonly onDidFinish: Event<IChatUserInteractionTiming> = this._onDidFinish.event;
+/** One submission owns its clock, response observation, render acknowledgement and reporting. */
+export class ChatUserInteraction extends Disposable {
+	private static _nextId = 0;
+	readonly id = ++ChatUserInteraction._nextId;
+	readonly startedAt: number;
+	private readonly _now: () => number;
+	private readonly _onDidFinish = this._register(new Emitter<void>());
+	readonly onDidFinish = this._onDidFinish.event;
+	private readonly _render = this._register(new MutableDisposable());
+	private _active = true;
+	private _context: IChatUserInteractionTelemetryContext;
+	private _response: IChatResponseModel | undefined;
+	private _getWidget: (() => IChatWidget | undefined) | undefined;
+	private _renderWidget: IChatWidget | undefined;
 
-	constructor(private readonly _now: () => number = () => globalThis.performance.now()) {
+	constructor(
+		private readonly _options: IChatUserInteractionOptions,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
-	}
-
-	start(kind: ChatUserInteractionKind, window: Window, context?: IChatUserInteractionTelemetryContext, visible = true): IChatUserInteractionTimer {
-		if (this._store.isDisposed) {
-			throw new BugIndicatingError('Cannot start a disposed chat interaction tracker');
-		}
-		const timer = { id: ++this._nextId, kind, startedAt: this._now() };
-		const initiallyVisible = visible && window.document.visibilityState === 'visible';
-		const disposables = this._activeDisposables.add(new DisposableStore());
-		this._active.set(timer, { window, disposables, context });
-		disposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
-		disposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
-			if (window.document.visibilityState !== 'visible') {
-				this.cancel(timer, 'hidden');
+		this._now = _options.now ?? (() => globalThis.performance.now());
+		this.startedAt = this._now();
+		this._context = _options.context ?? {};
+		this._register(addDisposableListener(_options.window, 'pagehide', () => this.cancel('disposed')));
+		this._register(addDisposableListener(_options.window.document, 'visibilitychange', () => {
+			if (_options.window.document.visibilityState !== 'visible') {
+				this.cancel('hidden');
 			}
 		}));
-		this._onDidStart.fire({ timer, window });
-		if (!initiallyVisible) {
-			this.cancel(timer, 'hidden');
+		this._logService.trace('[ChatTTFP] start', { interactionId: this.id, interactionKind: 'turn' });
+		if (!_options.visible || _options.window.document.visibilityState !== 'visible') {
+			this.cancel('hidden');
 		}
-		return timer;
 	}
 
-	isActive(timer: IChatUserInteractionTimer): boolean {
-		return this._active.has(timer);
-	}
+	get isActive(): boolean { return this._active; }
 
-	/** Own observations for an interaction, including observations installed after a synchronous termination. */
-	addDisposable(timer: IChatUserInteractionTimer, disposable: IDisposable): void {
-		const active = this._active.get(timer);
-		if (active) {
-			active.disposables.add(disposable);
+	addDisposable(disposable: IDisposable): void {
+		if (this._active) {
+			this._register(disposable);
 		} else {
 			disposable.dispose();
 		}
 	}
 
-	setContext(timer: IChatUserInteractionTimer, context: IChatUserInteractionTelemetryContext): void {
-		const active = this._active.get(timer);
-		if (active) {
-			active.context = { ...active.context, ...context };
-		}
+	setContext(context: IChatUserInteractionTelemetryContext): void {
+		this._context = { ...this._context, ...context };
 	}
 
-	complete(timer: IChatUserInteractionTimer): void {
-		this._finish(timer, 'success');
-	}
-
-	/** Retain the gesture when its response is deliberately transferred to another render surface. */
-	resetRender(timer: IChatUserInteractionTimer): void {
-		const active = this._active.get(timer);
-		if (active?.renderDisposables) {
-			active.disposables.delete(active.renderDisposables);
-			active.renderDisposables = undefined;
-			active.renderScheduled = false;
-		}
-	}
-
-	completeAfterRender(timer: IChatUserInteractionTimer, window: Window, isVisible: () => boolean): void {
-		const active = this._active.get(timer);
-		if (!active || active.renderScheduled) {
+	/** Accept only the response created for this submission; never infer it from focus or prompt text. */
+	observeResponse(response: IChatResponseModel | undefined, getWidget: () => IChatWidget | undefined): void {
+		if (!this._active || this._response) {
 			return;
 		}
-		active.renderScheduled = true;
-		const renderDisposables = active.renderDisposables = active.disposables.add(new DisposableStore());
-		let frame: number | undefined;
-		renderDisposables.add(toDisposable(() => {
-			if (frame !== undefined) {
-				window.cancelAnimationFrame(frame);
-			}
-		}));
-		if (window !== active.window) {
-			renderDisposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
-			renderDisposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
-				if (window.document.visibilityState !== 'visible') {
-					this.cancel(timer, 'hidden');
-				}
-			}));
+		if (!response || response.isHiddenFromTranscript) {
+			this.cancel('notDispatched');
+			return;
 		}
-		const checkVisibility = (): boolean => {
-			if (!this._active.has(timer)) {
-				return false;
+		this._response = response;
+		this._getWidget = getWidget;
+		this.setContext({
+			...getChatSessionTelemetryContext(response.session.sessionResource),
+			requestId: response.requestId,
+			agent: response.agent?.id,
+			agentExtensionId: response.agent?.extensionId.value,
+			model: response.request?.modelId,
+			permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
+			chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
+		});
+		this._register(response.onDidChange(() => this.checkResponse()));
+		this._register(response.session.onDidDispose(() => this.cancel('disposed')));
+		this.checkResponse();
+	}
+
+	resetRender(): void {
+		this._render.clear();
+		this._renderWidget = undefined;
+	}
+
+	/** Shared by existing chat widgets and the Agents composer's response-view handoff. */
+	checkResponse(): void {
+		const response = this._response;
+		if (!this._active || !response) {
+			return;
+		}
+		if (response.isCanceled || response.result?.errorDetails) {
+			this.cancel(response.isCanceled ? 'cancelled' : 'error');
+			return;
+		}
+		const hasProgress = response.response.value.some(isChatFirstVisibleProgress);
+		if (!hasProgress && response.isComplete) {
+			this.cancel('completedWithoutProgress');
+			return;
+		}
+		const widget = this._getWidget?.();
+		if (widget !== this._renderWidget) {
+			this.resetRender();
+		}
+		if (!widget) {
+			return;
+		}
+		if (widget.viewModel?.model !== response.session) {
+			this.cancel('navigated');
+		} else if (!widget.visible || getWindow(widget.domNode).document.visibilityState !== 'visible') {
+			this.cancel('hidden');
+		} else if (hasProgress && !widget.isTranscriptProgressActive && !this._renderWidget) {
+			this._renderWidget = widget;
+			const window = getWindow(widget.domNode);
+			let frame: number | undefined;
+			const render = new DisposableStore();
+			this._render.value = render;
+			render.add(toDisposable(() => { if (frame !== undefined) { window.cancelAnimationFrame(frame); } }));
+			if (window !== this._options.window) {
+				render.add(addDisposableListener(window, 'pagehide', () => this.cancel('disposed')));
+				render.add(addDisposableListener(window.document, 'visibilitychange', () => {
+					if (window.document.visibilityState !== 'visible') { this.cancel('hidden'); }
+				}));
 			}
-			if (window.document.visibilityState !== 'visible' || !isVisible()) {
-				this.cancel(timer, 'hidden');
-				return false;
-			}
-			return true;
-		};
-		if (checkVisibility()) {
-			frame = window.requestAnimationFrame(() => {
+			const nextFrame = (complete: boolean) => {
 				frame = undefined;
-				if (checkVisibility()) {
-					frame = window.requestAnimationFrame(() => {
-						frame = undefined;
-						if (checkVisibility()) {
-							this.complete(timer);
-						}
-					});
+				if (!this._active) {
+					return;
 				}
-			});
+				if (this._getWidget?.() !== widget || !widget.visible || widget.viewModel?.model !== response.session
+					|| window.document.visibilityState !== 'visible' || widget.isTranscriptProgressActive
+					|| response.isCanceled || response.result?.errorDetails || !response.response.value.some(isChatFirstVisibleProgress)) {
+					this.resetRender();
+					this.checkResponse();
+				} else if (complete) {
+					this._finish('success');
+				} else {
+					frame = window.requestAnimationFrame(() => nextFrame(true));
+				}
+			};
+			frame = window.requestAnimationFrame(() => nextFrame(false));
 		}
 	}
 
-	cancel(timer: IChatUserInteractionTimer, result: Exclude<ChatUserInteractionTimingResult, 'success'> = 'cancelled'): void {
-		this._finish(timer, result);
+	cancel(result: Exclude<ChatUserInteractionTimingResult, 'success'>): void {
+		this._finish(result);
 	}
 
-	private _finish(timer: IChatUserInteractionTimer, result: ChatUserInteractionTimingResult): void {
-		const active = this._active.get(timer);
-		if (!active) {
+	private _finish(result: ChatUserInteractionTimingResult): void {
+		if (!this._active) {
 			return;
 		}
-		const elapsedMs = this._now() - timer.startedAt;
-		this._active.delete(timer);
-		this._activeDisposables.delete(active.disposables);
-		this._onDidFinish.fire({ timer, window: active.window, elapsedMs, result, context: active.context });
+		this._active = false;
+		const elapsedMs = this._now() - this.startedAt;
+		this.resetRender();
+		this._response = undefined;
+		this._getWidget = undefined;
+		const data: ChatUserPerceivedTimeToFirstProgressEvent = {
+			...this._context,
+			timeToFirstProgress: result === 'success' ? elapsedMs : undefined,
+			timeToTermination: result === 'success' ? undefined : elapsedMs,
+			result,
+			interactionKind: 'turn',
+			windowVisible: this._options.window.document.visibilityState === 'visible',
+			windowFocused: this._options.window.document.hasFocus(),
+		};
+		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data });
+		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
+		this._onDidFinish.fire();
+		super.dispose();
 	}
 
 	override dispose(): void {
-		for (const timer of this._active.keys()) {
-			this.cancel(timer, 'disposed');
-		}
+		this.cancel('disposed');
 		super.dispose();
 	}
 }
 
-type ChatUserPerceivedTimeToFirstProgressEvent = {
+type ChatUserPerceivedTimeToFirstProgressEvent = IChatUserInteractionTelemetryContext & {
 	timeToFirstProgress: number | undefined;
 	timeToTermination: number | undefined;
 	result: ChatUserInteractionTimingResult;
-	interactionKind: ChatUserInteractionKind;
-	requestId: string | undefined;
-	chatSessionId: string | undefined;
-	agent: string | undefined;
-	agentExtensionId: string | undefined;
-	location: ChatAgentLocation | undefined;
-	model: string | undefined;
-	permissionLevel: ChatPermissionLevel | undefined;
-	chatMode: string | undefined;
-	sessionType: string | undefined;
-	harness: string | undefined;
+	interactionKind: 'turn';
 	windowVisible: boolean;
 	windowFocused: boolean;
 };
 
 type ChatUserPerceivedTimeToFirstProgressClassification = {
-	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission or fork entry through two animation frames after meaningful progress is observed while the chat remains continuously visible. This is a render-boundary approximation, not a physical paint timestamp.' };
-	timeToTermination: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the user gesture until the interaction ended without rendering meaningful progress. Undefined on success.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission through two animation frames after meaningful progress is observed while the chat remains continuously visible. This is a render-boundary approximation, not a physical paint timestamp.' };
+	timeToTermination: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission until the interaction ended without rendering meaningful progress. Undefined on success.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether first progress rendered or why the interaction ended before rendering progress.' };
-	interactionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of chat interaction initiated by the user.' };
-	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat request identifier, when the interaction created a request. For Agent Host turns, this matches agentHost.turnCompleted turnId.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The non-content chat session identifier. Remote Agent Host connection authorities are excluded.' };
-	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat agent handling the request.' };
-	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the chat agent.' };
-	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the chat interaction occurred.' };
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language model identifier selected for the request. For Auto, this is the Auto identifier rather than the resolved model.' };
-	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected for the request.' };
-	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request.' };
-	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The normalized chat session type.' };
-	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote Agent Host sessions, the underlying harness/provider. Undefined for non-remote sessions.' };
+	interactionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat interaction kind. This event measures turn submissions, not fork navigation.' };
+	requestId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat request identifier, when created. For Agent Host turns, this matches agentHost.turnCompleted turnId.' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The non-content chat session identifier. Remote Agent Host connection authorities are excluded.' };
+	agent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat agent handling the request.' };
+	agentExtensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the chat agent.' };
+	location?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the chat interaction occurred.' };
+	model?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected language model identifier. For Auto, this is the Auto identifier rather than the resolved model.' };
+	permissionLevel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected for the request.' };
+	chatMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request.' };
+	sessionType?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The normalized chat session type.' };
+	harness?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote Agent Host sessions, the underlying harness/provider. Undefined for non-remote sessions.' };
 	windowVisible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the source window was visible when the interaction ended.' };
 	windowFocused: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the source window was focused when the interaction ended.' };
 	owner: 'roblourens';
-	comment: 'Measures user-perceived end-to-end time from a chat gesture until first meaningful progress is rendered.';
+	comment: 'Measures user-perceived time from UI submission until first meaningful progress is rendered.';
 };
-
-export const chatUserInteractionTimingTracker = markAsSingleton(new ChatUserInteractionTimingTracker());
-
-export class ChatUserInteractionTelemetryReporter extends Disposable {
-	constructor(
-		tracker: ChatUserInteractionTimingTracker,
-		private readonly _telemetryService: ITelemetryService,
-		private readonly _logService: ILogService,
-	) {
-		super();
-		this._register(tracker.onDidStart(({ timer }) => {
-			this._logService.trace('[ChatTTFP] start', { interactionId: timer.id, interactionKind: timer.kind });
-		}));
-		this._register(tracker.onDidFinish(timing => this._report(timing)));
-	}
-
-	private _report(timing: IChatUserInteractionTiming): void {
-		const { elapsedMs, result } = timing;
-		const context = timing.context;
-		const data: ChatUserPerceivedTimeToFirstProgressEvent = {
-			timeToFirstProgress: result === 'success' ? elapsedMs : undefined,
-			timeToTermination: result === 'success' ? undefined : elapsedMs,
-			result,
-			interactionKind: timing.timer.kind,
-			requestId: context?.requestId,
-			chatSessionId: context?.chatSessionId,
-			agent: context?.agent,
-			agentExtensionId: context?.agentExtensionId,
-			location: context?.location,
-			model: context?.model,
-			permissionLevel: context?.permissionLevel,
-			chatMode: context?.chatMode,
-			sessionType: context?.sessionType,
-			harness: context?.harness,
-			windowVisible: timing.window.document.visibilityState === 'visible',
-			windowFocused: timing.window.document.hasFocus(),
-		};
-		this._logService.trace('[ChatTTFP] end', { interactionId: timing.timer.id, ...data });
-		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
-	}
-}
-
-export class ChatUserInteractionTelemetryContribution extends ChatUserInteractionTelemetryReporter implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.chatUserInteractionTelemetry';
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-	) {
-		super(chatUserInteractionTimingTracker, telemetryService, logService);
-	}
-}

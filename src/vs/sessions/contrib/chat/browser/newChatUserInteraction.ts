@@ -9,10 +9,11 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { chatUserInteractionTimingTracker, ChatUserInteractionTimingTracker, ChatUserInteractionTimingResult, IChatUserInteractionTimer, isChatFirstVisibleProgress } from '../../../../workbench/contrib/chat/browser/chatUserInteractionTelemetry.js';
+import { ChatUserInteraction, ChatUserInteractionTimingResult } from '../../../../workbench/contrib/chat/browser/chatUserInteractionTelemetry.js';
 import { getChatSessionTelemetryContext } from '../../../../workbench/contrib/chat/common/chatService/chatServiceTelemetry.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -25,16 +26,15 @@ export interface INewChatUserInteractionSource {
 }
 
 /**
- * Keeps a composer gesture alive through preparation and the deliberate transfer
- * to its response widget. The tracker, not the outgoing composer, owns its lifetime.
+ * Adapts the composer's deliberate transfer to a response widget without
+ * restarting its measurement or mistaking composer replacement for hiding.
  */
 export class NewChatUserInteraction extends Disposable {
-	readonly timer: IChatUserInteractionTimer;
+	readonly timer: ChatUserInteraction;
 	private readonly _session = observableValue<ISession | undefined>(this, undefined);
 	private readonly _widgets = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 	private _chatResource: URI | undefined;
 	private _response: IChatResponseModel | undefined;
-	private _responseWidget: IChatWidget | undefined;
 	private _sourceAvailable = true;
 	private _handedOff = false;
 	private _newSession = false;
@@ -42,15 +42,19 @@ export class NewChatUserInteraction extends Disposable {
 
 	constructor(
 		private readonly _source: INewChatUserInteractionSource,
-		private readonly _tracker: ChatUserInteractionTimingTracker = chatUserInteractionTimingTracker,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _widgetService: IChatWidgetService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly _managementService: ISessionsManagementService,
 	) {
 		super();
-		this.timer = _tracker.start('turn', _source.window, { location: ChatAgentLocation.Chat }, _source.visible.get() && (_source.hostVisible?.get() ?? true));
-		_tracker.addDisposable(this.timer, this);
-		if (!_tracker.isActive(this.timer)) {
+		this.timer = instantiationService.createInstance(ChatUserInteraction, {
+			window: _source.window,
+			visible: _source.visible.get() && (_source.hostVisible?.get() ?? true),
+			context: { location: ChatAgentLocation.Chat },
+		});
+		this.timer.addDisposable(this);
+		if (!this.timer.isActive) {
 			return;
 		}
 		this._register(autorun(reader => {
@@ -65,14 +69,14 @@ export class NewChatUserInteraction extends Disposable {
 
 	/** Called only after the composer has accepted a foreground send, before preparation can replace it. */
 	handoff(session: ISession, chat: IChat): void {
-		if (!this._tracker.isActive(this.timer) || this._handedOff) {
+		if (!this.timer.isActive || this._handedOff) {
 			return;
 		}
 		this._handedOff = true;
 		this._newSession = session.status.get() === SessionStatus.Untitled;
 		this._chatResource = chat.resource;
 		this._session.set(session, undefined);
-		this._tracker.setContext(this.timer, getChatSessionTelemetryContext(chat.resource));
+		this.timer.setContext(getChatSessionTelemetryContext(chat.resource));
 		const replace = ({ from, to }: { from: ISession; to: ISession }) => {
 			if (from.sessionId === this._session.get()?.sessionId) {
 				this._session.set(to, undefined);
@@ -91,29 +95,29 @@ export class NewChatUserInteraction extends Disposable {
 			this._scheduleVisibilityCheck();
 		}));
 		const observeWidget = (widget: IChatWidget) => {
-			if (!this._tracker.isActive(this.timer) || getWindow(widget.domNode) !== this._source.window || this._widgets.has(widget)) {
+			if (!this.timer.isActive || getWindow(widget.domNode) !== this._source.window || this._widgets.has(widget)) {
 				return;
 			}
 			const store = new DisposableStore();
 			this._widgets.set(widget, store);
-			store.add(widget.onDidChangeViewModel(() => this._checkResponse()));
+			store.add(widget.onDidChangeViewModel(() => {
+				this.timer.checkResponse();
+				this._scheduleVisibilityCheck();
+			}));
 			store.add(widget.onDidHide(() => {
-				if (widget === this._responseWidget || isEqual(widget.viewModel?.sessionResource, this._response?.session.sessionResource ?? this._chatResource)) {
+				if (isEqual(widget.viewModel?.sessionResource, this._response?.session.sessionResource ?? this._chatResource)) {
 					this.cancel('hidden');
 				} else {
 					this._scheduleVisibilityCheck();
 				}
 			}));
-			store.add(widget.onDidShow(() => this._checkResponse()));
-			this._checkResponse();
+			store.add(widget.onDidShow(() => this.timer.checkResponse()));
+			this.timer.checkResponse();
 		};
 		this._register(this._widgetService.onDidAddWidget(observeWidget));
 		this._register(this._widgetService.onDidRemoveWidget(widget => {
 			this._widgets.deleteAndDispose(widget);
-			if (widget === this._responseWidget) {
-				this._responseWidget = undefined;
-				this._tracker.resetRender(this.timer);
-			}
+			this.timer.checkResponse();
 			this._scheduleVisibilityCheck();
 		}));
 		for (const widget of this._widgetService.getAllWidgets()) {
@@ -123,29 +127,11 @@ export class NewChatUserInteraction extends Disposable {
 
 	/** This callback is carried with this exact send, never inferred from prompt text or focus. */
 	readonly onDidCreateResponse = (response: IChatResponseModel | undefined): void => {
-		if (!this._tracker.isActive(this.timer)) {
-			return;
-		}
-		if (!response || response.isHiddenFromTranscript) {
-			this.cancel('notDispatched');
-			return;
-		}
-		if (this._response) {
+		if (!this.timer.isActive || this._response) {
 			return;
 		}
 		this._response = response;
-		this._tracker.setContext(this.timer, {
-			...getChatSessionTelemetryContext(response.session.sessionResource),
-			requestId: response.requestId,
-			agent: response.agent?.id,
-			agentExtensionId: response.agent?.extensionId.value,
-			model: response.request?.modelId,
-			permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
-			chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
-		});
-		this._register(response.onDidChange(() => this._checkResponse()));
-		this._register(response.session.onDidDispose(() => this.cancel('disposed')));
-		this._checkResponse();
+		this.timer.observeResponse(response, () => this._getResponseWidget());
 	};
 
 	/** Disposal of a deliberately replaced composer is not abandonment of its send. */
@@ -159,7 +145,7 @@ export class NewChatUserInteraction extends Disposable {
 	}
 
 	cancel(result: Exclude<ChatUserInteractionTimingResult, 'success'>): void {
-		this._tracker.cancel(this.timer, result);
+		this.timer.cancel(result);
 	}
 
 	private _getResponseWidget(): IChatWidget | undefined {
@@ -170,7 +156,7 @@ export class NewChatUserInteraction extends Disposable {
 	}
 
 	private _scheduleVisibilityCheck(): void {
-		if (this._visibilityCheckScheduled || !this._tracker.isActive(this.timer)) {
+		if (this._visibilityCheckScheduled || !this.timer.isActive) {
 			return;
 		}
 		this._visibilityCheckScheduled = true;
@@ -178,7 +164,7 @@ export class NewChatUserInteraction extends Disposable {
 		// their settled identities, not the intermediate state between listeners.
 		queueMicrotask(() => {
 			this._visibilityCheckScheduled = false;
-			if (!this._tracker.isActive(this.timer)) {
+			if (!this.timer.isActive) {
 				return;
 			}
 			const session = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === this._session.get()?.sessionId);
@@ -189,37 +175,8 @@ export class NewChatUserInteraction extends Disposable {
 				&& !isEqual(session.activeChat.get().resource, expectedChat)))) {
 				this.cancel('hidden');
 			} else {
-				this._checkResponse();
+				this.timer.checkResponse();
 			}
 		});
-	}
-
-	private _checkResponse(): void {
-		const response = this._response;
-		if (!response || !this._tracker.isActive(this.timer)) {
-			return;
-		}
-		if (response.isCanceled || response.result?.errorDetails) {
-			this.cancel(response.isCanceled ? 'cancelled' : 'error');
-			return;
-		}
-		const widget = this._getResponseWidget();
-		if (this._responseWidget && widget !== this._responseWidget) {
-			this._responseWidget = undefined;
-			this._tracker.resetRender(this.timer);
-			this._scheduleVisibilityCheck();
-		}
-		if (widget) {
-			this._responseWidget = widget;
-		}
-		if (response.response.value.some(isChatFirstVisibleProgress)) {
-			if (widget && !widget.isTranscriptProgressActive) {
-				this._tracker.completeAfterRender(this.timer, getWindow(widget.domNode), () =>
-					this._getResponseWidget() === widget && response.response.value.some(isChatFirstVisibleProgress)
-					&& !widget.isTranscriptProgressActive && !response.isCanceled && !response.result?.errorDetails);
-			}
-		} else if (response.isComplete) {
-			this.cancel('completedWithoutProgress');
-		}
 	}
 }
