@@ -47,7 +47,7 @@ import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResour
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
+import { hasToolInvocationError, isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -2506,8 +2506,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedMessage = toolInvocationOrMarkdown.pastTenseMessage ?? toolInvocationOrMarkdown.invocationMessage;
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
-							if (iconElement && !isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
-								setThinkingIcon(iconElement, Codicon.search);
+							if (iconElement) {
+								if (hasToolInvocationError(toolInvocationOrMarkdown)) {
+									setThinkingIcon(iconElement, Codicon.error);
+								} else if (!isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
+									setThinkingIcon(iconElement, Codicon.search);
+								}
 							}
 						}
 
@@ -2646,9 +2650,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
+		const toolError = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && hasToolInvocationError(toolInvocationOrMarkdown);
 
 		let icon: ThemeIcon;
-		if (isMcpTool) {
+		if (toolError) {
+			icon = Codicon.error;
+		} else if (isMcpTool) {
 			icon = Codicon.mcp;
 		} else if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
 			icon = Codicon.search;

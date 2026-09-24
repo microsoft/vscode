@@ -3437,7 +3437,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Matching the margin on all .monaco-text-button .codicon */
 		margin: 0 .2em;
 
-		&.codicon-error-compact {
+		&.codicon-error-compact:not(.chat-tool-call-error *) {
 			color: var(--vscode-editorError-foreground) !important;
 		}
 	}

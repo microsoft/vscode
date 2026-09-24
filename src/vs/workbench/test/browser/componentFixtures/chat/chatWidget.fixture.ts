@@ -86,7 +86,7 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
@@ -488,7 +488,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						await toolInvocation.didExecuteTool({ content: [] });
 					}
 				} else if (part.complete) {
-					await toolInvocation.didExecuteTool(part.resultDetails ? { content: [], toolResultDetails: part.resultDetails } : undefined);
+					await toolInvocation.didExecuteTool(part.resultDetails || part.resultError ? { content: [], toolResultDetails: part.resultDetails, toolResultError: part.resultError } : undefined);
 				}
 			} else if (part.kind === 'questionCarousel') {
 				const carousel = new ChatQuestionCarouselData(part.questions, part.allowSkip ?? true, undefined, part.data, part.isUsed, part.message);
@@ -1586,6 +1586,39 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 	});
 }
 
+async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw): Promise<void> {
+	await renderChatWidget(context, {
+		width: 720,
+		height: 340,
+		listHeight: 340,
+		inputVisible: false,
+		persistentProgress: progress,
+		persistentProgressVerbosity: ChatProgressVerbosity.Verbose,
+		collapseCompletedResponses: false,
+		messages: [{
+			user: 'Check the local preview and the rendering tests',
+			assistant: [
+				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the renderer tests', complete: true },
+				...(!grouped ? [{ kind: 'markdown' as const, text: 'The test configuration is ready. Checking the preview next.' }] : []),
+				{
+					kind: 'tool', toolId: 'navigate', displayName: 'Navigate', invocationMessage: 'Open the local preview', complete: true,
+					resultError: 'page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation until "domcontentloaded"',
+				},
+				...(!grouped ? [{ kind: 'markdown' as const, text: 'The preview is not running. I will inspect the source instead.' }] : []),
+				{
+					kind: 'tool', toolId: 'mcp_fixture_errors', displayName: 'Check fixture errors', invocationMessage: 'Check component fixtures', complete: true,
+					source: { type: 'mcp', label: 'Component Explorer', serverLabel: 'Component Explorer', collectionId: 'explorer', definitionId: 'explorer', instructions: '' },
+					resultError: 'The component explorer browser was closed. Restart the preview and try again.',
+				},
+			],
+		}],
+	});
+	const errors = context.container.querySelectorAll('.chat-tool-call-error');
+	if (errors.length !== 2 || context.container.querySelector('.chat-notification-widget')) {
+		throw new Error('Failed tool calls must retain the normal tool rows instead of notification cards');
+	}
+}
+
 async function renderPersistentProgressHandoff(context: ComponentFixtureContext, reasoning: boolean, atBottom = false): Promise<void> {
 	const progress: NonNullable<IFixtureMessage['assistant']> = reasoning ? [{
 		kind: 'thinking',
@@ -2349,6 +2382,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PersistentProgress: defineThemedFixtureGroup({ path: 'persistentProgress/' }, {
 		ToolChains: defineToolChainScenarios(),
+		ToolFailures: defineThemedFixtureGroup({
+			Standalone: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, false) }),
+			Grouped: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, true) }),
+			Legacy: defineComponentFixture({ render: context => renderToolFailures(context, false, ChatProgressAnimation.Off) }),
+		}),
 		VerbosityComparison: defineThemedFixtureGroup({
 			VerboseStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, false) }),
 			VerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, true) }),

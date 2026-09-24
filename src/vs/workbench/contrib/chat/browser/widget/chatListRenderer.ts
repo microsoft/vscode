@@ -671,6 +671,7 @@ export interface IChatRendererDelegate {
 	readonly stickyScrollTopPadding: number;
 	getEditingValue?(): string | undefined;
 	preserveScrollPosition?(target: HTMLElement): void;
+	onDidFinishProgressCollapse?(): void;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
 }
@@ -2995,6 +2996,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	hasPendingProgressContent(element: IChatResponseViewModel): boolean {
+		for (const templateData of this.pendingProgressContent.keys()) {
+			if (templateData.currentElement === element) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private deferProgressContent(thinking: ChatThinkingContentPart, templateData: IChatListItemTemplate): void {
 		if (this.pendingProgressContent.has(templateData)) {
 			return;
@@ -3023,6 +3033,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.rowContainer.isConnected) {
 			this.fireItemHeightChange(templateData);
 		}
+		this.delegate.onDidFinishProgressCollapse?.();
 	}
 
 	private flushPendingProgressContent(templateData: IChatListItemTemplate): void {
@@ -3539,9 +3550,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.value.insertBefore(details, collapseEndRoot);
 		details.append(...nodesToCollapse);
-		if (templateData.renderedPersistentProgress && !details.open && templateData.wasResponseComplete !== undefined) {
-			this.delegate.preserveScrollPosition?.(summary);
-		}
 		templateData.completedResponseDisclosure = details;
 		templateData.completedResponseCollapseStartIndex = collapseStartIndex;
 		templateData.completedResponseCollapseEndIndex = collapseEndIndex;
@@ -3562,9 +3570,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// to the new end of the transcript, which pushes the summary off the top of the viewport
 		// instead of keeping it anchored and growing downwards.
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(summary, dom.EventType.CLICK, () => {
-			if (templateData.renderedPersistentProgress && details.open) {
-				this.delegate.preserveScrollPosition?.(summary);
-			}
 			details.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
 
@@ -3572,9 +3577,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const targetWindow = dom.getWindow(details);
 			const animationFrame = targetWindow.requestAnimationFrame(() => {
 				if (templateData.completedResponseDisclosure === details && details.open) {
-					if (templateData.renderedPersistentProgress) {
-						this.delegate.preserveScrollPosition?.(summary);
-					}
 					details.open = false;
 				}
 			});

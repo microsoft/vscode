@@ -2102,7 +2102,8 @@ suite('ChatListRenderer', () => {
 			waitingRows,
 			errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 			error: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Could not ask the question.'),
-		}, { waitingRows: 0, errorRows: 1, error: true });
+			errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+		}, { waitingRows: 0, errorRows: 1, error: true, errorIcon: true });
 		request.response?.complete();
 	});
 
@@ -2166,11 +2167,62 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
 					errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
-					error: template.value.textContent?.replace(/\u00a0/g, ' ').includes(typeof error === 'string' ? error : 'Tool execution failed'),
-					waiting: template.value.textContent?.includes('Waiting for answer...'),
-				}, { errorRows: 1, error: true, waiting: false });
+					errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+					card: !!template.value.querySelector('.chat-notification-widget'),
+					originalContent: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Waiting for answer...'),
+				}, { errorRows: 1, errorIcon: true, card: false, originalContent: true });
 				request.response?.complete();
 			});
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'Browser', serverLabel: 'Browser', collectionId: 'browser', definitionId: 'browser', instructions: '' }] satisfies ToolDataSource[]) {
+				test(`failed tools use one error icon instead of a card (restored: ${restored}, preceding tool: ${grouped}, source: ${source.type})`, async () => {
+					const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+					configurePersistentProgressTypography(container, 13);
+					if (grouped) {
+						const first = new ChatToolInvocation(
+							{ invocationMessage: 'Read the first file' },
+							{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+							'first', undefined, {},
+						);
+						await first.didExecuteTool(undefined);
+						model.acceptResponseProgress(request, first);
+					}
+					const failed = new ChatToolInvocation(
+						{ invocationMessage: 'Navigate to the preview', icon: Codicon.search },
+						{ id: 'navigate', displayName: 'Navigate', modelDescription: 'Navigate', source },
+						'failed', undefined, {},
+					);
+					if (!restored) {
+						model.acceptResponseProgress(request, failed);
+						renderer.renderElement(node, 0, template);
+					}
+					await failed.didExecuteTool({ content: [], toolResultError: 'Connection refused' });
+					if (restored) {
+						model.acceptResponseProgress(request, failed.toJSON());
+					}
+					renderer.renderElement(node, 0, template);
+					const iconSelector = grouped && source.type !== 'mcp' ? '.chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-error-compact' : '.chat-tool-call-icon.codicon-error-compact';
+					const icon = template.value.querySelector<HTMLElement>(iconSelector);
+					const visibleErrors = [...template.value.querySelectorAll<HTMLElement>('.codicon-error-compact')].filter(element => element.getClientRects().length > 0 && mainWindow.getComputedStyle(element).display !== 'none');
+					assert.deepStrictEqual({
+						card: !!template.value.querySelector('.chat-notification-widget'),
+						toolLabel: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Navigate to the preview'),
+						errorIcon: !!icon,
+						decorative: icon?.getAttribute('aria-hidden'),
+						visibleErrors: visibleErrors.length,
+						neutralIcon: icon && mainWindow.getComputedStyle(icon).color === 'rgb(140, 140, 140)',
+						extraFocusTarget: !!template.value.querySelector('.progress-step[tabindex]'),
+					}, {
+						card: false, toolLabel: true, errorIcon: true, decorative: 'true', visibleErrors: 1,
+						neutralIcon: true, extraFocusTarget: false,
+					});
+					request.response?.complete();
+				});
+			}
 		}
 	}
 
