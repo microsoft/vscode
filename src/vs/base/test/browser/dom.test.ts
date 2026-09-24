@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, ModifierKeyEmitter, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, registerWindow } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -735,6 +735,81 @@ suite('dom', () => {
 			);
 			observer.dispose();
 		});
+	});
+
+	suite('ModifierKeyEmitter', () => {
+
+		async function withDocumentFocus(test: (setHasFocus: (hasFocus: boolean) => void) => Promise<void>): Promise<void> {
+			let hasFocus = true;
+			const document = mainWindow.document;
+			document.hasFocus = () => hasFocus;
+			try {
+				await test(value => hasFocus = value);
+			} finally {
+				delete (document as Partial<Document>).hasFocus; // restore Document.prototype.hasFocus
+				ModifierKeyEmitter.disposeInstance();
+			}
+		}
+
+		test('keeps modifier state when the window blurs because focus moved into an iframe (#199998)', () => withDocumentFocus(async setHasFocus => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			setHasFocus(true); // the iframe has focus, so the document still does
+			mainWindow.dispatchEvent(new FocusEvent('blur'));
+			await timeout(20);
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			// the application loses focus while the iframe is focused: no second window blur
+			setHasFocus(false);
+			await timeout(400);
+			assert.strictEqual(emitter.keyStatus.altKey, false);
+		}));
+
+		test('keeps modifier state when focus moves from an iframe to another window', () => withDocumentFocus(async setHasFocus => {
+			const iframe = document.createElement('iframe');
+			document.body.appendChild(iframe);
+			const auxiliaryWindow = iframe.contentWindow!;
+			ensureCodeWindow(auxiliaryWindow, 998);
+			const registration = registerWindow(auxiliaryWindow);
+			try {
+				const emitter = ModifierKeyEmitter.getInstance();
+				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+
+				setHasFocus(true);
+				mainWindow.dispatchEvent(new FocusEvent('blur'));
+				await timeout(20);
+
+				// the other window has focus now and tracks the modifier keys itself
+				auxiliaryWindow.document.hasFocus = () => true;
+				setHasFocus(false);
+				await timeout(400);
+				assert.strictEqual(emitter.keyStatus.altKey, true);
+			} finally {
+				registration.dispose();
+				iframe.remove();
+			}
+		}));
+
+		test('stops checking focus when disposed', () => withDocumentFocus(async setHasFocus => {
+			ModifierKeyEmitter.getInstance();
+			setHasFocus(true);
+			mainWindow.dispatchEvent(new FocusEvent('blur'));
+			ModifierKeyEmitter.disposeInstance(); // before the deferred check runs
+			await timeout(20); // no interval must be left behind (checked by ensureNoDisposablesAreLeakedInTestSuite)
+		}));
+
+		test('resets modifier state when the window blurs because the document lost focus', () => withDocumentFocus(async setHasFocus => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			setHasFocus(false);
+			mainWindow.dispatchEvent(new FocusEvent('blur'));
+			await timeout(20);
+			assert.strictEqual(emitter.keyStatus.altKey, false);
+		}));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
