@@ -19,6 +19,7 @@ export class ManagedHoverWidget implements IDisposable {
 
 	private _hoverWidget: IHoverWidget | undefined;
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
+	private _focus: boolean | undefined;
 
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) { }
 
@@ -87,6 +88,10 @@ export class ManagedHoverWidget implements IDisposable {
 	private show(content: IManagedHoverResolvedContent, focus: boolean | undefined, options: IManagedHoverOptions | undefined, contentOwnsPadding: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
 		this._hoverWidget = undefined;
+		focus ??= this._focus;
+		this._focus = focus;
+		// A pinned hover must release its lock before its replacement is shown.
+		oldHoverWidget?.dispose();
 
 		if (this.hasContent(content)) {
 			const hoverWidgetRef: { value?: IHoverWidget } = {};
@@ -107,7 +112,8 @@ export class ManagedHoverWidget implements IDisposable {
 				target,
 				actions: options?.actions,
 				linkHandler: options?.linkHandler,
-				trapFocus: options?.trapFocus,
+				trapFocus: options?.trapFocus ?? focus,
+				onDidShow: options?.onDidShow,
 				additionalClasses: [
 					...(options?.additionalClasses ?? []),
 					...(contentOwnsPadding ? ['managed-hover-content-owns-padding'] : []),
@@ -127,7 +133,6 @@ export class ManagedHoverWidget implements IDisposable {
 			hoverWidgetRef.value = hoverWidget;
 			this._hoverWidget = hoverWidget;
 		}
-		oldHoverWidget?.dispose();
 	}
 
 	private hasContent(content: IManagedHoverResolvedContent): content is NonNullable<IManagedHoverResolvedContent> {
