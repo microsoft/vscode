@@ -38,11 +38,13 @@ export const CustomizationMarketplaceSources = {
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
-	if (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
-		return [];
-	}
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
 		(!source.exclusionSetting || configurationService.getValue<boolean>(source.exclusionSetting) !== true));
+}
+
+export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+		? getEnabledCustomizationMarketplaceSources(configurationService, sources) : [];
 }
 
 export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
@@ -58,7 +60,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	token: CancellationToken,
 	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
 ): Promise<ICustomizationMarketplacePage> {
-	const getSourceIds = () => getEnabledCustomizationMarketplaceSources(configurationService, sources)
+	const getSourceIds = () => getVisibleCustomizationMarketplaceSources(configurationService, sources)
 		.filter(source => !options.sourceIds || options.sourceIds.includes(source.id))
 		.map(source => source.id);
 	const sourceIds = getSourceIds();

@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getEnabledCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +33,8 @@ suite('CustomizationMarketplaceSources', () => {
 	test('visibility gate is independent of enabled feeds and cancels active queries', async () => {
 		const configuration = createConfiguration(['first']);
 		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-		const disabled = getEnabledCustomizationMarketplaceSources(configuration, sources);
+		const disabled = getVisibleCustomizationMarketplaceSources(configuration, sources);
+		const legacyFeeds = getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id);
 		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [] })), isCancellationError);
 		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const pendingResult = new DeferredPromise<ICustomizationMarketplacePage>();
@@ -43,9 +44,9 @@ suite('CustomizationMarketplaceSources', () => {
 		await cancelled;
 		await pendingResult.complete({ items: [] });
 		assert.deepStrictEqual({
-			disabled, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+			disabled, legacyFeeds, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
 			enabledFeeds: sources.map(source => configuration.getValue<boolean>(source.enablementSetting)),
-		}, { disabled: [], cancelledListeners: false, enabledFeeds: [true, false] });
+		}, { disabled: [], legacyFeeds: ['first'], cancelledListeners: false, enabledFeeds: [true, false] });
 	});
 
 	test('exclusion setting removes the default source and cancels its in-flight request', async () => {
