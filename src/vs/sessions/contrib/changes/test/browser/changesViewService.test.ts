@@ -784,7 +784,7 @@ suite('ChangesViewService', () => {
 		);
 	});
 
-	test('hides projected session changes for multi-folder sessions', () => {
+	test('keeps projected session changes for multi-folder sessions', () => {
 		const branchChangeset = { ...createChangeset([]), id: BRANCH_CHANGES_CHANGESET_ID };
 		const sessionChangeset = { ...createChangeset([], { resource: URI.parse('changeset:/session') }), id: SESSION_CHANGES_CHANGESET_ID };
 		const turnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID };
@@ -810,7 +810,7 @@ suite('ChangesViewService', () => {
 
 		assert.deepStrictEqual(
 			service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
-			[BRANCH_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
+			[BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
 		);
 	});
 

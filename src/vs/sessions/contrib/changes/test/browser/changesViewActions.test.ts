@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -34,6 +35,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
@@ -82,6 +84,7 @@ suite('Changes View Actions', () => {
 				return undefined;
 			}
 		});
+
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 		});
@@ -91,6 +94,49 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
+		}]);
+	});
+
+	test('Open Changes resolves a workspace resource to its snapshot-backed diff', async () => {
+		const workspaceResource = URI.file('/workspace/file.ts');
+		const originalSnapshot = URI.parse('readonly-content:/before/file.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
+		const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesObs = constObservable([{
+				uri: workspaceResource,
+				originalUri: originalSnapshot,
+				modifiedUri: modifiedSnapshot,
+				insertions: 1,
+				deletions: 1,
+			}]);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const input = args[0] as {
+					readonly original?: { readonly resource?: URI };
+					readonly modified?: { readonly resource?: URI };
+				};
+				opened.push({
+					original: input.original?.resource?.toString(),
+					modified: input.modified?.resource?.toString(),
+				});
+				return undefined;
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor =>
+			CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(
+				accessor,
+				URI.parse('test-session:/session'),
+				'ref',
+				workspaceResource,
+			));
+
+		assert.deepStrictEqual(opened, [{
+			original: originalSnapshot.toString(),
+			modified: modifiedSnapshot.toString(),
 		}]);
 	});
 

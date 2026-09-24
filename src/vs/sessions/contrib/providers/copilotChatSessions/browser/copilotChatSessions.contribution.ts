@@ -7,37 +7,19 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { CopilotChatSessionsProvider, COPILOT_MULTI_CHAT_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[COPILOT_MULTI_CHAT_SETTING]: {
-			type: 'boolean',
-			default: true,
-			tags: ['preview'],
-			description: localize('sessions.github.copilot.multiChatSessions', "Whether to enable multiple chats within a single session in the Copilot Chat sessions provider."),
-		},
-	},
-});
-
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
  *
- * Coexists with the local agent host provider when that runtime is available. The two providers list disjoint sets of sessions:
- * - The local agent host filters via the per-session Agent Host SQLite DB
- *   (database-existence ownership gate in `CopilotAgent.listSessions`).
- * - This provider's underlying extension service filters via the per-session
- *   metadata file's `origin` field, which the local agent host never writes.
+ * The provider only surfaces Copilot Cloud sessions from the Copilot extension;
+ * local Copilot CLI sessions are owned by the agent host providers.
  */
 class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.defaultSessionsProvider';
