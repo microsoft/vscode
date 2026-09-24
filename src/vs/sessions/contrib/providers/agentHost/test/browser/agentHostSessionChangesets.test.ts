@@ -108,7 +108,11 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		}];
 
-		function createHarness(changeKind = ChangesetKind.Branch, streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>) {
+		function createHarness(
+			changeKind = ChangesetKind.Branch,
+			streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>,
+			changes?: IObservable<readonly ISessionFileChange[] | undefined>,
+		) {
 			const isActiveSession = observableValue('isActiveSession', false);
 			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
 			let acquired = 0;
@@ -137,6 +141,7 @@ suite('AgentHostSessionChangesets', () => {
 				label: 'Changes',
 				changeKind,
 				uriTemplate: `changeset/${changeKind}`,
+				changes,
 				streamingChanges,
 			}])[0];
 			disposables.add(autorun(reader => changeset.changes.read(reader)));
@@ -201,6 +206,24 @@ suite('AgentHostSessionChangesets', () => {
 			});
 		});
 
+		test('uses cached recomputing files when switching to a restored session', () => {
+			const restoredChanges = observableValue<readonly ISessionFileChange[] | undefined>('restoredChanges', []);
+			const harness = createHarness(ChangesetKind.Branch, undefined, restoredChanges);
+			harness.isActiveSession.set(true, undefined);
+			restoredChanges.set(undefined, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const computing = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Recomputing, files: cachedFiles });
+			const recomputing = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+
+			assert.deepStrictEqual({ computing, recomputing, ready: harness.snapshot() }, {
+				computing: { changes: [], loading: false, acquired: 1, released: 0 },
+				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+			});
+		});
+
 		test('uses edit-tracking snapshots for Session and Chat Changes but keeps Branch Changes editable', () => {
 			const branch = createHarness(ChangesetKind.Branch);
 			const session = createHarness(ChangesetKind.Session);
@@ -226,7 +249,7 @@ suite('AgentHostSessionChangesets', () => {
 			});
 		});
 
-		test('streams the active turn over Session Changes until the authoritative snapshot catches up', () => {
+		test('uses the cached recomputing snapshot after active turn streaming ends', () => {
 			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
 			const harness = createHarness(ChangesetKind.Session, streamingChanges);
 			const changesetFile = (afterAuthority: string, added: number, removed: number): ChangesetFile => ({
@@ -276,7 +299,7 @@ suite('AgentHostSessionChangesets', () => {
 				recomputing: [{
 					uri: 'file:///repo/a.ts',
 					original: 'readonly-content://baseline/a.ts',
-					modified: 'readonly-content://live/repo/a.ts',
+					modified: 'readonly-content://before-stream/a.ts',
 					insertions: 5,
 					deletions: 2,
 				}],

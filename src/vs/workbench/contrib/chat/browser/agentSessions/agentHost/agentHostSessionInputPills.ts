@@ -585,7 +585,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!state) {
 				return lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource) ? lastValue : undefined;
 			}
-			if (state.status !== ChangesetStatus.Ready && lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource)) {
+			if (state.status !== ChangesetStatus.Ready
+				&& state.status !== ChangesetStatus.Recomputing
+				&& lastValue?.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
