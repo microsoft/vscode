@@ -13,8 +13,9 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { timeout } from '../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -234,6 +235,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private lastDetailSignature: string | undefined;
 	private toolbarLoadingSpinner: HTMLElement | undefined;
 	private isInboxDataLoading = false;
+	private hasReceivedInitialListUpdate = false;
+	private startupSpinnerDeadline = 0;
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -412,6 +415,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		toolbarLoadingSpinner.setAttribute('aria-label', localize('inboxNotifications.loading.ariaLabel', "Inbox is updating"));
 		const toolbarLoadingSpinnerIcon = toolbarLoadingSpinner.appendChild($('span.codicon.codicon-loading.codicon-modifier-spin'));
 		toolbarLoadingSpinnerIcon.setAttribute('aria-hidden', 'true');
+		this.startupSpinnerDeadline = Date.now() + 900;
+		this._register(disposableTimeout(() => this.updateToolbarLoadingSpinner(), 900));
 		this._register(autorun(reader => {
 			const isLoading = this.inboxNotificationsService.isLoading.read(reader);
 			this.isInboxDataLoading = isLoading;
@@ -495,6 +500,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private handleNotificationListUpdate(items: readonly IInboxNotificationItem[]): void {
+		if (!this.hasReceivedInitialListUpdate) {
+			this.hasReceivedInitialListUpdate = true;
+			this.updateToolbarLoadingSpinner();
+		}
 		const newNotificationCount = this.countNewNotifications(this.renderedItems, items);
 		if (newNotificationCount > 0 && this.isInlineInputFocused()) {
 			this.deferredItems = items;
@@ -553,7 +562,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return;
 		}
 		const showDeferredIndicator = !!this.deferredItems && this.deferredNewNotificationsCount > 0;
-		this.toolbarLoadingSpinner.classList.toggle('hidden', !(this.isInboxDataLoading || showDeferredIndicator));
+		const showStartupIndicator = !this.hasReceivedInitialListUpdate || Date.now() < this.startupSpinnerDeadline;
+		this.toolbarLoadingSpinner.classList.toggle('hidden', !(this.isInboxDataLoading || showDeferredIndicator || showStartupIndicator));
 	}
 
 	private countNewNotifications(previousItems: readonly IInboxNotificationItem[], currentItems: readonly IInboxNotificationItem[]): number {
@@ -1617,7 +1627,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (!session) {
 			return 'skipped';
 		}
-		const providers = this.getInlineAgentMergeProvidersForSession(session.providerId);
+		const providers = this.getInlineAgentMergeProvidersForSession(session);
 		if (providers.length === 0) {
 			throw new Error(`Agent Merge provider unavailable for inline action: ${session.providerId}`);
 		}
@@ -1637,6 +1647,18 @@ export class InboxNotificationsView extends AbstractCustomView {
 			try {
 				await this.sessionsService.openSession(item.sessionResource, { preserveFocus: true, source: 'notification' });
 				const refreshedSession = this.sessionsManagementService.getSession(item.sessionResource) ?? session;
+				const activeSession = this.sessionsService.activeSession.get()?.session;
+				if (activeSession && isEqual(activeSession.resource, refreshedSession.resource)) {
+					const activeSessionProvider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+					if (supportsInlineAgentMergeActions(activeSessionProvider)) {
+						try {
+							await this.applyAgentMergeOverridesWithRetry(activeSessionProvider, activeSession.sessionId, overrides);
+							return 'success';
+						} catch (activeRetryError) {
+							lastError = activeRetryError;
+						}
+					}
+				}
 				for (const provider of providers) {
 					const candidateSessionIds = this.collectAgentMergeCandidateSessionIds(refreshedSession, provider);
 					for (const candidateSessionId of candidateSessionIds) {
@@ -1665,12 +1687,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 		]);
 
 		const activeSession = this.sessionsService.activeSession.get()?.session;
-		if (activeSession && activeSession.resource.toString() === session.resource.toString()) {
+		if (activeSession && isEqual(activeSession.resource, session.resource)) {
 			candidates.add(activeSession.sessionId);
 		}
 
 		for (const providerSession of provider.getSessions()) {
-			if (providerSession.resource.toString() === session.resource.toString()) {
+			if (isEqual(providerSession.resource, session.resource)) {
 				candidates.add(providerSession.sessionId);
 			}
 		}
@@ -1724,14 +1746,17 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private getInlineAgentMergeProvidersForSession(sessionProviderId: string): readonly IAgentHostSessionsProvider[] {
+	private getInlineAgentMergeProvidersForSession(session: { readonly providerId: string; readonly resource: URI }): readonly IAgentHostSessionsProvider[] {
 		const providers: IAgentHostSessionsProvider[] = [];
-		const sessionProvider = this.sessionsProvidersService.getProvider(sessionProviderId);
+		const sessionProvider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (supportsInlineAgentMergeActions(sessionProvider)) {
 			providers.push(sessionProvider);
 		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!supportsInlineAgentMergeActions(provider) || providers.includes(provider)) {
+				continue;
+			}
+			if (!provider.getSessions().some(providerSession => isEqual(providerSession.resource, session.resource))) {
 				continue;
 			}
 			providers.push(provider);

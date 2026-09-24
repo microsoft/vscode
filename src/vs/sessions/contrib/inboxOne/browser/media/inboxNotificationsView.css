@@ -304,7 +304,7 @@
 	justify-content: center;
 	width: 16px;
 	height: 16px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-progressBar-background, var(--vscode-foreground));
 }
 
 .inbox-notifications-toolbar-spinner.hidden {
