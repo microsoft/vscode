@@ -77,6 +77,10 @@ suite('ChatUserInteractionTelemetry', () => {
 				visibilityState = 'hidden';
 				documentEvents.dispatchEvent(new globalThis.Event('visibilitychange'));
 			},
+			show: () => {
+				visibilityState = 'visible';
+				documentEvents.dispatchEvent(new globalThis.Event('visibilitychange'));
+			},
 			blur: () => { focused = false; },
 			close: () => windowEvents.dispatchEvent(new globalThis.Event('pagehide')),
 		};
@@ -187,11 +191,10 @@ suite('ChatUserInteractionTelemetry', () => {
 		});
 	});
 
-	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'navigated', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
+	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
 		test(`reports ${result} without a time to first progress`, () => {
 			const target = createWindow();
 			const { tracker, telemetryService, setTime } = createHarness();
-			target.hide();
 			target.blur();
 			const timer = tracker.start('fork', target.window);
 			setTime(175);
@@ -203,7 +206,7 @@ suite('ChatUserInteractionTelemetry', () => {
 				timeToTermination: event.data.timeToTermination,
 				windowVisible: event.data.windowVisible,
 				windowFocused: event.data.windowFocused,
-			})), [{ result, interactionKind: 'fork', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: false, windowFocused: false }]);
+			})), [{ result, interactionKind: 'fork', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: true, windowFocused: false }]);
 		});
 	}
 
@@ -219,7 +222,7 @@ suite('ChatUserInteractionTelemetry', () => {
 			}
 			visible = false;
 			target.frame();
-			assert.deepStrictEqual(telemetryService.events.map(event => event.data.result), ['navigated']);
+			assert.deepStrictEqual(telemetryService.events.map(event => event.data.result), ['hidden']);
 			assert.strictEqual(target.callbacks.size, 0);
 		});
 	}
@@ -234,7 +237,64 @@ suite('ChatUserInteractionTelemetry', () => {
 		assert.deepStrictEqual({
 			results: telemetryService.events.map(event => event.data.result),
 			pendingFrames: target.callbacks.size,
-		}, { results: ['navigated'], pendingFrames: 0 });
+		}, { results: ['hidden'], pendingFrames: 0 });
+	});
+
+	test('hiding before progress ends the observation and showing never resumes it', () => {
+		const target = createWindow();
+		const { tracker, telemetryService, setTime } = createHarness();
+		const timer = tracker.start('turn', target.window);
+		setTime(160);
+		target.hide();
+		setTime(1000);
+		tracker.completeAfterRender(timer, target.window, () => true);
+		target.show();
+		target.frame();
+		target.frame();
+		tracker.complete(timer);
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			result: event.data.result,
+			timeToFirstProgress: event.data.timeToFirstProgress,
+			timeToTermination: event.data.timeToTermination,
+		})), [{ result: 'hidden', timeToFirstProgress: undefined, timeToTermination: 60 }]);
+		assert.strictEqual(tracker.isActive(timer), false);
+	});
+
+	for (const hiddenSource of ['document', 'widget'] as const) {
+		test(`a submission starting in a hidden ${hiddenSource} is ineligible`, () => {
+			const target = createWindow();
+			const { tracker, telemetryService } = createHarness();
+			if (hiddenSource === 'document') {
+				target.hide();
+			}
+			const timer = tracker.start('turn', target.window, { sessionType: 'local' }, hiddenSource !== 'widget');
+			target.show();
+			tracker.completeAfterRender(timer, target.window, () => true);
+			target.frame();
+			assert.deepStrictEqual(telemetryService.events.map(event => ({
+				result: event.data.result,
+				sessionType: event.data.sessionType,
+				timeToFirstProgress: event.data.timeToFirstProgress,
+				timeToTermination: event.data.timeToTermination,
+			})), [{ result: 'hidden', sessionType: 'local', timeToFirstProgress: undefined, timeToTermination: 0 }]);
+		});
+	}
+
+	test('losing focus alone does not end a visible observation', () => {
+		const target = createWindow();
+		const { tracker, telemetryService, setTime } = createHarness();
+		const timer = tracker.start('turn', target.window);
+		target.blur();
+		tracker.completeAfterRender(timer, target.window, () => true);
+		setTime(180);
+		target.frame();
+		target.frame();
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			result: event.data.result,
+			timeToFirstProgress: event.data.timeToFirstProgress,
+			windowVisible: event.data.windowVisible,
+			windowFocused: event.data.windowFocused,
+		})), [{ result: 'success', timeToFirstProgress: 80, windowVisible: true, windowFocused: false }]);
 	});
 
 	test('closing the source or render window disposes the interaction', () => {

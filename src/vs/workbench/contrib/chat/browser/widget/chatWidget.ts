@@ -3125,7 +3125,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
-		const interaction = chatUserInteractionTimingTracker.start('turn', dom.getWindow(this.container));
+		const sessionResource = this.viewModel?.sessionResource;
+		const modeInfo = this.input.currentModeInfo;
+		const interaction = chatUserInteractionTimingTracker.start('turn', dom.getWindow(this.container), {
+			...(sessionResource ? getChatSessionTelemetryContext(sessionResource) : {}),
+			location: this.location,
+			permissionLevel: modeInfo.kind === ChatModeKind.Ask ? undefined : modeInfo.permissionLevel,
+			chatMode: modeInfo.telemetryModeName ?? modeInfo.telemetryModeId,
+		}, this.visible);
 		const interactionStore = this._store.add(new DisposableStore());
 		interactionStore.add(chatUserInteractionTimingTracker.onDidFinish(timing => {
 			if (timing.timer === interaction) {
@@ -3133,15 +3140,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 		interactionStore.add(toDisposable(() => chatUserInteractionTimingTracker.cancel(interaction, 'disposed')));
-		const sessionResource = this.viewModel?.sessionResource;
-		const modeInfo = this.input.currentModeInfo;
-		if (sessionResource) {
-			chatUserInteractionTimingTracker.setContext(interaction, {
-				...getChatSessionTelemetryContext(sessionResource),
-				location: this.location,
-				permissionLevel: modeInfo.kind === ChatModeKind.Ask ? undefined : modeInfo.permissionLevel,
-				chatMode: modeInfo.telemetryModeName ?? modeInfo.telemetryModeId,
-			});
+		if (chatUserInteractionTimingTracker.isActive(interaction)) {
+			interactionStore.add(this.onDidHide(() => chatUserInteractionTimingTracker.cancel(interaction, 'hidden')));
+		} else {
+			this._store.delete(interactionStore);
 		}
 
 		try {
@@ -3189,6 +3191,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				chatUserInteractionTimingTracker.cancel(interaction, 'navigated');
 				return;
 			}
+			if (!this.visible) {
+				chatUserInteractionTimingTracker.cancel(interaction, 'hidden');
+				return;
+			}
 			if (response.response.value.some(isChatFirstVisibleProgress)) {
 				if (isVisible() && window.document.visibilityState === 'visible') {
 					chatUserInteractionTimingTracker.completeAfterRender(interaction, window, () => isVisible() && response.response.value.some(isChatFirstVisibleProgress));
@@ -3205,9 +3211,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		listeners.add(response.onDidChange(completeIfVisible));
-		listeners.add(this.onDidShow(completeIfVisible));
 		listeners.add(this.onDidChangeViewModel(completeIfVisible));
-		listeners.add(dom.addDisposableListener(window.document, 'visibilitychange', completeIfVisible));
 	}
 
 	async rerunLastRequest(): Promise<void> {

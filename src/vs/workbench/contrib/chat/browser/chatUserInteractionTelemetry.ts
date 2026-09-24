@@ -6,7 +6,7 @@
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -15,7 +15,7 @@ import { ChatAgentLocation, ChatPermissionLevel } from '../common/constants.js';
 import { IChatProgressResponseContent } from '../common/model/chatModel.js';
 
 export type ChatUserInteractionKind = 'turn' | 'fork';
-export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'navigated' | 'timedOut' | 'disposed';
+export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'navigated' | 'hidden' | 'timedOut' | 'disposed';
 
 export interface IChatUserInteractionTimer {
 	readonly id: number;
@@ -52,6 +52,7 @@ interface IActiveChatUserInteraction {
 	readonly disposables: DisposableStore;
 	context?: IChatUserInteractionTelemetryContext;
 	renderScheduled?: boolean;
+	renderDisposables?: DisposableStore;
 }
 
 export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressResponseContent): boolean {
@@ -78,16 +79,39 @@ export class ChatUserInteractionTimingTracker extends Disposable {
 		super();
 	}
 
-	start(kind: ChatUserInteractionKind, window: Window): IChatUserInteractionTimer {
+	start(kind: ChatUserInteractionKind, window: Window, context?: IChatUserInteractionTelemetryContext, visible = true): IChatUserInteractionTimer {
 		if (this._store.isDisposed) {
 			throw new BugIndicatingError('Cannot start a disposed chat interaction tracker');
 		}
 		const timer = { id: ++this._nextId, kind, startedAt: this._now() };
+		const initiallyVisible = visible && window.document.visibilityState === 'visible';
 		const disposables = this._activeDisposables.add(new DisposableStore());
-		this._active.set(timer, { window, disposables });
+		this._active.set(timer, { window, disposables, context });
 		disposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
+		disposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
+			if (window.document.visibilityState !== 'visible') {
+				this.cancel(timer, 'hidden');
+			}
+		}));
 		this._onDidStart.fire({ timer, window });
+		if (!initiallyVisible) {
+			this.cancel(timer, 'hidden');
+		}
 		return timer;
+	}
+
+	isActive(timer: IChatUserInteractionTimer): boolean {
+		return this._active.has(timer);
+	}
+
+	/** Own observations for an interaction, including observations installed after a synchronous termination. */
+	addDisposable(timer: IChatUserInteractionTimer, disposable: IDisposable): void {
+		const active = this._active.get(timer);
+		if (active) {
+			active.disposables.add(disposable);
+		} else {
+			disposable.dispose();
+		}
 	}
 
 	setContext(timer: IChatUserInteractionTimer, context: IChatUserInteractionTelemetryContext): void {
@@ -101,32 +125,43 @@ export class ChatUserInteractionTimingTracker extends Disposable {
 		this._finish(timer, 'success');
 	}
 
+	/** Retain the gesture when its response is deliberately transferred to another render surface. */
+	resetRender(timer: IChatUserInteractionTimer): void {
+		const active = this._active.get(timer);
+		if (active?.renderDisposables) {
+			active.disposables.delete(active.renderDisposables);
+			active.renderDisposables = undefined;
+			active.renderScheduled = false;
+		}
+	}
+
 	completeAfterRender(timer: IChatUserInteractionTimer, window: Window, isVisible: () => boolean): void {
 		const active = this._active.get(timer);
 		if (!active || active.renderScheduled) {
 			return;
 		}
 		active.renderScheduled = true;
+		const renderDisposables = active.renderDisposables = active.disposables.add(new DisposableStore());
 		let frame: number | undefined;
-		active.disposables.add(toDisposable(() => {
+		renderDisposables.add(toDisposable(() => {
 			if (frame !== undefined) {
 				window.cancelAnimationFrame(frame);
 			}
 		}));
-		active.disposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
-			if (window.document.visibilityState !== 'visible') {
-				this.cancel(timer, 'navigated');
-			}
-		}));
 		if (window !== active.window) {
-			active.disposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
+			renderDisposables.add(addDisposableListener(window, 'pagehide', () => this.cancel(timer, 'disposed')));
+			renderDisposables.add(addDisposableListener(window.document, 'visibilitychange', () => {
+				if (window.document.visibilityState !== 'visible') {
+					this.cancel(timer, 'hidden');
+				}
+			}));
 		}
 		const checkVisibility = (): boolean => {
 			if (!this._active.has(timer)) {
 				return false;
 			}
 			if (window.document.visibilityState !== 'visible' || !isVisible()) {
-				this.cancel(timer, 'navigated');
+				this.cancel(timer, 'hidden');
 				return false;
 			}
 			return true;
@@ -189,7 +224,7 @@ type ChatUserPerceivedTimeToFirstProgressEvent = {
 };
 
 type ChatUserPerceivedTimeToFirstProgressClassification = {
-	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission or fork entry through two animation frames after meaningful progress is observed in the visible chat widget. This is a render-boundary approximation, not a physical paint timestamp.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission or fork entry through two animation frames after meaningful progress is observed while the chat remains continuously visible. This is a render-boundary approximation, not a physical paint timestamp.' };
 	timeToTermination: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the user gesture until the interaction ended without rendering meaningful progress. Undefined on success.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether first progress rendered or why the interaction ended before rendering progress.' };
 	interactionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of chat interaction initiated by the user.' };

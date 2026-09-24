@@ -2980,6 +2980,24 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		for (const newSession of [true, false]) {
+			test(`forwards a ${newSession ? 'new-session' : 'peer-chat'} response observer without changing its identity`, async () => {
+				const observers: IChatSendRequestOptions['onDidCreateResponse'][] = [];
+				const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };
+				if (!newSession) {
+					model.addSession(createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Background, path: '/session-observer' })));
+				}
+				const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+					observers.push(options?.onDidCreateResponse);
+					return { kind: 'rejected', reason: 'Observer captured' };
+				});
+				const session = newSession ? provider.createNewSession(workspace, CopilotCLISessionType.id) : provider.getSessions()[0];
+				const chat = await provider.createNewChat(session.sessionId);
+				await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'test', onDidCreateResponse }), /Observer captured/);
+				assert.deepStrictEqual(observers, [onDidCreateResponse]);
+			});
+		}
+
 		test('rejects Automation model configuration without a model before creating a fallback draft', () => {
 			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
 			assert.throws(() => provider.createNewSession(workspace, CopilotCLISessionType.id, {

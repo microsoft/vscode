@@ -7,7 +7,7 @@ import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../..
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -1271,7 +1271,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		return this.sendRequestInternal(sessionResource, request, options, true);
+		const { onDidCreateResponse, ...requestOptions } = options ?? {};
+		const result = await this.sendRequestInternal(sessionResource, request, onDidCreateResponse ? requestOptions : options, true);
+		if (onDidCreateResponse) {
+			const response = result.kind === 'sent' ? result.data.responseCreatedPromise : Promise.resolve(undefined);
+			// An observer must neither delay dispatch nor propagate failures into the request.
+			void response.then(onDidCreateResponse).catch(onUnexpectedError);
+		}
+		return result;
 	}
 
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {

@@ -8439,6 +8439,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('sendRequest forwards resolved session config to chat service', async () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const metadata = { 'test.request': { enabled: true } };
+		const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
@@ -8453,23 +8454,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		const chat = await provider.createNewChat(session.sessionId);
-		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true, metadata });
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true, metadata, onDidCreateResponse });
 
 		assert.deepStrictEqual({
 			sendOptions: sendOptions.map(options => ({
 				agentHostSessionConfig: options.agentHostSessionConfig,
 				hideFromTranscript: options.hideFromTranscript,
 				metadata: options.metadata,
+				onDidCreateResponse: options.onDidCreateResponse,
 			})),
 			title: committed.title.get(),
 		}, {
-			sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true, metadata }],
+			sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true, metadata, onDidCreateResponse }],
 			title: 'Pull Request',
 		});
 	});
 
 	test('sendRequest preserves provider metadata for a committed session', async () => {
 		const forwarded: (Record<string, unknown> | undefined)[] = [];
+		const observers: IChatSendRequestOptions['onDidCreateResponse'][] = [];
 		const provider = createProvider(disposables, agentHost, undefined, {
 			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
 				override readonly inputModel = new class extends mock<IInputModel>() {
@@ -8480,6 +8483,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}()),
 			sendRequest: async (_resource, _message, options) => {
 				forwarded.push(options?.metadata);
+				observers.push(options?.onDidCreateResponse);
 				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
 			},
 		});
@@ -8487,8 +8491,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(session => session.title.get() === 'Send Metadata');
 		assert.ok(session);
 		const metadata = { 'test.request': { enabled: true } };
-		await provider.sendRequest(session.sessionId, session.resource, { query: 'hello', metadata });
-		assert.deepStrictEqual(forwarded, [metadata]);
+		const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };
+		await provider.sendRequest(session.sessionId, session.resource, { query: 'hello', metadata, onDidCreateResponse });
+		assert.deepStrictEqual({ forwarded, observers }, { forwarded: [metadata], observers: [onDidCreateResponse] });
 	});
 
 	test('sendRequest clears chat input draft while preserving selected model and agent', async () => {

@@ -1000,6 +1000,8 @@ suite('ChatWidget - guarded acceptInput', () => {
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
+			onDidHide: { value: Event.None },
+			visible: { value: true },
 			input: { value: input },
 			inputPartDisposable: { value: store.add(new MutableDisposable<ChatInputPart>()) },
 			contribs: { value: [] },
@@ -1269,6 +1271,7 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 		const widgetStore = disposables.add(new CountingDisposableStore());
 		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const shown = disposables.add(new Emitter<void>());
+		const hidden = disposables.add(new Emitter<void>());
 		const viewModelChanged = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		let session = upcastPartial<IChatModel>({ sessionResource: URI.parse('agent-host-copilotcli:/session') });
 		let viewModel = upcastPartial<ChatViewModel>({ model: session, sessionResource: session.sessionResource });
@@ -1292,6 +1295,7 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 			visible: { get: () => visible },
 			input: { value: { currentModeInfo: { kind: ChatModeKind.Agent } } },
 			onDidShow: { value: shown.event },
+			onDidHide: { value: hidden.event },
 			onDidChangeViewModel: { value: viewModelChanged.event },
 			_acceptInput: { value: () => submit() },
 		});
@@ -1299,7 +1303,7 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 		disposables.add(chatUserInteractionTimingTracker.onDidFinish(timing => results.push(timing)));
 		disposables.add(toDisposable(() => clearChatMarks(session.sessionResource)));
 		return {
-			widgetStore, response, results, responseChanged, shown, viewModelChanged,
+			widgetStore, response, results, responseChanged, shown, hidden, viewModelChanged,
 			accept: () => widget.acceptInput('Test request', { preserveInput: true }),
 			submitWith: (callback: typeof submit) => { submit = callback; },
 			progress: () => {
@@ -1310,7 +1314,10 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 				complete = true;
 				responseChanged.fire({ reason: 'completedRequest' });
 			},
-			hide: () => { visible = false; },
+			hide: () => {
+				visible = false;
+				hidden.fire();
+			},
 			show: () => {
 				visible = true;
 				shown.fire();
@@ -1342,8 +1349,9 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 				retainedStores: fixture.widgetStore.entries.size,
 				responseListeners: fixture.responseChanged.hasListeners(),
 				shownListeners: fixture.shown.hasListeners(),
+				hiddenListeners: fixture.hidden.hasListeners(),
 				navigationListeners: fixture.viewModelChanged.hasListeners(),
-			}, { retainedStores: 0, responseListeners: false, shownListeners: false, navigationListeners: false });
+			}, { retainedStores: 0, responseListeners: false, shownListeners: false, hiddenListeners: false, navigationListeners: false });
 		}
 		assert.deepStrictEqual(fixture.results.map(result => result.result), Array(10).fill('success'));
 	});
@@ -1360,16 +1368,47 @@ suite('ChatWidget - first visible progress lifecycle', () => {
 		}, { results: ['navigated'], retainedStores: 0 });
 	});
 
-	test('waits until a hidden widget is shown before measuring rendered progress', async () => {
+	test('a hidden submission remains ineligible after the widget is shown', async () => {
 		const fixture = createWidget();
 		fixture.hide();
 		fixture.progress();
 		await fixture.accept();
 		await renderFrames();
-		assert.strictEqual(fixture.results.length, 0);
 		fixture.show();
 		await renderFrames();
-		assert.deepStrictEqual(fixture.results.map(result => result.result), ['success']);
+		assert.deepStrictEqual({
+			results: fixture.results.map(result => result.result),
+			retainedStores: fixture.widgetStore.entries.size,
+		}, { results: ['hidden'], retainedStores: 0 });
+	});
+
+	test('submit, hide before progress, receive progress and show never reports successful latency', async () => {
+		const fixture = createWidget();
+		const response = await fixture.accept();
+		fixture.hide();
+		fixture.progress();
+		fixture.show();
+		await renderFrames();
+		assert.strictEqual(response, fixture.response);
+		assert.deepStrictEqual({
+			results: fixture.results.map(result => result.result),
+			retainedStores: fixture.widgetStore.entries.size,
+			responseListeners: fixture.responseChanged.hasListeners(),
+		}, { results: ['hidden'], retainedStores: 0, responseListeners: false });
+	});
+
+	test('hiding during preparation terminates only measurement, not the submission', async () => {
+		const fixture = createWidget();
+		const pending = new DeferredPromise<IChatResponseModel>();
+		fixture.submitWith(() => pending.p);
+		const accepting = fixture.accept();
+		fixture.hide();
+		pending.complete(fixture.response);
+		assert.strictEqual(await accepting, fixture.response);
+		fixture.progress();
+		fixture.show();
+		await renderFrames();
+		assert.deepStrictEqual(fixture.results.map(result => result.result), ['hidden']);
 	});
 
 	test('disposal while submission is pending reports once and attaches no late listeners', async () => {

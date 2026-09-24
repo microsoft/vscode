@@ -1961,6 +1961,8 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/** UI-only observation of this send's response; undefined means the request was not dispatched. Not persisted or sent to an agent. */
+	onDidCreateResponse?: (response: IChatResponseModel | undefined) => void;
 	modeInfo?: IChatRequestModeInfo;
 	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
