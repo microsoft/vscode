@@ -5,16 +5,16 @@
 
 import { isSSHStrictHostKeyChecking, type ISSHResolvedConfig } from './sshRemoteAgentHost.js';
 
-/** Strip inline comments from an SSH config value. A ' #' inside double quotes is part of the value. */
+/** Strip inline comments from an SSH config value. A ' #' inside single or double quotes is part of the value. */
 export function stripSSHComment(s: string): string {
-	let inQuotes = false;
+	let quote = '';
 	for (let i = 0; i + 1 < s.length; i++) {
 		const ch = s[i];
 		if (ch === '\\') {
 			i++; // an escaped char cannot toggle quotes
-		} else if (ch === '"') {
-			inQuotes = !inQuotes;
-		} else if (ch === ' ' && s[i + 1] === '#' && !inQuotes) {
+		} else if ((ch === '"' || ch === '\'') && (quote === '' || quote === ch)) {
+			quote = quote === '' ? ch : '';
+		} else if (ch === ' ' && s[i + 1] === '#' && quote === '') {
 			return s.substring(0, i).trim();
 		}
 	}
@@ -44,12 +44,12 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
-/** Backslash escapes honored inside and outside double quotes, mirroring OpenSSH's argv_split. */
+/** Backslash escapes honored inside and outside single or double quotes, mirroring OpenSSH's argv_split. */
 function isSSHEscapable(next: string, inQuotes: boolean): boolean {
 	return next === '\'' || next === '"' || next === '\\' || (!inQuotes && next === ' ');
 }
 
-/** Splits a whitespace-separated SSH value into tokens, honoring double quotes and backslash escapes like OpenSSH. Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
+/** Splits a whitespace-separated SSH value into tokens, honoring single and double quotes and backslash escapes like OpenSSH. Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
 export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
 	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];
 	const n = value.length;
@@ -69,10 +69,11 @@ export function tokenizeSSHPathList(value: string): { path: string; start: numbe
 			if (ch === '\\' && i + 1 < n && isSSHEscapable(value[i + 1], false)) {
 				token += value[i + 1];
 				i += 2;
-			} else if (ch === '"') {
+			} else if (ch === '"' || ch === '\'') {
+				const q = ch;
 				quoted = true;
 				i++;
-				while (i < n && value[i] !== '"') {
+				while (i < n && value[i] !== q) {
 					if (value[i] === '\\' && i + 1 < n && isSSHEscapable(value[i + 1], true)) {
 						token += value[i + 1];
 						i += 2;

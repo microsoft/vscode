@@ -146,6 +146,31 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['foo bar', 'baz']);
 		});
 
+		test('supports single-quoted host names', () => {
+			const config = 'Host \'Dev Instance (EU)\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev Instance (EU)']);
+		});
+
+		test('mixes single, double, and unquoted host names', () => {
+			const config = 'Host "double" \'single\' plain';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['double', 'single', 'plain']);
+		});
+
+		test('unescapes escaped quotes in single-quoted host names', () => {
+			const config = 'Host \'it\\\'s\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['it\'s']);
+		});
+
+		test('keeps # inside single-quoted host names', () => {
+			const config = 'Host \'Dev # Instance\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
+		test('recovers unterminated quotes leniently', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host "Dev'), ['Dev']);
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host \'Dev'), ['Dev']);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',
@@ -177,6 +202,10 @@ suite('SSH Config Parsing', () => {
 		test('ignores escaped quotes', () => {
 			assert.strictEqual(stripSSHComment('"a\\" # x" # c'), '"a\\" # x"');
 		});
+
+		test('keeps # inside single quotes', () => {
+			assert.strictEqual(stripSSHComment('\'Dev # Instance\''), '\'Dev # Instance\'');
+		});
 	});
 
 	suite('tokenizeSSHPathList', () => {
@@ -186,6 +215,12 @@ suite('SSH Config Parsing', () => {
 			// it has no direct unit-test seam (private + filesystem I/O).
 			assert.deepStrictEqual(
 				tokenizeSSHPathList('"~/My Configs/*.conf" other.conf').map(token => token.path),
+				['~/My Configs/*.conf', 'other.conf']);
+		});
+
+		test('keeps single-quoted include paths with spaces together', () => {
+			assert.deepStrictEqual(
+				tokenizeSSHPathList('\'~/My Configs/*.conf\' other.conf').map(token => token.path),
 				['~/My Configs/*.conf', 'other.conf']);
 		});
 	});
