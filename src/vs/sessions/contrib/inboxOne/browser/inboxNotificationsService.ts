@@ -57,7 +57,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v1';
+const PREVIEW_PROMPT_VERSION = 'v2';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 60;
@@ -82,6 +82,7 @@ const PREVIEW_SYSTEM_PROMPT = [
 	'- Output only the preview text: no quotes, no trailing period, no "Status:"/"Session:" prefix.',
 	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
 	'- Prefer the agent\'s and user\'s own nouns and verbs.',
+	'- You may also get the most recent assistant message labeled "reference only": use it only to understand what is being asked; never summarize, quote, or restate it.',
 	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
 	'',
 	'Examples (card type | latest detail -> preview):',
@@ -560,14 +561,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	 * the latest concrete detail so it can produce a specific, glanceable preview.
 	 */
 	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
-		const { contextLabel, detailText } = this.previewContextForItem(item);
+		const { contextLabel, detailText, referenceText } = this.previewContextForItem(item);
 		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
+		const trimmedReference = referenceText?.replace(/\s+/g, ' ').trim();
 		const inputLines = [
 			`Card type: ${contextLabel}`,
 			`Session title: ${item.title}`,
 		];
 		if (trimmedDetail) {
-			inputLines.push(`Latest detail: ${trimmedDetail}`);
+			// When a reference message is present the detail is the earlier context (the thing
+			// to summarize), so label it plainly rather than "latest" to avoid competing with the
+			// reference line for the model's attention.
+			inputLines.push(`${trimmedReference ? 'Context to summarize' : 'Latest detail'}: ${trimmedDetail}`);
+		}
+		if (trimmedReference) {
+			inputLines.push(`Most recent assistant message (reference only — do not summarize or restate this): ${trimmedReference}`);
 		}
 		let inputText = inputLines.join('\n');
 		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
@@ -578,18 +586,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	/**
-	 * Input for the one-line card preview. For needs-input items this is the recent
-	 * conversation context leading up to the request (so the card reminds the user what the
-	 * pending decision is about) rather than a restatement of the request itself, which the
-	 * user already sees in the on-card widget.
+	 * Input for the one-line card preview. For needs-input items the summary target is the
+	 * recent conversation context leading up to the request (so the card reminds the user what
+	 * the pending decision is about) rather than a restatement of the request itself, which the
+	 * user already sees in the on-card widget. The final assistant turn that holds the request is
+	 * passed separately as reference-only context so the model can frame the decision without
+	 * summarizing that latest message.
 	 */
-	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string; referenceText?: string } {
 		if (item.needsInputPart) {
 			const recentContext = this.getRecentContextText(item);
 			if (recentContext) {
 				return {
-					contextLabel: 'recent conversation context leading up to a pending user decision — summarize that context so the user recalls what it is about, do not restate the request',
+					contextLabel: 'recent conversation context leading up to a pending user decision — summarize this context so the user recalls what it is about; do not restate the request or the reference message',
 					detailText: recentContext,
+					referenceText: this.getPendingTurnText(item),
 				};
 			}
 		}
@@ -605,20 +616,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		// The card should remind the user what the decision is about; the request is already
 		// shown in the on-card widget. Dropping the response that holds the pending needs-input
 		// part keeps that latest assistant message from dominating (and being restated by) the
-		// preview.
+		// preview — it is supplied separately as reference-only context.
 		const pendingRequestId = item.needsInputPart?.requestId;
 		const responses = chatModel.getRequests()
 			.map(request => request.response)
 			.filter(response => !!response && !response.isCanceled && response.requestId !== pendingRequestId);
 		const recent: string[] = [];
 		for (const response of responses.slice(-3)) {
-			const parts: string[] = [];
-			for (const part of response!.response.value) {
-				if (part.kind === 'markdownContent') {
-					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
-				}
-			}
-			const text = parts.join('\n\n').trim();
+			const text = this.responseMarkdown(response!);
 			if (text) {
 				recent.push(text);
 			}
@@ -628,6 +633,38 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return undefined;
 		}
 		return text.length > 1500 ? `…${text.slice(text.length - 1500)}` : text;
+	}
+
+	/** The markdown of the final assistant turn that holds the pending request, for reference only. */
+	private getPendingTurnText(item: IInboxNotificationItem): string | undefined {
+		const pendingRequestId = item.needsInputPart?.requestId;
+		if (!pendingRequestId) {
+			return undefined;
+		}
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		const response = chatModel.getRequests().find(request => request.response?.requestId === pendingRequestId)?.response;
+		if (!response || response.isCanceled) {
+			return undefined;
+		}
+		const text = this.responseMarkdown(response);
+		if (!text) {
+			return undefined;
+		}
+		return text.length > 800 ? `…${text.slice(text.length - 800)}` : text;
+	}
+
+	/** Concatenated plain-text of a response's markdown parts (other part kinds are omitted). */
+	private responseMarkdown(response: IChatResponseModel): string {
+		const parts: string[] = [];
+		for (const part of response.response.value) {
+			if (part.kind === 'markdownContent') {
+				parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+			}
+		}
+		return parts.join('\n\n').trim();
 	}
 
 	private describeItemForPreview(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {

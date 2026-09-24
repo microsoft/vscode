@@ -389,7 +389,7 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
-	test('preview input summarizes the context leading up to a pending question, not the question turn', () => {
+	test('preview input summarizes prior context and passes the pending turn only as reference', () => {
 		const chatResource = URI.parse('test:///chat/context-preview');
 		const chatService = new TestChatService();
 		const fixture = createFixture([
@@ -408,13 +408,15 @@ suite('InboxNotificationsService', () => {
 		});
 
 		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
-		// The preview input feeds the utility model: it should carry the earlier context so the
-		// card reminds the user what the decision is about...
-		assert.ok(input.includes('staging deployment pipeline'), `expected prior context in preview input, got: ${input}`);
-		// ...and must not carry the pending turn's own message/question, which would make the
-		// model restate the latest assistant message instead of summarizing the context.
-		assert.ok(!input.includes('One more thing before I continue.'), `did not expect the pending turn message in preview input, got: ${input}`);
-		assert.ok(!input.includes('Which release color?'), `did not expect the pending question in preview input, got: ${input}`);
+		const lines = input.split('\n');
+		const contextLine = lines.find(line => line.startsWith('Context to summarize:')) ?? '';
+		const referenceLine = lines.find(line => line.startsWith('Most recent assistant message')) ?? '';
+		// The summary target is the earlier context, not the pending turn's own message.
+		assert.ok(contextLine.includes('staging deployment pipeline'), `expected prior context in the summary target, got: ${input}`);
+		assert.ok(!contextLine.includes('One more thing before I continue.'), `did not expect the pending turn message in the summary target, got: ${input}`);
+		// The pending turn's message is provided, but only as a clearly labeled reference.
+		assert.ok(/reference only/i.test(referenceLine), `expected a reference-only line, got: ${input}`);
+		assert.ok(referenceLine.includes('One more thing before I continue.'), `expected the pending turn message on the reference line, got: ${input}`);
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
