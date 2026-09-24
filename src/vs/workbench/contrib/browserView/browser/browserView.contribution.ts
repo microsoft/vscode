@@ -52,6 +52,10 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 
+	async createExternalBrowserView(_initialUrl: string): Promise<IBrowserViewModel> {
+		throw new Error('External browser views are not available in web.');
+	}
+
 	getOrCreateLazy(_data: IBrowserEditorInputData): BrowserEditorInput {
 		throw new Error('Integrated Browser is not available in web.');
 	}

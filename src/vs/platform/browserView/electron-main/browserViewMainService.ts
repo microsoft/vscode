@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, IBrowserViewAccessibilitySnapshot } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -26,6 +26,7 @@ import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { formatBrowserViewAccessibility } from './browserViewAccessibility.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -142,6 +143,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			id: view.id,
 			host: view.host,
 			owner: view.owner,
+			presentation: view.presentation,
 			associatedResource: view.associatedResource,
 			state: view.getState()
 		};
@@ -270,6 +272,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async setOwner(id: string, owner: IBrowserViewOwner): Promise<void> {
 		this._getBrowserView(id).setOwner(owner);
+	}
+
+	async getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot> {
+		const view = this._getBrowserView(id);
+		if (view.host.windowId !== expectedHostWindowId) {
+			throw new Error('The accessibility snapshot belongs to another workbench window.');
+		}
+		const tree = await view.debugger.getAccessibilityTree();
+		return formatBrowserViewAccessibility(tree.nodes, tree.truncated);
 	}
 
 	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
@@ -453,7 +464,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
-	private _createNativeBrowserView(id: string, host: IBrowserViewCreationContext['host'], owner: IBrowserViewOwner, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+	private _createNativeBrowserView(id: string, host: IBrowserViewCreationContext['host'], owner: IBrowserViewOwner, presentation: BrowserViewPresentation, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
@@ -480,6 +491,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					host,
 					owner: childOwner,
 					session: browserSession.id,
+					presentation,
 					initialUrl: url || undefined
 				}, editorOptions, electronOptions);
 			},
@@ -487,6 +499,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			options
 		);
 		this.browserViews.set(id, view);
+		view.presentation = presentation;
 		if (windowConfiguration?.theme) {
 			view.inspector.setTheme(windowConfiguration.theme);
 		}
@@ -505,7 +518,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (hasAgentAccess) {
 			this.validateAgentStorageScope(browserSession.storageScope);
 		}
-		const view = this._createNativeBrowserView(id, options.host, options.owner, browserSession, URI.revive(options.associatedResource), electronOptions);
+		const view = this._createNativeBrowserView(id, options.host, options.owner, options.presentation ?? BrowserViewPresentation.Listed, browserSession, URI.revive(options.associatedResource), electronOptions);
 		if (options.initialAudiences) {
 			view.setAudiences(options.initialAudiences);
 		}

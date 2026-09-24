@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewPresentation, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -12,6 +12,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -189,6 +190,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (e.info.host.windowId !== this._mainWindowId) {
 				return; // Not for this window
 			}
+			if (e.info.presentation === BrowserViewPresentation.Unlisted) {
+				return;
+			}
 
 			// Eagerly create the model from the state we already have
 			this._createModel(e.info, e.initialUrl);
@@ -363,6 +367,33 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
+	async createExternalBrowserView(initialUrl: string): Promise<IBrowserViewModel> {
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
+		await this._updateWindowConfiguration();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
+			host: { windowId: this._mainWindowId },
+			owner: { type: 'user' },
+			presentation: BrowserViewPresentation.Unlisted,
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			initialAudiences: [],
+		});
+		if (this._store.isDisposed) {
+			await this._browserViewService.destroyBrowserView(info.id);
+			throw new CancellationError();
+		}
+		const model = this._createModel(info, undefined, false);
+		try {
+			await model.loadURL(initialUrl);
+			return model;
+		} catch (error) {
+			model.dispose();
+			throw error;
+		}
+	}
+
 	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
 		return this._getOrCreateLazy(data);
 	}
@@ -387,7 +418,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				);
 				return this._createModel(info);
 			});
-			input.onWillDispose(() => {
+			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
 			});
@@ -441,11 +472,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private async _initializeExistingViews(): Promise<void> {
 		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
 		for (const info of views) {
-			this._createModel(info);
+			if (info.presentation === BrowserViewPresentation.Listed) {
+				this._createModel(info);
+			}
 		}
 	}
 
-	private _createModel(info: IBrowserViewInfo, initialUrl?: string): IBrowserViewModel {
+	private _createModel(info: IBrowserViewInfo, initialUrl?: string, registerInput = true): IBrowserViewModel {
 		const associatedResource = URI.revive(info.associatedResource);
 		// Don't double-create
 		const input = this._known.get(info.id);
@@ -466,10 +499,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				: info.state;
 		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService);
 
-		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
-		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
-
-		this._onDidChangeBrowserViews.fire();
+		if (registerInput) {
+			this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
+			this._onDidChangeBrowserViews.fire();
+		}
 
 		return model;
 	}
