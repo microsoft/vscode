@@ -25,7 +25,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, createErrorResponsePart, MessageKind, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -122,6 +122,18 @@ suite('Agent Merge workflow reruns', () => {
 			repeatedOutcome: 'deferred',
 			reruns: [],
 		});
+	}));
+
+	test('handles the end of a repair turn that ends in an error', () => withController(async h => {
+		const failedTurn = h.controller.getTurnContext(h.session);
+		assert.ok(failedTurn);
+		const refreshesBefore = h.authoritativeRefreshes.count;
+
+		h.stateManager.dispatchServerAction(buildDefaultChatUri(h.session), { type: ActionType.ChatError, turnId: failedTurn.turnId, duration: 0, part: createErrorResponsePart({ errorType: 'failed', message: 'Repair failed' }) });
+		// Well before the periodic backstop.
+		await timeout(1);
+
+		assert.strictEqual(h.authoritativeRefreshes.count - refreshesBefore, 1);
 	}));
 
 	test('does not authorize deferred failures from previous turns when a different workflow fails', () => withController(async h => {
@@ -370,6 +382,8 @@ class RerunTestHarness extends Disposable {
 	]));
 	readonly mutations = new TestMutations();
 	readonly prompts: string[] = [];
+	/** Authoritative pull request refreshes, which follow the end of every repair turn. */
+	readonly authoritativeRefreshes = { count: 0 };
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
 
@@ -401,6 +415,7 @@ class RerunTestHarness extends Disposable {
 		));
 		const snapshot = this.snapshot;
 		const mutations = this.mutations;
+		const authoritativeRefreshes = this.authoritativeRefreshes;
 		const gitHubService = new class extends mock<IGitHubService>() {
 			override readonly mutations = mutations;
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
@@ -412,7 +427,11 @@ class RerunTestHarness extends Disposable {
 				override subscribePullRequest(): PullRequestSubscription {
 					return {
 						resource: { ref, snapshot },
-						refresh: async () => { },
+						refresh: async (_fragment, _signal, options) => {
+							if (options?.authoritative) {
+								authoritativeRefreshes.count++;
+							}
+						},
 						update: () => { },
 						dispose: () => { },
 					};
@@ -421,9 +440,9 @@ class RerunTestHarness extends Disposable {
 		}();
 		this.controller = this._register(new AgentMergeController(
 			{
-				startTurn: (session, turnId, prompt) => {
+				startTurn: (chat, turnId, prompt) => {
 					this.prompts.push(prompt);
-					this.stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+					this.stateManager.dispatchServerAction(chat, {
 						type: ActionType.ChatTurnStarted,
 						turnId,
 						startedAt: new Date().toISOString(),
@@ -431,7 +450,7 @@ class RerunTestHarness extends Disposable {
 					});
 					return true;
 				},
-				cancelTurn: (session, turnId) => this.stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+				cancelTurn: (chat, turnId) => this.stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 					duration: 0,

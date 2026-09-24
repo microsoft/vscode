@@ -544,7 +544,7 @@ class CIHarness extends Disposable {
 		const abort = new AbortController();
 		this._register(toDisposable(() => abort.abort()));
 		this.context = {
-			session: 'session', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
+			session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
 			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
 			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
 		};

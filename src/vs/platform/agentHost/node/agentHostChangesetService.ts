@@ -49,7 +49,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName 
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -189,6 +189,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
+	private readonly _restoredBranchChangesetOwners = new Set<ProtocolURI>();
+	private readonly _pendingBranchChangesetRestores = new Map<ProtocolURI, Promise<void>>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
@@ -231,10 +233,44 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
-		this._stateManager.registerChangeset(buildBranchChangesetUri(this._getBranchChangesetOwner(session)));
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
+		this._stateManager.registerChangeset(buildBranchChangesetUri(branchChangesetOwner));
+		this._restoreScopedBranchChangeset(branchChangesetOwner);
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!isAhpChatChannel(session)) {
 			this._stateManager.registerChangeset(buildSessionChangesetUri(session));
+		}
+	}
+
+	private _restoreScopedBranchChangeset(owner: ProtocolURI): void {
+		if (this._restoredBranchChangesetOwners.has(owner) || this._pendingBranchChangesetRestores.has(owner)) {
+			return;
+		}
+
+		const task = this._doRestoreScopedBranchChangeset(owner);
+		this._pendingBranchChangesetRestores.set(owner, task);
+		void task.then(() => {
+			this._restoredBranchChangesetOwners.add(owner);
+		}, err => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to restore folder-scoped Branch Changes for ${owner}`, err);
+		}).finally(() => {
+			this._pendingBranchChangesetRestores.delete(owner);
+		});
+	}
+
+	private async _doRestoreScopedBranchChangeset(owner: ProtocolURI): Promise<void> {
+		const scope = parseFolderChangesetOwnerUri(owner);
+		if (!scope) {
+			return;
+		}
+
+		const ref = this._sessionDataService.openDatabase(URI.parse(scope.sessionUri));
+		try {
+			const raw = await ref.object.getMetadata(getScopedBranchChangesetMetadataKey(scope.scopeId));
+			const diffs = tryParsePersistedDiffs(raw, scope.sessionUri, 'folder-scoped branch', this._logService);
+			this._seedIfEmpty(owner, 'branch', diffs);
+		} finally {
+			ref.dispose();
 		}
 	}
 
@@ -1548,6 +1584,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
 			const persistenceOwner = kind === ChangesetKind.Branch ? this._getTrackedDatabaseUri(session) : session;
+			if (kind === ChangesetKind.Branch) {
+				const scope = parseFolderChangesetOwnerUri(session);
+				if (scope) {
+					this._persistSessionFlag(scope.sessionUri, getScopedBranchChangesetMetadataKey(scope.scopeId), JSON.stringify(diffs));
+				}
+			}
 			if (!isAhpChatChannel(persistenceOwner)) {
 				this._persistSessionFlag(persistenceOwner, persistKeyFor(kind), JSON.stringify(diffs));
 				if (kind === ChangesetKind.Branch) {

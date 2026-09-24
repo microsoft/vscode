@@ -10,6 +10,7 @@ import { IGitHubService } from '../../../github/common/githubService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -26,7 +27,7 @@ suite('Agent Merge server tools', () => {
 	const toolNames = [setAgentMergeEnabledToolName, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName];
 	const sessionUri = 'copilot:/merge-session';
 
-	function createHarness(enabled?: boolean) {
+	function createHarness(enabled?: boolean, getTurnContext: ConstructorParameters<typeof AgentMergeTools>[1] = () => undefined) {
 		const logService = new NullLogService();
 		const stateManager = store.add(new AgentHostStateManager(logService));
 		const configurationService = store.add(new AgentConfigurationService(stateManager, logService));
@@ -40,11 +41,12 @@ suite('Agent Merge server tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///repo'],
 		});
 		stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
 		const tools = store.add(new AgentMergeTools(
 			() => configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true,
-			() => undefined,
+			getTurnContext,
 			new class extends mock<IGitHubService>() { }(),
 			logService,
 			stateManager,
@@ -169,24 +171,48 @@ suite('Agent Merge server tools', () => {
 
 		assert.deepStrictEqual({
 			results: [enabled, repeated, disabled].map(result => JSON.parse(result)),
-			enabledValues,
-			disabledValues,
+			enabledAgentMerge: readAgentMergeSessionState(enabledValues),
+			disabledAgentMerge: readAgentMergeSessionState(disabledValues),
+			mode: disabledValues?.[SessionConfigKey.Mode],
 			changes,
 			rootEnabled: stateManager.rootState.config?.values[AgentMergeConfigKey.Enabled],
 		}, {
 			results: [{ enabled: true }, { enabled: true }, { enabled: false }],
-			enabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides },
-				[SessionConfigKey.AgentMergeController]: controllerState,
-				[SessionConfigKey.Mode]: 'plan',
-			},
-			disabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: false, overrides },
-				[SessionConfigKey.AgentMergeController]: controllerState,
-				[SessionConfigKey.Mode]: 'plan',
-			},
+			// The elevated configuration survives, so turning Agent Merge off can still restore the user's settings.
+			enabledAgentMerge: { enabled: true, overrides, injectedConfiguration: controllerState.injectedConfiguration },
+			disabledAgentMerge: { enabled: false, overrides, injectedConfiguration: controllerState.injectedConfiguration },
+			mode: 'plan',
 			changes: 2,
 			rootEnabled: true,
+		});
+	});
+
+	test('runs each tool for the chat that calls it', async () => {
+		const turnContextRequests: string[] = [];
+		const { stateManager, configurationService, host } = createHarness(true, chat => {
+			turnContextRequests.push(chat);
+			return undefined;
+		});
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peerChat, { workingDirectories: ['file:///other'] });
+
+		await host.executeTool(peerChat, setAgentMergeEnabledToolName, { enabled: true });
+		// No repair turn runs in the peer chat, so its repair tools are not authorized.
+		const repairs: [string, Record<string, unknown>][] = [
+			[readAgentMergeCIToolName, {}],
+			[replyToAgentMergeReviewThreadToolName, { threadId: 'thread', body: 'Done' }],
+			[rerunAgentMergeWorkflowToolName, { runId: '1' }],
+		];
+		for (const [toolName, args] of repairs) {
+			await assert.rejects(async () => host.executeTool(peerChat, toolName, args), /not authorized/);
+		}
+
+		assert.deepStrictEqual({
+			folders: configurationService.getSessionConfigValues(sessionUri)?.[SessionConfigKey.AgentMergeFolders],
+			turnContextRequests,
+		}, {
+			folders: { [getWorkingDirectoryKey('file:///other')]: { enabled: true, chat: peerChat } },
+			turnContextRequests: [peerChat, peerChat, peerChat],
 		});
 	});
 
@@ -299,10 +325,10 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
-	test('resolves the owning session for a tool invoked from a peer chat', async () => {
+	test('passes the invoking peer chat to the tool', async () => {
 		const sessionUri = 'copilot:/merge-session';
 		const chatUri = buildChatUri(sessionUri, 'peer');
-		let receivedSession: string | undefined;
+		let receivedChat: string | undefined;
 		let receivedRequest: AgentMergeCIRequest | undefined;
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		stateManager.createSession({
@@ -317,8 +343,8 @@ suite('Agent Merge server tools', () => {
 			createAgentMergeServerToolGroup({
 				isEnabled: () => true,
 				setEnabled: () => '',
-				readFailedCI: async (session, request) => {
-					receivedSession = session;
+				readFailedCI: async (chat, request) => {
+					receivedChat = chat;
 					receivedRequest = request;
 					return 'result';
 				},
@@ -329,8 +355,8 @@ suite('Agent Merge server tools', () => {
 
 		const result = await host.executeTool(chatUri, readAgentMergeCIToolName, { mode: 'search', evidenceId: 'job-evidence', query: 'failure' });
 
-		assert.deepStrictEqual({ result, receivedSession, receivedRequest }, {
-			result: 'result', receivedSession: sessionUri,
+		assert.deepStrictEqual({ result, receivedChat, receivedRequest }, {
+			result: 'result', receivedChat: chatUri,
 			receivedRequest: { mode: 'search', evidenceId: 'job-evidence', query: 'failure', startLine: 1, contextLines: undefined },
 		});
 		stateManager.dispose();
