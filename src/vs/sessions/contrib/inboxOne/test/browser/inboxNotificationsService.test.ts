@@ -399,26 +399,81 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
-	test('preview input summarizes preceding context and never the pending request', () => {
+	test('preview input includes answered questions as context but never the pending question', () => {
 		const chatResource = URI.parse('test:///chat/context-preview');
 		const chatService = new TestChatService();
 		const fixture = createFixture([
 			createSession({ id: 'context-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
 		], undefined, undefined, chatService);
 
+		// A question-driven session: the user has answered several questions (retained in history
+		// as used carousels) and a new question is pending in the same turn.
 		chatService.setConversationWithPendingQuestion(chatResource, {
-			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry as the favorite food.' }],
-			pending: { requestId: 'turn-2', prose: 'Great choice!', resolveId: 'q-shade', message: 'Which pale blue shade?', questionTitle: 'Sky blue' },
+			priorResponses: [{ requestId: 'turn-1', markdown: 'Kicking off 20 questions.' }],
+			pending: {
+				requestId: 'turn-2',
+				prose: 'Am I right? Your favorite color is Sky Blue!',
+				resolveId: 'q-shade',
+				message: 'Which pale blue shade?',
+				questionTitle: 'Which of these periwinkle-ish shades feels closest?',
+				answered: [
+					{ title: 'Favorite food?', answer: 'Tomato and Egg Stir-Fry' },
+					{ title: 'Favorite color family?', answer: 'Blue' },
+				],
+			},
 		});
 
 		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
-		// Summarizes the conversation leading up to the ask...
-		assert.ok(input.includes('Tomato and Egg Stir-Fry'), `expected preceding context in preview input, got: ${input}`);
-		// ...and never feeds the current request's prose or question to the model, so the preview
-		// cannot restate the ask (which the on-card widget already shows).
-		assert.ok(!input.includes('Which pale blue shade?'), `did not expect the pending question in preview input, got: ${input}`);
-		assert.ok(!input.includes('Sky blue'), `did not expect the pending question title in preview input, got: ${input}`);
-		assert.ok(!input.includes('Great choice!'), `did not expect the pending turn prose in preview input, got: ${input}`);
+		// The recently answered questions ARE first-class context and must appear...
+		assert.ok(input.includes('Favorite color family?') && input.includes('Blue'), `expected answered Q&A in preview input, got: ${input}`);
+		assert.ok(input.includes('Tomato and Egg Stir-Fry'), `expected earlier answer in preview input, got: ${input}`);
+		// ...while the current pending question and the turn's ask prose must not, so the preview
+		// summarizes the situation rather than restating the ask.
+		assert.ok(!input.includes('periwinkle-ish shades'), `did not expect the pending question in preview input, got: ${input}`);
+		assert.ok(!input.includes('Which pale blue shade?'), `did not expect the pending message in preview input, got: ${input}`);
+		assert.ok(!input.includes('Am I right?'), `did not expect the pending turn prose in preview input, got: ${input}`);
+	});
+
+	test('preview input regenerates as new questions are answered', () => {
+		const chatResource = URI.parse('test:///chat/regen-preview');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'regen-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [],
+			pending: {
+				requestId: 'turn-1',
+				resolveId: 'q-2',
+				message: 'Q2?',
+				questionTitle: 'Question two',
+				answered: [{ title: 'Favorite food?', answer: 'Tomato and Egg Stir-Fry' }],
+			},
+		});
+		const first = fixture.service.notifications.get()[0].previewInputText ?? '';
+
+		// The user answers another question; the context (and therefore the preview signature) must
+		// change so the preview regenerates rather than reusing the earlier summary.
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [],
+			pending: {
+				requestId: 'turn-1',
+				resolveId: 'q-3',
+				message: 'Q3?',
+				questionTitle: 'Question three',
+				answered: [
+					{ title: 'Favorite food?', answer: 'Tomato and Egg Stir-Fry' },
+					{ title: 'Favorite color?', answer: 'Sky Blue' },
+				],
+			},
+		});
+		const second = fixture.service.notifications.get()[0].previewInputText ?? '';
+
+		assert.ok(second.includes('Favorite color?') && second.includes('Sky Blue'), `expected newly answered question in preview input, got: ${second}`);
+		assert.notStrictEqual(first, second);
+		const firstSignature = fixture.service.notifications.get()[0].previewSignature;
+		assert.ok(firstSignature && firstSignature.length > 0);
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
@@ -1311,21 +1366,33 @@ class TestChatService {
 	 * Loads a model with one or more prior completed turns followed by a pending question turn.
 	 * `pending.prose` is the assistant markdown in the pending turn (which can stay constant while
 	 * the carousel advances through different questions); it defaults to `pending.message`.
+	 * `pending.answered` are already-answered questions in the pending turn (retained in history as
+	 * used carousels with data), representing the recent Q&A leading up to the current question.
 	 */
 	setConversationWithPendingQuestion(chatResource: URI, options: {
 		readonly priorResponses: readonly { readonly requestId: string; readonly markdown: string }[];
-		readonly pending: { readonly requestId: string; readonly resolveId: string; readonly message: string; readonly questionTitle: string; readonly prose?: string };
+		readonly pending: { readonly requestId: string; readonly resolveId: string; readonly message: string; readonly questionTitle: string; readonly prose?: string; readonly answered?: readonly { readonly title: string; readonly answer: string }[] };
 	}): void {
 		const requests: IChatRequestModel[] = options.priorResponses.map(prior => this._buildRequest({
 			requestId: prior.requestId,
 			isComplete: true,
 			parts: [{ kind: 'markdownContent', content: { value: prior.markdown } }],
 		}));
+		const answeredParts = (options.pending.answered ?? []).map((entry, index) => ({
+			kind: 'questionCarousel' as const,
+			resolveId: `answered-${index}`,
+			allowSkip: true,
+			message: '',
+			questions: [{ id: `aq${index}`, type: 'text' as const, title: entry.title, required: true }],
+			data: { [`aq${index}`]: entry.answer },
+			isUsed: true,
+		}));
 		requests.push(this._buildRequest({
 			requestId: options.pending.requestId,
 			startedWaitingAt: 10,
 			parts: [
 				{ kind: 'markdownContent', content: { value: options.pending.prose ?? options.pending.message } },
+				...answeredParts,
 				{
 					kind: 'questionCarousel',
 					resolveId: options.pending.resolveId,

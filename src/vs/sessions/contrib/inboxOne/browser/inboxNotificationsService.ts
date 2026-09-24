@@ -19,7 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IChatModelReference, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -60,7 +60,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v4';
+const PREVIEW_PROMPT_VERSION = 'v5';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 60;
@@ -624,12 +624,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	/**
 	 * Input for the one-line card preview. For needs-input items the preview summarizes the
-	 * conversation *leading up to* the pending request — the current request's own prose and
-	 * question are never fed to the model, so it cannot restate the ask (which the on-card widget
-	 * already shows). This keeps the preview about the situation/context of the decision. The
-	 * preceding-context input still evolves as the thread accumulates turns, so successive
-	 * questions do not reuse a stale summary. When there is no preceding context (a first-turn
-	 * ask), fall back to describing the request itself since there is nothing else to show.
+	 * conversation *leading up to* the pending request — the assistant's prose from earlier turns
+	 * and the questions the user has already answered — but never the current request's own prose
+	 * or unanswered question, so it cannot restate the ask (which the on-card widget already
+	 * shows). The context evolves as the user answers each question, so the preview regenerates and
+	 * stays current instead of reusing a stale summary. When there is no preceding context (a
+	 * first-turn ask), fall back to describing the request itself since there is nothing else.
 	 */
 	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
 		if (item.needsInputPart) {
@@ -649,36 +649,77 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		if (!chatModel) {
 			return undefined;
 		}
-		// Only the turns leading *up to* the pending request, never the request turn itself: its
-		// prose and question are the ask, which the preview must not restate and the on-card widget
-		// already shows. Excluding it also lets the preview describe the situation/context instead.
+		// Build the context leading up to the pending request from the recent turns. Two first-class
+		// history sources feed it: the assistant's prose, and — crucially for question-driven
+		// sessions — the questions the user has already answered, which live in the history as
+		// `questionCarousel` parts carrying `data`/`isUsed`. The current pending request is never
+		// included: its prose is the ask (skipped for the turn that holds it) and its unanswered
+		// carousel is `!isUsed` (skipped by the answered-only filter), so the preview describes the
+		// situation without restating it — and grows as each answer lands, so it regenerates.
 		const pendingRequestId = item.needsInputPart?.requestId;
-		const responses = chatModel.getRequests()
-			.map(request => request.response)
-			.filter(response => !!response && !response.isCanceled && response.requestId !== pendingRequestId);
-		const recent: string[] = [];
-		for (const response of responses.slice(-3)) {
-			const text = this.responseMarkdown(response!);
-			if (text) {
-				recent.push(text);
+		const snippets: string[] = [];
+		for (const request of chatModel.getRequests().slice(-6)) {
+			const response = request.response;
+			if (!response || response.isCanceled) {
+				continue;
+			}
+			const isPendingTurn = response.requestId === pendingRequestId;
+			for (const part of response.response.value) {
+				if (part.kind === 'markdownContent') {
+					if (isPendingTurn) {
+						continue;
+					}
+					const text = renderAsPlaintext(part.content, { useLinkFormatter: true }).trim();
+					if (text) {
+						snippets.push(text);
+					}
+				} else if (part.kind === 'questionCarousel' && part.isUsed && part.data) {
+					const answered = this.renderAnsweredCarousel(part);
+					if (answered) {
+						snippets.push(answered);
+					}
+				}
 			}
 		}
-		const text = recent.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		const text = snippets.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 		if (!text) {
 			return undefined;
 		}
 		return text.length > 1500 ? `…${text.slice(text.length - 1500)}` : text;
 	}
 
-	/** Concatenated plain-text of a response's markdown parts (other part kinds are omitted). */
-	private responseMarkdown(response: IChatResponseModel): string {
-		const parts: string[] = [];
-		for (const part of response.response.value) {
-			if (part.kind === 'markdownContent') {
-				parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+	/** Renders an answered question carousel as compact "question: answer" context lines. */
+	private renderAnsweredCarousel(part: IChatQuestionCarousel): string | undefined {
+		const answers = part.data;
+		if (!answers) {
+			return undefined;
+		}
+		const lines: string[] = [];
+		for (const question of part.questions) {
+			const answer = this.renderCarouselAnswer(answers[question.id], question);
+			if (answer) {
+				lines.push(`${toPreviewPlainText(question.title)}: ${answer}`);
 			}
 		}
-		return parts.join('\n\n').trim();
+		return lines.length ? `Answered — ${lines.join('; ')}` : undefined;
+	}
+
+	/** Renders a single carousel answer to option labels / free text, never raw option ids. */
+	private renderCarouselAnswer(value: IChatQuestionAnswerValue | undefined, question: IChatQuestion): string | undefined {
+		if (value === undefined) {
+			return undefined;
+		}
+		if (typeof value === 'string') {
+			return value.trim() || undefined;
+		}
+		const labelFor = (candidate: string) => question.options?.find(option => option.value === candidate || option.id === candidate)?.label ?? candidate;
+		const selectedValues = (value as { selectedValues?: string[] }).selectedValues;
+		const selectedValue = (value as { selectedValue?: string }).selectedValue;
+		const selected = selectedValues
+			? selectedValues.map(labelFor)
+			: selectedValue ? [labelFor(selectedValue)] : [];
+		const parts = [...selected, value.freeformValue?.trim()].filter((entry): entry is string => !!entry);
+		return parts.length ? parts.join(', ') : undefined;
 	}
 
 	private describeItemForPreview(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
