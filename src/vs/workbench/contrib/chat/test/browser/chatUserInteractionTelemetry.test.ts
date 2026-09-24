@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { useFakeTimers } from 'sinon';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { CHAT_USER_INTERACTION_TIMEOUT_MS, ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
+import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
@@ -140,40 +139,6 @@ suite('ChatUserInteractionTelemetry', () => {
 		h.assertFinished('success');
 	});
 
-	test('the shared timeout ends only the measurement while awaiting progress', async () => {
-		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-		const h = createChatUserInteractionTestHarness(disposables);
-		const response = h.createResponse();
-		const view = h.createWidget(response.response);
-		const timer = h.createInteraction();
-		try {
-			timer.observeResponse(response.response, () => view.widget);
-			await clock.tickAsync(CHAT_USER_INTERACTION_TIMEOUT_MS - 1);
-			assert.strictEqual(h.events.length, 0);
-			h.setTime(100 + CHAT_USER_INTERACTION_TIMEOUT_MS);
-			await clock.tickAsync(1);
-			response.progress();
-			h.frame(2);
-			assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.timeToTermination, h.events[0].data.firstProgressKind, response.response.isComplete], [undefined, CHAT_USER_INTERACTION_TIMEOUT_MS, undefined, false]);
-			h.assertFinished('timedOut');
-		} finally {
-			timer.dispose();
-			clock.restore();
-		}
-	});
-
-	test('a delayed timeout callback cannot allow an over-budget success', () => {
-		const h = createChatUserInteractionTestHarness(disposables);
-		const response = h.createResponse();
-		const view = h.createWidget(response.response);
-		h.createInteraction().observeResponse(response.response, () => view.widget);
-		response.progress();
-		h.setTime(100 + CHAT_USER_INTERACTION_TIMEOUT_MS);
-		h.frame(2);
-		assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.timeToTermination, h.events[0].data.firstProgressKind], [undefined, CHAT_USER_INTERACTION_TIMEOUT_MS, undefined]);
-		h.assertFinished('timedOut');
-	});
-
 	test('counts a tool-only serialized response without waiting for markdown', () => {
 		const h = createChatUserInteractionTestHarness(disposables);
 		const response = h.createResponse();
@@ -216,7 +181,7 @@ suite('ChatUserInteractionTelemetry', () => {
 		]);
 	});
 
-	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
+	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
 		test(`reports ${result} with only a termination duration`, () => {
 			const h = createChatUserInteractionTestHarness(disposables);
 			const timer = h.createInteraction();

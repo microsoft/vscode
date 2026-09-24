@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -15,8 +14,7 @@ import { getChatSessionTelemetryContext } from '../common/chatService/chatServic
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { IChatProgressResponseContent, IChatResponseModel } from '../common/model/chatModel.js';
 
-export const CHAT_USER_INTERACTION_TIMEOUT_MS = 120_000;
-export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'queued' | 'navigated' | 'hidden' | 'timedOut' | 'disposed';
+export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'queued' | 'navigated' | 'hidden' | 'disposed';
 type ChatFirstProgressKind = 'text' | 'reasoning' | 'tool';
 type ChatRequestPhase = 'first' | 'followup' | 'unknown';
 
@@ -80,7 +78,6 @@ export class ChatUserInteraction extends Disposable {
 		this._now = _options.now ?? (() => globalThis.performance.now());
 		this.startedAt = this._now();
 		this._context = _options.context ?? {};
-		this._register(disposableTimeout(() => this.cancel('timedOut'), CHAT_USER_INTERACTION_TIMEOUT_MS));
 		this._register(addDisposableListener(_options.window, 'pagehide', () => this.cancel('disposed')));
 		this._register(addDisposableListener(_options.window.document, 'visibilitychange', () => {
 			if (_options.window.document.visibilityState !== 'visible') {
@@ -201,9 +198,6 @@ export class ChatUserInteraction extends Disposable {
 		}
 		this._active = false;
 		const elapsedMs = this._now() - this.startedAt;
-		if (result === 'success' && elapsedMs >= CHAT_USER_INTERACTION_TIMEOUT_MS) {
-			result = 'timedOut';
-		}
 		const response = this._response;
 		if (response) {
 			// Participant detection and session adoption can update attribution after response creation.
