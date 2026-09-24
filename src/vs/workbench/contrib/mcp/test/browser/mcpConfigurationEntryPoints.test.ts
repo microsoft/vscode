@@ -36,6 +36,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { ActiveEditorContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbencMcpServerInstallOptions, LocalMcpServerScope, WorkspaceMcpConfigKind } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
@@ -142,6 +143,7 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
 		instantiation.stub(IMcpResourceScannerService, {});
 		instantiation.stub(IAllowedMcpServersService, { isAllowed: () => true });
+		instantiation.stub(IUserDataProfileService, upcastDeepPartial<IUserDataProfileService>({ currentProfile: { mcpResource: URI.file('/user/mcp.json') } }));
 
 		const runtimeServer = (id: string, resource: URI) => {
 			const definition = upcastPartial<McpServerDefinition>({ id, label: installable.name, presentation: { origin: { uri: resource, range: new Range(3, 1, 3, 5) } } });
@@ -482,6 +484,8 @@ suite('MCP configuration entry points', () => {
 						installs: fixture.installs,
 						started: fixture.started,
 						pickers: fixture.quickInput.pickLabels.slice(1),
+						globalDescriptions: fixture.quickInput.pickOptions.at(-1)?.descriptions,
+						globalDetails: fixture.quickInput.pickOptions.at(-1)?.details,
 						questions: fixture.quickInput.questionOrder,
 						notified: fixture.notifications.length === 1 && String(fixture.notifications[0]).includes('environment variables on the agent-host machine'),
 					}, {
@@ -489,6 +493,8 @@ suite('MCP configuration entry points', () => {
 						opened: [resource],
 						installs: [], started: [],
 						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'VS Code Global']],
+						globalDescriptions: [resource.toString(true), URI.file('/user/mcp.json').toString(true)],
+						globalDetails: [undefined, undefined],
 						questions: ['pick', 'input', 'input', 'pick', 'pick'],
 						notified: true,
 					});
@@ -506,6 +512,19 @@ suite('MCP configuration entry points', () => {
 					{ writes: [], targets: choice ? [ConfigurationTarget.USER_LOCAL] : [], notifications: [] });
 			});
 		}
+
+		test('shows the active VS Code profile destination rather than the default profile', async () => {
+			const fixture = setupGlobal();
+			const profileResource = URI.file('/user/profiles/custom/mcp.json');
+			fixture.instantiation.stub(IUserDataProfileService, upcastDeepPartial<IUserDataProfileService>({ currentProfile: { mcpResource: profileResource } }));
+			fixture.quickInput.selections.push('Command (stdio)', 'Global', undefined);
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual(fixture.quickInput.pickOptions.at(-1)?.descriptions, [
+				URI.file('/home/me/.copilot/mcp-config.json').toString(true),
+				profileResource.toString(true),
+			]);
+		});
 
 		test('unavailable host falls back to VS Code user configuration', async () => {
 			const fixture = setupGlobal();

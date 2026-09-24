@@ -34,6 +34,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
@@ -156,6 +157,7 @@ export class McpAddConfigurationCommand {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILabelService private readonly _label: ILabelService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IMcpCopilotGlobalConfigurationService private readonly _copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
 		@IMcpResourceScannerService private readonly _mcpResourceScannerService: IMcpResourceScannerService,
 		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
@@ -590,8 +592,8 @@ export class McpAddConfigurationCommand {
 			const resource = await this._copilotGlobalConfigurationService.getConfigurationResource();
 			if (resource) {
 				const selected = await this._quickInputService.pick([
-					{ id: 'copilot', label: localize('mcp.target.copilotGlobal', "Copilot Global"), description: localize('mcp.target.copilotGlobal.description', "Available to Copilot agent sessions on this host"), detail: this._label.getUriLabel(resource) },
-					{ id: 'vscode', label: localize('mcp.target.vscodeGlobal', "VS Code Global"), description: localize('mcp.target.vscodeGlobal.description', "VS Code user configuration, runs locally") },
+					{ id: 'copilot', label: localize('mcp.target.copilotGlobal', "Copilot Global"), description: this._label.getUriLabel(resource) },
+					{ id: 'vscode', label: localize('mcp.target.vscodeGlobal', "VS Code Global"), description: this._label.getUriLabel(this._userDataProfileService.currentProfile.mcpResource) },
 				], {
 					title: localize('mcp.target.title', "Add MCP Server"),
 					placeHolder: localize('mcp.target.global.placeholder', "Select the global configuration"),
