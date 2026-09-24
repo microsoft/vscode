@@ -297,6 +297,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.contentElement.appendChild(this.listPaneElement);
 		this.contentElement.appendChild(this.detailPaneElement);
 		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
+		this.detailContentElement.tabIndex = -1;
 		container.appendChild(this.contentElement);
 		this.loadListPaneWidth();
 		this.createDetailSash();
@@ -401,6 +402,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}, 0);
 		}));
 		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
+		this._register(addDisposableListener(this.detailPaneElement, EventType.KEY_DOWN, event => this.onDetailPaneKeyDown(event)));
 
 		this.ensureCollapsedSectionsLoaded();
 
@@ -703,7 +705,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.renderedListDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			if ((event.key === 'Enter' || event.key === ' ') && !isEditableElement(event.target as HTMLElement) && event.target === card) {
 				event.preventDefault();
-				this.selectItem(item.id, 'cardKeyboard');
+				this.selectItem(item.id, 'cardKeyboard', true);
 			}
 		}));
 
@@ -1073,6 +1075,24 @@ export class InboxNotificationsView extends AbstractCustomView {
 		event.preventDefault();
 		this.setActiveCard(cards[nextIndex]);
 		cards[nextIndex].focus();
+	}
+
+	private onDetailPaneKeyDown(event: KeyboardEvent): void {
+		if (event.key !== 'Escape') {
+			return;
+		}
+
+		const target = event.target;
+		if (!isHTMLElement(target) || !this.detailPaneElement.contains(target) || this.isInlineFormInputElement(target)) {
+			return;
+		}
+
+		if (!this.focusSelectedCard()) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
 	}
 
 	private isInlineFormInputElement(element: HTMLElement): boolean {
@@ -1542,8 +1562,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.storageService.store(LIST_PANE_WIDTH_STORAGE_KEY, Math.round(this.listPaneWidth), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
-	private selectItem(id: string, trigger: 'cardClick' | 'cardKeyboard'): void {
+	private selectItem(id: string, trigger: 'cardClick' | 'cardKeyboard', focusDetailPane = false): void {
 		if (this.selectedItemId.get() === id) {
+			if (focusDetailPane) {
+				this.renderDetailIfChanged();
+				this.focusDetailPane();
+			}
 			return;
 		}
 
@@ -1564,6 +1588,66 @@ export class InboxNotificationsView extends AbstractCustomView {
 			selectedAt: Date.now(),
 		};
 		this.logInboxInteraction('item.select', trigger, item, 'none', { result: 'success' });
+		if (focusDetailPane) {
+			this.renderDetailIfChanged();
+			this.focusDetailPane();
+		}
+	}
+
+	private focusSelectedCard(): boolean {
+		const selectedId = this.selectedItemId.get();
+		if (!selectedId) {
+			return false;
+		}
+
+		const selectedCard = this.renderedCards.find(card => card.dataset.notificationId === selectedId);
+		if (!selectedCard) {
+			return false;
+		}
+
+		this.applyCardTabStops(selectedId);
+		selectedCard.focus({ preventScroll: true });
+		return true;
+	}
+
+	private focusDetailPane(): void {
+		const focusTarget = this.getFirstDetailFocusableElement() ?? this.detailContentElement;
+		focusTarget.focus({ preventScroll: true });
+	}
+
+	private getFirstDetailFocusableElement(): HTMLElement | undefined {
+		const focusableSelector = [
+			'button:not([disabled])',
+			'a[href]',
+			'input:not([disabled])',
+			'select:not([disabled])',
+			'textarea:not([disabled])',
+			'[tabindex]:not([tabindex="-1"])',
+		].join(', ');
+
+		const candidates: HTMLElement[] = [];
+		for (const child of this.detailContentElement.children) {
+			if (isHTMLElement(child)) {
+				candidates.push(child);
+			}
+		}
+
+		while (candidates.length > 0) {
+			const element = candidates.shift();
+			if (!element) {
+				continue;
+			}
+			if (element.matches(focusableSelector) && !element.hasAttribute('aria-hidden')) {
+				return element;
+			}
+			for (const child of element.children) {
+				if (isHTMLElement(child)) {
+					candidates.push(child);
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private clearSelectedItem(trigger: string): void {
@@ -1637,6 +1721,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const kindLabel = header.appendChild($('.inbox-notifications-detail-kind', undefined, this.kindLabel(item.kind)));
 		kindLabel.classList.add(`priority-${item.priority}`);
 		header.appendChild($('h2.inbox-notifications-detail-title', undefined, item.title));
+		header.appendChild($('.inbox-notifications-detail-keyboard-hint', undefined,
+			localize('inboxNotifications.detail.keyboardHint', "Press Escape to return to the selected notification.")));
 
 		const meta = header.appendChild($('.inbox-notifications-detail-meta'));
 		if (item.repositoryLabel) {

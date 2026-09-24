@@ -113,6 +113,11 @@
 	overflow-wrap: anywhere;
 }
 
+.inbox-notifications-detail-keyboard-hint {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
 .inbox-notifications-detail-meta {
 	display: flex;
 	align-items: center;
