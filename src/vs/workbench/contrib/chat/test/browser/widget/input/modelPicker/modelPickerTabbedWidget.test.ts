@@ -8,6 +8,7 @@ import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -72,10 +73,11 @@ suite('TabbedModelPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const models = [model('First'), model('Second'), model('Fixed', false)];
 
-	function createPicker(options: { models?: ILanguageModelChatMetadataAndIdentifier[]; access?: IModelConfigurationAccess; details?: string; cacheWarm?: boolean } = {}) {
+	function createPicker(options: { models?: ILanguageModelChatMetadataAndIdentifier[]; access?: IModelConfigurationAccess; details?: string; cacheWarm?: boolean; contextViewLayer?: number; inDialog?: boolean } = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		disposables.add(toDisposable(() => container.remove()));
-		const anchor = dom.append(container, dom.$('button'));
+		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
+		const anchor = dom.append(anchorContainer, dom.$('button'));
 		const popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
 		let activeDelegate: IContextViewDelegate | undefined;
@@ -143,10 +145,12 @@ suite('TabbedModelPicker', () => {
 			configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing options resets the prompt cache.', link: undefined, dismiss: () => { hintDismissed = true; } } : undefined,
 		};
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
-		picker.show(anchor, context, options.details);
+		picker.show(anchor, context, options.contextViewLayer, options.details);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed,
 			get hintDismissed() { return hintDismissed; },
+			get contextViewLayer() { return activeDelegate?.layer; },
+			get anchorPosition() { return activeDelegate?.anchorPosition; },
 		};
 	}
 
@@ -163,6 +167,27 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label="Back to Models"]').click();
 	}
+
+	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
+		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
+		const details = {
+			layer: result.contextViewLayer,
+			position: result.anchorPosition,
+			model: result.popup.querySelector('.chat-model-card-name')?.textContent,
+		};
+		goBack(result.popup);
+		assert.deepStrictEqual({
+			details,
+			list: { layer: result.contextViewLayer, position: result.anchorPosition },
+			visible: result.picker.isVisible,
+			selections: result.selections,
+		}, {
+			details: { layer: 1, position: AnchorPosition.BELOW, model: 'First' },
+			list: { layer: 1, position: AnchorPosition.BELOW },
+			visible: true,
+			selections: [],
+		});
+	});
 
 	for (const enabled of [false, true]) {
 		test(`Auto ${enabled ? 'on' : 'off'} exposes its tiers only in details without selecting on inspection`, () => {
@@ -406,7 +431,7 @@ suite('TabbedModelPicker', () => {
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
 		result.picker.hide();
-		result.picker.show(result.anchor, result.context, models[1].identifier);
+		result.picker.show(result.anchor, result.context, undefined, models[1].identifier);
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
 		const before = [...writes];
@@ -544,7 +569,7 @@ suite('TabbedModelPicker', () => {
 				getModelConfigurationActions: () => [],
 				setModelConfiguration: async (_id, values) => { Object.assign(secondValues, values); },
 			},
-		}, models[1].identifier);
+		}, undefined, models[1].identifier);
 		element(result.popup, '.chat-model-card [aria-label="Context"] [role="radio"]:last-child').click();
 		await timeout(0);
 		const before = { first: { ...firstValues }, second: { ...secondValues } };

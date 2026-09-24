@@ -310,6 +310,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 		override getAllChatSessionContributions() { return []; }
+		override getChatSessionContribution() { return undefined; }
 		override readonly onDidChangeSessionOptions = Event.None;
 		override readonly onDidChangeOptionGroups = Event.None;
 		override readonly onDidChangeAvailability = Event.None;

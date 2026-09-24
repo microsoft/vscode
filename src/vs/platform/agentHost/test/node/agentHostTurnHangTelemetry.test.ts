@@ -51,6 +51,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -250,6 +251,10 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
