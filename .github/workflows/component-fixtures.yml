@@ -85,7 +85,7 @@ jobs:
           path: test/componentFixtures/playwright/test-results/
 
   screenshots:
-    name: Screenshots & Tests
+    name: Screenshots
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -471,3 +471,21 @@ jobs:
       #       --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
       #     {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
       #     EOF
+
+  component-fixtures:
+    name: Screenshots & Tests
+    if: ${{ always() }}
+    needs:
+      - playwright
+      - screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify fixture test results
+        run: |
+          if [[ '${{ needs.playwright.result }}' != 'success' ||
+                '${{ needs.screenshots.result }}' != 'success' ]]; then
+            echo "::error::Component fixture checks failed."
+            echo "Playwright: ${{ needs.playwright.result }}"
+            echo "Screenshots: ${{ needs.screenshots.result }}"
+            exit 1
+          fi
