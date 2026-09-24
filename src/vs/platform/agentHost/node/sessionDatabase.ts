@@ -198,7 +198,7 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 		)`,
 	},
 	{
-		version: 13,
+		version: 15,
 		sql: `CREATE TABLE IF NOT EXISTS turn_message_origin (
 			turn_id TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
 			origin TEXT NOT NULL
