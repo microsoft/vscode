@@ -120,6 +120,21 @@ suite('Context Key Scanner', () => {
 			assert.deepStrictEqual(scan(input), ([{ type: 'Str', lexeme: 'foo', offset: 0 }, { type: '=~', offset: 4 }, { type: 'RegexStr', lexeme: '/zee/gm', offset: 7 }, { type: 'EOF', offset: 14 }]));
 		});
 
+		test('foo =~ /zee/d', () => {
+			const input = 'foo =~ /zee/d';
+			assert.deepStrictEqual(scan(input), ([{ type: 'Str', lexeme: 'foo', offset: 0 }, { type: '=~', offset: 4 }, { type: 'RegexStr', lexeme: '/zee/d', offset: 7 }, { type: 'EOF', offset: 13 }]));
+		});
+
+		test('foo =~ /zee/v', () => {
+			const input = 'foo =~ /zee/v';
+			assert.deepStrictEqual(scan(input), ([{ type: 'Str', lexeme: 'foo', offset: 0 }, { type: '=~', offset: 4 }, { type: 'RegexStr', lexeme: '/zee/v', offset: 7 }, { type: 'EOF', offset: 13 }]));
+		});
+
+		test('foo =~ /zee/gd', () => {
+			const input = 'foo =~ /zee/gd';
+			assert.deepStrictEqual(scan(input), ([{ type: 'Str', lexeme: 'foo', offset: 0 }, { type: '=~', offset: 4 }, { type: 'RegexStr', lexeme: '/zee/gd', offset: 7 }, { type: 'EOF', offset: 14 }]));
+		});
+
 		test('foo in barrr  ', () => {
 			const input = 'foo in barrr  ';
 			assert.deepStrictEqual(scan(input), ([{ type: 'Str', lexeme: 'foo', offset: 0 }, { type: 'in', offset: 4 }, { type: 'Str', lexeme: 'barrr', offset: 7 }, { type: 'EOF', offset: 14 }]));
@@ -240,7 +255,7 @@ suite('Context Key Scanner', () => {
 
 		test(`resourcePath =~ //foo/barr// || resourcePath =~ //view/(jarrr|doooor|bees)/(web|templates)// && resourceExtname in foo.Bar`, () => {
 			const input = `resourcePath =~ //foo/barr// || resourcePath =~ //view/(jarrr|doooor|bees)/(web|templates)// && resourceExtname in foo.Bar`;
-			assert.deepStrictEqual(scan(input), ([{ type: 'Str', offset: 0, lexeme: 'resourcePath' }, { type: '=~', offset: 13 }, { type: 'RegexStr', offset: 16, lexeme: '//' }, { type: 'Str', offset: 18, lexeme: 'foo/barr//' }, { type: '||', offset: 29 }, { type: 'Str', offset: 32, lexeme: 'resourcePath' }, { type: '=~', offset: 45 }, { type: 'RegexStr', offset: 48, lexeme: '//' }, { type: 'Str', offset: 50, lexeme: 'view/' }, { type: '(', offset: 55 }, { type: 'Str', offset: 56, lexeme: 'jarrr' }, { type: 'ErrorToken', offset: 61, lexeme: '|' }, { type: 'Str', offset: 62, lexeme: 'doooor' }, { type: 'ErrorToken', offset: 68, lexeme: '|' }, { type: 'Str', offset: 69, lexeme: 'bees' }, { type: ')', offset: 73 }, { type: 'RegexStr', offset: 74, lexeme: '/(web|templates)/' }, { type: 'ErrorToken', offset: 91, lexeme: '/ && resourceExtname in foo.Bar' }, { type: 'EOF', offset: 122 }]));
+			assert.deepStrictEqual(scan(input), ([{ type: 'Str', offset: 0, lexeme: 'resourcePath' }, { type: '=~', offset: 13 }, { type: 'RegexStr', offset: 16, lexeme: '//' }, { type: 'Str', offset: 18, lexeme: 'foo/barr//' }, { type: '||', offset: 29 }, { type: 'Str', offset: 32, lexeme: 'resourcePath' }, { type: '=~', offset: 45 }, { type: 'RegexStr', offset: 48, lexeme: '//vi' }, { type: 'Str', offset: 52, lexeme: 'ew/' }, { type: '(', offset: 55 }, { type: 'Str', offset: 56, lexeme: 'jarrr' }, { type: 'ErrorToken', offset: 61, lexeme: '|' }, { type: 'Str', offset: 62, lexeme: 'doooor' }, { type: 'ErrorToken', offset: 68, lexeme: '|' }, { type: 'Str', offset: 69, lexeme: 'bees' }, { type: ')', offset: 73 }, { type: 'RegexStr', offset: 74, lexeme: '/(web|templates)/' }, { type: 'ErrorToken', offset: 91, lexeme: '/ && resourceExtname in foo.Bar' }, { type: 'EOF', offset: 122 }]));
 		});
 
 		test(`foo =~ /file:\// || bar`, () => {
