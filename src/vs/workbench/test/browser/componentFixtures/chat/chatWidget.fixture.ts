@@ -1123,6 +1123,7 @@ function persistentProgressVirtualTime(messages: readonly IFixtureMessage[]): { 
 interface IPersistentProgressScenarioOptions {
 	readonly activityRowSpacing?: boolean;
 	readonly reasoningProseSpacing?: boolean;
+	readonly expectedCollapsedToolChains?: number;
 	readonly width?: number;
 	readonly expectedText?: string;
 	readonly progressAnimation?: ChatProgressAnimation;
@@ -1307,6 +1308,19 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (options.progressVerbosity === ChatProgressVerbosity.Verbose && response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
 		throw new Error('Tool chains must be expanded, headerless, unbounded, and separate from reasoning');
 	}
+	if (options.expectedCollapsedToolChains !== undefined) {
+		const chains = value.querySelectorAll<HTMLElement>(':scope > .chat-tool-chain.chat-used-context-collapsed');
+		if (chains.length !== options.expectedCollapsedToolChains) {
+			throw new Error(`Expected ${options.expectedCollapsedToolChains} collapsed tool chains, found ${chains.length}`);
+		}
+		for (const chain of chains) {
+			const header = chain.querySelector<HTMLElement>(':scope > .chat-used-context-label');
+			if (!header || header.querySelector('.monaco-button')?.getAttribute('aria-expanded') !== 'false'
+				|| Math.abs(chain.getBoundingClientRect().height - header.getBoundingClientRect().height) > 0.1) {
+				throw new Error('A collapsed tool chain must expose exactly one summary row');
+			}
+		}
+	}
 	for (const chain of response.querySelectorAll<HTMLElement>('.chat-tool-chain > .chat-thinking-collapsible')) {
 		const style = targetWindow.getComputedStyle(chain);
 		if (style.maxHeight !== 'none' || style.overflowY !== 'visible') {
@@ -1363,14 +1377,15 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('Thinking and tool icons must share the persistent progress icon column');
 		}
 	}
-	if (options.activityRowSpacing) {
-		const labels = [...value.querySelectorAll<HTMLElement>('.chat-tool-chain .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, :scope > .chat-markdown-part > p, .chat-working-progress p')];
-		if (labels.slice(1).some((label, index) => Math.abs(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom - 16) > 0.1)) {
-			throw new Error('Tools, reasoning, markdown, and working rows must share the same item gap');
-		}
-	}
 	if (options.activityRowSpacing || options.reasoningProseSpacing) {
-		const labels = value.querySelectorAll<HTMLElement>('.chat-tool-chain .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p');
+		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
+		if (options.activityRowSpacing) {
+			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
+			if (labels.slice(1).some((label, index) => Math.abs(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom - 16) > 0.1)) {
+				throw new Error('Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap');
+			}
+		}
+		const labels = value.querySelectorAll<HTMLElement>(activityLabelSelector);
 		const textLeft = value.getBoundingClientRect().left + 24;
 		if ([...labels].some(label => Math.abs(label.getBoundingClientRect().left - textLeft) > 0.1)) {
 			throw new Error('Thinking, tool, and working labels must share the same text gutter');
@@ -1734,6 +1749,17 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		{ kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Look up the documented progress lifecycle and confirmation rendering behavior.', source: mcpSource },
 		{ kind: 'markdown', text: 'Verifying that all content uses the same spacing.' },
 	]);
+	const reasoningThenProse = tools([
+		{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
+		{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
+		tool('search_workspace', 'Search for `progress|thinking|working`', true),
+		tool('run_in_terminal', 'Search tracked source files', true),
+		{ kind: 'thinking', text: '**Verifying command flags**\nMake sure the flags match the intended search behavior.' },
+		{ kind: 'markdown', text: 'The first scan used the wrong flag. Re-running it with the correct options.' },
+		tool('run_in_terminal', 'Search ignored files and filenames', true),
+		{ kind: 'thinking', text: '**Confirming the remaining files**\nCheck the last paths before reporting the result.' },
+		tool('read_file', 'Read the final search results'),
+	]);
 	const terminalSequence = (complete = true, output?: string) => tools([
 		{ kind: 'thinking', text: '**Checking the local changes**\nVerify the current branch and working tree before continuing.' },
 		{ kind: 'markdown', text: 'Re-checking the local change scope before reviewing the remaining files.' },
@@ -1787,19 +1813,13 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		]), { progressVerbosity: ChatProgressVerbosity.Compact, expandToolDetails: true }),
 		LongToolChain: scenario(tools(Array.from({ length: 24 }, (_, index) => tool('read_file', `Read \`src/renderer-${index + 1}.ts\``, index < 23))), { height: 1200, listHeight: 980 }),
 		Thinking: scenario(PERSISTENT_PROGRESS_THINKING),
-		InterwovenThinking: scenario(interwoven, { activityRowSpacing: true }),
+		InterwovenThinking: scenario(interwoven, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
 		ExpandedReasoning: scenario(interwoven, { expandThinking: true }),
-		ReasoningThenProse: scenario(tools([
-			{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
-			{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
-			tool('search_workspace', 'Search for `progress|thinking|working`', true),
-			tool('run_in_terminal', 'Search tracked source files', true),
-			{ kind: 'thinking', text: '**Verifying command flags**\nMake sure the flags match the intended search behavior.' },
-			{ kind: 'markdown', text: 'The first scan used the wrong flag. Re-running it with the correct options.' },
-			tool('run_in_terminal', 'Search ignored files and filenames', true),
-			{ kind: 'thinking', text: '**Confirming the remaining files**\nCheck the last paths before reporting the result.' },
-			tool('read_file', 'Read the final search results'),
-		]), { reasoningProseSpacing: true, activityRowSpacing: true }),
+		ReasoningThenProse: scenario(reasoningThenProse, { reasoningProseSpacing: true, activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
+		...(progressAnimation === ChatProgressAnimation.Off ? {} : {
+			InterwovenThinkingCompact: scenario(interwoven, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Compact, expectedCollapsedToolChains: 2 }),
+			ReasoningThenProseCompact: scenario(reasoningThenProse, { reasoningProseSpacing: true, activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Compact, expectedCollapsedToolChains: 1 }),
+		}),
 		ReasoningThenProseExpanded: scenario(tools([
 			{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
 			{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
