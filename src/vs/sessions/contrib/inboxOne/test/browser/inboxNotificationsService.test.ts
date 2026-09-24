@@ -1160,7 +1160,7 @@ suite('InboxNotificationsService', () => {
 		test('caps overly long output with an ellipsis', () => {
 			const result = cleanPreviewText('a'.repeat(200));
 			assert.ok(result);
-			assert.ok(result!.length <= 60);
+			assert.ok(result!.length <= 75);
 			assert.ok(result!.endsWith('…'));
 		});
 	});

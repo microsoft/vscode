@@ -60,10 +60,10 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v6';
+const PREVIEW_PROMPT_VERSION = 'v7';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
-const PREVIEW_MAX_OUTPUT_CHARS = 60;
+const PREVIEW_MAX_OUTPUT_CHARS = 75;
 const PREVIEW_CACHE_SIZE = 200;
 
 function supportsInlineAgentMergeActions(provider: unknown): provider is Pick<IAgentHostSessionsProvider, 'getAgentMergeSessionState' | 'getAgentMergeClientStateObservable' | 'setAgentMergeEnabled' | 'setAgentMergeOverrides'> {
@@ -81,8 +81,10 @@ function supportsInlineAgentMergeActions(provider: unknown): provider is Pick<IA
  * System prompt for the inbox card preview. The preview is the single line the user
  * scans on each card to decide, at a glance, what an item needs from them. It targets
  * ~50 characters, leads with the action/decision the agent is asking for, and otherwise
- * states the latest concrete status/result. Few-shot examples steer the model toward
- * concrete, specific wording instead of generic boilerplate.
+ * states the latest concrete status/result. The truncation cap (see PREVIEW_MAX_OUTPUT_CHARS)
+ * is deliberately looser than this target so an occasional longer generation is preserved
+ * rather than clipped. Few-shot examples steer the model toward concrete, specific wording
+ * instead of generic boilerplate.
  */
 const PREVIEW_SYSTEM_PROMPT = [
 	'You write the one-line preview shown on an inbox card for a background coding-agent session.',
