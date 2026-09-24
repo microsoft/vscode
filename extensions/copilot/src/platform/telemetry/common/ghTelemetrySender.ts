@@ -54,7 +54,8 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 				this._enhancedTelemetryLogger = undefined;
 			}
 		}
-		if (token?.getTokenValue('rt') === '1') {
+		// Restricted telemetry is only available to opted-in external users.
+		if (token?.getTokenValue('rt') === '1' && !token.isInternal) {
 			this._enhancedTelemetryLogger = this._createTelemetryLogger(true);
 		} else {
 			if (this._enhancedTelemetryLogger) {
