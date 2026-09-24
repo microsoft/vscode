@@ -73,6 +73,7 @@ export const enum AccessibilityVerbositySettingId {
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
@@ -234,6 +235,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
 			description: localize('verbosity.sessionsChanges', 'Provide information about how to access the Changes view accessibility help menu when the Changes view is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionCanvas]: {
+			description: localize('verbosity.sessionCanvas', 'Provide information about how to access canvas accessibility help when a canvas is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatQuestionCarousel]: {

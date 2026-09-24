@@ -91,6 +91,8 @@ The compact session summary covers every chat workspace without copying chat-own
 
 Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them for presentation (dedicated pill vs. reference collection) only, not for removability. Shared GitHub surfaces resolve recorded pull requests and issues independently of workspace availability; the provider also promotes matching entries into the session folder's GitHub metadata only, without assigning unrelated links to its repository. Recorded entries carry no folder, so other folders of a multi-folder session report only the associations discovered for their own working directory. Promoted entries retain their stable recorded-reference ID regardless of `isArtifact`, and presentation uses that ID for session-only removal; a git-/session-discovered GitHub association that was never recorded through `add_artifact_or_reference` has no recorded-reference ID and stays non-removable, even if it reappears after a recorded duplicate is removed. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
+Canvas capability is advertised by the backing agent and currently enabled only for Copilot. Live canvas membership belongs to the exact chat channel. The provider projects presentation metadata through `IChat.canvases` and resolves the current HTTP(S) source on demand without exposing the URL in synchronized state. Sessions exposes that capability only for the local Agent Host provider; remote presentation remains unsupported.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.
@@ -104,6 +106,8 @@ create draft
 ```
 
 The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
+
+For non-ephemeral Copilot chats, normal SDK create and resume request runtime extensions and canvas rendering after the existing Workspace Trust admission. The extension launch provider supplies a stable absolute `VSCODE_CANVAS_DATA_DIR` beneath the Agent Host user-data path for extension-owned state. Extension readiness settles before the relevant model turn. A new SDK residency starts with an empty projected canvas collection and does not restore prior open canvases; source resolution never resumes a provider or replays an open or action. The host retains at most eight projected canvases per chat, evicting the oldest projection when the limit is reached.
 
 The host returns the complete ordered local branch list for branch completions; clients filter and limit it. For workspace-bound drafts, the provider starts loading branches when the draft is created and serves the result through its existing configuration-completions API. The new-session pickers search it locally on desktop and phone; load errors are reported rather than treated as an empty list. Replacing or disposing the draft discards the loaded list. Running sessions request a fresh list when their picker opens.
 
