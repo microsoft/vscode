@@ -74,6 +74,14 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		return error;
 	}
 
+	function createNonAuthenticationError(): Error & { code: number; stderr: string } {
+		const message = `fatal: destination path '/tmp/repo' already exists and is not an empty directory.`;
+		const error = new Error(message) as Error & { code: number; stderr: string };
+		error.code = 128;
+		error.stderr = message;
+		return error;
+	}
+
 	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken), logService = new NullLogService()): NativePluginGitCommandService {
 		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, logService);
 	}
@@ -229,14 +237,45 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 	test('cloneRepository does not forward GitHub authentication to unsupported origins', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
 		const service = createService(createLocalGitStub({
-			clone: async (_operationId, _url, _path, _ref, options) => { authentications.push(options?.authentication); },
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentications.push(options?.authentication);
+				if (!options?.authentication) {
+					throw createAuthenticationError();
+				}
+			},
 		}), 'github-token');
 
-		await service.cloneRepository('https://example.com/test/repo.git', URI.file('/tmp/repo'));
-		await service.cloneRepository('https://www.github.com/test/repo.git', URI.file('/tmp/repo'));
-		await service.cloneRepository('https://github.com:8443/test/repo.git', URI.file('/tmp/repo'));
+		for (const url of [
+			'https://example.com/test/repo.git',
+			'https://www.github.com/test/repo.git',
+			'https://github.com:8443/test/repo.git',
+			'http://github.com/test/repo.git',
+			'git@github.com:test/repo.git',
+		]) {
+			await assert.rejects(service.cloneRepository(url, URI.file('/tmp/repo')), /unable to get password/);
+		}
 
-		assert.deepStrictEqual(authentications, [undefined, undefined, undefined]);
+		assert.deepStrictEqual(authentications, [undefined, undefined, undefined, undefined, undefined]);
+	});
+
+	test('cloneRepository does not retry or clean up non-authentication failures', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		let deleted = false;
+		const service = createService(createLocalGitStub({
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentications.push(options?.authentication);
+				throw createNonAuthenticationError();
+			},
+		}), 'github-token', createFileService({
+			exists: async () => true,
+			del: async () => { deleted = true; },
+		}));
+
+		await assert.rejects(
+			service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo')),
+			/destination path/,
+		);
+		assert.deepStrictEqual({ authentications, deleted }, { authentications: [undefined], deleted: false });
 	});
 
 	test('pull delegates to ILocalGitService and returns result', async () => {
@@ -289,16 +328,17 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			getRemoteUrl: async () => 'https://gitlab.com/test/private.git',
 			pull: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
-				return false;
+				throw createAuthenticationError();
 			},
 			fetch: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
+				throw createAuthenticationError();
 			},
 		}), 'github-token');
 
 		const repository = URI.file('/tmp/repo');
-		await service.pull(repository);
-		await service.fetchRepository(repository);
+		await assert.rejects(service.pull(repository), /unable to get password/);
+		await assert.rejects(service.fetchRepository(repository), /unable to get password/);
 
 		assert.deepStrictEqual(authentications, [undefined, undefined]);
 	});
