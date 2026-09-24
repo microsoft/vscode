@@ -565,14 +565,12 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 	}
 
-	test('preserves selection, drag, scrolling, nested controls, and modified clicks', async () => {
+	test('preserves selection, drag, and scrolling', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 		const { part } = harness.createPart({ mode: 'plain' });
 		await harness.expand(part, 'plain');
-		const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
 		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
 		const terminal = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-terminal');
-		assert.ok(output);
 		assert.ok(body);
 		assert.ok(terminal);
 		const raw = harness.raw(part);
@@ -591,16 +589,62 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		body.dispatchEvent(new mainWindow.WheelEvent('wheel', { bubbles: true, deltaY: 20 }));
 		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, detail: 1 }));
 
-		const button = mainWindow.document.createElement('button');
-		body.appendChild(button);
-		button.click();
-		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, metaKey: true, detail: 1 }));
 		await timeout(fullOutputClickWait);
 		assert.strictEqual(harness.openedEditors.length, 0);
 
 		body.click();
 		await timeout(fullOutputClickWait);
 		assert.strictEqual(harness.openedEditors.length, 1);
+	});
+
+	test('does not open from interactive preview targets', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
+		assert.ok(body);
+
+		const scrollbar = mainWindow.document.createElement('span');
+		scrollbar.classList.add('scrollbar');
+		const scrollbarSlider = mainWindow.document.createElement('span');
+		scrollbarSlider.classList.add('slider');
+		const xtermScrollbar = mainWindow.document.createElement('span');
+		xtermScrollbar.classList.add('xterm-scrollbar');
+		const xtermLink = mainWindow.document.createElement('span');
+		xtermLink.classList.add('xterm-cursor-pointer');
+		for (const target of [mainWindow.document.createElement('a'), mainWindow.document.createElement('button'), scrollbar, scrollbarSlider, xtermScrollbar, xtermLink]) {
+			body.appendChild(target);
+			target.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+		}
+
+		await timeout(fullOutputClickWait);
+		assert.strictEqual(harness.openedEditors.length, 0);
+	});
+
+	test('does not open from prevented, non-primary, or modified clicks', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
+		assert.ok(body);
+
+		const preventedEvent = new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 });
+		preventedEvent.preventDefault();
+		const events = [
+			preventedEvent,
+			new mainWindow.MouseEvent('click', { bubbles: true, button: 1, detail: 1 }),
+			new mainWindow.MouseEvent('click', { bubbles: true, button: 2, detail: 1 }),
+			new mainWindow.MouseEvent('click', { bubbles: true, ctrlKey: true, detail: 1 }),
+			new mainWindow.MouseEvent('click', { bubbles: true, metaKey: true, detail: 1 }),
+			new mainWindow.MouseEvent('click', { bubbles: true, altKey: true, detail: 1 }),
+			new mainWindow.MouseEvent('click', { bubbles: true, shiftKey: true, detail: 1 }),
+		];
+		for (const event of events) {
+			body.dispatchEvent(event);
+		}
+
+		await timeout(fullOutputClickWait);
+		assert.strictEqual(harness.openedEditors.length, 0);
 	});
 
 	test('does not open for a recognized slow double-click sequence', async () => {
