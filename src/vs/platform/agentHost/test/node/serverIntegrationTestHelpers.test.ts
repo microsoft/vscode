@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
-import { killTree } from '../../../../base/node/processes.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
@@ -31,13 +31,16 @@ suite('Agent Host test server cleanup', () => {
 			windowsHide: true,
 		});
 		const calls: string[] = [];
-		const killError = new Error('taskkill failed');
+		const killError = new Error('process kill failed');
 		let identityCheckIndex = 0;
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
 			const error = await stopServer({ process: server, port: 0 }, async () => [descendant], 5_000, {
 				killTree: async (pid, forceful) => {
-					calls.push(`kill:${pid}:${forceful}`);
+					throw new Error(`Unexpected server tree kill: ${pid}:${forceful}`);
+				},
+				killProcess: pid => {
+					calls.push(`kill:${pid}`);
 					throw killError;
 				},
 				isSameProcessRunning: async process => {
@@ -119,7 +122,7 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
-	test('ignores a failed descendant kill when the process exits during taskkill', async function () {
+	test('ignores a failed descendant kill when the process exits during termination', async function () {
 		this.timeout(15_000);
 		const result = await runDescendantKillFailureTest([true, false]);
 
@@ -127,7 +130,7 @@ suite('Agent Host test server cleanup', () => {
 			error: undefined,
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
 		});
@@ -141,7 +144,7 @@ suite('Agent Host test server cleanup', () => {
 			error: undefined,
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
@@ -156,10 +159,10 @@ suite('Agent Host test server cleanup', () => {
 			error: result.error?.message,
 			calls: result.calls,
 		}, {
-			error: 'taskkill failed',
+			error: 'process kill failed',
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
@@ -187,6 +190,7 @@ suite('Agent Host test server cleanup', () => {
 					server.kill();
 					throw new Error('taskkill failed after the server exited');
 				},
+				killProcess: () => { throw new Error('Unexpected descendant kill'); },
 				isSameProcessRunning: async () => false,
 			});
 			assert.deepStrictEqual(server.exitCode !== null || server.signalCode !== null, true);
@@ -212,6 +216,7 @@ suite('Agent Host test server cleanup', () => {
 				killTree: async () => {
 					throw new Error('taskkill failed while server was running');
 				},
+				killProcess: () => { throw new Error('Unexpected descendant kill'); },
 				isSameProcessRunning: async () => false,
 			}).then(
 				() => undefined,
@@ -223,8 +228,7 @@ suite('Agent Host test server cleanup', () => {
 		}
 	});
 
-	// Flaky on Windows: taskkill intermittently exits with code 255 during descendant cleanup.
-	test.skip('stops owned descendants after the server exits gracefully', async function () {
+	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {
 		this.timeout(30_000);
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-test-server-cleanup-'));
 		const descendantCode = `
@@ -269,20 +273,21 @@ suite('Agent Host test server cleanup', () => {
 			assert.throws(() => process.kill(message, 0), { code: 'ESRCH' });
 			await rm(directory, { recursive: true });
 		} finally {
-			await Promises.settled([server.pid, descendantPid].map(async pid => {
-				if (pid === undefined) {
-					return;
-				}
-				try {
-					process.kill(pid, 0);
-				} catch (error) {
-					if (getErrorCode(error) === 'ESRCH') {
+			await Promises.settled([
+				killServer({ process: server, port: 0 }),
+				(async () => {
+					if (descendantPid === undefined) {
 						return;
 					}
-					throw error;
-				}
-				await killTree(pid, true);
-			}));
+					try {
+						process.kill(descendantPid);
+					} catch (error) {
+						if (getErrorCode(error) !== 'ESRCH') {
+							throw error;
+						}
+					}
+				})(),
+			]);
 			await rm(directory, { recursive: true, force: true });
 		}
 	});

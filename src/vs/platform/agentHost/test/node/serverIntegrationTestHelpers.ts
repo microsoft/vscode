@@ -722,11 +722,13 @@ async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promi
 
 interface IServerProcessOperations {
 	killTree(pid: number, forceful: boolean): Promise<void>;
+	killProcess(pid: number): void;
 	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
 }
 
 const defaultServerProcessOperations: IServerProcessOperations = {
 	killTree,
+	killProcess: pid => { process.kill(pid); },
 	isSameProcessRunning: isSameWindowsProcessRunning,
 };
 
@@ -791,7 +793,7 @@ export async function stopServer(
 			return;
 		}
 		try {
-			await processOperations.killTree(descendant.pid, true);
+			processOperations.killProcess(descendant.pid);
 		} catch (error) {
 			await retry(async () => {
 				if (await processOperations.isSameProcessRunning(descendant)) {
