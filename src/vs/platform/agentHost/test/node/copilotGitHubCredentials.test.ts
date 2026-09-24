@@ -64,15 +64,19 @@ suite('CopilotGitHubCredentials', () => {
 		credentials.update('short-lived-token', 3600);
 		const freshTokenNeedsRefresh = credentials.needsRefreshWithin(30 * 60);
 		now += 31 * 60 * 1000;
+		const expiringTokenNeedsRefresh = credentials.needsRefreshWithin(30 * 60);
+		now += 30 * 60 * 1000;
 
 		assert.deepStrictEqual({
 			staticTokenNeedsRefresh,
 			freshTokenNeedsRefresh,
-			expiringTokenNeedsRefresh: credentials.needsRefreshWithin(30 * 60),
+			expiringTokenNeedsRefresh,
+			expiredTokenNeedsRefresh: credentials.needsRefreshWithin(30 * 60),
 		}, {
 			staticTokenNeedsRefresh: false,
 			freshTokenNeedsRefresh: false,
 			expiringTokenNeedsRefresh: true,
+			expiredTokenNeedsRefresh: true,
 		});
 	});
 

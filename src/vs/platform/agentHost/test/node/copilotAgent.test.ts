@@ -3011,13 +3011,33 @@ suite('CopilotAgent', () => {
 			now += 31 * 60 * 1000;
 			await agent.refreshModels();
 			await reconcileAuthentication();
+			let newWorkSettled = false;
+			const session = AgentSession.uri('copilotcli', 'enterprise-new-turn');
+			const chat = defaultChatUri(session);
+			const newWork = (agent as unknown as {
+				_queueChatTurn(
+					context: { readonly configurationId: string; readonly sequencerKey: string; readonly chatKey: string },
+					operation: 'sendMessage',
+					turnId: string,
+					task: () => Promise<void>,
+				): Promise<void>;
+			})._queueChatTurn({
+				configurationId: AgentSession.id(session),
+				sequencerKey: chat.toString(),
+				chatKey: chat.toString(),
+			}, 'sendMessage', 'new-turn', async () => {
+				newWorkSettled = true;
+			});
+			await timeout(0);
 			const whileTurnActive = {
 				clientStops: client.stopCallCount,
 				modelListRequests: client.modelListRequests.length,
+				newWorkSettled,
 				authenticationRequired: agent.authenticationRequired.get(),
 			};
 			hasActiveTurn = false;
 			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
+			await newWork;
 			await waitForState(agent.models, () => client.modelListRequests.length === 2);
 			await timeout(0);
 			await agent.refreshModels();
@@ -3041,6 +3061,7 @@ suite('CopilotAgent', () => {
 				whileTurnActive: {
 					clientStops: 0,
 					modelListRequests: 1,
+					newWorkSettled: false,
 					authenticationRequired: undefined,
 				},
 				clientTokens: ['enterprise-model-token', 'renewed-enterprise-model-token'],

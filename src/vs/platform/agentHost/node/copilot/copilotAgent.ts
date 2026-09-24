@@ -866,6 +866,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	private _clientRestartBarrier: DeferredPromise<void> | undefined;
 	/**
 	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
 	 * that all concurrent callers share a single, global retry budget for
@@ -1233,16 +1234,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return false;
 		}
+		this._clientRestartBarrier ??= new DeferredPromise<void>();
 		this._pendingClientRestartReasons.add(reason);
 		if (this._clientStarting) {
 			try {
 				await this._clientStarting;
 			} catch {
 				this._pendingClientRestartReasons.delete(reason);
+				if (this._pendingClientRestartReasons.size === 0) {
+					this._completeClientRestartBarrier();
+				}
 				return false;
 			}
 		}
 		if (!this._client) {
+			this._pendingClientRestartReasons.delete(reason);
+			if (this._pendingClientRestartReasons.size === 0) {
+				this._completeClientRestartBarrier();
+			}
 			return false;
 		}
 		if (this._updatingGitHubCredentials) {
@@ -2352,23 +2361,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._clientStopping;
 		}
 		const stopping = (async () => {
-			const clientStarting = this._clientStarting;
-			if (clientStarting) {
-				try {
-					await clientStarting;
-				} catch {
-					// A failed/stale start owns its own cleanup. Continue so
-					// any client it managed to publish is still stopped below.
+			try {
+				const clientStarting = this._clientStarting;
+				if (clientStarting) {
+					try {
+						await clientStarting;
+					} catch {
+						// A failed/stale start owns its own cleanup. Continue so
+						// any client it managed to publish is still stopped below.
+					}
 				}
+				const client = this._client;
+				this._client = undefined;
+				this._clientStarting = undefined;
+				await client?.stop();
+				// The runtime subprocess is now dead, so it is safe to release the BYOK
+				// proxy handle: the next session launch mints a fresh nonce. See the
+				// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
+				await this._sessionLauncher.disposeByokProxyHandle();
+			} finally {
+				this._completeClientRestartBarrier();
 			}
-			const client = this._client;
-			this._client = undefined;
-			this._clientStarting = undefined;
-			await client?.stop();
-			// The runtime subprocess is now dead, so it is safe to release the BYOK
-			// proxy handle: the next session launch mints a fresh nonce. See the
-			// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
-			await this._sessionLauncher.disposeByokProxyHandle();
 		})().finally(() => {
 			if (this._clientStopping === stopping) {
 				this._clientStopping = undefined;
@@ -2376,6 +2389,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._clientStopping = stopping;
 		return stopping;
+	}
+
+	private _completeClientRestartBarrier(): void {
+		const barrier = this._clientRestartBarrier;
+		this._clientRestartBarrier = undefined;
+		barrier?.complete();
+	}
+
+	private _waitForClientRestart(): Promise<void> | undefined {
+		if (!this._clientRestartBarrier) {
+			return undefined;
+		}
+		return (async () => {
+			while (this._clientRestartBarrier) {
+				await this._clientRestartBarrier.p;
+			}
+		})();
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -3471,6 +3501,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
 	private async _createChat(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult> {
+		const clientRestart = this._waitForClientRestart();
+		if (clientRestart) {
+			await clientRestart;
+		}
 		const scope = context.configurationResource;
 		const chatKey = chat.toString();
 		this._throwIfWorkingDirectoryMutationBlocksChat(scope, chat);
@@ -5162,6 +5196,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._isShuttingDown) {
 			throw new CancellationError();
 		}
+		const clientRestart = this._waitForClientRestart();
+		if (clientRestart) {
+			await clientRestart;
+		}
+		if (this._isShuttingDown) {
+			throw new CancellationError();
+		}
 		let pendingTurns = this._pendingChatTurns.get(context.chatKey);
 		if (!pendingTurns) {
 			pendingTurns = new DisposableSet<CancellationTokenSource>();
@@ -5786,6 +5827,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _doResumeSession(sessionId: string, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
+		const clientRestart = this._waitForClientRestart();
+		if (clientRestart) {
+			await clientRestart;
+		}
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
