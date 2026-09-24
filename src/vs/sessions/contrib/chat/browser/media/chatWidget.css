@@ -94,6 +94,11 @@
 	display: flex;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container > .session-workspace-picker-slot {
+	flex: 1;
+	min-width: 0;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;

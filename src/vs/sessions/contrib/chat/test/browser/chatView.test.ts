@@ -325,6 +325,17 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(dom.getWindow(icon).getComputedStyle(icon, '::before').fontSize, '12px');
 	});
 
+	test('lets the web workspace picker wrapper fill the experimental row', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const composer = dom.append(workbench, dom.$('.experimental-new-session-composer'));
+		const row = dom.append(composer, dom.$('.new-session-workspace-picker-container'));
+		const pickerSlot = dom.append(row, dom.$('.session-workspace-picker-slot'));
+		const style = dom.getWindow(pickerSlot).getComputedStyle(pickerSlot);
+
+		assert.deepStrictEqual({ flexGrow: style.flexGrow, minWidth: style.minWidth }, { flexGrow: '1', minWidth: '0px' });
+	});
+
 	test('new-chat primary pickers match the input control height without clipping split model sections', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
