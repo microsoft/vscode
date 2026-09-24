@@ -49,7 +49,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneChangesEditorTransitionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -69,6 +69,7 @@ import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -299,6 +300,16 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
  */
 export const CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP = 'primary';
 
+export function isChangesActionsWorkspaceReady(activeSession: IActiveSession | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
+	if (!activeSession?.isCreated.read(reader) || activeSession.isQuickChat?.read(reader)) {
+		return true;
+	}
+	const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
+	return !!workspace
+		&& workspace.folders.length === mountedFolders.length
+		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
+}
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -317,6 +328,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -364,6 +376,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
 			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
+			workspaceContextService.getWorkspace().folders);
 
 		// Client-side entries that belong *inside* the operations dropdown rather
 		// than beside it. The `primary` group is special: an action contributed
@@ -481,6 +495,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		this._register(autorun(reader => {
 			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
 			if (changesEditorTransitionObs.read(reader) || isLoading) {
+				return;
+			}
+
+			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
+			if (!isChangesActionsWorkspaceReady(sessionsService.activeSession.read(reader), workspaceFoldersObs.read(reader), reader)) {
+				if (buttonBar.buttons.length > 0) {
+					buttonBar.update([], []);
+				}
 				return;
 			}
 

@@ -19,6 +19,7 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
@@ -36,14 +37,14 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangeset } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneChangesEditorTransitionContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
@@ -169,6 +170,34 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual({ results, attemptedUnlocks }, {
 			results: [true, true, true, true, true, true, true, false, false, false],
 			attemptedUnlocks: Array(7).fill(ChatPetAchievementIds.CreatePullRequest),
+		});
+	});
+
+	test('waits for the active chat folder before rendering its Changes actions', () => {
+		const folder = URI.file('/repo.worktrees/feature');
+		const workspace = observableValue<ISessionWorkspace | undefined>('activeChatWorkspace', undefined);
+		const chat = upcastPartial<IChat>({ workspace });
+		const session = upcastPartial<IActiveSession>({
+			isCreated: constObservable(true),
+			isQuickChat: constObservable(false),
+			activeChat: constObservable(chat),
+		});
+		const mounted = (uri: URI) => [upcastPartial<IWorkspaceFolder>({ uri })];
+
+		const pending = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({ workingDirectory: folder })],
+		}), undefined);
+		const wrongFolder = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		const ready = isChangesActionsWorkspaceReady(session, mounted(folder), undefined);
+		workspace.set(undefined, undefined);
+		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, [], undefined);
+
+		assert.deepStrictEqual({ pending, wrongFolder, ready, quickChat }, {
+			pending: false,
+			wrongFolder: false,
+			ready: true,
+			quickChat: true,
 		});
 	});
 

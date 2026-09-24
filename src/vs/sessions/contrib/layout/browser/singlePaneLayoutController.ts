@@ -75,6 +75,11 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {
 					if (that._changesEditorTransitionPhase === 'reconciling') {
+						const session = that._sessionsService.activeSession.get();
+						// An uncreated workspace-less composer has no Changes editor to await.
+						if (session?.isCreated.get() && session.isQuickChat?.get() !== true && !session.workspace.get()) {
+							return;
+						}
 						that._setChangesEditorTransitionPhase('idle');
 					}
 				},
@@ -177,7 +182,8 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	private _shouldPreserveChangesEditor(session: IActiveSession | undefined): boolean {
 		const editorResource = this._editorGroupsService.mainPart.activeGroup.activeEditor?.resource;
-		return !!(session?.workspace.get() ?? session?.activeChat.get().workspace.get())
+		return !!session
+			&& session.isQuickChat?.get() !== true
 			&& !!editorResource
 			&& !!this._sessionChangesService.getSessionResource(editorResource);
 	}
