@@ -5,6 +5,7 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../common/onboardingScenario.js';
@@ -12,6 +13,7 @@ import { ONBOARDING_SEQUENCE_PRESENTATION_KIND, onboardingSequenceStepPresentati
 import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult } from '../common/onboardingTryout.js';
 import { IGuidedTryoutPayload, isGuidedTryoutPayload } from '../common/onboardingTryoutActions.js';
 import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
+import { runWithOnboardingPresentation } from './onboardingPresentationQueue.js';
 
 export const GUIDED_TRYOUT_PRESENTATION_KIND = 'guidedTryout';
 
@@ -49,7 +51,14 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 		}
 		return {
 			kind: 'ready',
-			run: async () => {
+			run: () => runWithOnboardingPresentation<OnboardingTryoutResult>(mainWindow, context.token, async () => {
+				if (this.getLaunchPresentation(payload) !== launch) {
+					return this.unavailable(payload);
+				}
+				const availability = this.getAvailability(scenario);
+				if (availability.kind !== 'ready') {
+					return availability.kind === 'hidden' ? this.unavailable(payload) : availability;
+				}
 				const launchResult = await preparation.run();
 				if (!this.didLaunch(launchResult) || context.token.isCancellationRequested) {
 					return context.token.isCancellationRequested ? { kind: 'cancelled' } : launchResult;
@@ -80,7 +89,12 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 					return this.unavailable(payload);
 				}
 				return launchResult;
-			},
+			}).catch((error): OnboardingTryoutResult => {
+				if (isCancellationError(error)) {
+					return { kind: 'cancelled' };
+				}
+				throw error;
+			}),
 		};
 	}
 

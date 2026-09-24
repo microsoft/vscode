@@ -227,6 +227,7 @@ suite('Onboarding tryout presentations', () => {
 			languageService,
 			tryoutService,
 		));
+		store.add(textModelService.registerTextModelContentProvider(Schemas.vscodeOnboardingSample, presentation));
 		return { presentation, models, references, openEditor, get released() { return released; } };
 	}
 

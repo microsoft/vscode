@@ -55,7 +55,15 @@ The contribution must be imported by every workbench entry point where the tryou
 
 Put tryout policy, target IDs, scopes, and guidance in a feature-owned integration adapter, not in the reusable feature implementation. Feature components should work without loading the tryout contribution and expose only their normal control APIs, such as their element and open or focus operations. Do not thread onboarding-specific identifiers through feature constructors, toolbar factories, or domain interfaces, or change normal feature commands to carry tryout state.
 
-The adapter registers target providers backed by those owner-provided APIs. A provider can serve an existing automatic tour through the feature's active owner and a tryout through its captured run scope. Keep registration lightweight and resolve services lazily when a target or preparation is requested. See [newSessionPickerTryout.ts](../../../sessions/contrib/chat/browser/newSessionPickerTryout.ts), which adapts composer picker capabilities without requiring an existing session or adding onboarding state to the composer.
+The adapter registers target providers backed by those owner-provided APIs. Existing automatic-tour targets must remain registered independently of tryouts. Use separate target IDs for scoped tryout bindings when their lifetimes differ. See [newSessionOnboardingTargets.ts](../../../sessions/contrib/chat/browser/newSessionOnboardingTargets.ts) for ordinary tour targets and [newSessionPickerTryout.ts](../../../sessions/contrib/chat/browser/newSessionPickerTryout.ts) for the scoped tryout adapter.
+
+Keep registration lightweight and resolve services lazily when availability, preparation, or a target is requested. Startup contributions must not instantiate tryout runners or feature implementations. The sample content provider registers a lightweight proxy so restored sample editors still resolve on demand.
+
+## Failure isolation
+
+- Release-note tryouts are optional enrichment. A failing availability provider is logged and disables only its own affordance; ordinary content and other examples remain usable. The base webview initializes independently of tryout scripts.
+- Guided tryouts and ordinary onboarding serialize presentation within each window. A guided run reserves the window before launching its feature, without entering the automatic scheduler's experiment or shown-state lifecycle. Cancellation while waiting must not launch the feature later.
+- Native handoff uses the dedicated [onboarding tryout channel](../../../platform/onboarding/common/onboardingTryoutHandoff.ts). Do not add tryout payloads, result types, or lifecycle operations to the native-host or ordinary window-opening APIs. Early renderer listeners retain requests only until restoration; coordinators are created on demand.
 
 ## Availability and setup
 
@@ -310,6 +318,7 @@ At minimum:
 7. For cross-window examples, test cancellation, supersession, destination validation, and one-shot delivery.
 8. For native browser targets, verify the real `WebContentsView` is hidden behind overlays.
 9. Run the smallest relevant unit suites, layer validation for import changes, and `npm run build-fast` when broad product validation is appropriate.
-10. Test that the feature's normal controls and commands work without registering its tryout adapter.
+10. Test that the feature's normal controls, commands, and automatic-tour targets work without registering its tryout adapter.
+11. Test broken availability providers, overlapping automatic tours, cancellation while waiting for presentation, and registration without initializing execution services.
 
 Use [onboardingTryoutService.test.ts](test/browser/onboardingTryoutService.test.ts), [guidedTryoutPresentation.test.ts](test/browser/guidedTryoutPresentation.test.ts), [spotlightPresentation.test.ts](test/browser/spotlightPresentation.test.ts), and [onboardingTryoutWindow.test.ts](test/electron-browser/onboardingTryoutWindow.test.ts) as framework references.

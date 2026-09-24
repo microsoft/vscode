@@ -22,6 +22,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -80,6 +81,7 @@ suite('Release notes Try This', () => {
 		runImplementation = async () => ({ kind: 'opened' });
 		executeCommand = stub<[string, ...unknown[]], Promise<undefined>>().resolves(undefined);
 		instantiationService.stub(ICommandService, { executeCommand });
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
 			override notify(notification: INotification) {
 				notifications.push(notification);
@@ -155,6 +157,42 @@ suite('Release notes Try This', () => {
 			ariaLabel: 'Try This: Local Example A local description. Opens in the Agents window. Chat examples are prepared for review and are not sent automatically.',
 			disabled: 'false',
 			runs: [], commands: [],
+		});
+
+		test('a failing availability provider leaves ordinary content and other examples usable', async () => {
+			const service = instantiationService.get(IOnboardingTryoutService);
+			const original = service.getAvailability;
+			const availabilityStub = stub(service, 'getAvailability').callsFake(id => {
+				if (id === 'sample') {
+					throw new Error('Broken provider');
+				}
+				return original(id);
+			});
+			const logged = stub(instantiationService.get(ILogService), 'error');
+			store.add(toDisposable(() => { availabilityStub.restore(); logged.restore(); }));
+			const container = await render(`# Ordinary content\n[Try](${sampleUri}) [Other](${createOnboardingTryoutUri('other')}) [Settings](command:workbench.action.openSettings)`);
+			attach();
+			changes.fire();
+			request();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				heading: container.querySelector('h1')?.textContent,
+				links: [...container.querySelectorAll('a')].map(link => ({ href: link.getAttribute('href'), disabled: link.getAttribute('aria-disabled') })),
+				fallback: container.querySelector('.release-notes-tryout-message')?.textContent,
+				logged: logged.called,
+				runs,
+			}, {
+				heading: 'Ordinary content',
+				links: [
+					{ href: null, disabled: 'true' },
+					{ href: createOnboardingTryoutUri('other').toString(), disabled: 'false' },
+					{ href: 'command:workbench.action.openSettings', disabled: null },
+				],
+				fallback: 'This feature example could not be loaded.',
+				logged: true,
+				runs: [],
+			});
 		});
 	});
 

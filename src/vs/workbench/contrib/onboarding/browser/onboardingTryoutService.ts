@@ -7,14 +7,14 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatEntitlementService, chatRequiresSetup } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../common/onboardingScenario.js';
-import { IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
 
 function isTryout(scenario: IOnboardingScenario): scenario is IOnboardingTryoutScenario {
 	return !!scenario.tryout && scenario.trigger.kind === 'command' && scenario.trigger.commandId === RUN_ONBOARDING_TRYOUT_COMMAND_ID;
@@ -37,7 +37,6 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 	private readonly presentationListeners = this._register(new DisposableStore());
 	private activeRun: IActiveTryoutRun | undefined;
 	private readonly contextKeys = new Set<string>();
-	private windowOpener: ((id: string, token: CancellationToken) => Promise<void>) | undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -68,7 +67,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 			for (const key of scenario.when?.keys() ?? []) {
 				this.contextKeys.add(key);
 			}
-			kinds.add(scenario.presentation.kind);
+			kinds.add(this.getPresentationKind(scenario));
 		}
 		for (const kind of kinds) {
 			const presentation = onboardingTryoutPresentationRegistry.get(kind);
@@ -99,8 +98,9 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		}
 
 		if (scenario.tryout.targetWindow === 'agents' && !this.environmentService.isSessionsWindow) {
-			return this.windowOpener
-				? { kind: 'ready' }
+			const presentation = onboardingTryoutPresentationRegistry.get(AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND);
+			return presentation
+				? presentation.getAvailability(scenario)
 				: { kind: 'unavailable', message: localize('onboarding.tryout.agentsUnavailable', "This example requires the desktop Agents window.") };
 		}
 
@@ -146,18 +146,10 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		return presentation.getAvailability(scenario);
 	}
 
-	registerWindowOpener(opener: (id: string, token: CancellationToken) => Promise<void>): IDisposable {
-		if (this.windowOpener) {
-			throw new Error('An onboarding tryout window opener is already registered.');
-		}
-		this.windowOpener = opener;
-		this._onDidChange.fire();
-		return toDisposable(() => {
-			if (this.windowOpener === opener) {
-				this.windowOpener = undefined;
-				this._onDidChange.fire();
-			}
-		});
+	private getPresentationKind(scenario: IOnboardingTryoutScenario): string {
+		return scenario.tryout.targetWindow === 'agents' && !this.environmentService.isSessionsWindow
+			? AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND
+			: scenario.presentation.kind;
 	}
 
 	run(id: string, token = CancellationToken.None): Promise<OnboardingTryoutResult> {
@@ -193,15 +185,8 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 					return this.asResult(availability);
 				}
 
-				if (scenario.tryout.targetWindow === 'agents' && !this.environmentService.isSessionsWindow) {
-					if (!this.windowOpener) {
-						return this.unavailable();
-					}
-					await this.windowOpener(id, cancellation.token);
-					return { kind: 'routed' };
-				}
-
-				const presentation = onboardingTryoutPresentationRegistry.get(scenario.presentation.kind);
+				const presentationKind = this.getPresentationKind(scenario);
+				const presentation = onboardingTryoutPresentationRegistry.get(presentationKind);
 				if (!presentation) {
 					return this.unavailable();
 				}
@@ -212,7 +197,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 				if (cancellation.token.isCancellationRequested) {
 					return { kind: 'cancelled' };
 				}
-				if (this.getTryout(id) !== scenario || onboardingTryoutPresentationRegistry.get(scenario.presentation.kind) !== presentation) {
+				if (this.getTryout(id) !== scenario || onboardingTryoutPresentationRegistry.get(presentationKind) !== presentation) {
 					return this.unavailable();
 				}
 				const currentAvailability = this.getAvailability(id);

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeHostService, IOnboardingTryoutWindowRequest } from '../../../../platform/native/common/native.js';
+import { IOnboardingTryoutHandoffService, IOnboardingTryoutWindowRequest } from '../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOnboardingTryoutService, parseOnboardingTryoutArguments } from '../common/onboardingTryout.js';
@@ -35,53 +34,44 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 	private readonly activeRequest = this._register(new MutableDisposable<ActiveNativeTryoutRequest>());
 
 	constructor(
-		requests: Event<readonly unknown[]>,
-		cancellations: Event<readonly unknown[]>,
 		private readonly whenRestored: Promise<void>,
 		@IOnboardingTryoutService private readonly tryoutService: IOnboardingTryoutService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IOnboardingTryoutHandoffService private readonly handoffService: IOnboardingTryoutHandoffService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+	}
 
-		this._register(tryoutService.registerWindowOpener(async (id, token) => {
-			if (token.isCancellationRequested || this._store.isDisposed) {
+	async open(id: string, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const requestId = generateUuid();
+		const cancellation = token.onCancellationRequested(() => {
+			void this.handoffService.cancel(requestId).catch(error => this.logService.error('[OnboardingTryout] Native cancellation failed', error));
+		});
+		try {
+			const result = await this.handoffService.open({
+				requestId,
+				tryoutId: this.getAgentsTryoutId(id),
+			});
+			if (token.isCancellationRequested || result === 'cancelled' || result === 'superseded') {
 				throw new CancellationError();
 			}
-			const requestId = generateUuid();
-			const cancellation = token.onCancellationRequested(() => {
-				void this.nativeHostService.cancelOnboardingTryout(requestId).catch(error => this.logService.error('[OnboardingTryout] Native cancellation failed', error));
-			});
-			try {
-				const result = await this.nativeHostService.openAgentsWindow({
-					tryoutRequest: {
-						requestId,
-						tryoutId: this.getAgentsTryoutId(id),
-					},
-				});
-				if (token.isCancellationRequested || result === 'cancelled' || result === 'superseded') {
-					throw new CancellationError();
-				}
-				if (result !== 'accepted') {
-					throw new Error(localize('onboarding.tryout.agentsRejected', "The Agents window could not start the feature example."));
-				}
-			} finally {
-				cancellation.dispose();
+			if (result !== 'accepted') {
+				throw new Error(localize('onboarding.tryout.agentsRejected', "The Agents window could not start the feature example."));
 			}
-		}));
+		} finally {
+			cancellation.dispose();
+		}
+	}
 
-		if (environmentService.isSessionsWindow) {
-			this._register(requests(args => {
-				this.startRequest(args);
-			}));
-			this._register(cancellations(args => {
-				if (args.length === 1 && typeof args[0] === 'string' && this.activeRequest.value?.request.requestId === args[0]) {
-					this.activeRequest.clear();
-				}
-			}));
+	cancelRequest(args: readonly unknown[]): void {
+		if (args.length === 1 && typeof args[0] === 'string' && this.activeRequest.value?.request.requestId === args[0]) {
+			this.activeRequest.clear();
 		}
 	}
 
@@ -94,14 +84,17 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 		return id;
 	}
 
-	private startRequest(args: readonly unknown[]): void {
+	startRequest(args: readonly unknown[]): void {
+		if (this._store.isDisposed || !this.environmentService.isSessionsWindow) {
+			return;
+		}
 		let request: IOnboardingTryoutWindowRequest | undefined;
 		try {
 			request = this.parseRequest(args);
 		} catch (error) {
 			const requestId = this.getRequestId(args);
 			if (requestId) {
-				void this.nativeHostService.completeOnboardingTryout(requestId, 'rejected');
+				void this.handoffService.complete(requestId, 'rejected').catch(error => this.logService.error('[OnboardingTryout] Native rejection failed', error));
 			}
 			this.notificationService.error(getErrorMessage(error));
 			this.logService.error('[OnboardingTryout] Native handoff failed', error);
@@ -110,7 +103,7 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 
 		const previous = this.activeRequest.value;
 		if (previous) {
-			void this.nativeHostService.completeOnboardingTryout(previous.request.requestId, 'superseded');
+			void this.handoffService.complete(previous.request.requestId, 'superseded').catch(error => this.logService.error('[OnboardingTryout] Native supersession failed', error));
 		}
 		const active = new ActiveNativeTryoutRequest(request);
 		this.activeRequest.value = active;
@@ -148,12 +141,12 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 		try {
 			id = this.getAgentsTryoutId(active.request.tryoutId);
 		} catch (error) {
-			await this.nativeHostService.completeOnboardingTryout(active.request.requestId, 'rejected');
+			await this.handoffService.complete(active.request.requestId, 'rejected');
 			this.notificationService.error(getErrorMessage(error));
 			throw error;
 		}
 
-		await this.nativeHostService.completeOnboardingTryout(active.request.requestId, 'accepted');
+		await this.handoffService.complete(active.request.requestId, 'accepted');
 		if (this.activeRequest.value !== active || active.cancellation.token.isCancellationRequested) {
 			return;
 		}
@@ -176,7 +169,7 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 	override dispose(): void {
 		const active = this.activeRequest.value;
 		if (active) {
-			void this.nativeHostService.completeOnboardingTryout(active.request.requestId, 'cancelled');
+			void this.handoffService.complete(active.request.requestId, 'cancelled').catch(error => this.logService.error('[OnboardingTryout] Native cancellation failed', error));
 		}
 		super.dispose();
 	}

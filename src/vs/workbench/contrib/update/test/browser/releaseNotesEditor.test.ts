@@ -34,6 +34,7 @@ import { ContextMenuService } from '../../../../../platform/contextview/browser/
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -86,6 +87,7 @@ suite('Release notes editor Try This integration', () => {
 		onClick = store.add(new Emitter<string>());
 		const onDispose = store.add(new Emitter<void>());
 		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 		const webview = new class extends mock<IOverlayWebview>() {
 			override readonly container = $('div');
 			override readonly onMessage = onMessage.event;
@@ -157,7 +159,7 @@ suite('Release notes editor Try This integration', () => {
 			untrustedScript: html[0].includes('untrustedScript()'),
 			options: open.getCalls().map(call => call.args[1]),
 		}, {
-			csp: true, scripts: 1, untrustedScript: false,
+			csp: true, scripts: 2, untrustedScript: false,
 			options: Array(3).fill({ allowCommands: ['workbench.action.openSettings', 'summarize.release.notes', RUN_ONBOARDING_TRYOUT_COMMAND_ID] }),
 		});
 	});

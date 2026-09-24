@@ -14,8 +14,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { createOnboardingTryoutUri, IOnboardingTryoutService, isOnboardingTryoutId, parseOnboardingTryoutUri, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../onboarding/common/onboardingTryout.js';
+import { createOnboardingTryoutUri, IOnboardingTryoutService, isOnboardingTryoutId, OnboardingTryoutAvailability, parseOnboardingTryoutUri, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../onboarding/common/onboardingTryout.js';
 import { IWebview } from '../../webview/browser/webview.js';
 
 interface IReleaseNotesTryoutState {
@@ -58,6 +59,7 @@ export class ReleaseNotesTryouts extends Disposable {
 	private readonly _states = new Map<string, IReleaseNotesTryoutState>();
 	private readonly _links = new Map<number, string>();
 	private readonly _interaction = this._register(new MutableDisposable());
+	private readonly _availabilityListener = this._register(new MutableDisposable());
 	private _interactionTarget: { id: string; action: 'run' | 'setup' } | undefined;
 	private _webview: IWebview | undefined;
 	private _canRestoreFocus: (() => boolean) | undefined;
@@ -67,9 +69,9 @@ export class ReleaseNotesTryouts extends Disposable {
 		@IOnboardingTryoutService private readonly _tryoutService: IOnboardingTryoutService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(this._tryoutService.onDidChange(() => this.update()));
 	}
 
 	needsRender(content: TrustedHTML): boolean {
@@ -113,6 +115,7 @@ export class ReleaseNotesTryouts extends Disposable {
 				continue;
 			}
 
+			this._availabilityListener.value ??= this._tryoutService.onDidChange(() => this.update());
 			const state = this.getState(id);
 			const index = this._links.size;
 			this._links.set(index, id);
@@ -136,7 +139,7 @@ export class ReleaseNotesTryouts extends Disposable {
 
 	private getState(id: string): IReleaseNotesTryoutState {
 		const metadata = this._tryoutService.getTryout(id)?.tryout;
-		const availability = metadata ? this._tryoutService.getAvailability(id) : {
+		const availability = metadata ? this.getAvailability(id) : {
 			kind: 'unavailable' as const,
 			message: localize('releaseNotes.tryout.unknown', "This example is not available in this version of VS Code."),
 		};
@@ -170,6 +173,18 @@ export class ReleaseNotesTryouts extends Disposable {
 		this._canRestoreFocus = canRestoreFocus;
 		this._register(Event.once(webview.onDidDispose)(() => this.dispose()));
 		this._register(webview.onMessage(e => this.onMessage(e.message)));
+	}
+
+	private getAvailability(id: string): OnboardingTryoutAvailability {
+		try {
+			return this._tryoutService.getAvailability(id);
+		} catch (error) {
+			this._logService.error(`[ReleaseNotesTryouts] Could not resolve '${id}'`, error);
+			return {
+				kind: 'unavailable',
+				message: localize('releaseNotes.tryout.failed', "This feature example could not be loaded."),
+			};
+		}
 	}
 
 	private onMessage(message: unknown): void {
@@ -219,7 +234,7 @@ export class ReleaseNotesTryouts extends Disposable {
 		const interaction = toDisposable(() => tokenSource.dispose(true));
 		this._interaction.value = interaction;
 		try {
-			const availability = this._tryoutService.getTryout(id) ? this._tryoutService.getAvailability(id) : undefined;
+			const availability = this._tryoutService.getTryout(id) ? this.getAvailability(id) : undefined;
 			if (!availability || availability.kind !== 'ready' && (action !== 'setup' || availability.kind !== 'unavailable' || !availability.action)) {
 				this.update();
 				if (availability?.kind !== 'hidden') {

@@ -211,7 +211,7 @@ export class ReleaseNotesManager extends Disposable {
 				if (this._currentReleaseNotes !== input || e.message?.documentId !== this._currentDocument.value?.documentId) {
 					return;
 				}
-				if (e.message.type === 'releaseNotesTryoutsReady') {
+				if (e.message.type === 'releaseNotesReady') {
 					this.updateCheckboxWebview();
 					this.updateTokenization().catch(onUnexpectedError);
 				} else if (e.message.type === 'showReleaseNotes') {
@@ -674,7 +674,6 @@ export class ReleaseNotesManager extends Disposable {
 				<script nonce="${nonce}">
 					const vscode = acquireVsCodeApi();
 					const documentId = ${JSON.stringify(tryouts.documentId)};
-					${tryouts.getScript()}
 					const container = document.createElement('p');
 					container.style.display = 'flex';
 					container.style.alignItems = 'center';
@@ -727,6 +726,10 @@ export class ReleaseNotesManager extends Disposable {
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', documentId, value: input.checked }, '*');
 					});
+					vscode.postMessage({ type: 'releaseNotesReady', documentId });
+				</script>
+				<script nonce="${nonce}">
+					${tryouts.getScript()}
 				</script>
 			</body>
 		</html>`;

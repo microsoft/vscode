@@ -5,7 +5,11 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Event, Relay } from '../../../../base/common/event.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, isDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -17,8 +21,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IOnboardingTryoutService, onboardingTryoutPresentationRegistry, parseOnboardingTryoutArguments, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
-import { GuidedTryoutPresentation } from './guidedTryoutPresentation.js';
+import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutService, onboardingTryoutPresentationRegistry, parseOnboardingTryoutArguments, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { onboardingSequenceStepPresentationRegistry } from '../common/onboardingSequence.js';
+import { GuidedTryoutPresentation, GUIDED_TRYOUT_PRESENTATION_KIND } from './guidedTryoutPresentation.js';
 import { EditorSampleTryoutPresentation } from './onboardingSamplePresentation.js';
 import { CommandTryoutPresentation, ViewTryoutPresentation } from './onboardingTryoutActions.js';
 import { OnboardingTryoutService } from './onboardingTryoutService.js';
@@ -27,18 +32,47 @@ import './onboardingTryoutUrlHandler.js';
 
 registerSingleton(IOnboardingTryoutService, OnboardingTryoutService, InstantiationType.Delayed);
 
-class OnboardingTryoutContribution extends Disposable implements IWorkbenchContribution {
+export class OnboardingTryoutContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.onboardingTryouts';
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITextModelService textModelService: ITextModelService,
 	) {
 		super();
-		this._register(registerOnboardingTryoutPresentation(instantiationService.createInstance(CommandTryoutPresentation)));
-		this._register(registerOnboardingTryoutPresentation(instantiationService.createInstance(ViewTryoutPresentation)));
-		this._register(onboardingTryoutPresentationRegistry.register(this._register(new GuidedTryoutPresentation())));
-		const samples = this._register(instantiationService.createInstance(EditorSampleTryoutPresentation));
-		this._register(registerOnboardingTryoutPresentation(samples));
+		this.registerPresentation('command', () => instantiationService.createInstance(CommandTryoutPresentation));
+		this.registerPresentation('openView', () => instantiationService.createInstance(ViewTryoutPresentation));
+		const guided = new Lazy(() => this._register(new GuidedTryoutPresentation()));
+		this._register(onboardingTryoutPresentationRegistry.register({
+			kind: GUIDED_TRYOUT_PRESENTATION_KIND,
+			onDidChangeAvailability: Event.any(onboardingTryoutPresentationRegistry.onDidChange, onboardingSequenceStepPresentationRegistry.onDidChange),
+			getAvailability: scenario => guided.value.getAvailability(scenario),
+			prepare: (scenario, context) => guided.value.prepare(scenario, context),
+		}));
+		const samples = this.registerPresentation('editorSample', () => instantiationService.createInstance(EditorSampleTryoutPresentation));
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeOnboardingSample, {
+			provideTextContent: resource => samples.value.provideTextContent(resource),
+		}));
+	}
+
+	private registerPresentation<TPayload, T extends IOnboardingTryoutPresentationDefinition<TPayload>>(kind: string, create: () => T): Lazy<T> {
+		const changes = this._register(new Relay<void>());
+		const presentation = new Lazy(() => {
+			const value = create();
+			if (isDisposable(value)) {
+				this._register(value);
+			}
+			changes.input = value.onDidChangeAvailability ?? Event.None;
+			return value;
+		});
+		this._register(registerOnboardingTryoutPresentation({
+			kind,
+			onDidChangeAvailability: changes.event,
+			isPayload: (value): value is TPayload => presentation.value.isPayload(value),
+			getAvailability: payload => presentation.value.getAvailability(payload),
+			prepare: (payload, context) => presentation.value.prepare(payload, context),
+		}));
+		return presentation;
 	}
 }
 

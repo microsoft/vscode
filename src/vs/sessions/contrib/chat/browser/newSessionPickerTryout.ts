@@ -35,16 +35,16 @@ export class NewSessionPickerTryoutPresentation extends Disposable implements IO
 	}
 
 	resolveTarget(scope: string | undefined): IOnboardingTarget | undefined {
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || scope === undefined) {
 			return undefined;
 		}
-		const composer = scope === undefined ? this.composerService.activeComposer.get() : this.composersByScope.get(scope);
+		const composer = this.composersByScope.get(scope);
 		const picker = composer?.modelPicker;
 		const element = picker?.getDomNode();
 		return picker && element ? {
 			element,
 			open: () => {
-				if (!this._store.isDisposed && (scope === undefined || this.composersByScope.get(scope) === composer)) {
+				if (!this._store.isDisposed && this.composersByScope.get(scope) === composer) {
 					picker.open();
 				}
 			},
@@ -103,7 +103,7 @@ export class NewSessionPickerTryoutContribution extends Disposable implements IW
 		super();
 		const presentation = new Lazy(() => this._register(instantiationService.createInstance(NewSessionPickerTryoutPresentation)));
 		this._register(registerOnboardingTargetProvider(ChatOnboardingTarget.ModelPicker, scope =>
-			this._store.isDisposed ? undefined : presentation.value.resolveTarget(scope)));
+			this._store.isDisposed || scope === undefined ? undefined : presentation.value.resolveTarget(scope)));
 		this._register(registerOnboardingTryoutPresentation({
 			kind: NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND,
 			isPayload: isNewSessionPickerTryoutPayload,

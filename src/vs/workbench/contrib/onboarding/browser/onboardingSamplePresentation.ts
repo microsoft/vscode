@@ -28,7 +28,6 @@ export class EditorSampleTryoutPresentation extends Disposable implements IOnboa
 		@IOnboardingTryoutService private readonly tryoutService: IOnboardingTryoutService,
 	) {
 		super();
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeOnboardingSample, this));
 	}
 
 	getAvailability(payload: EditorSampleTryoutPayload): OnboardingTryoutAvailability {

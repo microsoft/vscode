@@ -21,7 +21,7 @@ import { OnboardingTryoutService } from '../../browser/onboardingTryoutService.j
 import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
-import { createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, OnboardingTryoutAvailability, OnboardingTryoutPreparation, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
+import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 
 suite('OnboardingTryoutService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,6 +63,20 @@ suite('OnboardingTryoutService', () => {
 			isPayload: (value: unknown): value is undefined => value === undefined,
 			getAvailability,
 			prepare: (_payload, context) => prepare(context),
+		}));
+	}
+
+	function registerWindowOpener(open: (id: string) => Promise<void>) {
+		return store.add(onboardingTryoutPresentationRegistry.register({
+			kind: AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND,
+			getAvailability: () => ({ kind: 'ready' }),
+			prepare: async scenario => ({
+				kind: 'ready',
+				run: async () => {
+					await open(scenario.id);
+					return { kind: 'routed' };
+				},
+			}),
 		}));
 	}
 
@@ -314,7 +328,7 @@ suite('OnboardingTryoutService', () => {
 		let notifications = 0;
 		let routed = false;
 		registerTryout({ isAI: true, targetWindow: 'agents' });
-		store.add(service.registerWindowOpener(async () => { routed = true; }));
+		registerWindowOpener(async () => { routed = true; });
 		store.add(service.onDidChange(() => notifications++));
 		sentiment.hidden = true;
 		changed.fire();
@@ -333,7 +347,7 @@ suite('OnboardingTryoutService', () => {
 		const { service } = createService(false);
 		const routed: string[] = [];
 		registerTryout({ targetWindow: 'agents', when: ContextKeyExpr.has('onlyDefinedInAgents') });
-		store.add(service.registerWindowOpener(async id => { routed.push(id); }));
+		registerWindowOpener(async id => { routed.push(id); });
 
 		const result = await service.run('test.tryout');
 		assert.deepStrictEqual({ result, routed }, { result: { kind: 'routed' }, routed: ['test.tryout'] });

@@ -18,6 +18,7 @@ import { IOnboardingPresentationRef, IOnboardingScenario } from './onboardingSce
 
 export const RUN_ONBOARDING_TRYOUT_COMMAND_ID = 'workbench.action.onboarding.tryFeature';
 export const ONBOARDING_TRYOUT_URL_AUTHORITY = 'tryout';
+export const AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND = 'agentsWindow';
 
 export interface IOnboardingTryoutCommand {
 	readonly id: string;
@@ -134,7 +135,6 @@ export interface IOnboardingTryoutService {
 	getTryouts(): readonly IOnboardingTryoutScenario[];
 	getAvailability(id: string): OnboardingTryoutAvailability;
 	run(id: string, token?: CancellationToken): Promise<OnboardingTryoutResult>;
-	registerWindowOpener(opener: (id: string, token: CancellationToken) => Promise<void>): IDisposable;
 }
 
 export function isOnboardingTryoutId(value: unknown): value is string {

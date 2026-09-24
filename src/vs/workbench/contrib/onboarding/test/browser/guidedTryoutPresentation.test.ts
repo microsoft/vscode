@@ -103,7 +103,7 @@ suite('GuidedTryoutPresentation', () => {
 			availability: { kind: 'ready' },
 			eventsBeforeRun: ['availability', 'prepare:test.launch'],
 			result: { kind: 'opened', targetScope: 'prepared-instance' },
-			events: ['availability', 'prepare:test.launch', 'launch', 'guide:control:1/1:prepared-instance'],
+			events: ['availability', 'prepare:test.launch', 'availability', 'launch', 'guide:control:1/1:prepared-instance'],
 		});
 	});
 
@@ -136,7 +136,7 @@ suite('GuidedTryoutPresentation', () => {
 		const result = await preparation.run();
 		assert.deepStrictEqual({ result, events: launch.events }, {
 			result: { kind: 'unavailable', message: 'The control could not be highlighted.' },
-			events: ['prepare:test.launch', 'launch', 'guide:control:1/1:global'],
+			events: ['prepare:test.launch', 'availability', 'launch', 'guide:control:1/1:global'],
 		});
 	});
 
@@ -164,7 +164,7 @@ suite('GuidedTryoutPresentation', () => {
 		const result = await preparation.run();
 		assert.deepStrictEqual({ result, events: launch.events }, {
 			result: { kind: 'cancelled' },
-			events: ['launch'],
+			events: ['availability', 'launch'],
 		});
 	});
 

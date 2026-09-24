@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INativeHostService, IOnboardingTryoutWindowRequest, IOpenAgentsWindowOptions, OnboardingTryoutWindowRequestResult } from '../../../../../platform/native/common/native.js';
+import { IOnboardingTryoutHandoffService, IOnboardingTryoutWindowRequest, OnboardingTryoutWindowRequestResult } from '../../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IOnboardingTryoutScenario, IOnboardingTryoutService, OnboardingTryoutAvailability, OnboardingTryoutResult, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
+import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
+import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, IOnboardingTryoutScenario, IOnboardingTryoutService, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 import { NativeOnboardingTryoutWindow } from '../../electron-browser/onboardingTryoutWindow.js';
+import { NativeOnboardingTryoutContribution } from '../../electron-browser/onboardingTryout.contribution.js';
 
 class TestTryoutService extends mock<IOnboardingTryoutService>() {
 	readonly tryouts = new Map<string, IOnboardingTryoutScenario>();
 	readonly runs: { readonly id: string; readonly token: CancellationToken }[] = [];
-	windowOpener: Parameters<IOnboardingTryoutService['registerWindowOpener']>[0] | undefined;
 	runHandler: (id: string, token: CancellationToken) => Promise<OnboardingTryoutResult> = async () => ({ kind: 'executed' });
 
 	override getTryout(id: string): IOnboardingTryoutScenario | undefined {
@@ -41,11 +41,6 @@ class TestTryoutService extends mock<IOnboardingTryoutService>() {
 		return this.runHandler(id, token);
 	}
 
-	override registerWindowOpener(opener: NonNullable<TestTryoutService['windowOpener']>) {
-		assert.strictEqual(this.windowOpener, undefined);
-		this.windowOpener = opener;
-		return toDisposable(() => this.windowOpener = undefined);
-	}
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -63,6 +58,7 @@ class TestCommandService extends mock<ICommandService>() {
 
 suite('NativeOnboardingTryoutWindow', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 	const tryout: IOnboardingTryoutScenario = {
 		id: 'test.agentsExample',
 		trigger: { kind: 'command', commandId: RUN_ONBOARDING_TRYOUT_COMMAND_ID },
@@ -71,24 +67,33 @@ suite('NativeOnboardingTryoutWindow', () => {
 	};
 	const createRequest = (tryoutId = tryout.id, requestId = '01234567-89ab-4cde-8fab-0123456789ab'): IOnboardingTryoutWindowRequest => ({ requestId, tryoutId });
 
+	test('early routing registration and availability do not initialize a coordinator or execution services', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const construction = sinon.spy(instantiation, 'createInstance');
+		const contribution = store.add(new NativeOnboardingTryoutContribution(instantiation, upcastPartial<INativeWorkbenchEnvironmentService>({ isSessionsWindow: true })));
+		const availability = onboardingTryoutPresentationRegistry.get(AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND)?.getAvailability(tryout);
+		contribution.dispose();
+		assert.deepStrictEqual({ availability, constructions: construction.callCount, registered: onboardingTryoutPresentationRegistry.get(AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND) }, {
+			availability: { kind: 'ready' }, constructions: 0, registered: undefined,
+		});
+	});
+
 	function createWindow(isSessionsWindow = true, whenRestored = Promise.resolve()) {
 		const instantiationService = store.add(new TestInstantiationService());
-		const requests = store.add(new Emitter<readonly unknown[]>());
-		const cancellations = store.add(new Emitter<readonly unknown[]>());
 		const tryoutService = new TestTryoutService();
 		tryoutService.tryouts.set(tryout.id, tryout);
 		const commands = new TestCommandService();
-		const nativeCalls: IOpenAgentsWindowOptions[] = [];
+		const nativeCalls: IOnboardingTryoutWindowRequest[] = [];
 		const nativeCancellations: string[] = [];
 		const nativeCompletions: { readonly requestId: string; readonly result: OnboardingTryoutWindowRequestResult }[] = [];
 		const notificationErrors: (string | Error)[] = [];
 		const loggedErrors: unknown[][] = [];
 		instantiationService.stub(IOnboardingTryoutService, tryoutService);
 		instantiationService.stub(ICommandService, commands);
-		instantiationService.stub(INativeHostService, {
-			openAgentsWindow: async options => { nativeCalls.push(options ?? {}); return 'accepted'; },
-			cancelOnboardingTryout: async requestId => { nativeCancellations.push(requestId); },
-			completeOnboardingTryout: async (requestId, result) => { nativeCompletions.push({ requestId, result }); },
+		instantiationService.stub(IOnboardingTryoutHandoffService, {
+			open: async request => { nativeCalls.push(request); return 'accepted'; },
+			cancel: async requestId => { nativeCancellations.push(requestId); },
+			complete: async (requestId, result) => { nativeCompletions.push({ requestId, result }); },
 		});
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
@@ -102,17 +107,19 @@ suite('NativeOnboardingTryoutWindow', () => {
 				loggedErrors.push([message, ...args]);
 			}
 		}));
-		const createBridge = () => store.add(instantiationService.createInstance(NativeOnboardingTryoutWindow, requests.event, cancellations.event, whenRestored));
+		let receiver: NativeOnboardingTryoutWindow;
+		const createBridge = () => receiver = store.add(instantiationService.createInstance(NativeOnboardingTryoutWindow, whenRestored));
 		const bridge = createBridge();
+		const requests = { fire: (args: readonly unknown[]) => receiver.startRequest(args) };
+		const cancellations = { fire: (args: readonly unknown[]) => receiver.cancelRequest(args) };
 		return { bridge, createBridge, requests, cancellations, tryoutService, commands, nativeCalls, nativeCancellations, nativeCompletions, notificationErrors, loggedErrors, instantiationService };
 	}
 
-	test('registers a native opener that forwards only the registered identifier', async () => {
+	test('forwards only the registered identifier through the dedicated handoff', async () => {
 		const context = createWindow(false);
-		assert.ok(context.tryoutService.windowOpener);
 
-		await context.tryoutService.windowOpener(tryout.id, CancellationToken.None);
-		const forwarded = context.nativeCalls[0].tryoutRequest;
+		await context.bridge.open(tryout.id, CancellationToken.None);
+		const forwarded = context.nativeCalls[0];
 		context.bridge.dispose();
 
 		assert.deepStrictEqual({
@@ -120,51 +127,46 @@ suite('NativeOnboardingTryoutWindow', () => {
 			tryoutId: forwarded?.tryoutId,
 			validRequestId: forwarded ? isUUID(forwarded.requestId) : false,
 			runs: context.tryoutService.runs,
-			opener: context.tryoutService.windowOpener,
 		}, {
 			requestCount: 1,
 			tryoutId: tryout.id,
 			validRequestId: true,
 			runs: [],
-			opener: undefined,
 		});
 	});
 
 	test('does not dispatch a cancelled native open', async () => {
 		const context = createWindow(false);
-		assert.ok(context.tryoutService.windowOpener);
 
-		await assert.rejects(context.tryoutService.windowOpener(tryout.id, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(context.bridge.open(tryout.id, CancellationToken.Cancelled), isCancellationError);
 		assert.deepStrictEqual(context.nativeCalls, []);
 	});
 
 	test('cancels a native request while the Agents window is opening', async () => {
 		const context = createWindow(false);
 		const nativeResult = new DeferredPromise<OnboardingTryoutWindowRequestResult>();
-		context.instantiationService.stub(INativeHostService, 'openAgentsWindow', async (options?: IOpenAgentsWindowOptions) => {
-			context.nativeCalls.push(options ?? {});
+		context.instantiationService.stub(IOnboardingTryoutHandoffService, 'open', async (request: IOnboardingTryoutWindowRequest) => {
+			context.nativeCalls.push(request);
 			return nativeResult.p;
 		});
 		const cancellation = store.add(new CancellationTokenSource());
-		assert.ok(context.tryoutService.windowOpener);
 
-		const pending = context.tryoutService.windowOpener(tryout.id, cancellation.token);
+		const pending = context.bridge.open(tryout.id, cancellation.token);
 		await timeout(0);
 		cancellation.cancel();
 		await timeout(0);
 		nativeResult.complete('cancelled');
 
 		await assert.rejects(pending, isCancellationError);
-		assert.deepStrictEqual(context.nativeCancellations, [context.nativeCalls[0].tryoutRequest?.requestId]);
+		assert.deepStrictEqual(context.nativeCancellations, [context.nativeCalls[0].requestId]);
 	});
 
 	test('propagates native open failures to the shared command', async () => {
 		const context = createWindow(false);
 		const error = new Error('Window could not be opened');
-		context.instantiationService.stub(INativeHostService, 'openAgentsWindow', async () => { throw error; });
-		assert.ok(context.tryoutService.windowOpener);
+		context.instantiationService.stub(IOnboardingTryoutHandoffService, 'open', async () => { throw error; });
 
-		await assert.rejects(context.tryoutService.windowOpener(tryout.id, CancellationToken.None), candidate => candidate === error);
+		await assert.rejects(context.bridge.open(tryout.id, CancellationToken.None), candidate => candidate === error);
 	});
 
 	test('queues an initial request until contributions have registered the destination example', async () => {

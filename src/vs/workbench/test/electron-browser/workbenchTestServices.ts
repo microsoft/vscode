@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOSProperties, IOSStatistics, IToastOptions, IToastResult, OnboardingTryoutWindowRequestResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -103,9 +103,7 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<undefined> { return undefined; }
-	async cancelOnboardingTryout(_requestId: string): Promise<void> { }
-	async completeOnboardingTryout(_requestId: string, _result: OnboardingTryoutWindowRequestResult): Promise<void> { }
+	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
 
 	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 

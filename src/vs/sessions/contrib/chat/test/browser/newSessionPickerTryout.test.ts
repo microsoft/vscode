@@ -21,6 +21,7 @@ import { IOnboardingTryoutRunContext, IOnboardingTryoutService, onboardingTryout
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewSessionPickerTryoutContribution } from '../../browser/newSessionPickerTryout.js';
+import { NewSessionOnboardingTargets } from '../../browser/newSessionOnboardingTargets.js';
 
 suite('New session picker tryout adapter', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -128,18 +129,16 @@ suite('New session picker tryout adapter', () => {
 		assert.deepStrictEqual({ opened, resolved, constructions: harness.construction.callCount }, { opened: 0, resolved: 0, constructions: 1 });
 	});
 
-	test('unscoped automatic tours resolve and open the active model control', async () => {
-		let openedSessions = 0;
-		const harness = createHarness(async () => {
-			openedSessions++;
-			return { session: undefined, trustDeclined: false };
-		});
+	test('automatic tour targets work without any tryout registration or services', async () => {
+		const composerService = disposables.add(new NewSessionComposerService());
+		disposables.add(new NewSessionOnboardingTargets(composerService));
+		const resolve = () => resolveOnboardingTarget(mainWindow, 'sessions.newSession.modelPicker');
 		const first = createPicker();
 		const second = createPicker();
-		disposables.add(harness.composerService.registerComposer(createComposer(first.picker)));
+		disposables.add(composerService.registerComposer(createComposer(first.picker)));
 		const initial = resolve();
 		await initial?.open?.();
-		const replacement = disposables.add(harness.composerService.registerComposer(createComposer(second.picker)));
+		const replacement = disposables.add(composerService.registerComposer(createComposer(second.picker)));
 		const current = resolve();
 		await current?.open?.();
 		replacement.dispose();
@@ -148,9 +147,20 @@ suite('New session picker tryout adapter', () => {
 			initial: initial?.element === first.element,
 			current: current?.element === second.element,
 			restored: resolve()?.element === first.element,
-			opened: [first.opened, second.opened], openedSessions,
-			constructions: harness.construction.callCount,
-		}, { initial: true, current: true, restored: true, opened: [1, 1], openedSessions: 0, constructions: 1 });
+			opened: [first.opened, second.opened],
+		}, { initial: true, current: true, restored: true, opened: [1, 1] });
+	});
+
+	test('disposing tryouts leaves ordinary tour targets available without initializing the tryout adapter', () => {
+		const harness = createHarness();
+		disposables.add(new NewSessionOnboardingTargets(harness.composerService));
+		const control = createPicker();
+		disposables.add(harness.composerService.registerComposer(createComposer(control.picker)));
+		harness.contribution.dispose();
+		const ordinary = resolveOnboardingTarget(mainWindow, 'sessions.newSession.modelPicker');
+		assert.deepStrictEqual({ target: ordinary?.element === control.element, constructions: harness.construction.callCount, tryout: resolve() }, {
+			target: true, constructions: 0, tryout: undefined,
+		});
 	});
 
 	test('captures the empty composer model control until the run is disposed', async () => {
@@ -174,8 +184,8 @@ suite('New session picker tryout adapter', () => {
 			captured: target?.element === captured.element,
 			opened: [before.opened, captured.opened, later.opened],
 			released: resolve(scope),
-			unscoped: resolve()?.element === later.element,
-		}, { captured: true, opened: [0, 1, 0], released: undefined, unscoped: true });
+			unscoped: resolve(),
+		}, { captured: true, opened: [0, 1, 0], released: undefined, unscoped: undefined });
 	});
 
 	test('resolves a late-rendered model control only from the captured composer', async () => {
@@ -212,8 +222,8 @@ suite('New session picker tryout adapter', () => {
 		assert.deepStrictEqual({
 			missing: resolve('missing'),
 			empty: resolve(''),
-			unscoped: resolve()?.element === control.element,
-		}, { missing: undefined, empty: undefined, unscoped: true });
+			unscoped: resolve(),
+		}, { missing: undefined, empty: undefined, unscoped: undefined });
 	});
 
 	test('a stale captured control never falls back to another visible composer', async () => {
@@ -225,7 +235,7 @@ suite('New session picker tryout adapter', () => {
 		captured.element.remove();
 		disposables.add(harness.composerService.registerComposer(createComposer(current.picker)));
 
-		assert.deepStrictEqual({ stale: resolve(scope), unscoped: resolve()?.element === current.element }, { stale: undefined, unscoped: true });
+		assert.deepStrictEqual({ stale: resolve(scope), unscoped: resolve() }, { stale: undefined, unscoped: undefined });
 	});
 
 	test('fails closed when opening did not mount a composer', async () => {
