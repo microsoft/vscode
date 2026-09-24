@@ -14,7 +14,7 @@ import { fusionTestData as data, fusionTestEvent as event } from './copilotFusio
 suite('CopilotFusionProgress', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('explains each pattern without promising task-specific actions or requiring a phase plan', () => {
+	test('explains each pattern without promising task-specific actions or listing the phase plan', () => {
 		const descriptions = [
 			['single', 'Using Single: one solver will work on your request.'],
 			['cascade', 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'],
@@ -22,8 +22,10 @@ suite('CopilotFusionProgress', () => {
 		] as const;
 		for (const [pattern, description] of descriptions) {
 			const progress = new CopilotFusionProgress();
-			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern, phasePlan: undefined }));
-			assert.ok(JSON.stringify(result?.part?.content).includes(description));
+			// The resolved event carries a phase plan; the milestone must not echo it back.
+			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern }));
+			const content = JSON.stringify(result?.part?.content);
+			assert.deepStrictEqual({ description: content.includes(description), plan: content.includes('→') }, { description: true, plan: false });
 		}
 	});
 

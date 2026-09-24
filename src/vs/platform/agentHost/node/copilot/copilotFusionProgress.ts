@@ -159,10 +159,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
-				const plan = d.phasePlan?.map(step => step.conditional
-					? localize('copilot.fusion.conditionalPhase', "{0} (if needed)", phaseLabel(step.kind, d.pattern))
-					: phaseLabel(step.kind, d.pattern)).join(' → ');
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', plan, workflowDescription(d.pattern));
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, workflowDescription(d.pattern));
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}
