@@ -205,6 +205,7 @@ suite('Sessions list context menus', () => {
 		});
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/peer'),
+			workspace: constObservable(undefined),
 			title: constObservable('Peer'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
@@ -342,6 +343,7 @@ suite('Sessions list context menus', () => {
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
 		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
+			workspace: constObservable(undefined),
 			title: constObservable(title),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),

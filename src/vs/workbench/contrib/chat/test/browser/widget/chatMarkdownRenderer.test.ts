@@ -22,6 +22,8 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ChatWorkspaceEditContentPart } from '../../../browser/widget/chatContentParts/chatWorkspaceEditContentPart.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IExportableChatData, parseChatImport, Response } from '../../../common/model/chatModel.js';
@@ -90,6 +92,34 @@ suite('ChatMarkdownRenderer', () => {
 			await executed.p;
 
 			assert.deepStrictEqual(executeCommand.args, [[commandId, 'marker']]);
+		});
+	});
+
+	test('workspace edits render canonical file links without trusting imported content', () => {
+		const resource = URI.file('/workspace/example.ts');
+		const cachedResourceData = {
+			...resource.toJSON(),
+			external: `${resource.toString()}) [Details](command:test.chatImport`,
+		};
+		const cachedResource = URI.revive(cachedResourceData);
+		const oldResource = URI.file('/workspace/`[Details](https:example.com)`.ts');
+		instantiationService.stub(IChatMarkdownAnchorService, store.add(new ChatMarkdownAnchorService()));
+		const part = store.add(instantiationService.createInstance(ChatWorkspaceEditContentPart, {
+			kind: 'workspaceEdit',
+			edits: [
+				{ newResource: cachedResource },
+				{ oldResource },
+				{ oldResource, newResource: cachedResource },
+				{ newResource: URI.parse('command:test.chatImport') },
+			],
+		}, undefined!, testRenderer));
+
+		assert.deepStrictEqual({
+			links: Array.from(part.domNode.querySelectorAll('a'), link => link.dataset.href),
+			fileWidgets: part.domNode.querySelectorAll('.chat-inline-anchor-widget').length,
+		}, {
+			links: [resource.toString(), resource.toString()],
+			fileWidgets: 2,
 		});
 	});
 

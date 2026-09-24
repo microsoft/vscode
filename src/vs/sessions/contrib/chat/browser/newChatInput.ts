@@ -800,6 +800,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			parent: chatInputContainer,
 			dragBounds: inputArea,
 			movementBounds: root,
+			transition: 'teleport',
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,

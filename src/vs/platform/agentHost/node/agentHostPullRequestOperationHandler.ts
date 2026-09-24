@@ -21,7 +21,7 @@ import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/co
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions } from '../common/meta/agentPullRequestOperationMeta.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
@@ -111,7 +111,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		return this._withAbortSignal(token, async signal => {
 			const expectedContext = readPullRequestValidationMeta(params);
-			const { sessionUri, sourceUri, isSessionGitHubFolder, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
+			const { sessionUri, sourceUri, ownerUri, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
 			if (expectedContext) {
 				return {};
 			}
@@ -135,10 +135,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				generationError = this._reportGenerationError(err);
 			}
 			this._throwIfCancelled(token);
-			// Agent Merge follows the session's pull request until it is scoped to folders.
-			const agentMergeAvailable = this._isAgentMergeEnabled() && isSessionGitHubFolder;
+			const agentMergeAvailable = this._isAgentMergeEnabled();
+			const gitHubFolder = resolveGitHubStateFolder(this._stateManager, ownerUri);
+			const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionUri).folderKey;
+			const folderState = readAgentMergeFolderState(this._configurationService.getSessionConfigValues(sessionUri), gitHubFolder.folderKey, sessionFolderKey);
 			const configuration = agentMergeAvailable
-				? getAgentMergeConfiguration(this._configurationService, readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri))?.overrides)
+				? getAgentMergeConfiguration(this._configurationService, folderState?.overrides)
 				: undefined;
 			return createPullRequestDetailsResult({
 				title,
@@ -276,11 +278,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
-		const { sessionUri, sourceUri, ownerUri, isSessionGitHubFolder, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, sourceUri, ownerUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
-		if (options.agentMerge && !isSessionGitHubFolder) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.agentMergeScope', "Agent Merge is not available for chats working in other folders yet."));
-		}
 
 		if (submitted?.autoMergeMethod) {
 			const capabilities = await this._octoKitService.getRepositoryMergeCapabilities(gitHubState.owner, gitHubState.repo, authToken, signal);
@@ -290,8 +289,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 		this._validateAgentMergeAvailable(options);
-		if (submitted && !submitted.agentMerge && isSessionGitHubFolder) {
-			this._disableAgentMerge(sessionUri);
+		if (submitted && !submitted.agentMerge) {
+			this._disableAgentMerge(sessionUri, ownerUri);
 		}
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
@@ -433,18 +432,23 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 	}
 
-	private _disableAgentMerge(sessionUri: string): void {
-		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri));
+	private _disableAgentMerge(sessionUri: string, ownerUri: string): void {
+		const folder = resolveGitHubStateFolder(this._stateManager, ownerUri);
+		if (folder.folderKey === undefined) {
+			return;
+		}
+		const values = this._configurationService.getSessionConfigValues(sessionUri);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionUri).folderKey;
+		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		if (!current?.enabled) {
 			return;
 		}
 		// Preserve controller state so disabling can restore its injected session settings.
-		this._configurationService.updateSessionConfig(sessionUri, {
-			[SessionConfigKey.AgentMerge]: {
-				enabled: false,
-				...(current.overrides ? { overrides: current.overrides } : {}),
-			},
-		});
+		this._configurationService.updateSessionConfig(sessionUri, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, {
+			enabled: false,
+			...(current.overrides ? { overrides: current.overrides } : {}),
+			...(current.chat ? { chat: current.chat } : {}),
+		}));
 	}
 
 	/**
@@ -505,15 +509,19 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!options.agentMerge) {
 			return;
 		}
-		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri));
+		const folder = resolveGitHubStateFolder(this._stateManager, ownerUri);
+		if (folder.folderKey === undefined) {
+			return;
+		}
+		const values = this._configurationService.getSessionConfigValues(sessionUri);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionUri).folderKey;
+		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		const overrides = options.agentMergeOptions ?? current?.overrides;
-		this._configurationService.updateSessionConfig(sessionUri, {
-			[SessionConfigKey.AgentMerge]: {
-				enabled: true,
-				...(overrides ? { overrides } : {}),
-			},
-			[SessionConfigKey.AgentMergeController]: {},
-		});
+		this._configurationService.updateSessionConfig(sessionUri, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, {
+			enabled: true,
+			...(overrides ? { overrides } : {}),
+			chat: folder.sourceUri,
+		}));
 	}
 
 	private _buildMessage(pr: CreatedPullRequest, isExisting: boolean, autoMergeOutcome: 'none' | 'enabled' | 'failed', autoMergeError: string | undefined, options: PullRequestCreationConfiguration): string {
