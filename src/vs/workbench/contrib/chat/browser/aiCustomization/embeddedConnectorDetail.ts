@@ -281,6 +281,9 @@ export class EmbeddedConnectorDetail extends Disposable {
 		this.actionCancellation.value = cancellation;
 		try {
 			switch (action) {
+				case 'check':
+					await this.connectorsService.checkConnection(cancellation.token);
+					break;
 				case 'connect':
 				case 'reconnect':
 				case 'sign_in':

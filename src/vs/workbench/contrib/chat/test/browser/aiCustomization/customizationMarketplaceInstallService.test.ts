@@ -266,6 +266,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChange = connectorChanges.event;
 			readonly connectCalls: string[] = [];
 			readonly disconnectCalls: string[] = [];
+			statusOverride: 'unknown' | undefined;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			override get connectors() {
@@ -280,7 +281,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					agents: [],
 					commands: [],
 					skills: [],
-					connectionStatus: connectedConnectors.has('mail') ? 'connected' as const : 'not_connected' as const,
+					connectionStatus: this.statusOverride ?? (connectedConnectors.has('mail') ? 'connected' as const : 'not_connected' as const),
 					scopes: [],
 					mcpServers: [],
 				}];
@@ -1160,6 +1161,18 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('Copilot connectors', () => {
+		test('unknown connection status cannot start an installation or claim the service is disconnected', async () => {
+			const fixture = await createFixture();
+			fixture.connectorsService.statusOverride = 'unknown';
+			const candidate = connectorResource();
+			const state = fixture.service.getInstallState(candidate);
+			await assert.rejects(fixture.service.install(candidate), /Check the connection status/);
+			assert.deepStrictEqual({ state, connects: fixture.connectorsService.connectCalls }, {
+				state: { kind: 'unavailable', message: 'Check the connection status in MCP Servers before connecting this resource.' },
+				connects: [],
+			});
+		});
+
 		test('uninstalls through the connector lifecycle without public-feed or registry access', async () => {
 			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
 			const candidate = connectorResource();

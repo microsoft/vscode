@@ -234,16 +234,65 @@ suite('CopilotConnectorsService', () => {
 		}, { requests: 1, authentication: [['github', [], { silent: true }, true]], opened: [], connectors: [], consent: [], authorizationRequired: false });
 	});
 
-	test('detects missing connector consent without prompting or sending an insufficient token', async () => {
-		const fixture = createFixture([]);
+	test('ordinary GitHub session browses without consent but cannot reveal connection state', async () => {
+		const catalog = catalogResponse('connected') as { plugins: { connection: Record<string, unknown> }[] };
+		catalog.plugins[0].connection = {
+			status: 'connected',
+			statusDetail: 'reconnect_required',
+			errorMessage: 'Private work account',
+			protectedResourceMetadataUrl: 'https://example.com/private-work-account',
+			scopes: ['private:account'],
+		};
+		const fixture = createFixture([{ body: catalog }, { body: catalog }]);
 		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
-		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Sign in to view connectors/);
-		await assert.rejects(fixture.service.refresh(CancellationToken.None), /Sign in to view connectors/);
+		const connectors = await fixture.service.getConnectors(CancellationToken.None);
+		await fixture.service.refresh(CancellationToken.None);
 		assert.deepStrictEqual({
 			authorizationRequired: fixture.service.authorizationRequired,
-			requests: fixture.requests,
+			requests: fixture.requests.map(request => request.url),
+			authorization: fixture.authorizationHeaders.every(header => header === `Bearer ${fixture.initialSession.accessToken}`),
+			status: connectors[0]?.connectionStatus,
+			detail: connectors[0]?.connectionStatusDetail,
+			error: connectors[0]?.connectionErrorMessage,
+			resource: connectors[0]?.protectedResourceMetadataUrl,
+			scopes: connectors[0]?.scopes,
+			mcpServers: fixture.service.connectedMcpServers,
 			consent: fixture.consentCalls,
-		}, { authorizationRequired: true, requests: [], consent: [] });
+		}, {
+			authorizationRequired: false,
+			requests: ['https://api.github.test/copilot-connectors/api/v1/plugins', 'https://api.github.test/copilot-connectors/api/v1/plugins'],
+			authorization: true,
+			status: 'unknown',
+			detail: undefined,
+			error: undefined,
+			resource: undefined,
+			scopes: [],
+			mcpServers: [],
+			consent: [],
+		});
+	});
+
+	test('a narrow token receives an explicit rollout error when the catalog still requires connector scope', async () => {
+		const fixture = createFixture([{ status: 403 }, { body: catalogResponse('connected') }]);
+		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Browsing without connector authorization may not yet be available/);
+		const before = {
+			requests: fixture.requests.length,
+			consent: fixture.consentCalls.length,
+			status: fixture.service.connectors,
+			authorizationRequired: fixture.service.authorizationRequired,
+			catalogMayRequireConsent: fixture.service.catalogMayRequireConsent,
+		};
+		await fixture.service.checkConnection(CancellationToken.None);
+		assert.deepStrictEqual({
+			before,
+			after: fixture.service.connectors[0]?.connectionStatus,
+			consent: fixture.consentCalls.length,
+			requests: fixture.requests.map(request => request.type),
+		}, {
+			before: { requests: 1, consent: 0, status: [], authorizationRequired: true, catalogMayRequireConsent: true },
+			after: 'connected', consent: 1, requests: ['GET', 'GET'],
+		});
 	});
 
 	test('signed-out discovery offers sign-in without prompting or requesting the catalog', async () => {
@@ -258,6 +307,20 @@ suite('CopilotConnectorsService', () => {
 			consent: fixture.consentCalls,
 			requests: fixture.requests,
 		}, { authorizationRequired: true, signIn: [], consent: [], requests: [] });
+	});
+
+	test('signing in to browse requests only ordinary GitHub scopes and keeps connection status unknown', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		fixture.setAccount(null);
+		fixture.setSessions([]);
+		await fixture.service.signIn(CancellationToken.None);
+		const connectors = await fixture.service.getConnectors(CancellationToken.None);
+		assert.deepStrictEqual({
+			signIn: fixture.signInCalls,
+			consent: fixture.consentCalls,
+			status: connectors[0]?.connectionStatus,
+			connected: fixture.service.connectedMcpServers,
+		}, { signIn: [[]], consent: [], status: 'unknown', connected: [] });
 	});
 
 	test('explicit connector sign-in uses unchanged default sign-in followed by separate connector consent', async () => {
@@ -307,7 +370,6 @@ suite('CopilotConnectorsService', () => {
 	test('explicit consent upgrades the active account and reuses its scoped session without changing the default session', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available') }]);
 		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
-		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Sign in to view connectors/);
 		await Promise.all([fixture.service.authorize(CancellationToken.None), fixture.service.authorize(CancellationToken.None)]);
 		const connectors = await fixture.service.getConnectors(CancellationToken.None);
 		assert.deepStrictEqual({
@@ -322,6 +384,25 @@ suite('CopilotConnectorsService', () => {
 			authorizationRequired: false,
 			defaultSession: 'session',
 			connectors: ['mail'],
+		});
+	});
+
+	test('checking connection requires an explicit action and never connects an existing service', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }, { body: catalogResponse('connected') }]);
+		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
+		const before = await fixture.service.getConnectors(CancellationToken.None);
+		await fixture.service.checkConnection(CancellationToken.None);
+		assert.deepStrictEqual({
+			before: before[0]?.connectionStatus,
+			after: fixture.service.connectors[0]?.connectionStatus,
+			consent: fixture.consentCalls.length,
+			requests: fixture.requests.map(request => [request.type, request.url]),
+		}, {
+			before: 'unknown', after: 'connected', consent: 1,
+			requests: [
+				['GET', 'https://api.github.test/copilot-connectors/api/v1/plugins'],
+				['GET', 'https://api.github.test/copilot-connectors/api/v1/plugins'],
+			],
 		});
 	});
 
@@ -375,8 +456,8 @@ suite('CopilotConnectorsService', () => {
 	});
 
 	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
-		test(`authorization ${outcome} does not make connector requests or switch the active account`, async () => {
-			const fixture = createFixture([]);
+		test(`authorization ${outcome} does not make connector mutations or switch the active account`, async () => {
+			const fixture = createFixture([{ body: catalogResponse('connected') }]);
 			const oldSession = { ...fixture.initialSession, scopes: ['read:user'] };
 			fixture.setSessions([oldSession]);
 			fixture.authenticationService.createSession = async () => {
@@ -388,12 +469,16 @@ suite('CopilotConnectorsService', () => {
 				}
 			};
 			await assert.rejects(fixture.service.authorize(CancellationToken.None), outcome === 'cancelled' ? isCancellationError : /Permission denied|same GitHub account|did not grant permission/);
-			await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Sign in to view connectors/);
+			const connectors = await fixture.service.getConnectors(CancellationToken.None);
 			assert.deepStrictEqual({
 				requests: fixture.requests,
 				account: fixture.defaultAccountService.currentDefaultAccount,
 				authorizationRequired: fixture.service.authorizationRequired,
-			}, { requests: [], account: fixture.initialAccount, authorizationRequired: true });
+				status: connectors[0]?.connectionStatus,
+			}, {
+				requests: [{ type: 'GET', url: 'https://api.github.test/copilot-connectors/api/v1/plugins', data: undefined }],
+				account: fixture.initialAccount, authorizationRequired: false, status: 'unknown',
+			});
 		});
 	}
 

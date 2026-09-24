@@ -7,7 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { CopilotConnectorConnectionStatus, ICopilotConnector } from './copilotConnectorsService.js';
 
 export type ConnectorPrimaryAction = 'connect' | 'disconnect' | 'reconnect' | 'refresh';
-export type ConnectorRowAction = 'connect' | 'sign_in' | 'reconnect' | 'review' | 'retry' | 'more';
+export type ConnectorRowAction = 'check' | 'connect' | 'sign_in' | 'reconnect' | 'review' | 'retry' | 'more';
 export type ConnectorRowStatusIcon = 'connected' | 'attention' | 'pending' | 'error' | 'info';
 
 export interface IConnectorRowPresentation {
@@ -19,6 +19,8 @@ export interface IConnectorRowPresentation {
 
 export function getConnectorPrimaryAction(connectionStatus: CopilotConnectorConnectionStatus): ConnectorPrimaryAction {
 	switch (connectionStatus) {
+		case 'unknown':
+			return 'refresh';
 		case 'connected':
 			return 'disconnect';
 		case 'pending':
@@ -32,6 +34,8 @@ export function getConnectorPrimaryAction(connectionStatus: CopilotConnectorConn
 
 export function getConnectorStatusLabel(connectionStatus: CopilotConnectorConnectionStatus): string {
 	switch (connectionStatus) {
+		case 'unknown':
+			return localize('connectors.status.unknown', "Connection status not checked");
 		case 'connected':
 			return localize('connectors.status.connected', "Connected");
 		case 'pending':
@@ -57,6 +61,14 @@ export function getConnectorActionLabel(action: ConnectorPrimaryAction): string 
 }
 
 export function getConnectorRowPresentation(connector: ICopilotConnector): IConnectorRowPresentation {
+	if (connector.connectionStatus === 'unknown') {
+		return {
+			statusLabel: getConnectorStatusLabel('unknown'),
+			statusIcon: 'info',
+			action: 'check',
+			actionLabel: localize('connectors.action.check', "Check Connection"),
+		};
+	}
 	switch (connector.connectionStatusDetail) {
 		case 'sign_in_required':
 			return {

@@ -143,9 +143,13 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('connector sign-in is offered only for a source requiring explicit authorization', async () => {
 		const configuration = createConfiguration(['copilotConnectors']);
 		const authorizations: CancellationToken[] = [];
+		const signIns: CancellationToken[] = [];
 		let authorizationRequired = true;
+		let catalogMayRequireConsent = false;
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
 			override get authorizationRequired() { return authorizationRequired; }
+			override get catalogMayRequireConsent() { return catalogMayRequireConsent; }
+			override async signIn(token: CancellationToken) { signIns.push(token); authorizationRequired = false; }
 			override async authorize(token: CancellationToken) { authorizations.push(token); authorizationRequired = false; }
 		}();
 		const service = new CustomizationMarketplaceWorkbenchService(new class extends mock<IAgentFinderMarketplaceService>() { }(), connectorsService, configuration);
@@ -153,10 +157,15 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const action = service.getSourceRecoveryAction('copilotConnectors');
 		assert.ok(action);
 		await action.run(CancellationToken.None);
+		authorizationRequired = true;
+		catalogMayRequireConsent = true;
+		const rolloutAction = service.getSourceRecoveryAction('copilotConnectors');
+		await rolloutAction?.run(CancellationToken.None);
 		assert.deepStrictEqual({
-			unrelated, label: action.label, kind: action.kind, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
+			unrelated, label: action.label, rolloutLabel: rolloutAction?.label, kind: action.kind, signIns, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
 		}, {
-			unrelated: undefined, label: 'Sign In', kind: 'signIn', authorizations: [CancellationToken.None], afterConsent: undefined,
+			unrelated: undefined, label: 'Sign In', rolloutLabel: 'Authorize Connectors', kind: 'signIn',
+			signIns: [CancellationToken.None], authorizations: [CancellationToken.None], afterConsent: undefined,
 		});
 	});
 

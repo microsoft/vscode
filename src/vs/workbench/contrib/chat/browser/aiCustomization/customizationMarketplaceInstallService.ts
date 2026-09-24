@@ -192,6 +192,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
 			}
 			const connector = this.copilotConnectorsService.connectors.find(connector => connector.name === source.name);
+			if (!connector || connector.connectionStatus === 'unknown') {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorStatusUnknown', "Check the connection status in MCP Servers before connecting this resource.") };
+			}
 			return { kind: connector?.connectionStatus === 'connected' ? 'installed' : 'available' };
 		}
 		if (source.kind === 'mcp') {

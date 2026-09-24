@@ -2440,14 +2440,23 @@ export class McpListWidget extends Disposable {
 			const signIn = this.connectorSignIn.value ?? (this.connectorSignIn.value = new CustomizationMarketplaceSourceWarnings(list, [source],
 				() => void this.refreshConnectors(),
 				() => ({
-					label: localize('connectors.signIn', "Sign In"),
+					label: this.connectorsService.catalogMayRequireConsent
+						? localize('connectors.authorize', "Authorize Connectors")
+						: localize('connectors.signIn', "Sign In"),
 					kind: 'signIn',
-					run: token => this.connectorsService.authorize(token),
+					run: token => this.connectorsService.catalogMayRequireConsent
+						? this.connectorsService.authorize(token)
+						: this.connectorsService.signIn(token),
 				}),
 				this.notificationService,
 			));
 			DOM.append(list, signIn.element);
-			signIn.update([{ sourceId: source.id, message: localize('connectors.signInRequired', "Sign in to view connectors.") }], false);
+			signIn.update([{
+				sourceId: source.id,
+				message: this.connectorsService.catalogMayRequireConsent
+					? localize('connectors.catalogMayRequireConsent', "The connector catalog is unavailable (HTTP 403). Authorization may help if access without connector scope has not yet rolled out. You can authorize connectors to retry.")
+					: localize('connectors.signInRequired', "Sign in to view connectors."),
+			}], false);
 			this.firstCardFocusElement ??= signIn.firstActionElement;
 			this.cardListControllers.get(list)?.finalize();
 			return;
@@ -2558,6 +2567,9 @@ export class McpListWidget extends Disposable {
 		const actionLabel = getConnectorRowPresentation(connector).actionLabel ?? localize('connectors.action.updated', "Updated");
 		try {
 			switch (action) {
+				case 'check':
+					await this.connectorsService.checkConnection(cancellation.token);
+					break;
 				case 'connect':
 				case 'sign_in':
 				case 'reconnect':

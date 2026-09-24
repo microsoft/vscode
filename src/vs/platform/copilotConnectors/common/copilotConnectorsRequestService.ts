@@ -33,7 +33,11 @@ export interface ICopilotConnectorsRequestService {
 	request(request: CopilotConnectorsRequest, accessToken: string, token: CancellationToken): Promise<unknown>;
 }
 
-export class CopilotConnectorsError extends Error { }
+export class CopilotConnectorsError extends Error {
+	constructor(message: string, readonly statusCode?: number) {
+		super(message);
+	}
+}
 
 export class CopilotConnectorsRequestService implements ICopilotConnectorsRequestService {
 	declare readonly _serviceBrand: undefined;
@@ -105,7 +109,7 @@ export class CopilotConnectorsRequestService implements ICopilotConnectorsReques
 		try {
 			const status = context.res.statusCode ?? 0;
 			if (status < 200 || status >= 300) {
-				throw new CopilotConnectorsError(localize('copilotConnectors.httpError', "Copilot connectors could not complete the request (HTTP {0}).", status));
+				throw new CopilotConnectorsError(localize('copilotConnectors.httpError', "Copilot connectors could not complete the request (HTTP {0}).", status), status);
 			}
 			if (status === 204) {
 				return undefined;

@@ -41,6 +41,7 @@ suite('Connector presentation', () => {
 
 	test('maps connection and recovery states to the designed actions', () => {
 		assert.deepStrictEqual([
+			getConnectorRowPresentation(connector('unknown')),
 			getConnectorRowPresentation(connector('connected')),
 			getConnectorRowPresentation(connector('not_connected')),
 			getConnectorRowPresentation(connector('pending')),
@@ -49,6 +50,7 @@ suite('Connector presentation', () => {
 			getConnectorRowPresentation(connector('error', 'retryable_error')),
 			getConnectorRowPresentation(connector('error', 'unavailable')),
 		], [
+			{ statusLabel: 'Connection status not checked', statusIcon: 'info', action: 'check', actionLabel: 'Check Connection' },
 			{ statusLabel: 'Connected', statusIcon: 'connected', action: 'more' },
 			{ statusLabel: 'Not connected', action: 'connect', actionLabel: 'Connect' },
 			{ statusLabel: 'Connection pending', statusIcon: 'pending' },

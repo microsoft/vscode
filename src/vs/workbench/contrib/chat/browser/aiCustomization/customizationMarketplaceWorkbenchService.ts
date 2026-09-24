@@ -86,9 +86,13 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 			return undefined;
 		}
 		return {
-			label: localize('customizationMarketplace.signIn', "Sign In"),
+			label: this.copilotConnectorsService.catalogMayRequireConsent
+				? localize('customizationMarketplace.authorizeConnectors', "Authorize Connectors")
+				: localize('customizationMarketplace.signIn', "Sign In"),
 			kind: 'signIn',
-			run: token => this.copilotConnectorsService.authorize(token),
+			run: token => this.copilotConnectorsService.catalogMayRequireConsent
+				? this.copilotConnectorsService.authorize(token)
+				: this.copilotConnectorsService.signIn(token),
 		};
 	}
 
