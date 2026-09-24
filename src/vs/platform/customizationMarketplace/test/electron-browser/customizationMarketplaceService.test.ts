@@ -13,7 +13,9 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
-import { GalleryMcpServerStatus, IMcpGalleryService } from '../../../mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
+import { IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../common/customizationMarketplaceIpc.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
@@ -26,6 +28,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const ipcRequests: ICustomizationMarketplaceRequest[] = [];
@@ -37,7 +40,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 				return {
 					items: [{
 						sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
-						mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [], score: 75,
+						mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [], score: request?.query === 'tie' ? 0 : 75,
 					}],
 					total: 1,
 				} satisfies ICustomizationMarketplacePage as T;
@@ -60,19 +63,29 @@ suite('NativeCustomizationMarketplaceService', () => {
 				};
 			}
 		}());
+		services.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override async getMcpGalleryManifest() { return { url: 'https://registry.test', version: 'v0.1', resources: [] }; }
+		}());
+		services.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
 		const page = await service.query({ query: 'server', pageSize: 1 }, CancellationToken.None);
 		const last = await service.query({ query: 'server', pageSize: 1, cursor: page.nextCursor }, CancellationToken.None);
+		const browse = await service.query({ pageSize: 1 }, CancellationToken.None);
+		const tie = await service.query({ query: 'tie', pageSize: 1 }, CancellationToken.None);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		const mcpOnly = await service.query({ pageSize: 1 }, CancellationToken.None);
 		assert.deepStrictEqual({
-			ids: [page, last, mcpOnly].map(result => result.items.map(item => [item.sourceId, item.identifier])),
+			ids: [page, last, browse, tie, mcpOnly].map(result => result.items.map(item => [item.sourceId, item.identifier])),
 			ipcRequests,
 			galleryRequests,
 		}, {
-			ids: [[['agentFinder', 'public']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']]],
-			ipcRequests: [{ query: 'server', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] }],
-			galleryRequests: ['first', 'first'],
+			ids: [[['agentFinder', 'public']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']]],
+			ipcRequests: [
+				{ query: 'server', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
+				{ query: '', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
+				{ query: 'tie', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
+			],
+			galleryRequests: ['first', 'first', 'first', 'first'],
 		});
 	});
 
@@ -127,6 +140,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 	test('isolates gallery failures and never opens a public IPC channel for MCP-only discovery', async () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const services = store.add(new TestInstantiationService());
@@ -137,6 +151,10 @@ suite('NativeCustomizationMarketplaceService', () => {
 		services.stub(IMcpGalleryService, new class extends mock<IMcpGalleryService>() {
 			override async queryPage(): Promise<never> { throw new Error('MCP registry unavailable'); }
 		}());
+		services.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override async getMcpGalleryManifest() { return { url: 'https://registry.test', version: 'v0.1', resources: [] }; }
+		}());
+		services.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
 		const page = await service.query({}, CancellationToken.None);
 		assert.deepStrictEqual(page, {

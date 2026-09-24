@@ -7,9 +7,12 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
 import { McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions } from '../../../mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 
 suite('McpGalleryMarketplaceProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,20 +31,30 @@ suite('McpGalleryMarketplaceProvider', () => {
 		icon: { light: 'javascript:alert(1)', dark: 'https://registry.test/icon.png' },
 		configuration: { packages: [] },
 	};
+	const customUrl = 'https://registry.test';
+	const productUrl = 'https://api.mcp.github.com';
+	const product = { mcpGallery: { serviceUrl: productUrl } } as IProductService;
+	const manifest = (url: string) => new class extends mock<IMcpGalleryManifestService>() {
+		override async getMcpGalleryManifest() { return { url, version: 'v0.1', resources: [] }; }
+	}();
+	const configuration = (url = customUrl) => new TestConfigurationService({ [mcpGalleryServiceUrlConfig]: url });
 
 	test('maps metadata, never executable configuration, and continues with the native cursor', async () => {
 		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const registryUrls: string[] = [];
 		const gallery = new class extends mock<IMcpGalleryService>() {
-			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+			override async queryPage(options: IMcpGalleryQueryPageOptions, _token: CancellationToken, registry?: IMcpGalleryManifest) {
 				requests.push(options);
+				registryUrls.push(registry?.url ?? '');
 				return { items: [server], total: 2, nextCursor: options.cursor ? undefined : 'opaque+/=' };
 			}
 		}();
-		const provider = new McpGalleryMarketplaceProvider(gallery);
+		const provider = new McpGalleryMarketplaceProvider(gallery, manifest(customUrl), configuration(), product);
 		const first = await provider.query({ query: 'server', pageSize: 2 }, CancellationToken.None);
 		const last = await provider.query({ query: 'server', pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual({
 			requests,
+			registryUrls,
 			first,
 			lastCursor: last.nextCursor,
 			entryFields: Object.keys(first.items[0]),
@@ -50,6 +63,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 				{ text: 'server', pageSize: 2, cursor: undefined },
 				{ text: 'server', pageSize: 2, cursor: 'opaque+/=' },
 			],
+			registryUrls: [customUrl, customUrl],
 			first: {
 				items: [{
 					identifier: server.name, displayName: server.displayName, description: server.description,
@@ -72,7 +86,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 		const gallery = new class extends mock<IMcpGalleryService>() {
 			override async queryPage(): Promise<never> { calls++; throw new Error('registry unavailable'); }
 		}();
-		const provider = new McpGalleryMarketplaceProvider(gallery);
+		const provider = new McpGalleryMarketplaceProvider(gallery, manifest(customUrl), configuration(), product);
 		const skipped = await provider.query({ mediaType: CustomizationMarketplaceMediaType.Skill }, CancellationToken.None);
 		await assert.rejects(provider.query({}, CancellationToken.None), /registry unavailable/);
 		assert.deepStrictEqual({ skipped, calls }, { skipped: { items: [] }, calls: 1 });
@@ -86,9 +100,25 @@ suite('McpGalleryMarketplaceProvider', () => {
 				return options.cursor ? { items: [server], nextCursor: undefined } : { items: [], nextCursor: 'next' };
 			}
 		}();
-		const result = await new McpGalleryMarketplaceProvider(gallery).query({ pageSize: 2 }, CancellationToken.None);
+		const result = await new McpGalleryMarketplaceProvider(gallery, manifest(customUrl), configuration(), product).query({ pageSize: 2 }, CancellationToken.None);
 		assert.deepStrictEqual({ cursors, items: result.items.map(item => item.identifier), nextCursor: result.nextCursor }, {
 			cursors: [undefined, 'next'], items: ['io.github.owner/server'], nextCursor: undefined,
 		});
+	});
+
+	test('does not query the product registry without an explicit custom registry', async () => {
+		let calls = 0;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(): Promise<never> { calls++; throw new Error('Product registry queried'); }
+		}();
+		const results = [];
+		for (const [configuredUrl, activeUrl] of [
+			['', productUrl],
+			[productUrl, productUrl],
+			[customUrl, productUrl],
+		]) {
+			results.push(await new McpGalleryMarketplaceProvider(gallery, manifest(activeUrl), configuration(configuredUrl), product).query({}, CancellationToken.None));
+		}
+		assert.deepStrictEqual({ results, calls }, { results: [{ items: [] }, { items: [] }, { items: [] }], calls: 0 });
 	});
 });

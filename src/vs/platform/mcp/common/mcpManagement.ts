@@ -215,7 +215,7 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
-	queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken): Promise<IMcpGalleryQueryPage>;
+	queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IMcpGalleryQueryPage>;
 	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
 	/**
 	 * Resolves the given servers against the active registry, distinguishing a

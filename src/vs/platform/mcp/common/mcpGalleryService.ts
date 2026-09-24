@@ -817,11 +817,11 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Available;
 	}
 
-	async queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken): Promise<IMcpGalleryQueryPage> {
+	async queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken, galleryManifest?: IMcpGalleryManifest): Promise<IMcpGalleryQueryPage> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const manifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		const manifest = galleryManifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!manifest) {
 			throw new Error(localize('mcpGalleryNotConfigured', "The MCP gallery is not configured."));
 		}

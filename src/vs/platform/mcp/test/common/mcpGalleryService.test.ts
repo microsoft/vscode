@@ -157,6 +157,21 @@ suite('McpGalleryService - marketplace pages', () => {
 		});
 	});
 
+	test('pins marketplace pages to the supplied custom registry while legacy queries use the active manifest', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({ servers: [], metadata: { count: 0 } }));
+		const productManifest = {
+			...manifest, url: 'https://api.mcp.github.com',
+			resources: [{ id: 'https://api.mcp.github.com/v0.1/servers', type: McpGalleryResourceType.McpServersQueryService }],
+		};
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(productManifest)));
+		await service.queryPage({ pageSize: 2 }, CancellationToken.None, manifest);
+		await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual(requests.requests.map(request => request.url), [
+			`${SERVERS_URL}?limit=2&version=latest`,
+			'https://api.mcp.github.com/v0.1/servers?limit=2&version=latest',
+		]);
+	});
+
 	test('reports registry failures to the marketplace without changing the legacy query fallback', async () => {
 		const requests = new StatusRequestService(503);
 		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));

@@ -7,7 +7,10 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IGalleryMcpServer, IMcpGalleryService } from '../../mcp/common/mcpManagement.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
+import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
+import { IProductService } from '../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
@@ -52,10 +55,23 @@ function toMarketplaceEntry(server: IGalleryMcpServer): ICustomizationMarketplac
 export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.McpGallery.id;
 
-	constructor(@IMcpGalleryService private readonly galleryService: IMcpGalleryService) { }
+	constructor(
+		@IMcpGalleryService private readonly galleryService: IMcpGalleryService,
+		@IMcpGalleryManifestService private readonly manifestService: IMcpGalleryManifestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+	) { }
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
 		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.McpServer) {
+			return { items: [] };
+		}
+		const configuredUrl = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)?.replace(/\/+$/, '');
+		if (!configuredUrl || configuredUrl === this.productService.mcpGallery?.serviceUrl?.replace(/\/+$/, '')) {
+			return { items: [] };
+		}
+		const manifest = await this.manifestService.getMcpGalleryManifest();
+		if (manifest?.url !== configuredUrl) {
 			return { items: [] };
 		}
 		let cursor = options.cursor;
@@ -64,7 +80,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 				text: options.query,
 				pageSize: options.pageSize ?? 30,
 				cursor,
-			}, token);
+			}, token, manifest);
 			if (page.items.length || !page.nextCursor) {
 				return {
 					items: page.items.map(toMarketplaceEntry),

@@ -18,15 +18,15 @@ export const enum CustomizationMarketplaceConfiguration {
 }
 
 export const CustomizationMarketplaceSources = {
-	AgentFinderPublicFeed: {
-		id: 'agentFinder',
-		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
-		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
-	},
 	McpGallery: {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+	},
+	AgentFinderPublicFeed: {
+		id: 'agentFinder',
+		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
+		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
