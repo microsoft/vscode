@@ -340,24 +340,24 @@ suite('mcpListWidget', () => {
 	});
 
 	test('classifies installed MCP entries by scope and source', () => {
-			const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
-				type: 'server-item',
-				server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
-			});
+		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+		});
 
-			assert.deepStrictEqual([
-				getMcpEntryGroup(localEntry(LocalMcpServerScope.User)),
-				getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
-				getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
-				getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
-				getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
-			], [
-				'user',
-				'workspace',
-				'plugins',
-				'extensions',
-				'builtin',
-			]);
+		assert.deepStrictEqual([
+			getMcpEntryGroup(localEntry(LocalMcpServerScope.User)),
+			getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
+			getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
+			getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
+			getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
+		], [
+			'user',
+			'workspace',
+			'plugins',
+			'extensions',
+			'builtin',
+		]);
 	});
 
 	test('item count includes only enabled MCP servers', () => {

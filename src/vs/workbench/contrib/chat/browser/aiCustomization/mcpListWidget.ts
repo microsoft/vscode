@@ -1758,8 +1758,8 @@ export class McpListWidget extends Disposable {
 						return entry.type === 'builtin-item' && entry.connector
 							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
 							: entry.type === 'marketplace-item'
-							? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
-							: this.getMcpEntryAriaLabel(entry);
+								? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
+								: this.getMcpEntryAriaLabel(entry);
 					},
 					getWidgetAriaLabel: () => localize('mcpServersListAriaLabel', "MCP Servers"),
 				},
