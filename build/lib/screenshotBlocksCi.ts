@@ -32,7 +32,7 @@ function generateMarkdown(fixtures: readonly ManifestFixture[], serviceUrl: stri
 	const seen = new Set<string>();
 	const sorted = [...fixtures].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 	for (const f of sorted) {
-		if (f.labels?.includes('blocks-ci') && !seen.has(f.fixtureId)) {
+		if (f.labels?.includes('screenshot') && f.labels.includes('blocks-ci') && !seen.has(f.fixtureId)) {
 			seen.add(f.fixtureId);
 			lines.push(`#### ${f.fixtureId}`);
 			lines.push(`![screenshot](${serviceUrl}/images/${f.imageHash})`);

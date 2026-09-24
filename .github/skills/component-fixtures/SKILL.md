@@ -57,6 +57,7 @@ function renderMyComponent({ container, disposableStore, theme }: ComponentFixtu
 Key points:
 - **`defineThemedFixtureGroup`** automatically creates Dark and Light variants for each fixture
 - **`defineComponentFixture`** wraps your render function with theme setup and shadow DOM isolation
+- Non-animated, non-flaky **Light** variants receive the `screenshot` label by default. CI screenshot comparisons (including `blocksCi`) use this label; other themes remain available in the explorer.
 - **`createEditorServices`** provides a `TestInstantiationService` with base editor services pre-registered
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly

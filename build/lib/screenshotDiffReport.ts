@@ -31,7 +31,6 @@ import { COMMENT_MARKER } from './screenshotComment.ts';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const EXPAND_FIRST_N = 5;
-const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
 const MAX_BODY_BYTES = 300 * 1024;
 
 // ---------------------------------------------------------------------------
@@ -259,7 +258,7 @@ interface DiffResult {
 }
 
 function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
-	return !labels?.some(l => EXCLUDED_LABELS.has(l));
+	return labels?.includes('screenshot') === true;
 }
 
 function collectErrored(local: LocalManifest): ErroredDiffEntry[] {
@@ -520,8 +519,9 @@ async function main(): Promise<void> {
 	console.error(`Compare result: ${diff.changed.length} changed, ${diff.added.length} added, ${diff.removed.length} removed, ${diff.errored.length} errored.`);
 
 	const localManifestDir = path.dirname(path.resolve(localManifestPath));
-	const pixelDiffs = await computePixelDiffs(diff.changed, serviceUrl, localManifestDir);
-	for (const entry of diff.changed) {
+	const reportableChanges = diff.changed.filter(e => shouldIncludeInReport(e.labels));
+	const pixelDiffs = await computePixelDiffs(reportableChanges, serviceUrl, localManifestDir);
+	for (const entry of reportableChanges) {
 		const pd = pixelDiffs.get(entry.fixtureId);
 		console.error(`  ${entry.fixtureId}: ${pd?.toString() ?? 'pixel diff unavailable'}`);
 	}
