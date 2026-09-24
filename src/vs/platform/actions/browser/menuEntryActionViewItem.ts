@@ -220,7 +220,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		try {
 			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
 			await this.actionRunner.run(commandAction, this._context);
-			if (!actionError && this._options?.onClickAnimation && this.element && animationTarget && !this._accessibilityService.isMotionReduced()) {
+			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
 				const icon = this._menuItemAction.item.icon;
 				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
 			}

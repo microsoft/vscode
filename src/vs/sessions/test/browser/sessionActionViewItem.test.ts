@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../base/browser/dom.js';
 import { ClickAnimation } from '../../../base/browser/ui/animations/animations.js';
+import { ActionRunner } from '../../../base/common/actions.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -73,6 +74,7 @@ suite('SessionActionViewItem', () => {
 				override isMotionReduced(): boolean { return false; }
 			}(),
 		));
+		viewItem.actionRunner = disposables.add(new ActionRunner());
 		viewItem.element = dom.$('button');
 		return viewItem;
 	}
@@ -147,12 +149,13 @@ suite('SessionActionViewItem', () => {
 		});
 	});
 
-	test('keeps confetti at the original button position when archiving removes the row', async () => {
+	test('keeps confetti at the original button position when archiving disposes the view item', async () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		const row = dom.append(workbench, dom.$('div'));
 		const completion = new DeferredPromise<void>();
 		const viewItem = createArchiveActionViewItem(() => {
+			viewItem.dispose();
 			row.remove();
 			return completion.p;
 		});
@@ -170,16 +173,37 @@ suite('SessionActionViewItem', () => {
 		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
 		assert.deepStrictEqual({
 			animationBeforeCompletion,
+			element: viewItem.element,
 			buttonConnected: button.isConnected,
 			bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
 			particleOrigin: particle && [particle.style.left, particle.style.top],
 			inheritsWorkbenchTheme: overlay?.parentElement === workbench,
 		}, {
 			animationBeforeCompletion: null,
+			element: undefined,
 			buttonConnected: false,
 			bounds: ['120px', '80px', '48px', '24px'],
 			particleOrigin: ['24px', '12px'],
 			inheritsWorkbenchTheme: true,
+		});
+	});
+
+	test('does not animate when archiving fails after disposing the view item', async () => {
+		const failure = new DeferredPromise<void>();
+		const viewItem = createArchiveActionViewItem(() => {
+			viewItem.dispose();
+			return failure.p;
+		});
+		const click = viewItem.onClick(new MouseEvent('click'));
+		await failure.error(new Error('Archive failed'));
+		await click;
+
+		assert.deepStrictEqual({
+			element: viewItem.element,
+			animation: document.querySelector('.animation-overlay'),
+		}, {
+			element: undefined,
+			animation: null,
 		});
 	});
 });
