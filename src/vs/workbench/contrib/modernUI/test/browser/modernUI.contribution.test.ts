@@ -39,6 +39,7 @@ import { generateColorThemeCSS } from '../../../../services/themes/browser/color
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
+import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
@@ -1093,14 +1094,14 @@ suite('ModernUIContribution', () => {
 			left: {
 				actionWidth: 36,
 				actionCenterOffset: 0,
-				windowMargin: 4,
+				windowMargin: 0,
 				panelGap: 0,
 				indicatorPanelPadding: 4,
 			},
 			right: {
 				actionWidth: 36,
 				actionCenterOffset: 0,
-				windowMargin: 4,
+				windowMargin: 0,
 				panelGap: 0,
 				indicatorPanelPadding: 4,
 			},
@@ -1207,7 +1208,7 @@ suite('ModernUIContribution', () => {
 			topRight: { left: ['8px', '0px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
 			topJustify: { left: ['8px', '8px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
 			hiddenPanel: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
-			compact: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			compact: { left: ['0px', '0px', '0px', '0px'], right: ['0px', '0px', '0px', '0px'] },
 		});
 	});
 
@@ -1289,12 +1290,37 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
-			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 4),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 0),
 			classic: measure('monaco-workbench', 22, 0),
 		}, {
 			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
-			compactDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+		});
+	});
+
+	test('compact status bar keeps its horizontal padding independently of the panel perimeter', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-compact floating-panels');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		store.add(toDisposable(() => root.remove()));
+		const statusbar = appendElement(root, 'part statusbar');
+		const padding = (activitybarClasses: string) => {
+			root.className = `monaco-workbench modern-ui modern-ui-compact floating-panels ${activitybarClasses}`;
+			const style = getWindow(statusbar).getComputedStyle(statusbar);
+			return [style.paddingLeft, style.paddingRight];
+		};
+
+		assert.deepStrictEqual({
+			activitybarVisible: padding(''),
+			activitybarCompact: padding('activitybar-compact'),
+			activitybarHidden: padding('noactivitybar'),
+			compactActivitybarHidden: padding('activitybar-compact noactivitybar'),
+		}, {
+			activitybarVisible: ['4px', '4px'],
+			activitybarCompact: ['4px', '4px'],
+			activitybarHidden: ['4px', '4px'],
+			compactActivitybarHidden: ['4px', '4px'],
 		});
 	});
 
@@ -1795,7 +1821,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('compact vertical sash highlights meet the attached panel top', () => {
+	test('compact vertical sash highlights meet both panel edges', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -1815,8 +1841,8 @@ suite('ModernUIContribution', () => {
 			attachedInsets,
 			exposedTopInset: exposedStyle.top,
 		}, {
-			attachedInsets: ['0px', '4px'],
-			exposedTopInset: '4px',
+			attachedInsets: ['0px', '0px'],
+			exposedTopInset: '0px',
 		});
 	});
 
@@ -1854,7 +1880,7 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(getWindow(editor).getComputedStyle(editor).borderRadius, '8px');
 	});
 
-	test('compact density rounds only the panel cluster exterior', () => {
+	test('compact density keeps the panel cluster flush and square', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
 		root.style.setProperty('--vscode-cornerRadius-large', '8px');
@@ -1871,9 +1897,9 @@ suite('ModernUIContribution', () => {
 		const sideBar = appendElement(grid, 'part sidebar floating-part-outer-left floating-part-outer-top floating-part-outer-bottom');
 		const panel = appendElement(grid, 'part panel');
 		const auxiliaryBar = appendElement(grid, 'part auxiliarybar floating-part-outer-right floating-part-outer-top floating-part-outer-bottom');
-		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom');
 		const editorContent = appendElement(editor, 'content');
-		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-top');
+		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-right webview-overlay-outer-top webview-overlay-outer-bottom');
 		const modalWebviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-modal');
 		const targetWindow = getWindow(root);
 		const activityBarStyle = targetWindow.getComputedStyle(activityBar);
@@ -1919,15 +1945,15 @@ suite('ModernUIContribution', () => {
 			modalWebviewOverlayRadius: modalWebviewOverlayContentStyle.borderRadius,
 		}, {
 			activityBar: {
-				corners: ['8px', '0px', '0px', '8px'],
-				cornerBorderCount: 2,
+				corners: ['0px', '0px', '0px', '0px'],
+				cornerBorderCount: 0,
 			},
 			sideBar: {
-				margin: ['0px', '0px', '4px', '4px'],
-				corners: ['8px', '0px', '0px', '8px'],
+				margin: ['0px', '0px', '0px', '0px'],
+				corners: ['0px', '0px', '0px', '0px'],
 				borderColor: 'rgba(0, 0, 0, 0)',
 				allBorderBackgroundsUseBorderBox: true,
-				cornerBorderCount: 2,
+				cornerBorderCount: 0,
 			},
 			panel: {
 				corners: ['0px', '0px', '0px', '0px'],
@@ -1936,20 +1962,49 @@ suite('ModernUIContribution', () => {
 				cornerBorderCount: 0,
 			},
 			auxiliaryBar: {
-				corners: ['0px', '8px', '8px', '0px'],
-				cornerBorderCount: 2,
+				corners: ['0px', '0px', '0px', '0px'],
+				cornerBorderCount: 0,
 			},
 			editor: {
-				margin: ['0px', '0px', '0px', '4px'],
-				corners: ['8px', '0px', '0px', '0px'],
+				margin: ['0px', '0px', '0px', '0px'],
+				corners: ['0px', '0px', '0px', '0px'],
 				borderColor: 'rgba(0, 0, 0, 0)',
 				allBorderBackgroundsUseBorderBox: true,
-				cornerBorderCount: 1,
+				cornerBorderCount: 0,
 			},
 			editorContentRadius: '0px',
-			webviewOverlayCorners: ['8px', '0px', '0px', '0px'],
+			webviewOverlayCorners: ['0px', '0px', '0px', '0px'],
 			modalWebviewOverlayRadius: '8px',
 		});
+	});
+
+	test('compact perimeter stays flush with hidden window chrome and restores the default density', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const parts = [
+			'activitybar left',
+			'activitybar right',
+			'sidebar floating-part-outer-left floating-part-outer-top floating-part-outer-bottom',
+			'auxiliarybar floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'panel top floating-part-outer-left floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'panel bottom floating-part-outer-left floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom',
+		].map(className => appendElement(grid, `part ${className}`));
+		const readGeometry = () => parts.map(part => {
+			const style = getWindow(part).getComputedStyle(part);
+			return { margin: style.margin, radius: style.borderRadius };
+		});
+		const defaultGeometry = readGeometry();
+
+		for (const chromeClasses of ['', 'top-window-edge', 'nostatusbar', 'top-window-edge nostatusbar']) {
+			root.className = `monaco-workbench modern-ui floating-panels modern-ui-compact ${chromeClasses}`;
+			assert.deepStrictEqual(readGeometry(), parts.map(() => ({ margin: '0px', radius: '0px' })), chromeClasses);
+		}
+
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		assert.deepStrictEqual(readGeometry(), defaultGeometry);
 	});
 
 	test('uses the editor background for the connected surface', () => {
@@ -2346,10 +2401,12 @@ suite('ModernUIContribution', () => {
 		name.textContent = 'main.ts';
 		const breadcrumbs = appendElement(title, 'breadcrumbs-below-tabs');
 		breadcrumbs.style.height = '22px';
+		const header = appendElement(title, 'editor-group-header');
+		header.style.height = '32px';
 		const body = appendElement(group, 'editor-container');
 		body.style.height = '240px';
 		const targetWindow = getWindow(root);
-		const geometry = () => [row, tab, fill, label, breadcrumbs, body].map(element => {
+		const geometry = () => [row, tab, fill, label, breadcrumbs, header, body].map(element => {
 			const bounds = element.getBoundingClientRect();
 			return [bounds.x, bounds.y, bounds.width, bounds.height];
 		});
@@ -2376,14 +2433,53 @@ suite('ModernUIContribution', () => {
 					shoulder: targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
 					separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
 					frame: [frame.content, frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, highContrast ? frame.borderLeftColor : undefined, frame.borderRadius, frame.pointerEvents],
+					headerBackground: targetWindow.getComputedStyle(header).backgroundColor,
 				}, {
 					geometry: baseline,
 					cap: ['rgba(0, 0, 0, 0)', border],
 					shoulder: border,
 					separator: border,
 					frame: highContrast ? ['""', '1px', '1px', '1px', border, '8px', 'none'] : ['none', '0px', '0px', '0px', undefined, '0px', 'auto'],
+					headerBackground: 'rgb(51, 51, 51)',
 				}, `${themeType}, active group: ${active}`);
 			}
+		}
+	});
+
+	test('preserves the connected HC focus frame in a multi-tab modal editor', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-focusBorder: #ffaa00; --vscode-contrastBorder: #888888; --vscode-editorWidget-border: #888888; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
+		const modalBlock = appendElement(root, 'monaco-modal-editor-block');
+		const editor = appendElement(modalBlock, 'part editor editor-tabs-multiple modal-editor-part');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const activeTab = appendElement(tabs, 'tab active connected-tab-top-row');
+		const activeFill = appendElement(activeTab, 'tab-fill');
+		appendElement(group, 'editor-container');
+		const targetWindow = getWindow(root);
+		for (const theme of ['hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const active of [true, false]) {
+				group.classList.toggle('active', active);
+				const frame = targetWindow.getComputedStyle(group, '::after');
+				assert.deepStrictEqual({
+					tabCount: tabs.children.length,
+					activeCap: targetWindow.getComputedStyle(activeFill).borderTopColor,
+					groupFrame: [frame.content, frame.borderTopWidth, frame.borderTopColor, frame.borderRadius],
+					modalBorderWidth: targetWindow.getComputedStyle(editor).borderTopWidth,
+				}, {
+					tabCount: 2,
+					activeCap: 'rgba(0, 0, 0, 0)',
+					groupFrame: ['""', '1px', active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)', '8px'],
+					modalBorderWidth: '1px',
+				}, `${theme}, active group: ${active}`);
+			}
+			root.classList.remove(theme);
 		}
 	});
 
@@ -2415,7 +2511,7 @@ suite('ModernUIContribution', () => {
 		for (const classes of ['', 'modern-ui', 'modern-ui modern-ui-connected-editor-tabs', 'modern-ui-connected-editor-tabs']) {
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 				root.className = `monaco-workbench modern-ui-tabs ${classes} ${theme}`;
-				const connected = classes === 'modern-ui modern-ui-connected-editor-tabs';
+				const connected = classes.includes('modern-ui-connected-editor-tabs');
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					for (const compact of [true, false]) {

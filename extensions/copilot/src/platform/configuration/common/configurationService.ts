@@ -1103,8 +1103,11 @@ export namespace ConfigKey {
 	export const EnableGpt56Verbosity = defineSetting<boolean>('chat.gpt56Verbosity.enabled', ConfigType.ExperimentBased, true);
 	/** Enable get_changed_files tool for Gemini 3 models */
 	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
-	/** Default thinking effort for Claude Opus models in the model picker. Empty keeps the built-in default ('high'). */
-	export const ClaudeOpusDefaultReasoningEffort = defineSetting<string>('chat.claudeOpusDefaultReasoningEffort', ConfigType.ExperimentBased, '');
+	/**
+	 * Default thinking effort for Claude models in the model picker (Copilot Chat and Agent Host sessions).
+	 * Empty keeps the built-in default. User values are migrated from `chat.claudeOpusDefaultReasoningEffort`.
+	 */
+	export const ClaudeDefaultReasoningEffort = defineAndMigrateExpSetting<string>('chat.claudeOpusDefaultReasoningEffort', 'chat.claudeDefaultReasoningEffort', '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
@@ -1190,8 +1193,6 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
-	export type CloudSessionVisibilityValue = '24hours' | '7days' | '30days' | '90days' | 'all';
-	export const CloudSessionVisibility = defineSetting<CloudSessionVisibilityValue>('chat.cloudAgent.sessionVisibility', ConfigType.Simple, '30days', vEnum('24hours', '7days', '30days', '90days', 'all'));
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

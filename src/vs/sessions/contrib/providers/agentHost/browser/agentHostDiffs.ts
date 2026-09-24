@@ -39,25 +39,28 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper): IChatSessionFileChange2 | undefined {
+export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper, useModifiedSnapshot = false): IChatSessionFileChange2 | undefined {
 	const normalized = normalizeFileEdit(file.edit);
 	if (!normalized) {
 		return undefined;
 	}
 
 	const map = (uri: URI): URI => mapUri ? mapUri(uri) : uri;
+	const mapContent = (uri: URI): URI => mapUri ? mapUri(uri, { contentRef: true }) : uri;
 
 	const uri = map(normalized.resource);
 
 	// For deletions (no `after`), `modifiedUri` is `undefined` so the
 	// renderer treats the entry as a deletion and doesn't try to open the
 	// (now-missing) file as the "modified" side of the diff editor.
-	const modifiedUri = normalized.afterUri ? map(normalized.afterUri) : undefined;
+	const modifiedUri = useModifiedSnapshot && normalized.afterContentUri
+		? mapContent(normalized.afterContentUri)
+		: normalized.afterUri ? map(normalized.afterUri) : undefined;
 
 	// Use the before-content reference URI so the diff editor can
 	// fetch the snapshot of the file *before* the session's edits.
 	const originalUri = normalized.beforeContentUri
-		? (mapUri ? mapUri(normalized.beforeContentUri, { contentRef: true }) : normalized.beforeContentUri)
+		? mapContent(normalized.beforeContentUri)
 		: undefined;
 
 	// Extract reviewed status from meta. We
@@ -78,8 +81,8 @@ export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper): 
  * Converts a single {@link ChangesetFile} into a {@link IChatSessionFileChange2},
  * or `undefined` when the underlying diff has no usable URI.
  */
-export function changesetFileToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper): IChatSessionFileChange2 | undefined {
-	return diffToChange(file, mapUri);
+export function changesetFileToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper, useModifiedSnapshot = false): IChatSessionFileChange2 | undefined {
+	return diffToChange(file, mapUri, useModifiedSnapshot);
 }
 
 /**

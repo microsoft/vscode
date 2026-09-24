@@ -13,6 +13,7 @@ import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../../../platform/agentHost/common/agentMerge.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -260,6 +261,36 @@ suite('ChatSystemNotificationContentPart', () => {
 			withoutDetailsHasOrdinaryProgress: true,
 		});
 	});
+
+	for (const [mergePullRequest, summary] of [
+		['never', 'Agent Merge is enabled for feature. Monitoring only; automatic merge is off.'],
+		['always', 'Agent Merge is enabled for feature. Automatic merge is on.'],
+		['ifUnchanged', 'Agent Merge is enabled for feature. Automatic merge is on only while unchanged.'],
+	] as const) {
+		test(`keeps ${mergePullRequest} merge behavior visible and accessible while details are collapsed`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+			const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+				kind: 'systemNotification',
+				content: new MarkdownString(agentMergeEnabledNotice({ branchName: 'feature' }, { ...defaultAgentMergeConfiguration, mergePullRequest })),
+				icon: Codicon.gitMerge,
+				collapsible: true,
+			}, renderer));
+			const header = part.domNode.querySelector<HTMLElement>('.chat-system-notification-disclosure-header')!;
+
+			assert.deepStrictEqual({
+				collapsed: part.domNode.classList.contains('collapsed'),
+				summary: part.domNode.querySelector('.chat-system-notification-disclosure-summary')?.textContent?.trim(),
+				accessibleLabel: header.ariaLabel,
+				expanded: header.ariaExpanded,
+			}, {
+				collapsed: true,
+				summary,
+				accessibleLabel: `Show details for ${summary}`,
+				expanded: 'false',
+			});
+		});
+	}
 
 	test('renders a workspace transition as a named separator', () => {
 		const disposables = store.add(new DisposableStore());

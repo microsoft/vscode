@@ -12,21 +12,21 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -82,13 +82,14 @@ function stripPromptScaffolding(text: string): string {
 export interface ISdkShellExit {
 	readonly shellId: string;
 	readonly result: TerminalCommandResult;
+	readonly outputFilePath?: string;
 }
 
 type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
 	readonly outputPreview?: string | null;
 });
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
@@ -105,7 +106,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				};
-				shellExit = { shellId: sdkContent.shellId, result };
+				shellExit = {
+					shellId: sdkContent.shellId,
+					result,
+					...(sdkContent.outputFilePath ? { outputFilePath: sdkContent.outputFilePath } : {}),
+				};
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 				if (terminalIndex !== -1) {
 					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
@@ -113,7 +118,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 				} else if (terminal) {
 					content.push({
 						type: ToolResultContentType.Terminal,
-						resource: buildNonPtyShellTerminalUri(terminal.session, terminal.toolCallId),
+						resource: buildNonPtyShellTerminalUri(terminal.storage, terminal.session, terminal.chat, terminal.toolCallId),
 						title: terminal.title,
 						isPty: false,
 						result,
@@ -335,6 +340,17 @@ export async function mapSessionEvents(
 	const agentDisplayNamesById = new Map<string, string>();
 	const toolTitlesByCallId = new Map<string, string>();
 	const resolveAgentName: ToolAgentNameResolver = agentId => agentDisplayNamesById.get(agentId);
+	// Durable phase outcomes identify the phase tiles that own the committed phase conversation.
+	const fusionPhaseToolCallIds = new Set<string>();
+	const resolveFusionPhaseToolCallId = (agentId: string | undefined, fusion: { readonly fusionId: string; readonly phaseId?: string } | null | undefined): string | undefined => {
+		const toolCallId = !agentId && fusion?.phaseId ? getFusionPhaseToolCallId(fusion.fusionId, fusion.phaseId) : undefined;
+		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
+	};
+	for (const event of events) {
+		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
+			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
+		}
+	}
 	for (const event of events) {
 		if (event.type === 'subagent.started' && event.agentId) {
 			agentDisplayNamesById.set(event.agentId, event.data.agentDisplayName);
@@ -366,7 +382,7 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
-			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d, resolveAgentName, toolTitlesByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
@@ -510,6 +526,12 @@ export async function mapSessionEvents(
 			if (parentBuilder && fusionReplay.drain(parentBuilder.responseParts)) {
 				touch(parentBuilder);
 			}
+			if (e.type === 'assistant.fusion_phase_completed' && !e.agentId && e.data.conversationScope === 'review') {
+				const content = formatFusionReviewContent(e.data.content);
+				if (content !== undefined) {
+					ensureSubagentBuilder(getFusionPhaseToolCallId(e.data.fusionId, e.data.phaseId)).responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
+				}
+			}
 			continue;
 		}
 		switch (e.type) {
@@ -639,7 +661,8 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				// A phase's final answer, the round without tool requests, is the response itself.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (hasToolRequests ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -736,7 +759,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'tool.execution_start': {
-				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
 				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
@@ -751,7 +774,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -852,7 +875,7 @@ export async function mapSessionEvents(
 		flushSubagent(parentToolCallId);
 	}
 
-	return { turns, subagentTurnsByToolCallId: subagentTurns };
+	return { turns: linkFusionPhaseChats(turns, subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
 
 	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {
@@ -979,6 +1002,32 @@ function sdkAttachmentToProtocol(
 	}
 }
 
+/** Marks restored phase tiles that own a conversation so their child chats are discovered like subagents. */
+function linkFusionPhaseChats(turns: Turn[], phaseTurns: ReadonlyMap<string, Turn[]>, sessionUriStr: string): Turn[] {
+	return turns.map(turn => ({
+		...turn,
+		responseParts: turn.responseParts.map(part => {
+			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed
+				|| readToolCallMeta(part.toolCall).toolKind !== 'fusionPhase' || !phaseTurns.has(part.toolCall.toolCallId)) {
+				return part;
+			}
+			const toolCall = part.toolCall;
+			return {
+				...part,
+				toolCall: {
+					...toolCall,
+					content: [...(toolCall.content ?? []), {
+						type: ToolResultContentType.Subagent,
+						resource: buildSubagentSessionUri(sessionUriStr, toolCall.toolCallId),
+						title: toolCall.displayName,
+						agentName: COPILOT_FUSION_PHASE_AGENT_NAME,
+					}],
+				},
+			};
+		}),
+	}));
+}
+
 /**
  * Builds a {@link ToolCallCompletedState}-shaped response part from an
  * SDK `tool.execution_complete` event. Restores file-edit content
@@ -1005,7 +1054,13 @@ function makeCompletedToolCallPart(
 	appendSdkToolResultContent(
 		content,
 		d.result?.contents,
-		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+		info.toolKind === 'terminal' ? {
+			storage: sessionUriStr,
+			session: AgentSession.uri(providerId, rawSessionId),
+			chat: chatURI,
+			toolCallId: d.toolCallId,
+			title: info.displayName,
+		} : undefined,
 	);
 
 	// Restore file edit content references from the database.

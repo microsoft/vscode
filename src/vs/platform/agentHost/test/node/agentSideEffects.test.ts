@@ -16,6 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -54,10 +55,11 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
-import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -172,6 +174,7 @@ function createTestSideEffects(
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
+	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = new NoopWorktreeIsolation();
 	const services = new ServiceCollection(
@@ -181,6 +184,8 @@ function createTestSideEffects(
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
 		[IAgentHostStateManager, stateManager],
+		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+		[IFileService, contributionFileService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -204,10 +209,6 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
-	services.set(IAgentHostSessionPromptService, {
-		_serviceBrand: undefined,
-		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
-	});
 	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
@@ -1565,6 +1566,7 @@ suite('AgentSideEffects', () => {
 				'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 				'- Focus on the user\'s selected range when one is provided.',
+				'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 				'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 				'- Produce the edit directly rather than explaining it or writing a tutorial.',
@@ -6225,15 +6227,17 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
-		async function waitForMetadata(key: string): Promise<string> {
+		async function waitForMetadata(key: string, expectedValue?: string): Promise<string> {
 			for (let attempt = 0; attempt < 100; attempt++) {
 				const value = await sessionDb.getMetadata(key);
-				if (value !== undefined) {
+				if (value !== undefined && (expectedValue === undefined || value === expectedValue)) {
 					return value;
 				}
 				await timeout(10);
 			}
-			throw new Error(`Session metadata '${key}' was not persisted`);
+			throw new Error(expectedValue === undefined
+				? `Session metadata '${key}' was not persisted`
+				: `Session metadata '${key}' did not reach '${expectedValue}'`);
 		}
 
 		teardown(async () => {
@@ -6398,10 +6402,10 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual({
-				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
-				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
-				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
-				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Newer'),
+				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
+				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Newer'),
+				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
 			}, {
 				chatTitle: 'Newer',
 				chatSource: 'user',
@@ -8198,7 +8202,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('turn complete fires onTurnComplete once with the right turn id', async () => {
+		test('turn complete immediately fires onTurnComplete once per owner with the right turn id', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -8214,13 +8218,6 @@ suite('AgentSideEffects', () => {
 				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
-
-			// `_runTurnCompleteSideEffects` now defers the
-			// `changesets.onTurnComplete` call behind the checkpoint capture
-			// promise (`captureTurnCheckpoint(...).then(...)`). Yield a
-			// microtask so the resolved promise's `.then` continuation
-			// runs before we assert.
-			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [
 				{ session: defaultChatUri, turnId: 'turn-1' },

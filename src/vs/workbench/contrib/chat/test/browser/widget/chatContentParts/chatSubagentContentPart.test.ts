@@ -554,6 +554,21 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('a phase pill becomes a focusable button once its phase chat appears', () => {
+			const context: ISubagentPhaseContext = { presentation: 'phase', phaseStatus: 'succeeded', title: 'Critique pass' };
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			item.setFocusable(true);
+			const before = { role: container.getAttribute('role'), focusable: container.hasAttribute('tabindex') };
+			item.setActionContext({ ...context, chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/fusion%3Aphase', isChatAvailable: true } satisfies ISubagentPhaseContext);
+			assert.deepStrictEqual({ before, after: { role: container.getAttribute('role'), tabIndex: container.tabIndex } }, {
+				before: { role: 'group', focusable: false },
+				after: { role: 'button', tabIndex: 0 },
+			});
+		});
+
 		test('resolves phase model ids within their session provider and updates friendly names live', () => {
 			const sessionType = 'agent-host-copilotcli';
 			const models = new Map<string, ILanguageModelChatMetadata>([

@@ -100,6 +100,26 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	(hasGit ? test : test.skip)('getCurrentBranchName distinguishes a branch from detached HEAD with strict lookup', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const branch = await svc!.getCurrentBranchName(directory, { throwOnError: true });
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({
+			branch,
+			detached: await svc!.getCurrentBranchName(directory, { throwOnError: true }),
+		}, { branch: 'main', detached: undefined });
+	});
+
+	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
+		const directory = URI.file(tmpRoot);
+
+		assert.strictEqual(await svc!.getCurrentBranchName(directory), undefined);
+		await assert.rejects(() => svc!.getCurrentBranchName(directory, { throwOnError: true }), /not a git repository/);
+	});
+
 	(hasGit ? test : test.skip)('reports branch, github remote and clean state for a fresh repo', async () => {
 		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
 		const result = await svc!.getSessionGitState(URI.file(dir));

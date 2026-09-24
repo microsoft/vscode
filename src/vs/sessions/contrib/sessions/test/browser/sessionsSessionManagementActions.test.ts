@@ -248,6 +248,7 @@ suite('Sessions - Session management actions', () => {
 		const mainChat = base.mainChat.get();
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:///grill-and-plan'),
+			workspace: constObservable(undefined),
 			title: constObservable('Grill and Plan'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),

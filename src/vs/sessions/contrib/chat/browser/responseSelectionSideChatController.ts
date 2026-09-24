@@ -154,7 +154,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const askQuestionAction = this._register(new Action(
 			'sessions.responseSelection.askWithBtw',
-			localize('sessions.responseSelection.askWithBtw', "Ask with /btw"),
+			localize('sessions.responseSelection.askWithBtw', "Ask in a Side Chat"),
 			ThemeIcon.asClassName(Codicon.commentDiscussion),
 			true,
 			() => this._openQuestionInput(),

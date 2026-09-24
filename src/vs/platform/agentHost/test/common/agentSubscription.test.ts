@@ -16,6 +16,7 @@ import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunS
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 // Helpers
 
@@ -95,13 +96,16 @@ suite('resolveAgentHostSession', () => {
 	test('resolves peer chats and folder changeset owners to their containing session', () => {
 		const peer = buildChatUri(sessionUri, 'peer');
 		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
+		const terminal = buildNonPtyShellTerminalUri(sessionUri, sessionUri, peer, 'tool');
 
 		assert.deepStrictEqual({
 			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
 			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
+			terminal: resolveAgentHostSession(URI.parse(terminal)).toString(),
 		}, {
 			peer: sessionUri,
 			folder: sessionUri,
+			terminal: sessionUri,
 		});
 	});
 });

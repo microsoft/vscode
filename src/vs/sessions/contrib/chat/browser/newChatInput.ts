@@ -130,7 +130,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
-import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
@@ -376,15 +376,13 @@ export interface INewChatInputSendRequest {
  * to add a bit of personality. One is picked per widget instance, avoiding
  * an immediate repeat of the previous pick.
  */
-export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
-
 const RANDOM_PLACEHOLDERS = [
 	localize('sessionsChatInput.placeholder.whatAreYouBuilding', "What are you building?"),
 	localize('sessionsChatInput.placeholder.whatWillYouShipToday', "What will you ship today?"),
 	localize('sessionsChatInput.placeholder.describeWhatYouWantToBuild', "Describe what you want to build"),
 	localize('sessionsChatInput.placeholder.whatsYourNextMilestone', "What's your next milestone?"),
 	localize('sessionsChatInput.placeholder.whatAreYouTryingToAchieve', "What are you trying to achieve?"),
-	NEW_SESSION_PROMPT_PLACEHOLDER,
+	localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea"),
 	localize('sessionsChatInput.placeholder.whatsTheGoal', "What's the goal?"),
 	localize('sessionsChatInput.placeholder.whatWillYouCreate', "What will you create?"),
 	localize('sessionsChatInput.placeholder.whatFeatureAreYouDreamingUp', "What feature are you dreaming up?"),
@@ -443,6 +441,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
+
+	get modelPicker(): INewSessionComposerPicker | undefined {
+		return this._newChatModelPickerService.activePicker;
+	}
 
 	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
 		return this.options.getWorkspacePreselectionSource?.();
@@ -567,7 +569,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			experimentalComposerLayout?: IObservable<boolean>;
 			supportsBackground?: boolean;
-			sendButtonLabel?: IObservable<string | undefined>;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -800,6 +801,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			parent: chatInputContainer,
 			dragBounds: inputArea,
 			movementBounds: root,
+			transition: 'teleport',
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,
@@ -1366,14 +1368,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
-			if (this.options.sendButtonLabel) {
-				this._register(autorun(reader => {
-					const label = this.options.sendButtonLabel?.read(reader);
-					sendButton.label = label ?? '';
-					sendButton.element.ariaLabel = label ?? localize('send', "Send");
-					this._sendButtonContainer?.classList.toggle('labeled', !!label);
-				}));
-			}
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
@@ -2017,15 +2011,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	prefillInput(text: string): void {
-		this.setInputValue(text);
-		this._editor?.focus();
-	}
-
-	getInputValue(): string {
-		return this._editor?.getModel()?.getValue() ?? '';
-	}
-
-	setInputValue(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();
 		if (editor && model) {
@@ -2033,6 +2018,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const lastLine = model.getLineCount();
 			const maxColumn = model.getLineMaxColumn(lastLine);
 			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
+			editor.focus();
 		}
 	}
 

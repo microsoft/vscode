@@ -190,6 +190,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	// -- Dev Container drafts (optional, local provider only) --
 
+	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
+	readonly devContainerSourceWorkspace?: URI;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */
@@ -198,10 +200,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Whether this draft has selected Dev Container execution, including pending availability. */
+	isDevContainerRequested?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
-	/** Enable Dev Container execution once availability resolves for this draft. */
-	preferDevContainer?(sessionId: string): void;
+	/** Enable Dev Container execution once availability resolves. Required selections fail rather than falling back to the host. */
+	preferDevContainer?(sessionId: string, options?: { readonly required?: boolean }): void;
 
 	// -- Dynamic Session Config --
 
@@ -234,20 +238,24 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * there since the schema is still being resolved.
 	 */
 	replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void>;
-	/** Returns dynamic completions for a configuration property. */
+	/** Returns dynamic completions; new-session branch lists reuse the request started when their workspace was selected. */
 	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
-	/** Returns the persisted Agent Merge state for a running session. */
-	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
-	/** Returns observable Agent Merge client state while retaining the required session subscription. */
-	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined>;
-	/** Enables or disables Agent Merge while preserving the session's action overrides. */
-	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
-	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */
-	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void>;
+	/**
+	 * Returns the persisted Agent Merge state of a running session's folder.
+	 * Each folder a chat works in has its own Agent Merge; pass `chat` for the
+	 * folder it works in, or omit it for the session folder (the main chat's).
+	 */
+	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined;
+	/** Returns observable Agent Merge client state of a folder (see {@link getAgentMergeSessionState}) while retaining the required session subscription. */
+	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined>;
+	/** Enables or disables Agent Merge for a folder (see {@link getAgentMergeSessionState}) while preserving its action overrides. */
+	setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI): Promise<void>;
+	/** Replaces a folder's Agent Merge action overrides (see {@link getAgentMergeSessionState}); `undefined` follows global defaults. */
+	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI): Promise<void>;
 
 	// -- Root (agent host) Config --
 
