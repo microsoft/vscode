@@ -1444,7 +1444,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}));
 		const turns = await agent.chats.getMessages(chat, chatContext(session, chat));
 
-		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
+		const preview = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 'BEGIN\n'.length)}`;
 		const retainedContent = [
 			{ type: ToolResultContentType.Text, text: preview },
 			{
@@ -1518,7 +1518,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const turns = await agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
 
-		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
+		const preview = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 'BEGIN\n'.length)}`;
 		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
 			[
 				{ type: ToolResultContentType.Text, text: preview },

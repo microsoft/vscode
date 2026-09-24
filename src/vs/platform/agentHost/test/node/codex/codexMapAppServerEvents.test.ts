@@ -649,8 +649,8 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		}, 'agenthost-terminal://shell/retained');
 
-		// The preview keeps the end of the output, so `BEGIN` falls outside it.
-		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
+		// The preview keeps the beginning of the output, so `END` falls outside it.
+		const preview = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 'BEGIN\n'.length)}`;
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: 'turn_a',

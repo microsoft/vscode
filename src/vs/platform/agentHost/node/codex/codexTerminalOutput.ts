@@ -16,12 +16,12 @@ export function shouldRetainCodexCommandOutput(output: string): boolean {
 }
 
 /**
- * Result content for a command whose complete output is retained: the end of
- * the output, which is what the terminal card shows, as its preview, and the
- * non-PTY terminal `resource` that serves the rest.
+ * Result content for a command whose complete output is retained: the beginning
+ * of the output as its preview, and the non-PTY terminal `resource` that serves
+ * the rest.
  */
 export function codexRetainedCommandOutputContent(resource: string, output: string, exitCode: number | null): ToolResultContent[] {
-	const preview = output.slice(-SHELL_COMMAND_MAX_OUTPUT_BYTES);
+	const preview = output.slice(0, SHELL_COMMAND_MAX_OUTPUT_BYTES);
 	return [
 		{ type: ToolResultContentType.Text, text: preview },
 		{
