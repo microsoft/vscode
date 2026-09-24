@@ -272,7 +272,7 @@ suite('mcpListWidget', () => {
 			widget.refreshConnectors = async () => { refreshes++; };
 			widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
 				override readonly authorizationRequired = authorizationRequired;
-				override async authorize(token: CancellationToken) {
+				override async signIn(token: CancellationToken) {
 					authorizations.push(token);
 					await authorization.p;
 				}
