@@ -41,8 +41,8 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { getWorkingDirectoryKey } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -796,6 +796,8 @@ interface IChatOutputObs {
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 	/** Resolves the GitHub info each folder of the chat's workspace reports. */
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
+	/** Resolves the Git state persisted for the chat's working-directory scope. */
+	readonly getScopeGitState: (reader: IReader, workingDirectories: readonly string[] | undefined) => ISessionGitState | undefined;
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -876,11 +878,15 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
-		const workspace = derived(this, reader => buildAgentHostChatWorkspace(
-			sessionWorkspace.read(reader),
-			this._workingDirectories.read(reader)?.map(directory => mapWorkingDirectoryUri(URI.parse(directory))),
-			output?.getFolderGitHubInfo(reader),
-		));
+		const workspace = derived(this, reader => {
+			const workingDirectories = this._workingDirectories.read(reader);
+			return buildAgentHostChatWorkspace(
+				sessionWorkspace.read(reader),
+				workingDirectories?.map(directory => mapWorkingDirectoryUri(URI.parse(directory))),
+				output?.getFolderGitHubInfo(reader),
+				output?.getScopeGitState(reader, workingDirectories),
+			);
+		});
 		const interactivity = derived(reader => effectiveChatInteractivity(
 			sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
 			this._interactivity.read(reader)));
@@ -1322,11 +1328,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._sessionOutput = sessionOutput;
 
 		const defaultChatStatus = derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader));
-		const defaultChatWorkspace = derived(this, reader => buildAgentHostChatWorkspace(
-			this.workspace.read(reader),
-			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory)),
-			this._getFolderGitHubInfoResolver(reader),
-		));
+		const defaultChatWorkspace = derived(this, reader => {
+			const workingDirectories = this._defaultChatWorkingDirectories.read(reader);
+			return buildAgentHostChatWorkspace(
+				this.workspace.read(reader),
+				workingDirectories?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory)),
+				this._getFolderGitHubInfoResolver(reader),
+				this._getChatScopeGitState(reader, workingDirectories),
+			);
+		});
 		const defaultChatUri = URI.parse(buildDefaultChatUri(this.backendUri));
 		const defaultChatChangesets = createChatChangesets(
 			defaultChatUri,
@@ -1588,6 +1598,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
+			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 		};
 		const chat = new AdditionalChat(
 			resource,
@@ -2212,6 +2223,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			return gitHubInfo;
 		};
+	}
+
+	private _getChatScopeGitState(reader: IReader, workingDirectories: readonly string[] | undefined): ISessionGitState | undefined {
+		return workingDirectories
+			? readFolderScopeGitState(this._metaObs.read(reader), getWorkingDirectoryScopeId(workingDirectories))
+			: undefined;
 	}
 
 	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {

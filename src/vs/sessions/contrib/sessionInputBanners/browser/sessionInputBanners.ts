@@ -107,7 +107,8 @@ export class SessionInputBanners extends Disposable {
 
 	private readonly _agentMergeConfiguration = derived(this, reader => {
 		const session = this._session.read(reader);
-		return session ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService).read(reader) : undefined;
+		const activeChat = session?.activeChat.read(reader);
+		return session && activeChat ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService, activeChat).read(reader) : undefined;
 	});
 
 	private readonly _states: IObservable<readonly BannerState[]> = derived(this, reader => {
@@ -124,7 +125,7 @@ export class SessionInputBanners extends Disposable {
 		this._feedbackChanged.read(reader);
 		const createdFeedback = this.feedbackService.getFeedback(session.resource)
 			.filter(item => item.state === AgentFeedbackState.Created);
-		const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+		const gitHubInfo = session.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
 		const onlyPullRequest = pullRequests.length === 1 ? pullRequests[0] : undefined;
 		const dismissed = this._dismissed.read(reader);
@@ -233,7 +234,7 @@ export class SessionInputBanners extends Disposable {
 			if (!session || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
 				return;
 			}
-			const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const gitHubInfo = session.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;

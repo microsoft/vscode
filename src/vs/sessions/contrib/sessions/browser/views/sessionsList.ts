@@ -51,7 +51,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -60,7 +61,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../../../browser/sessionActionViewItem.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -97,7 +98,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfer
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { createSessionSummaryHover, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { createSessionSummaryHover, getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -244,6 +245,17 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
+function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	const active = activeSession?.read(reader);
+	if (active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource)) {
+		const chatStats = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
+		if (chatStats !== undefined) {
+			return chatStats.insertions > 0 || chatStats.deletions > 0 ? chatStats : undefined;
+		}
+	}
+	return getSessionDiffStats(session, reader);
+}
+
 /** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
@@ -344,6 +356,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
+	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
 	/**
 	 * Bottom slack reserved under a chat row's approval prompt. The session row
 	 * absorbs the rendered code-block's line-height rounding in its own bottom
@@ -393,6 +406,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
+			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get())) {
+				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
+			}
 			if (this._approvalModel) {
 				const approval = this._approvalModel.getApproval(element.chat.resource).get();
 				if (approval) {
@@ -588,6 +604,7 @@ interface ISessionChatItemTemplate {
 	readonly titleContainer: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
 	readonly compactHoverDescription: HTMLElement;
+	readonly folderRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
@@ -598,6 +615,34 @@ interface ISessionChatItemTemplate {
 interface IInlineRenameValueState {
 	readonly initialValue: string;
 	value: string;
+}
+
+function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'>): IDelayedHoverOptions {
+	return {
+		...hover,
+		appearance: { showPointer: true },
+		position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+		persistence: { hideOnHover: false },
+	};
+}
+
+function getCreatorHoverData(
+	session: ISession,
+	sessionsManagementService: ISessionsManagementService,
+	agentHostConnectionsService: IAgentHostConnectionsService,
+	openerService: IOpenerService,
+): { readonly title: string; readonly onOpen: () => void } | undefined {
+	const creationReference = session.createdBySession?.get();
+	if (!creationReference) {
+		return undefined;
+	}
+	const creator = sessionsManagementService.getSession(creationReference.session);
+	const resolved = agentHostConnectionsService.resolveSessionResource(creationReference.session);
+	if (!creator || !resolved) {
+		return undefined;
+	}
+	const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
+	return { title: creator.title.get(), onOpen: () => openerService.open(target).catch(onUnexpectedError) };
 }
 
 class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionChatItemTemplate> {
@@ -625,6 +670,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly approvalRowMaxLines: number,
 		private readonly onDidDoubleClickRename: (item: ISessionChatItem) => void,
 		private readonly onDidFinishRename: () => void,
+		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
+		private readonly compact: () => boolean,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -647,6 +694,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const title = disposables.add(new HighlightedLabel(titleContainer));
 		const titleInputContainer = DOM.append(titleRow, $('.session-chat-title-input.session-inline-rename-input'));
 		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
+		const folderRow = DOM.append(container, $('.session-chat-folder-row'));
+		folderRow.setAttribute('aria-hidden', 'true');
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
 		}
@@ -662,7 +711,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -675,35 +724,58 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		const chats = getSessionListChats(element.session);
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		let hadFolderRow = !this.compact() && !!getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get());
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
+			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
+				? getHighestPriorityPullRequestIcon(
+					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
+						getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
+					) ?? []
+				)
+				: undefined;
 			template.statusIcon.setStatus(
 				status,
 				true,
 				false,
-				undefined,
+				completedStateIcon,
 				element.chat.resource,
 			);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		template.elementDisposables.add(autorun(reader => {
-			// Shown on hover or focus in the compact list (see sessionsList.css).
-			const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
-			template.container.classList.toggle('has-compact-folder-label', !!folderLabel);
+			const sessionWorkspace = element.session.workspace.read(reader);
+			const chatWorkspace = element.chat.workspace.read(reader);
+			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
+			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
 				const badge = DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, folderLabel));
 				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
+			}
+
+			const showFolderRow = !this.compact() && !!folderLabel;
+			template.folderRow.hidden = !showFolderRow;
+			DOM.clearNode(template.folderRow);
+			if (showFolderRow && folderLabel && chatWorkspace) {
+				const kind = getSessionWorkspaceKind(chatWorkspace, element.session.worktreePending?.read(reader));
+				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
+				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
+				DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
+				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
+			}
+			if (hadFolderRow !== showFolderRow) {
+				hadFolderRow = showFolderRow;
+				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
-			content: getChatTitle(element.chat),
-		}), { groupId: 'sessions-list' }));
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => this.getSummaryHoverOptions(element), { groupId: 'sessions-list' }));
 		template.elementDisposables.add(DOM.addDisposableListener(template.titleContainer, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
 			if (
 				event.button !== 0 ||
@@ -1184,6 +1256,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; isComparisonParticipant?: (session: ISession) => boolean; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
+			activeSession?: IObservable<IActiveSession | undefined>;
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
@@ -1205,20 +1278,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
 	) {
-	}
-
-	private getCreatorHoverData(session: ISession): { readonly title: string; readonly onOpen: () => void } | undefined {
-		const creationReference = session.createdBySession?.get();
-		if (!creationReference) {
-			return undefined;
-		}
-		const creator = this.sessionsManagementService.getSession(creationReference.session);
-		const resolved = this.agentHostConnectionsService.resolveSessionResource(creationReference.session);
-		if (!creator || !resolved) {
-			return undefined;
-		}
-		const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
-		return { title: creator.title.get(), onOpen: () => this.openerService.open(target).catch(onUnexpectedError) };
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -1441,12 +1500,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				...createSessionSummaryHover(element, getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact()), this.preferencesService),
-				appearance: { showPointer: true },
-				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-				persistence: { hideOnHover: false },
-			}), { groupId: 'sessions-list' }));
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () =>
+				withSessionsListHoverPresentation(createSessionSummaryHover(
+					element,
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact()),
+					this.preferencesService,
+				)), { groupId: 'sessions-list' }));
 		}
 
 		// Pending voice response indicator: a response arrived while this session
@@ -1605,7 +1664,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
-			const diffStats = getSessionDiffStats(element, reader);
 			const workspaceBadgeLabel = workspace && (
 				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
@@ -1624,6 +1682,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
+			const diffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1
+				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
+				: getSessionDiffStats(element, reader);
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -2686,9 +2747,7 @@ class SessionsAccessibilityProvider {
 				const title = getChatTitle(element.chat, reader);
 				const updated = fromNow(element.chat.updatedAt.read(reader), true);
 				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
-				const folderLabel = this.options?.compact?.()
-					? getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader))
-					: undefined;
+				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
 				return folderLabel
 					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
 					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
@@ -3369,12 +3428,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly findFocusRestore = this._register(new MutableDisposable());
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
-	 * approval state. Owned by the list (not the row templates), so an approval
-	 * that appears, clears, or changes line count while a row is virtualized
-	 * offscreen still corrects the ListView's cached height. Re-established after
-	 * every {@link update} because chat items are rebuilt each render.
+	 * approval and workspace state. Owned by the list (not the row templates), so
+	 * changes while a row is virtualized offscreen still correct the ListView's
+	 * cached height. Re-established after every {@link update} because chat items
+	 * are rebuilt each render.
 	 */
-	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
+	private readonly chatRowHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
@@ -3582,6 +3641,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onDidFinishRename: () => this.tree.domFocus(),
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
+				activeSession: this._sessionsService.activeSession,
 				collapsedSessionIds: this.collapsedSessionIds,
 				archiveOnboardingSession: this.archiveOnboardingSession,
 			},
@@ -3605,7 +3665,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, this.contextViewService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, item => this.preservePendingOpenFocus(item.session, item.chat), () => this.tree.domFocus(), this.activeGuideSessionIds);
+		const chatRenderer = new SessionChatItemRenderer(
+			hoverService,
+			instantiationService,
+			this._sessionsManagementService,
+			this.contextViewService,
+			markdownRendererService,
+			approvalModel,
+			DEFAULT_APPROVAL_ROW_MAX_LINES,
+			item => this.preservePendingOpenFocus(item.session, item.chat),
+			() => this.tree.domFocus(),
+			item => withSessionsListHoverPresentation(createSessionSummaryHover(
+				item.session,
+				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
+				this.preferencesService,
+			)),
+			() => this.isCompact(),
+			this.activeGuideSessionIds,
+		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
@@ -4539,7 +4616,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
-		this.reconcileChatApprovalHeights();
+		this.reconcileChatRowHeights();
 		this._onDidUpdate.fire();
 	}
 
@@ -4563,14 +4640,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * (Re-)establish the list-owned autorun that keeps each chat row's cached
-	 * height in sync with its live approval state, independent of whether the row
-	 * is currently rendered. Chat items are rebuilt on every {@link update}, so
-	 * the autorun is recreated to track the current set. Height updates are safe
-	 * to apply to offscreen elements — the ListView corrects its cached size so
-	 * the row shows the right height (and never clips the Allow control) when it
-	 * is next scrolled into view.
+	 * height in sync with its live approval and workspace state, independent of
+	 * whether the row is currently rendered. Chat items are rebuilt on every
+	 * {@link update}, so the autorun is recreated to track the current set.
 	 */
-	private reconcileChatApprovalHeights(): void {
+	private reconcileChatRowHeights(): void {
 		const chatItems: ISessionChatItem[] = [];
 		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionChatItem(node.element)) {
@@ -4583,14 +4657,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		collect(this.tree.getNode());
 
 		if (chatItems.length === 0) {
-			this.chatApprovalHeightReconcile.clear();
+			this.chatRowHeightReconcile.clear();
 			return;
 		}
 
-		this.chatApprovalHeightReconcile.value = autorun(reader => {
+		this.chatRowHeightReconcile.value = autorun(reader => {
 			for (const chatItem of chatItems) {
-				// Read the approval so the autorun re-runs when it changes; the
-				// delegate derives the row height from the same live model.
+				chatItem.session.workspace.read(reader);
+				chatItem.chat.workspace.read(reader);
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
 				if (this.tree.hasElement(chatItem)) {
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));

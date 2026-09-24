@@ -11,6 +11,11 @@ import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.
 /** Metadata key under which the branch changeset's diff list is persisted. */
 export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
 
+/** Returns the containing-session metadata key for one folder-scoped Branch Changes cache. */
+export function getScopedBranchChangesetMetadataKey(scopeId: string): string {
+	return `${META_CHANGESET_BRANCH}.${scopeId}`;
+}
+
 /** Metadata key under which the session-wide changeset's diff list is persisted. */
 export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
 
@@ -94,7 +99,8 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Registers static repository changesets for any owner and the cumulative
-	 * Session Changes resource for session owners.
+	 * Session Changes resource for session owners. Folder-scoped Branch Changes
+	 * are re-seeded from the containing session's persisted cache.
 	 *
 	 * Idempotent; safe to call on every create and restore path.
 	 */
