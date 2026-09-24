@@ -321,6 +321,7 @@ suite('aiCustomizationListWidget', () => {
 
 	test('loading placeholders and replacement lists keep a stable row height and scroll position', () => {
 		const container = document.createElement('div');
+		document.body.appendChild(container);
 		const placeholder = renderVirtualizedSectionLoadingPlaceholder(container, 'Loading customizations...', 44);
 		const list = {
 			scrollTop: 88,
@@ -331,6 +332,7 @@ suite('aiCustomizationListWidget', () => {
 		};
 
 		layoutVirtualizedSectionList(list, container, 44);
+		container.remove();
 
 		assert.deepStrictEqual({
 			placeholderHeight: placeholder.style.height,
@@ -359,6 +361,36 @@ suite('aiCustomizationListWidget', () => {
 			layoutCount,
 		}, {
 			containerHeight: '0px',
+			scrollTop: 88,
+			layoutCount: 0,
+		});
+	});
+
+	test('hidden virtualized lists are not laid out and retain their scroll position', () => {
+		const parent = document.createElement('div');
+		parent.style.display = 'none';
+		document.body.appendChild(parent);
+		const container = document.createElement('div');
+		container.style.height = '44px';
+		parent.appendChild(container);
+		let layoutCount = 0;
+		const list = {
+			scrollTop: 88,
+			layout: () => {
+				layoutCount++;
+				list.scrollTop = 0;
+			},
+		};
+
+		layoutVirtualizedSectionList(list, container, 300);
+		parent.remove();
+
+		assert.deepStrictEqual({
+			containerHeight: container.style.height,
+			scrollTop: list.scrollTop,
+			layoutCount,
+		}, {
+			containerHeight: '44px',
 			scrollTop: 88,
 			layoutCount: 0,
 		});

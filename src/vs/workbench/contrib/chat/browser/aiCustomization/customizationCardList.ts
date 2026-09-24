@@ -99,6 +99,11 @@ export function layoutVirtualizedSectionList(list: IVirtualizedSectionList, cont
 		container.style.height = '0px';
 		return;
 	}
+	if (container.getClientRects().length === 0) {
+		// Hidden (e.g. while a detail view is shown): section heights can't be
+		// measured and laying out would clamp the list's scroll position to 0.
+		return;
+	}
 
 	const scrollTop = list.scrollTop;
 	container.style.height = `${height}px`;
