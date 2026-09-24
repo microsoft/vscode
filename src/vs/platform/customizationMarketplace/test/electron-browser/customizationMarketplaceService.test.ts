@@ -18,7 +18,7 @@ import { IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManife
 import { IProductService } from '../../../product/common/productService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../common/customizationMarketplaceIpc.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 import { NativeCustomizationMarketplaceService } from '../../electron-browser/customizationMarketplaceService.js';
 
 suite('NativeCustomizationMarketplaceService', () => {
@@ -184,7 +184,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 		}());
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
 		const ids = async () => (await service.query({ pageSize: 3 }, CancellationToken.None)).items.map(item => item.sourceId);
-		await assert.rejects(service.query({}, CancellationToken.None));
+		const invisibleBefore = getVisibleCustomizationMarketplaceSources(configuration, service.sources).map(source => source.id);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const customAndDefault = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
@@ -192,11 +192,13 @@ suite('NativeCustomizationMarketplaceService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled, false);
 		const publicOnly = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None));
-		assert.deepStrictEqual({ customAndDefault, customAndPublic, publicOnly, galleryUrls, publicCalls }, {
+		const invisibleAfter = getVisibleCustomizationMarketplaceSources(configuration, service.sources).map(source => source.id);
+		assert.deepStrictEqual({ invisibleBefore, customAndDefault, customAndPublic, publicOnly, invisibleAfter, galleryUrls, publicCalls }, {
+			invisibleBefore: [],
 			customAndDefault: ['mcpGallery', 'mcpGalleryDefault'],
 			customAndPublic: ['mcpGallery', 'agentFinder'],
 			publicOnly: ['agentFinder'],
+			invisibleAfter: [],
 			galleryUrls: ['https://registry.test', 'https://api.mcp.github.com', 'https://registry.test'],
 			publicCalls: 2,
 		});

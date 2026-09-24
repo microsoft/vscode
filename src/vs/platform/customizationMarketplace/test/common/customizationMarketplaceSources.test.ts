@@ -30,23 +30,21 @@ suite('CustomizationMarketplaceSources', () => {
 		return configuration;
 	}
 
-	test('visibility gate is independent of enabled feeds and cancels active queries', async () => {
+	test('Marketplace visibility does not disable feed queries needed by legacy management', async () => {
 		const configuration = createConfiguration(['first']);
 		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		const disabled = getVisibleCustomizationMarketplaceSources(configuration, sources);
 		const legacyFeeds = getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id);
-		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [] })), isCancellationError);
-		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		const legacyPage = await queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [], total: 1 }));
 		const pendingResult = new DeferredPromise<ICustomizationMarketplacePage>();
 		const pending = queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, () => pendingResult.p);
-		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-		await cancelled;
 		await pendingResult.complete({ items: [] });
 		assert.deepStrictEqual({
-			disabled, legacyFeeds, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+			disabled, legacyFeeds, legacyPage, pendingPage: await pending, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
 			enabledFeeds: sources.map(source => configuration.getValue<boolean>(source.enablementSetting)),
-		}, { disabled: [], legacyFeeds: ['first'], cancelledListeners: false, enabledFeeds: [true, false] });
+		}, { disabled: [], legacyFeeds: ['first'], legacyPage: { items: [], total: 1 }, pendingPage: { items: [] }, cancelledListeners: false, enabledFeeds: [true, false] });
 	});
 
 	test('exclusion setting removes the default source and cancels its in-flight request', async () => {

@@ -60,7 +60,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	token: CancellationToken,
 	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
 ): Promise<ICustomizationMarketplacePage> {
-	const getSourceIds = () => getVisibleCustomizationMarketplaceSources(configurationService, sources)
+	const getSourceIds = () => getEnabledCustomizationMarketplaceSources(configurationService, sources)
 		.filter(source => !options.sourceIds || options.sourceIds.includes(source.id))
 		.map(source => source.id);
 	const sourceIds = getSourceIds();
