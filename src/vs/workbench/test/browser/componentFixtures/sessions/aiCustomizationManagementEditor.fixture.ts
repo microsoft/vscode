@@ -30,7 +30,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IListService, ListService, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -1003,7 +1003,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						case 'loadingMore':
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: customizationMarketplaceResources.slice(0, 2), total: customizationMarketplaceResources.length, nextCursor: createCursor(2) };
+								: {
+									items: Array.from({ length: 12 }, (_, index) => ({
+										...customizationMarketplaceResources[0],
+										identifier: `example/repository-review-${index}`,
+										displayName: `Repository review ${index + 1}`,
+									})),
+									total: 24,
+									nextCursor: createCursor(12),
+								};
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
 						case 'empty': return { items: [], total: 0 };
 					}
@@ -1576,12 +1584,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
 		}
 		if (options.customizationMarketplaceState === 'loadingMore') {
-			const scrollable = resultList.querySelector<HTMLElement>('.monaco-scrollable-element');
-			if (scrollable) {
-				scrollable.scrollTop = scrollable.scrollHeight;
-				scrollable.dispatchEvent(new (DOM.getWindow(scrollable).Event)('scroll'));
-				await Promise.resolve();
-			}
+			const listElement = resultList.querySelector<HTMLElement>('.monaco-list');
+			assert(listElement !== null, 'Discover results must provide a scrollable list.');
+			listElement.focus();
+			listElement.dispatchEvent(new (DOM.getWindow(listElement).FocusEvent)('focus'));
+			const list = instantiationService.get(IListService).lastFocusedList;
+			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
+			list.scrollTop = list.scrollHeight;
+			await Promise.resolve();
 			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 		}
 		if (options.clearDiscoveryQuery) {
