@@ -33,11 +33,14 @@ suite('SessionWorktreeLimitContribution', () => {
 			...Array.from({ length: 19 }, (_, index) => createSession(`recent-${index}`, new Date())),
 		];
 		let confirmation: IConfirmation | undefined;
+		let nextPromptAfter = 0;
 		const service = disposables.add(createService(sessions, {
 			confirm: async options => {
 				confirmation = options;
 				return { confirmed: false };
 			},
+		}, true, {
+			setSnoozedUntil: value => nextPromptAfter = value,
 		}));
 
 		await service.refresh();
@@ -47,11 +50,13 @@ suite('SessionWorktreeLimitContribution', () => {
 			detail: confirmation?.detail,
 			primaryButton: confirmation?.primaryButton,
 			cancelButton: confirmation?.cancelButton,
+			cooldownRecorded: nextPromptAfter > Date.now(),
 		}, {
 			message: 'You have 20 session worktrees',
 			detail: 'Storage is limited by the number of worktrees. Archive old sessions to clean up their worktrees and make room for new sessions.',
 			primaryButton: 'Review and Clean Up',
 			cancelButton: 'Remind Me Later',
+			cooldownRecorded: true,
 		});
 	});
 
@@ -91,6 +96,7 @@ suite('SessionWorktreeLimitContribution', () => {
 			},
 		}, true, {
 			quickInputService: createAcceptingQuickInputService(),
+			getSnoozedUntil: () => Date.now() + 24 * 60 * 60 * 1000,
 			archiveSession: async session => {
 				archived.push(session.sessionId);
 				eligible.isArchived.set(true, undefined);
@@ -309,7 +315,7 @@ suite('SessionWorktreeLimitContribution', () => {
 		});
 	});
 
-	test('can prompt again at the same count after the snooze expires', async () => {
+	test('can prompt again at the same count after the startup cooldown expires', async () => {
 		let snoozedUntil = 0;
 		let confirmationCount = 0;
 		const sessions = [

@@ -27,7 +27,7 @@ import { EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING } from '../common/constants.
 
 const WORKTREE_COUNT_LIMIT = 20;
 const MINIMUM_SESSION_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-const SNOOZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const PROMPT_COOLDOWN_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_DELAY_MS = 10_000;
 const STORAGE_KEY_SNOOZED_UNTIL = 'sessions.worktreeLimit.snoozedUntil';
 const CLEANUP_SESSION_WORKTREES_COMMAND_ID = 'sessions.action.cleanupWorktrees';
@@ -57,8 +57,6 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.sessionWorktreeLimit';
 
 	private _promptPromise: Promise<void> | undefined;
-	private _lastPromptedWorktreeCount = 0;
-	private readonly _snoozeScheduler: RunOnceScheduler;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -72,25 +70,9 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	) {
 		super();
 
-		this._snoozeScheduler = this._register(new RunOnceScheduler(() => {
-			this._lastPromptedWorktreeCount = 0;
-			void this.refresh().catch(error => this.logService.error('[SessionWorktreeLimitContribution] Failed to refresh after snooze', error));
-		}, SNOOZE_DURATION_MS));
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {
 			void this.refresh().catch(error => this.logService.error('[SessionWorktreeLimitContribution] Failed to check the worktree limit', error));
 		}, REFRESH_DELAY_MS));
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => refreshScheduler.schedule()));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING)) {
-				refreshScheduler.schedule();
-			}
-		}));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, STORAGE_KEY_SNOOZED_UNTIL, this._store)(() => {
-			this._lastPromptedWorktreeCount = 0;
-			if (!this._isSnoozed()) {
-				refreshScheduler.schedule();
-			}
-		}));
 		const contribution = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -111,16 +93,16 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	}
 
 	async refresh(): Promise<void> {
-		if (!this.configurationService.getValue<boolean>(EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING) || this._promptPromise || this._isSnoozed()) {
+		if (!this.configurationService.getValue<boolean>(EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING) || this._promptPromise || this._isPromptOnCooldown()) {
 			return this._promptPromise;
 		}
 
 		const { worktreeCount, availableSessions, recommendedSessionIds } = this._getCleanupState();
-		if (worktreeCount < WORKTREE_COUNT_LIMIT || worktreeCount === this._lastPromptedWorktreeCount || recommendedSessionIds.size === 0) {
+		if (worktreeCount < WORKTREE_COUNT_LIMIT || recommendedSessionIds.size === 0) {
 			return;
 		}
 
-		this._lastPromptedWorktreeCount = worktreeCount;
+		this.storageService.store(STORAGE_KEY_SNOOZED_UNTIL, Date.now() + PROMPT_COOLDOWN_DURATION_MS, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		return this._trackPrompt(this._measureAndPromptForCleanup(worktreeCount, availableSessions, recommendedSessionIds));
 	}
 
@@ -246,9 +228,6 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			cancelButton: localize('worktreeLimit.later', "Remind Me Later"),
 		});
 		if (!confirmation.confirmed) {
-			this._lastPromptedWorktreeCount = 0;
-			this.storageService.store(STORAGE_KEY_SNOOZED_UNTIL, Date.now() + SNOOZE_DURATION_MS, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this._snoozeScheduler.schedule();
 			return;
 		}
 
@@ -336,15 +315,7 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		});
 	}
 
-	private _isSnoozed(): boolean {
-		const remaining = this.storageService.getNumber(STORAGE_KEY_SNOOZED_UNTIL, StorageScope.APPLICATION, 0) - Date.now();
-		if (remaining <= 0) {
-			this._snoozeScheduler.cancel();
-			return false;
-		}
-		if (!this._snoozeScheduler.isScheduled()) {
-			this._snoozeScheduler.schedule(remaining);
-		}
-		return true;
+	private _isPromptOnCooldown(): boolean {
+		return this.storageService.getNumber(STORAGE_KEY_SNOOZED_UNTIL, StorageScope.APPLICATION, 0) > Date.now();
 	}
 }
