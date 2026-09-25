@@ -95,6 +95,13 @@ local **Telemetry** output channel — the same local‑logging path used by inl
    the local log alone is enough to rebuild a full in‑session trajectory (focus changes, impressions,
    clicks, interactions, lifecycle, and routing decisions in order).
 
+> **Restricted events are in the local log too.** There is no client‑side split: `_log` in
+> [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
+> event to *all* appenders, and `TelemetryLogAppender` logs them unfiltered. So
+> `agents/inboxContentClassification` (whose labels are declared `EndUserPseudonymizedInformation`)
+> appears in the local Telemetry log just like any other event — the "restricted" designation only
+> governs downstream (cloud) storage and access, not local recording.
+
 ## Reconstructing from Kusto
 
 In official builds the same events are additionally sent to the OneDataSystem web appender (see
@@ -117,9 +124,11 @@ RawEventsVW
           Properties, Measures
 ```
 
-To follow one item/session across the trajectory, add `| where Sid == "<hash>"`. The restricted
-`agents/inboxContentClassification` labels route to the restricted table (they are declared
-`EndUserPseudonymizedInformation`) — join them back on `agentSessionId`.
+To follow one item/session across the trajectory, add `| where Sid == "<hash>"`. The client sends
+every event (restricted or not) through the same pipeline; the `EndUserPseudonymizedInformation`
+classification on the `agents/inboxContentClassification` labels is a GDPR declaration that governs
+**downstream** storage/access (the restricted, pseudonymized store), not a client‑side route. Join
+those labels back to the rest of the trajectory on `agentSessionId`.
 
 ## Restricted content‑classification ontology
 
@@ -129,6 +138,15 @@ client; the raw content never does. Each axis is coerced to `unknown` (or `none`
 returns anything out of range. The axes are intentionally **split** (request kind vs. subject; risk
 vs. reversibility vs. environment) so a meta‑router can reason about who should handle an item and
 whether an agent may act autonomously.
+
+> **It is a separate, on‑demand event — not attached to lifecycle/routing events.** Classification
+> runs at most once per item, only when the user opens the detail pane of a **completed** or
+> **needs‑input** item (it piggybacks on the evidence‑pack generation and is model‑gated), so items
+> the user never opens are never classified and most lifecycle events have no classification.
+> Correlate a classification to that item's `agents/inboxItemLifecycle` / `agents/inboxInteraction` /
+> `agents/inboxRoutingDecision` events by `agentSessionId` + `notificationKind` and `common.sequence`.
+> The labels are deliberately **not** embedded in those events — that would both force a model call
+> for every item (fan‑out) and leak restricted labels into ordinary `SystemMetaData` events.
 
 | Field | Restricted? | Values |
 |---|---|---|
