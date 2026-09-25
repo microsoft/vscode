@@ -1372,6 +1372,13 @@ suite('mcpListWidget', () => {
 					error: templateData.description.classList.contains('error'),
 					display: templateData.description.style.display,
 					hover: hoverContents.get(templateData.description),
+					...(templateData.issue.textContent ? {
+						issue: {
+							text: templateData.issue.textContent,
+							display: templateData.issue.style.display,
+							hover: hoverContents.get(templateData.issue),
+						}
+					} : {}),
 					ariaLabel,
 				}),
 				readSource: () => ({
@@ -1389,6 +1396,7 @@ suite('mcpListWidget', () => {
 		}
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
+		const issue = (text: string) => ({ issue: { text, display: '', hover: text } });
 
 		test('shows workspace-relative and home-relative configuration paths in the row and accessible label', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
@@ -1817,7 +1825,7 @@ suite('mcpListWidget', () => {
 				focused: document.activeElement === button,
 				clicks: ctx.managementClicks,
 			}, {
-				text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Error',
+				text: '', error: false, display: 'none', hover: '', ...issue('Updated error'), ariaLabel: 'Server One, Error, Updated error',
 				sameButton: true, focused: true, clicks: ['more'],
 			});
 		});
@@ -1834,9 +1842,28 @@ suite('mcpListWidget', () => {
 			disposables.add(sessions.store);
 			sessions.render(entry);
 			assert.deepStrictEqual({ local: ctx.read(), sameButton: ctx.actionNode() === button, sessions: sessions.read() }, {
-				local: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
+				local: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('Second native error'), ariaLabel: 'Native, Error, Second native error' },
 				sameButton: true,
 				sessions: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native' },
+			});
+		});
+
+		test('installed card includes the inline error in its accessible label', () => {
+			const server = erroring();
+			const ctx = createRenderer(server, true, true);
+			disposables.add(ctx.store);
+			const parent = DOM.append(document.body, DOM.$('.plugin-list-widget'));
+			disposables.add({ dispose: () => parent.remove() });
+			ctx.menu({ type: 'session-server-item', server });
+
+			ctx.renderInstalledRow(parent, { type: 'session-server-item', server });
+
+			assert.deepStrictEqual({
+				ariaLabel: parent.querySelector('.customization-card-primary-action')?.getAttribute('aria-label'),
+				error: parent.querySelector('.mcp-server-error-message')?.textContent,
+			}, {
+				ariaLabel: 'Server One, Error, failed to start',
+				error: 'failed to start',
 			});
 		});
 
@@ -1887,8 +1914,8 @@ suite('mcpListWidget', () => {
 				native.connectionState.set({ state: McpConnectionState.Kind.Running }, undefined);
 				native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
 				assert.deepStrictEqual({ before, empty, disabled, recovered: ctx.read() }, {
-					before: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
-					empty: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
+					before: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('Native connection failed'), ariaLabel: 'Native, Error, Native connection failed' },
+					empty: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('The server reported an error without additional details.'), ariaLabel: 'Native, Error, The server reported an error without additional details.' },
 					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled' },
 					recovered: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: kind === 'server-item' ? 'Native, Running' : 'Native' },
 				});
@@ -1930,13 +1957,13 @@ suite('mcpListWidget', () => {
 				const description = kind === 'session-server-item' ? '' : 'Ordinary description';
 				const ordinary = { text: description, error: false, display: description ? '' : 'none', hover: description };
 				assert.deepStrictEqual({ error, updated, disabled, recovered, removed, recycled, afterOldUpdate: ctx.read() }, {
-					error: { ...ordinary, display: 'none', ariaLabel: `${name}, Error` },
-					updated: { ...ordinary, display: 'none', ariaLabel: `${name}, Error`, sameAction: true },
+					error: { ...ordinary, display: 'none', ...issue('failed to start'), ariaLabel: `${name}, Error, failed to start` },
+					updated: { ...ordinary, display: 'none', ...issue('Changed session error'), ariaLabel: `${name}, Error, Changed session error`, sameAction: true },
 					disabled: { ...ordinary, ariaLabel: `${name}, Disabled` },
 					recovered: { ...ordinary, ariaLabel: `${name}, Running` },
 					removed: { ...ordinary, ariaLabel: name },
-					recycled: { text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server Two, Error' },
-					afterOldUpdate: { text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server Two, Error' },
+					recycled: { text: '', error: false, display: 'none', hover: '', ...issue('failed to start'), ariaLabel: 'Server Two, Error, failed to start' },
+					afterOldUpdate: { text: '', error: false, display: 'none', hover: '', ...issue('failed to start'), ariaLabel: 'Server Two, Error, failed to start' },
 				});
 			});
 		}

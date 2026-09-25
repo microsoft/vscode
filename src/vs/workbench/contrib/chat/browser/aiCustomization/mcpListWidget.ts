@@ -1019,7 +1019,8 @@ function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boo
 	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
 	const status = getMcpStatusPresentation(statusKind, disabledReason);
 	const compatibility = getMcpCompatibilityPresentation(compatibilityKind);
-	return [compatibility?.label, status?.label].reduce<string>(
+	const errorMessage = statusKind === McpServerStatus.Error || statusKind === McpConnectionState.Kind.Error ? getMcpEntryErrorMessage(element) : undefined;
+	return [compatibility?.label, status?.label, errorMessage].reduce<string>(
 		(result, detail) => detail ? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", result, detail) : result,
 		label,
 	);
@@ -2057,21 +2058,25 @@ export class McpListWidget extends Disposable {
 			const activeSessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			let statusKind: McpStatusKind | undefined;
 			let disabledReason: CustomizationDisabledReason | undefined;
+			let errorMessage: string | undefined;
 			const activeSessionServer = getActiveSessionServer(entry);
 			if (activeSessionServer !== undefined) {
 				const server = this.agentHostCustomizationService.getMcpServers(activeSessionResource).find(server => server.id === activeSessionServer.id);
 				const presentation = server && getActiveSessionServerPresentation(server);
 				statusKind = presentation?.status;
 				disabledReason = presentation?.enabled ? undefined : server?.disabledReason;
+				const message = server?.state?.kind === McpServerStatus.Error ? server.state.error?.message : undefined;
+				errorMessage = getMcpErrorMessage(statusKind, message);
 			} else if (entry.type !== 'session-server-item' && entry.localServer && isContributionDisabled(entry.localServer.enablement.read(reader))) {
 				statusKind = 'disabled';
 				disabledReason = getMcpDisabledReason(entry);
 			} else if (entry.type !== 'session-server-item' && !this.workspaceService.isSessionsWindow) {
 				const connectionState = entry.localServer?.connectionState.read(reader);
 				statusKind = entry.type === 'server-item' || connectionState?.state === McpConnectionState.Kind.Error ? connectionState?.state : undefined;
+				errorMessage = getMcpErrorMessage(statusKind, connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
 			}
 			const status = getMcpStatusPresentation(statusKind, disabledReason);
-			return [compatibility?.label, status?.label].reduce<string>(
+			return [compatibility?.label, status?.label, errorMessage].reduce<string>(
 				(result, detail) => detail ? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", result, detail) : result,
 				label,
 			);
