@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -50,6 +50,7 @@ import { logSessionsListCompactViewState } from '../../../../common/sessionsTele
 import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -124,6 +125,8 @@ export class SessionsView extends ViewPane {
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private readonly customizationsNavigationVisible = observableValue(this, false);
+	private readonly customizationsNavigationState: CustomizationsNavigationState;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
@@ -158,6 +161,7 @@ export class SessionsView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
+		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -246,6 +250,8 @@ export class SessionsView extends ViewPane {
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
 			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
+			customizationsCount: this.customizationsNavigationState.totalCount,
+			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
 			findWidgetContainer,
 			sessionsHeader: headerRow,
 			sessionsHeaderContainer,
@@ -411,6 +417,7 @@ export class SessionsView extends ViewPane {
 		const automationsFocused = this.sessionsControl?.isAutomationsFocused() === true;
 		const wasTreatment = this.customizationsPresentation === 'treatment';
 		this.customizationsPresentation = presentation;
+		this.customizationsNavigationVisible.set(presentation === 'treatment', undefined);
 
 		if (wasTreatment !== (presentation === 'treatment')) {
 			this.sessionsControl?.updateNavigationVisibility();

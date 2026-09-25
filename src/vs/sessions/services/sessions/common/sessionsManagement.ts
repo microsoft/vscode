@@ -126,9 +126,9 @@ export interface ICreateNewSessionOptions {
 	readonly worktreeCreateNewBranch?: boolean;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
-	 * configuration and first request are applied.
+	 * configuration and first request are applied. Asynchronous preparation is awaited.
 	 */
-	readonly onSessionCreated?: (session: ISession) => void;
+	readonly onSessionCreated?: (session: ISession) => void | Promise<void>;
 }
 
 /**

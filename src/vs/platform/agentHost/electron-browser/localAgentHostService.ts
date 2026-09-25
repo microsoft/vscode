@@ -32,6 +32,7 @@ import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -427,6 +428,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
 		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
 	}
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {

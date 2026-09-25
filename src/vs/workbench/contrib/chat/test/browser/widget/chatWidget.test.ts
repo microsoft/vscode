@@ -1019,7 +1019,12 @@ suite('ChatWidget - guarded acceptInput', () => {
 		});
 		const instantiationService = mockObject<IInstantiationService>()();
 		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
-			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService())) : parser);
+			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService(), {
+				_serviceBrand: undefined,
+				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
+				report: () => { },
+				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
+			})) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
 		const rebind = (newViewModel: ChatViewModel | undefined) => {
 			const previousSessionResource = viewModel?.sessionResource;
@@ -1277,6 +1282,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 			await entered.p;
 			h.assertFinished('queued');
 			assert.deepStrictEqual([queued.isSettled, h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [false, undefined, undefined]);
+			assert.deepStrictEqual(h.otelRoutes.map(route => route.resource), [fixture.original.model.sessionResource]);
 			await queued.complete(fixture.sent);
 			assert.strictEqual(await sending, fixture.response);
 			h.assertFinished('queued');

@@ -11,6 +11,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -71,6 +72,7 @@ export class ChatStatusPromo extends Disposable {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._onDidChange.fire()));
@@ -97,6 +99,8 @@ export class ChatStatusPromo extends Disposable {
 		}));
 		this._register(CommandsRegistry.registerCommand(TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier: string, promoId: string) => {
 			this.telemetryService.publicLog2<PromoActionTelemetry, PromoActionClassification>('chatPromoWidgetAction', { promoId, action: 'tryModel' });
+			// Close the offer first; otherwise the pinned hover re-renders with the dashboard once the offer is withdrawn.
+			this.hoverService.hideHover(true);
 			const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, true);
 			if (!view) {
 				throw new Error(localize('chat.promo.openFailed', "Unable to open Chat to try this model."));
