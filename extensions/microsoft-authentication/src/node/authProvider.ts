@@ -547,7 +547,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 						try {
 							await cachedPca.removeAccount(account);
 						} catch (removeError) {
-							this._logger.error(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to remove account`, JSON.stringify(removeError));
+							this._logger.error(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to remove account`, removeError);
 						}
 						continue;
 					}
