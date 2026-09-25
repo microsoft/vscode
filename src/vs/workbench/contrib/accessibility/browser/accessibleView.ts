@@ -10,7 +10,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -315,13 +315,13 @@ export class AccessibleView extends Disposable {
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
-				return this._render(provider, container, showAccessibleViewHelp);
+				this._render(provider, container, showAccessibleViewHelp);
+				return toDisposable(() => this._renderDisposables.clear());
 			},
 			onHide: () => {
 				showDisposables.dispose();
 				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
-					this._updateLastProvider();
 					// Save cursor position before disposing so it can be restored on reopen
 					if (this._currentProvider) {
 						const currentPosition = this._editorWidget.getPosition();
@@ -617,7 +617,7 @@ export class AccessibleView extends Disposable {
 		this._currentContent = content + configureKbHint + configureAssignedKbHint;
 	}
 
-	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): void {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
@@ -768,9 +768,6 @@ export class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
-		// `_render` is also called to refresh the content of an already visible view,
-		// so always release the listeners of the latest render when the view hides.
-		return toDisposable(() => this._renderDisposables.clear());
 	}
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
@@ -818,7 +815,7 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		const lastProvider = provider instanceof AccessibleContentProvider ? new AccessibleContentProvider(
+		const lastProvider = isIAccessibleViewContentProvider(provider) ? new AccessibleContentProvider(
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
@@ -831,6 +828,7 @@ export class AccessibleView extends Disposable {
 			provider.onDidChangeContent?.bind(provider),
 			provider.onKeyDown?.bind(provider),
 			provider.getSymbols?.bind(provider),
+			provider.onDidRequestClearLastProvider,
 		) : new ExtensionContentProvider(
 			provider.id,
 			provider.options,
