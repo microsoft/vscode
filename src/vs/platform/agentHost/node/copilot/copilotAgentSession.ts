@@ -39,8 +39,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
-import { getSessionSandboxOverrides } from '../sessionSandbox.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
@@ -4553,10 +4552,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */
 	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
-		const sandbox = {
-			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(this._configurationService, this._ownerSessionUri.toString()),
-		};
+		const sandbox = getSessionSandboxConfig(this._configurationService, this._ownerSessionUri.toString(), this._platform);
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
