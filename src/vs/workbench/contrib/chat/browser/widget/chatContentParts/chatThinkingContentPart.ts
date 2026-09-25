@@ -353,6 +353,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
+	private fallbackTitle: string | undefined;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking');
 	private readonly workingTitle = localize('chat.thinking.header.working', 'Working');
 	private textContainer!: HTMLElement;
@@ -386,6 +387,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
+	private readonly hiddenToolCallIds = new Set<string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -1281,14 +1283,15 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return this.allThinkingParts.some(part => this.getThinkingBody(extractTextFromPart(part)).length > 0);
 		}
 
-		// Multiple tool invocations or lazy items mean there's content to show
-		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0) {
+		const hasVisibleLazyItems = this.lazyItems.some(item => item.kind === 'thinking' || !item.lazy.hasValue || item.lazy.value.isVisible?.get() !== false);
+		if (this.toolInvocationCount > this.hiddenToolCallIds.size || hasVisibleLazyItems) {
 			return true;
 		}
 
 		// Count meaningful children in the wrapper (exclude the working spinner)
 		if (this.wrapper) {
-			const meaningfulChildren = Array.from(this.wrapper.children).filter(child => child !== this.workingSpinnerElement).length;
+			const meaningfulChildren = Array.from(this.wrapper.children).filter(child =>
+				child !== this.workingSpinnerElement && isHTMLElement(child) && !child.hidden && child.style.display !== 'none').length;
 			if (meaningfulChildren > 1) {
 				return true;
 			}
@@ -1308,6 +1311,13 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private updateDropdownClickability(knownContentHeight?: number): void {
+		if (this.fallbackTitle !== undefined && this.currentTitle === this.fallbackTitle) {
+			const title = this.getFallbackTitle();
+			if (title !== this.currentTitle) {
+				this.currentTitle = this.fallbackTitle = title;
+				this.setFinalizedTitle(title);
+			}
+		}
 		this.updateToolChainVisibility();
 		if (this.isVerboseToolChain) {
 			return;
@@ -2005,14 +2015,19 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 	}
 
-	private setFallbackTitle(): void {
-		const finalLabel = this.appendedItemCount > 0
-			? this.appendedItemCount === 1
+	private getFallbackTitle(): string {
+		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
+		return visibleItemCount > 0
+			? visibleItemCount === 1
 				? localize('chat.thinking.finished.withStepsSingular', 'Finished with 1 step')
-				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', this.appendedItemCount)
+				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', visibleItemCount)
 			: localize('chat.thinking.finished', 'Finished Working');
+	}
 
+	private setFallbackTitle(): void {
+		const finalLabel = this.getFallbackTitle();
 		this.currentTitle = finalLabel;
+		this.fallbackTitle = finalLabel;
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
 			this.wrapper.classList.remove('chat-thinking-streaming');
@@ -2109,6 +2124,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	public removeMaterializedItem(toolCallId: string): void {
 		this.toolDisposables.deleteAndDispose(toolCallId);
 		this.ownedToolParts.delete(toolCallId);
+		this.hiddenToolCallIds.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -2202,6 +2218,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this.toolDisposables.deleteAndDispose(toolCallId);
+			this.hiddenToolCallIds.delete(toolCallId);
 			this._pendingExternalResources.delete(toolCallId);
 			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
@@ -2262,6 +2280,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.toolDisposables.deleteAndDispose(toolCallId);
 		this.ownedToolParts.get(toolCallId)?.dispose();
 		this.ownedToolParts.delete(toolCallId);
+		this.hiddenToolCallIds.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -2623,8 +2642,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
 				}
 				toolStore.add(autorun(reader => {
-					setVisibility(isVisible.read(reader), itemWrapper);
-					this.updateToolChainVisibility();
+					const visible = isVisible.read(reader);
+					setVisibility(visible, itemWrapper);
+					if (visible) {
+						this.hiddenToolCallIds.delete(toolInvocationOrMarkdown.toolCallId);
+					} else {
+						this.hiddenToolCallIds.add(toolInvocationOrMarkdown.toolCallId);
+					}
+					this.updateDropdownClickability();
 					this._onDidChangeHeight.fire();
 				}));
 			}

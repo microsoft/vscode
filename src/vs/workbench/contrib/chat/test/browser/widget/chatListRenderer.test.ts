@@ -2978,6 +2978,46 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const restored of [false, true]) {
+		test(`mixed chains exclude empty tool progress from their completed step count (restored=${restored})`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				progressVerbosity: ChatProgressVerbosity.Compact,
+				collapsedTools: CollapsedToolsDisplayMode.Always,
+			});
+			configurePersistentProgressTypography(container, 13);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			const tools = ['visible', 'empty'].map(id => new ChatToolInvocation(
+				{ invocationMessage: `Read ${id}`, pastTenseMessage: id === 'empty' ? new MarkdownString(' \n\t ') : 'Read visible' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			));
+			for (const tool of tools) {
+				if (!restored) {
+					model.acceptResponseProgress(request, tool);
+				}
+			}
+			if (!restored) {
+				renderer.renderElement(node, 0, template);
+			}
+			for (const tool of tools) {
+				await tool.didExecuteTool(undefined);
+				if (restored) {
+					model.acceptResponseProgress(request, tool.toJSON());
+				}
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewed the file.') });
+			renderer.renderElement(node, 0, template);
+			const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain')!;
+			const button = chain.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+			if (button.ariaExpanded === 'false') {
+				button.click();
+			}
+			assert.deepStrictEqual({
+				title: button.textContent,
+				rows: [...chain.querySelectorAll<HTMLElement>('.chat-thinking-tool-wrapper')].filter(row => row.style.display !== 'none').length,
+			}, { title: 'Finished with 1 step', rows: 1 });
+			request.response?.complete();
+		});
+
 		test(`hidden tool placeholders do not add completed steps or empty rows (restored=${restored})`, async () => {
 			const { configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer();
 			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
