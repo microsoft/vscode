@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
@@ -62,7 +63,7 @@ export class AgentHostCatalogListReader {
 			const revivedData = reviveAgentHostCatalogData(decoded.value.data);
 			const data = {
 				...revivedData,
-				chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri)),
+				chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
 			};
 			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 		} catch (error) {
