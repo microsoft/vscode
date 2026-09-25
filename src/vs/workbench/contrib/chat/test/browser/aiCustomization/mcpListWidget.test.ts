@@ -508,7 +508,7 @@ suite('mcpListWidget', () => {
 
 		updateMcpCardRuntimePresentation(statusIcon, primaryAction, description, McpConnectionState.Kind.Starting, undefined, 'Server, Starting', 'First description');
 		const initialNodes = [...row.childNodes];
-		updateMcpCardRuntimePresentation(statusIcon, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description', 'Connection failed');
+		updateMcpCardRuntimePresentation(statusIcon, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description');
 
 		assert.deepStrictEqual({
 			nodesPreserved: initialNodes.every((node, index) => row.childNodes[index] === node),
@@ -521,7 +521,7 @@ suite('mcpListWidget', () => {
 			statusClass: 'mcp-server-state-icon error codicon codicon-error',
 			statusText: '',
 			ariaLabel: 'Server, Error',
-			description: 'Connection failed',
+			description: 'Updated description',
 		});
 	});
 
@@ -538,7 +538,7 @@ suite('mcpListWidget', () => {
 			McpServerStatus.Error,
 		] as const;
 		const presentations = states.map(state => {
-			updateMcpCardRuntimePresentation(icon, action, description, state, undefined, `Server, ${state}`, 'Description', state === McpServerStatus.Error ? 'Failed to connect' : undefined);
+			updateMcpCardRuntimePresentation(icon, action, description, state, undefined, `Server, ${state}`, 'Description');
 			return { state, visible: icon.style.display !== 'none', icon: icon.classList.contains('codicon') ? [...icon.classList].find(name => name.startsWith('codicon-')) : undefined, description: description.textContent };
 		});
 
@@ -548,7 +548,7 @@ suite('mcpListWidget', () => {
 			{ state: 'disabled', visible: false, icon: undefined, description: 'Description' },
 			{ state: McpServerStatus.Starting, visible: true, icon: 'codicon-loading', description: 'Description' },
 			{ state: McpServerStatus.Stopped, visible: false, icon: undefined, description: 'Description' },
-			{ state: McpServerStatus.Error, visible: true, icon: 'codicon-error', description: 'Failed to connect' },
+			{ state: McpServerStatus.Error, visible: true, icon: 'codicon-error', description: 'Description' },
 		]);
 	});
 
@@ -1222,6 +1222,7 @@ suite('mcpListWidget', () => {
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
 			let migrationRequests = 0;
+			let inlineOutputRequests = 0;
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
@@ -1290,6 +1291,7 @@ suite('mcpListWidget', () => {
 				() => compatibilityKind,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
+				async () => { inlineOutputRequests++; },
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -1336,6 +1338,7 @@ suite('mcpListWidget', () => {
 				openedPlugins,
 				openedExtensions,
 				migrationRequests: () => migrationRequests,
+				inlineOutputRequests: () => inlineOutputRequests,
 				hostEnablementCalls,
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
@@ -1412,7 +1415,6 @@ suite('mcpListWidget', () => {
 		}
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
-		const issue = (text: string) => ({ issue: { text, display: '', hover: text } });
 
 		test('hides configuration paths from rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
@@ -1603,6 +1605,10 @@ suite('mcpListWidget', () => {
 				const output = actions.filter(action => action.label === 'Show Output');
 				assert.strictEqual(output.length, 1, 'exactly one accessible output action');
 				await output[0].run();
+				const statusIcon = ctx.templateData.actions.querySelector('.mcp-server-state-icon');
+				const showOutputButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-show-output');
+				showOutputButton?.click();
+				await Promise.resolve();
 				const hostOwned = !['native', 'builtin', 'plugin'].includes(kind);
 				assert.deepStrictEqual({
 					badge: ctx.templateData.container.querySelector('.plugin-list-item-status')?.textContent,
@@ -1612,11 +1618,17 @@ suite('mcpListWidget', () => {
 					nativeCalls: native.outputCalls,
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
+					inlineOutputButton: showOutputButton?.textContent,
+					inlineOutputFollowsIcon: !!statusIcon && !!showOutputButton && statusIcon.compareDocumentPosition(showOutputButton) === Node.DOCUMENT_POSITION_FOLLOWING,
+					inlineOutputRequests: ctx.inlineOutputRequests(),
 				}, {
 					badge: undefined, trailingStatus: 1, managementButtons: 1, enabledOutput: true,
 					nativeCalls: hostOwned ? [] : ['native'],
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
+					inlineOutputButton: 'Show Output',
+					inlineOutputFollowsIcon: true,
+					inlineOutputRequests: 1,
 				});
 			});
 		}
@@ -1822,25 +1834,39 @@ suite('mcpListWidget', () => {
 			assert.strictEqual(ctx.templateData.container.style.minHeight, '44px');
 		});
 
-		test('compatibility issues show an error icon without a runtime status', () => {
-			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'unsupported');
-			disposables.add(ctx.store);
-
-			ctx.render();
-			ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+		test('compatibility issues use severity-specific icons without runtime status', () => {
+			const render = (kind: 'unsupported' | 'partiallySupported') => {
+				const ctx = createRenderer(createAgentHostServer(), true, false, undefined, kind);
+				disposables.add(ctx.store);
+				ctx.render();
+				ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+				return {
+					message: ctx.templateData.compatibilityMessage.textContent,
+					icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
+					badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
+					linkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
+					migrationRequests: ctx.migrationRequests(),
+				};
+			};
 
 			assert.deepStrictEqual({
-				message: ctx.templateData.compatibilityMessage.textContent,
-				icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
-				badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
-				linkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
-				migrationRequests: ctx.migrationRequests(),
+				unsupported: render('unsupported'),
+				partiallySupported: render('partiallySupported'),
 			}, {
-				message: 'Unsupported. See Migrations for details.',
-				icon: 'mcp-server-state-icon codicon codicon-warning compatibility',
-				badges: 0,
-				linkTabIndex: 0,
-				migrationRequests: 1,
+				unsupported: {
+					message: 'Unsupported. See Migrations for details.',
+					icon: 'mcp-server-state-icon codicon codicon-error compatibility unsupported',
+					badges: 0,
+					linkTabIndex: 0,
+					migrationRequests: 1,
+				},
+				partiallySupported: {
+					message: 'Partially supported. See Migrations for details.',
+					icon: 'mcp-server-state-icon codicon codicon-warning compatibility partially-supported',
+					badges: 0,
+					linkTabIndex: 0,
+					migrationRequests: 1,
+				},
 			});
 		});
 
@@ -1863,7 +1889,7 @@ suite('mcpListWidget', () => {
 				focused: document.activeElement === button,
 				clicks: ctx.managementClicks,
 			}, {
-				text: '', error: false, display: 'none', hover: '', ...issue('Updated error'), ariaLabel: 'Server One, Error, Updated error',
+				text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Error, Updated error',
 				sameButton: true, focused: true, clicks: ['more'],
 			});
 		});
@@ -1880,13 +1906,13 @@ suite('mcpListWidget', () => {
 			disposables.add(sessions.store);
 			sessions.render(entry);
 			assert.deepStrictEqual({ local: ctx.read(), sameButton: ctx.actionNode() === button, sessions: sessions.read() }, {
-				local: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('Second native error'), ariaLabel: 'Native, Error, Second native error' },
+				local: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error, Second native error' },
 				sameButton: true,
 				sessions: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native' },
 			});
 		});
 
-		test('installed card includes the inline error in its accessible label', () => {
+		test('installed card keeps errors in its accessible label and offers Show Output', () => {
 			const server = erroring();
 			const ctx = createRenderer(server, true, true);
 			disposables.add(ctx.store);
@@ -1898,10 +1924,12 @@ suite('mcpListWidget', () => {
 
 			assert.deepStrictEqual({
 				ariaLabel: parent.querySelector('.customization-card-primary-action')?.getAttribute('aria-label'),
-				error: parent.querySelector('.mcp-server-error-message')?.textContent,
+				description: parent.querySelector('.plugin-list-item-description')?.textContent,
+				showOutput: parent.querySelector('.mcp-server-show-output')?.textContent,
 			}, {
 				ariaLabel: 'Server One, Error, failed to start',
-				error: 'failed to start',
+				description: 'No description provided.',
+				showOutput: 'Show Output',
 			});
 		});
 
@@ -1973,8 +2001,8 @@ suite('mcpListWidget', () => {
 				native.connectionState.set({ state: McpConnectionState.Kind.Running }, undefined);
 				native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
 				assert.deepStrictEqual({ before, empty, disabled, recovered: ctx.read() }, {
-					before: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('Native connection failed'), ariaLabel: 'Native, Error, Native connection failed' },
-					empty: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('The server reported an error without additional details.'), ariaLabel: 'Native, Error, The server reported an error without additional details.' },
+					before: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error, Native connection failed' },
+					empty: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error, The server reported an error without additional details.' },
 					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled (Globally)' },
 					recovered: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: kind === 'server-item' ? 'Native, Running' : 'Native' },
 				});
@@ -2016,13 +2044,13 @@ suite('mcpListWidget', () => {
 				const description = kind === 'session-server-item' ? '' : 'Ordinary description';
 				const ordinary = { text: description, error: false, display: description ? '' : 'none', hover: description };
 				assert.deepStrictEqual({ error, updated, disabled, recovered, removed, recycled, afterOldUpdate: ctx.read() }, {
-					error: { ...ordinary, display: 'none', ...issue('failed to start'), ariaLabel: `${name}, Error, failed to start` },
-					updated: { ...ordinary, display: 'none', ...issue('Changed session error'), ariaLabel: `${name}, Error, Changed session error`, sameAction: true },
+					error: { ...ordinary, ariaLabel: `${name}, Error, failed to start` },
+					updated: { ...ordinary, ariaLabel: `${name}, Error, Changed session error`, sameAction: true },
 					disabled: { ...ordinary, ariaLabel: `${name}, Disabled (Globally)` },
 					recovered: { ...ordinary, ariaLabel: `${name}, Running` },
 					removed: { ...ordinary, ariaLabel: name },
-					recycled: { text: '', error: false, display: 'none', hover: '', ...issue('failed to start'), ariaLabel: 'Server Two, Error, failed to start' },
-					afterOldUpdate: { text: '', error: false, display: 'none', hover: '', ...issue('failed to start'), ariaLabel: 'Server Two, Error, failed to start' },
+					recycled: { text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server Two, Error, failed to start' },
+					afterOldUpdate: { text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server Two, Error, failed to start' },
 				});
 			});
 		}

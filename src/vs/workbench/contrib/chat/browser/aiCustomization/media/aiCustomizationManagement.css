@@ -2923,6 +2923,11 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
 }
 
+.mcp-server-item .mcp-server-compatibility-message.unsupported,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message.unsupported {
+	color: var(--vscode-errorForeground);
+}
+
 .plugin-list-widget .mcp-server-compatibility-link {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: underline;
@@ -2977,10 +2982,22 @@ per-word capitalization does not survive translation. */
 	white-space: nowrap;
 }
 
+.plugin-list-widget .mcp-server-error-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+}
+
+.mcp-server-item .mcp-server-error-actions .mcp-server-status {
+	width: var(--vscode-codiconFontSize);
+}
+
 .mcp-server-item .mcp-server-sign-in.monaco-button,
 .mcp-server-item .mcp-server-start.monaco-button,
+.mcp-server-item .mcp-server-show-output.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button,
-.plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button {
+.plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-show-output.monaco-button {
 	width: auto;
 	flex: 0 0 auto;
 	min-width: 0;
@@ -3020,6 +3037,10 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .mcp-server-state-icon.compatibility {
 	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.compatibility.unsupported {
+	color: var(--vscode-errorForeground);
 }
 
 .plugin-list-widget .mcp-server-state-icon.starting {
