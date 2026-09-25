@@ -1011,6 +1011,8 @@ suite('CopilotShellTools', () => {
 		const readablePaths: string[] = platform.isWindows ? config.filesystem.readonlyPaths : config.filesystem.allowRead;
 		assert.ok(Array.isArray(readablePaths), `Expected readable paths array. Got: ${JSON.stringify(config.filesystem)}`);
 		assert.ok(readablePaths.includes(configuredReadPath), `Expected configured read path in readable paths. Got: ${JSON.stringify(readablePaths)}`);
+		const expectedAttachmentPath = URI.from({ scheme: 'inmemory', path: '/session-data/session-1/attachments' }).fsPath;
+		assert.ok(readablePaths.includes(expectedAttachmentPath), `Expected session attachments in readable paths. Got: ${JSON.stringify(readablePaths)}`);
 	});
 
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {
