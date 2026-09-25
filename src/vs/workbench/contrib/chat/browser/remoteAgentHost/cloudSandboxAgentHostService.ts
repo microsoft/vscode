@@ -5,7 +5,7 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
+import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -52,6 +52,7 @@ interface IStagedCloudSandboxConnection {
 	readonly options: ICloudSandboxConnectOptions;
 	readonly creds: ICloudSandboxCreds;
 	readonly clientId: string;
+	readonly refreshState: CloudSandboxCredentialRefreshState;
 }
 
 /** Builds cloud sandbox protocol clients from credentials staged by the caller. */
@@ -133,6 +134,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			options,
 			creds: { token: clientToken },
 			clientId: clientToken.client_id,
+			refreshState: new CloudSandboxCredentialRefreshState(),
 		});
 		this._updateEntries();
 		return entry;
@@ -157,47 +159,49 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new Error(`No cloud sandbox connection is staged for ${address}.`);
 		}
 
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const telemetry = this._connectionTelemetry.get(address);
-		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
-			url: buildWpsUrl(staged.creds.token),
-			toHostGroup: staged.creds.token.groups.to_host,
-			joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
-			groupValidation: { expected: { cid: staged.creds.token.client_id } },
-			onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
-			ahpLogger: ahpLoggingEnabled
-				? this._instantiationService.createInstance(AhpJsonlLogger, {
-					logsHome: this._environmentService.logsHome,
-					logId: address,
-					connectionId: staged.clientId,
-					transport: 'webpubsub',
-				})
-				: undefined,
-		});
-		const client = this._instantiationService.createInstance(
-			AgentHostProtocolClient,
-			address,
-			transportFactory,
-			{
-				clientId: staged.clientId,
-				clientInfo: editorWindowAgentHostClientInfo,
-				resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
-			},
-		);
 		const store = new DisposableStore();
-		const refresher = store.add(new MutableDisposable<CloudSandboxCredentialRefresher>());
-		store.add(client.onDidChangeConnectionState(state => {
-			if (state === 'connected' && !refresher.value) {
-				refresher.value = this._instantiationService.createInstance(
-					CloudSandboxCredentialRefresher,
-					address,
-					{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
-					staged.clientId,
-					staged.creds,
-				);
-			}
-		}));
-		return { connection: client, transportDisposable: store };
+		try {
+			const refresher = store.add(this._instantiationService.createInstance(
+				CloudSandboxCredentialRefresher,
+				address,
+				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
+				staged.clientId,
+				staged.creds,
+				staged.refreshState,
+			));
+			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const telemetry = this._connectionTelemetry.get(address);
+			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
+				url: buildWpsUrl(staged.creds.token),
+				toHostGroup: staged.creds.token.groups.to_host,
+				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
+				groupValidation: { expected: { cid: staged.creds.token.client_id } },
+				onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
+				ahpLogger: ahpLoggingEnabled
+					? this._instantiationService.createInstance(AhpJsonlLogger, {
+						logsHome: this._environmentService.logsHome,
+						logId: address,
+						connectionId: staged.clientId,
+						transport: 'webpubsub',
+					})
+					: undefined,
+			});
+			const client = this._instantiationService.createInstance(
+				AgentHostProtocolClient,
+				address,
+				transportFactory,
+				{
+					clientId: staged.clientId,
+					clientInfo: editorWindowAgentHostClientInfo,
+					prepareReconnect: () => refresher.ensureUnexpiredCredentials(),
+					resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
+				},
+			);
+			return { connection: client, transportDisposable: store };
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
 	}
 
 	private async _resolveInitialAuthentication(address: string): Promise<{ readonly resource: string; readonly token: string } | undefined> {
