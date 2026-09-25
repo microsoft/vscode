@@ -155,6 +155,16 @@ const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcom
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
 const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const refreshGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_refreshGitHubProfileName') as (this: {
+	_githubProfileAccountKey: string | undefined;
+	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
+	readonly configurationService: { getValue<T>(key: string): T };
+	readonly defaultAccountService: {
+		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
+		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
+	};
+	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
+}) => Promise<void>;
 const fetchGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_fetchGitHubProfileName') as (this: {
 	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
 	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
@@ -848,6 +858,90 @@ suite('NewChatWidget', () => {
 			configuredName: 'Megan',
 			gitHubName: 'Octo',
 			missingName: undefined,
+		});
+	});
+
+	test('fetches a GitHub profile only when enabled and no name is configured', async () => {
+		let welcomePhrasesEnabled = false;
+		let configuredName = '';
+		let currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null = null;
+		let accountRequests = 0;
+		const profileRequests: string[] = [];
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', 'stale');
+		const harness = {
+			_githubProfileAccountKey: 'github:stale',
+			_githubProfileName: githubProfileName,
+			configurationService: {
+				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? welcomePhrasesEnabled : configuredName) as T,
+			},
+			defaultAccountService: {
+				get currentDefaultAccount() { return currentDefaultAccount; },
+				async getDefaultAccount() {
+					accountRequests++;
+					currentDefaultAccount = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: 'initial-session' };
+					return currentDefaultAccount;
+				},
+			},
+			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
+				profileRequests.push(`${providerId}:${sessionId}`);
+				return 'Octo Cat';
+			},
+		};
+
+		await refreshGitHubProfileName.call(harness);
+		configuredName = 'Megan';
+		welcomePhrasesEnabled = true;
+		await refreshGitHubProfileName.call(harness);
+		configuredName = '';
+		await refreshGitHubProfileName.call(harness);
+
+		assert.deepStrictEqual({
+			accountRequests,
+			profileRequests,
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, {
+			accountRequests: 1,
+			profileRequests: ['github:initial-session'],
+			accountKey: 'github:initial-session',
+			profileName: 'Octo Cat',
+		});
+	});
+
+	test('distinguishes providers when profile requests complete out of order', async () => {
+		const githubProfile = new DeferredPromise<string | undefined>();
+		const enterpriseProfile = new DeferredPromise<string | undefined>();
+		let currentDefaultAccount = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: 'shared-session' };
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', undefined);
+		const harness = {
+			_githubProfileAccountKey: undefined,
+			_githubProfileName: githubProfileName,
+			configurationService: {
+				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? true : '') as T,
+			},
+			defaultAccountService: {
+				get currentDefaultAccount() { return currentDefaultAccount; },
+				async getDefaultAccount() { return currentDefaultAccount; },
+			},
+			_fetchGitHubProfileName(providerId: string) {
+				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
+			},
+		};
+
+		const publicRefresh = refreshGitHubProfileName.call(harness);
+		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
+		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
+		githubProfile.complete('Public Name');
+		await publicRefresh;
+		enterpriseProfile.complete('Enterprise Name');
+		await enterpriseRefresh;
+
+		assert.deepStrictEqual({
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, {
+			accountKey: 'github-enterprise:shared-session',
+			profileName: 'Enterprise Name',
 		});
 	});
 

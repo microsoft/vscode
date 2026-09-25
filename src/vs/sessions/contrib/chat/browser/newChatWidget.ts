@@ -134,7 +134,7 @@ export class NewChatWidget extends Disposable {
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
-	private _githubProfileSessionId: string | undefined;
+	private _githubProfileAccountKey: string | undefined;
 
 	private static _takeNextWelcomePhraseIndex(): number {
 		const index = nextNewSessionWelcomePhraseIndex;
@@ -527,6 +527,11 @@ export class NewChatWidget extends Disposable {
 		);
 		this._register(autorun(reader => {
 			configuredWelcomeNameChanged.read(reader);
+			this._showWelcomePhrases.read(reader);
+			void this._refreshGitHubProfileName();
+		}));
+		this._register(autorun(reader => {
+			configuredWelcomeNameChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
 			this._updateWelcomeMessage(
 				welcomeMessage,
@@ -537,7 +542,6 @@ export class NewChatWidget extends Disposable {
 			);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
-		void this._refreshGitHubProfileName();
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -731,25 +735,44 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _refreshGitHubProfileName(): Promise<void> {
-		const account = this.defaultAccountService.currentDefaultAccount;
-		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
-			this._githubProfileSessionId = undefined;
+		if (!areNewSessionWelcomePhrasesEnabled(this.configurationService) || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
+			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
 		}
-		if (this._githubProfileSessionId !== account.sessionId) {
-			this._githubProfileSessionId = account.sessionId;
+
+		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
+		if (!areNewSessionWelcomePhrasesEnabled(this.configurationService) || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
+			this._githubProfileAccountKey = undefined;
+			this._githubProfileName.set(undefined, undefined);
+			return;
+		}
+		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
+			this._githubProfileAccountKey = undefined;
+			this._githubProfileName.set(undefined, undefined);
+			return;
+		}
+
+		const accountKey = `${account.authenticationProvider.id}:${account.sessionId}`;
+		if (this._githubProfileAccountKey !== accountKey) {
+			this._githubProfileAccountKey = accountKey;
 			this._githubProfileName.set(undefined, undefined);
 		}
 
-		const cacheKey = `${account.authenticationProvider.id}:${account.sessionId}`;
-		let profileName = githubProfileNames.get(cacheKey);
+		let profileName = githubProfileNames.get(accountKey);
 		if (!profileName) {
 			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId);
-			githubProfileNames.set(cacheKey, profileName);
+			githubProfileNames.set(accountKey, profileName);
 		}
 		const resolvedProfileName = await profileName;
-		if (this.defaultAccountService.currentDefaultAccount?.sessionId === account.sessionId) {
+		const currentAccount = this.defaultAccountService.currentDefaultAccount;
+		if (
+			this._githubProfileAccountKey === accountKey
+			&& currentAccount?.authenticationProvider.id === account.authenticationProvider.id
+			&& currentAccount.sessionId === account.sessionId
+			&& areNewSessionWelcomePhrasesEnabled(this.configurationService)
+			&& !this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()
+		) {
 			this._githubProfileName.set(resolvedProfileName, undefined);
 		}
 	}
