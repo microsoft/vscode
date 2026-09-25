@@ -58,6 +58,8 @@ suite('Sessions - EditorPart', () => {
 		const firstFill = appendElement(first, 'tab-fill');
 		const second = appendElement(tabs, 'tab connected-tab-top-row');
 		const secondFill = appendElement(second, 'tab-fill');
+		first.style.width = second.style.width = '180px';
+		tabs.style.width = '358px';
 		appendElement(group, 'editor-container').style.height = '96px';
 
 		try {
@@ -99,6 +101,29 @@ suite('Sessions - EditorPart', () => {
 									firstBackgroundClip: 'border-box',
 									firstLeftBorder: 'rgba(0, 0, 0, 0)',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
+							}
+
+							for (const wrapped of [true, false]) {
+								row.classList.toggle('wrapping', wrapped);
+								first.classList.toggle('last-in-row', wrapped);
+								first.classList.toggle('connected-tab-upper-row', wrapped);
+								second.classList.toggle('connected-tab-top-row', !wrapped);
+								const cap = mainWindow.getComputedStyle(secondFill);
+								assert.deepStrictEqual({
+									active: second.classList.contains('active'),
+									laterRow: second.offsetTop > first.offsetTop,
+									leadingEdge: second.getBoundingClientRect().left === first.getBoundingClientRect().left,
+									backgroundClip: cap.backgroundClip,
+									leftBorder: cap.borderLeftColor,
+									leftCorner: cap.borderTopLeftRadius,
+								}, {
+									active: true,
+									laterRow: wrapped,
+									leadingEdge: wrapped,
+									backgroundClip: wrapped ? 'border-box' : 'padding-box',
+									leftBorder: wrapped ? 'rgba(0, 0, 0, 0)' : border,
+									leftCorner: wrapped ? '0px' : '5px',
+								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
 							}
 						}
 					}

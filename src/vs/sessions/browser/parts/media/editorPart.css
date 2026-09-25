@@ -63,7 +63,8 @@
 	border-top-color: var(--modern-ui-connected-tab-border);
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab.last-in-row + .tab > .tab-fill {
 	background-clip: border-box;
 }
 
