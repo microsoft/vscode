@@ -1405,12 +1405,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// the new chat from displaying.
 		if (oldModelResource) {
 			const capturedOldResource = oldModelResource;
-			this._register(disposableTimeout(() => {
+			disposableTimeout(() => {
 				const oldSession = this.agentSessionsService.model.getSession(capturedOldResource);
 				if (oldSession && !oldSession.isMarkedUnread()) {
 					oldSession.setRead(true);
 				}
-			}, 0));
+			}, 0, this._store);
 		}
 
 		return model;
