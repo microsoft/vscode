@@ -650,7 +650,7 @@ suite('ChatInputNotificationWidget', () => {
 			iconOnly: true,
 			compactActions: true,
 			ariaLabel: 'Copilot preview Helpful',
-			description: 'Helpful',
+			description: null,
 		});
 	});
 

@@ -168,6 +168,10 @@
 	padding: var(--vscode-spacing-size40);
 }
 
+.chat-input-notification-widget .chat-input-notification-action-button.icon-only .codicon {
+	margin: 0;
+}
+
 .chat-input-notification-widget .chat-input-notification-action-button.secondary:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
