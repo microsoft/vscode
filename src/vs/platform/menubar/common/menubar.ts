@@ -66,3 +66,29 @@ export function isMenubarMenuItemRecentAction(menuItem: MenubarMenuItem): menuIt
 export function isMenubarMenuItemAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemAction {
 	return !isMenubarMenuItemSubmenu(menuItem) && !isMenubarMenuItemSeparator(menuItem) && !isMenubarMenuItemRecentAction(menuItem);
 }
+
+export function pruneRecentMenuItems(menus: { [id: string]: IMenubarMenu }, isInRecentList: (item: IMenubarMenuRecentItemAction) => boolean): boolean {
+	let pruned = false;
+
+	const pruneMenu = (menu: IMenubarMenu): void => {
+		menu.items = menu.items.filter(item => {
+			if (isMenubarMenuItemSubmenu(item)) {
+				pruneMenu(item.submenu);
+				return true;
+			}
+
+			if (isMenubarMenuItemRecentAction(item) && !isInRecentList(item)) {
+				pruned = true;
+				return false;
+			}
+
+			return true;
+		});
+	};
+
+	for (const menuId of Object.keys(menus)) {
+		pruneMenu(menus[menuId]);
+	}
+
+	return pruned;
+}
