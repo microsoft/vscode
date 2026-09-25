@@ -4300,6 +4300,54 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('renders expected runtime slash command validation errors as guidance', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'skills',
+				kind: 'builtin',
+				description: 'Manage skills',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Usage: /skills info <skill-name>\nExample: /skills info my-skill');
+
+		await session.send('/skills info', undefined, 'turn-skills-info');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => a.turnId),
+		}, {
+			sendRequests: [],
+			responseParts: ['Usage: `/skills info <skill-name>`\n\nExample: `/skills info my-skill`'],
+			turnComplete: ['turn-skills-info'],
+		});
+	});
+
+	test('removes the RPC wrapper from unexpected runtime slash command errors', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'skills',
+				kind: 'builtin',
+				description: 'Manage skills',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Unexpected failure');
+
+		await assert.rejects(() => session.send('/skills reload', undefined, 'turn-skills-reload'), {
+			message: 'Unexpected failure',
+		});
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+	});
+
 	test('caches runtime slash command availability across checks', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {

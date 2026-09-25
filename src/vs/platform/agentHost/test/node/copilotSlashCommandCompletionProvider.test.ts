@@ -242,6 +242,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						kind: 'builtin',
 						allowDuringAgentExecution: false,
 						input: {
+							hint: '[list|reload]',
 							choices: [
 								{ name: 'list', description: 'List skills' },
 								{ name: 'reload', description: 'Reload skills' },
@@ -253,7 +254,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						description: 'Manage plugins',
 						kind: 'builtin',
 						allowDuringAgentExecution: false,
-						input: { choices: [{ name: 'list', description: 'List plugins' }] },
+						input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
 					},
 					{
 						name: 'mcp',
@@ -261,6 +262,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						kind: 'builtin',
 						allowDuringAgentExecution: false,
 						input: {
+							hint: '[list|reload]',
 							choices: [
 								{ name: 'list', description: 'List MCP servers' },
 								{ name: 'reload', description: 'Reload MCP servers' },
@@ -277,9 +279,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				text: '/',
 				offset: 1,
 			}, CancellationToken.None)).map(item => item.insertText), [
+				'/mcp ',
 				'/mcp list ',
 				'/mcp reload ',
+				'/plugin ',
 				'/plugin list ',
+				'/skills ',
 				'/skills list ',
 				'/skills reload ',
 			]);
