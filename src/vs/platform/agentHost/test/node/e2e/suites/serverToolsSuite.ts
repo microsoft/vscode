@@ -63,6 +63,7 @@ const sessionToolNames = [
 	SessionServerToolName.ListSessions,
 	SessionServerToolName.GetCurrentSession,
 	SessionServerToolName.CreateSession,
+	SessionServerToolName.RenameChat,
 	SessionServerToolName.SendMessage,
 	SessionServerToolName.GetSessionContext,
 	SessionServerToolName.DeleteSession,
@@ -288,7 +289,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		const { tool } = await driveServerTool(
 			session,
 			'turn-rename-chat',
-			'Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".',
+			'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
 			SessionServerToolName.RenameChat,
 		);
 		const renamed = await retry(async () => {
