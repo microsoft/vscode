@@ -834,7 +834,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible from a legacy session catalogue', () => {
+	test('uses cached recomputing files in floating persistent content from a legacy session catalogue', () => {
 		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -847,16 +847,17 @@ suite('AgentHostSessionInputPills', () => {
 			} as unknown as SessionState],
 			[StateComponents.Chat, {} as ChatState],
 			[StateComponents.Changeset, {
-				status: ChangesetStatus.Ready,
-				files: [{
-					id: 'change',
-					edit: {
-						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-						diff: { added: 3, removed: 1 },
-					},
-				}],
+				status: ChangesetStatus.Computing,
+				files: [],
 			} as unknown as ChangesetState],
 		]));
+		const cachedFiles: ChangesetState['files'] = [{
+			id: 'change',
+			edit: {
+				after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+				diff: { added: 3, removed: 1 },
+			},
+		}];
 		const otherConnection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
 			[StateComponents.Session, {
 				defaultChat: backendChat.toString(),
@@ -925,12 +926,27 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
+		const initial = {
+			hidden: row?.classList.contains('hidden'),
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
+		connection.setState(StateComponents.Changeset, {
+			status: ChangesetStatus.Recomputing,
+			files: cachedFiles,
+		} as ChangesetState);
 		const button = row?.querySelector('.chat-pill-button');
+		const recomputing = {
+			hidden: row?.classList.contains('hidden'),
+			label: row?.querySelector('.chat-pill-label')?.textContent,
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
 			files: [],
 		} as ChangesetState);
-		const recomputing = {
+		const computing = {
 			hidden: row?.classList.contains('hidden'),
 			buttonPreserved: row?.querySelector('.chat-pill-button') === button,
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
@@ -947,13 +963,7 @@ suite('AgentHostSessionInputPills', () => {
 		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Ready,
-			files: [{
-				id: 'change',
-				edit: {
-					after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-					diff: { added: 3, removed: 1 },
-				},
-			}],
+			files: cachedFiles,
 		} as ChangesetState);
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
@@ -964,7 +974,9 @@ suite('AgentHostSessionInputPills', () => {
 		resolutionChanged.fire();
 
 		assert.deepStrictEqual({
+			initial,
 			recomputing,
+			computing,
 			readyEmpty,
 			otherConnection: {
 				hidden: row?.classList.contains('hidden'),
@@ -976,7 +988,18 @@ suite('AgentHostSessionInputPills', () => {
 				return [`${value.kind}:${value.resource}`, value];
 			})).values()],
 		}, {
+			initial: {
+				hidden: true,
+				persistentContentVisible: false,
+				persistentContentHeight: undefined,
+			},
 			recomputing: {
+				hidden: false,
+				label: '1 File',
+				persistentContentVisible: true,
+				persistentContentHeight: 28,
+			},
+			computing: {
 				hidden: false,
 				buttonPreserved: true,
 				persistentContentVisible: true,

@@ -72,27 +72,40 @@ suite('Chat Accessibility Help', () => {
 		], [true, true, true, false, false, false, false]);
 	});
 
-	test('documents collapsing the model controls when Auto is enabled', () => {
+	test('documents the Copilot tab switch and independent provider navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
-			preferences: help.includes('Auto and its Details action remain available'),
-			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
-			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
-		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
+			switch: help.includes('active Copilot tab has an Auto switch beside the provider name'),
+			keyboardTargets: help.includes('provider button and switch are separate keyboard targets'),
+			providers: help.includes('provider tabs and search remain available'),
+			restored: help.includes('Turn Auto off to restore the previous manual Copilot model'),
+			noImplicitSelection: help.includes('Browsing another provider does not change the selected model'),
+		}, { switch: true, keyboardTargets: true, providers: true, restored: true, noImplicitSelection: true });
+	});
+
+	test('explains organization-managed defaults separately from this chat selection', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			managedDefault: help.includes('Org default identifies the model your organization sets for new chats'),
+			perChatChoice: help.includes('the checkmark identifies your current selection'),
+			auto: help.includes('Auto section carries the same label when Auto is the organization default'),
+		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			details: help.includes('Tab to reach its Details action'),
+			details: help.includes('Tab to reach its configuration button'),
 			inspection: help.includes('configuration page without selecting it'),
 			inputShortcut: help.includes('opens the same page for the current model'),
-			defaults: help.includes('Known values remain visible even at their defaults'),
-			detailsPreferences: help.includes('Open Auto Details to configure its "Optimize for" preference'),
-			inactivePreferences: help.includes('options are available in details whether Auto is on or off'),
-			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, detailsPreferences: true, inactivePreferences: true, activation: true });
+			defaults: help.includes('Known values are shown even at their defaults'),
+			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
+			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
+			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
+			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
+			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
+			noAutoDetails: help.includes('Auto has no separate details page'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, activation: true, autoEntry: true, noAutoDetails: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -112,7 +125,7 @@ suite('Chat Accessibility Help', () => {
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
 			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
 			pinning: help.includes('Pinning or unpinning updates the model list without moving its details or keyboard focus'),
-			dismissal: help.includes('Escape again closes the picker'),
+			dismissal: help.includes('Escape closes the picker from any page'),
 		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 

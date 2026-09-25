@@ -27,6 +27,7 @@ import { IExtensionsWorkbenchService } from '../../../../extensions/common/exten
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -177,7 +178,7 @@ type McpAccessTestWidget = {
 	updateAccessState(): void;
 };
 
-function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>): McpAccessTestWidget {
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false): McpAccessTestWidget {
 	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
 	widget.element = document.createElement('div');
 	widget.mcpAccessEnabled = false;
@@ -186,6 +187,7 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.access = access;
 	widget.policyAccess = policyAccess;
 	widget.configurationService = {
+		getValue: () => galleryDiscoveryEnabled,
 		inspect: (key: string) => key === mcpAccessConfig ? {
 			value: widget.access,
 			defaultValue: McpAccessValue.All,
@@ -472,6 +474,16 @@ suite('mcpListWidget', () => {
 			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
 			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
 		], [false, true, false, false, false]);
+	});
+
+	test('does not restart management gallery search when Discover owns MCP discovery', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables, true);
+		widget.searchQuery = 'server';
+		widget.visible = true;
+		widget.updateAccessState();
+		widget.access = McpAccessValue.All;
+		widget.updateAccessState();
+		assert.deepStrictEqual({ queries: widget.queryCount, refreshes: widget.refreshCount }, { queries: 0, refreshes: 1 });
 	});
 
 	test('shows access-disabled UI before gallery work starts', () => {
@@ -1215,6 +1227,7 @@ suite('mcpListWidget', () => {
 					}();
 					instantiationService.stub(IMcpService, mcpService);
 					instantiationService.stub(IMcpWorkbenchService, mcpWorkbenchService);
+					instantiationService.stub(IMcpWorkspaceInstallTargetService, instantiationService.createInstance(McpWorkspaceInstallTargetService));
 					instantiationService.stub(IMcpRegistry, { collections: observableValue('collections', []) });
 					instantiationService.stub(IMcpSamplingService, { hasLogs: () => false });
 					instantiationService.stub(IAuthenticationService, {});
