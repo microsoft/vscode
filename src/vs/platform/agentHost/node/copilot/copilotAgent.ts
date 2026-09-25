@@ -19,7 +19,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
-import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename as resourceBasename, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -32,7 +32,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
+import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
@@ -53,7 +53,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
-import { getCopilotHomePath } from '../../common/copilotHome.js';
+import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
@@ -62,7 +62,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -2500,6 +2500,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget);
+			env['COPILOT_HOME'] = getCopilotHomePath(this._environmentService.userHome.fsPath, env);
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
@@ -2992,6 +2993,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *   creator provenance. External chats must also have been modified within
 	 *   the last seven days.
 	 *
+	 * A chat whose working directory is under {@link workspacelessChatsRoot} is
+	 * marked workspace-less: that folder only holds chats created without a user
+	 * workspace, so its directory must not surface as one.
+	 *
 	 * Registered chats are filtered by the host, with stored metadata as a
 	 * fallback when no host filter is installed. A chat the SDK reports
 	 * without a working directory is skipped: {@link _doResumeSession} requires
@@ -3085,7 +3090,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					),
 					summary: s.summary,
 					workingDirectories: [workingDirectory],
-					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
+					_meta: withSessionWorkspaceless(
+						adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
+						this._isWorkspacelessChatDirectory(workingDirectory),
+					),
 					external: !adoptable,
 				} satisfies IAgentDiscoveredChat;
 				if (externalClientName !== undefined) {
@@ -3188,6 +3196,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const workingDirectories = storedMetadata?.workingDirectories ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? [URI.file(sessionMetadata.context.workingDirectory)] : undefined);
 		const adoptable = !storedMetadata && await this._isExtensionHostCliSession(sessionId);
+		// A marker the host recorded is authoritative and overlaid by the host.
+		const workspaceless = storedMetadata?.workspaceless === undefined && this._isWorkspacelessChatDirectory(workingDirectories?.[0]);
 		return {
 			chat,
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
@@ -3195,7 +3205,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			project,
 			summary: sessionMetadata?.summary,
 			workingDirectories,
-			_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
+			_meta: withSessionWorkspaceless(adoptable ? withSessionEhcliAdoptable(undefined) : undefined, workspaceless),
 		};
 	}
 
@@ -3281,6 +3291,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _workspacelessScratchDir(sessionId: string): URI {
 		return workspacelessScratchDir(this._environmentService.userHome, sessionId);
+	}
+
+	/** Whether `directory` is inside {@link workspacelessChatsRoot}, which only holds chats created without a user workspace. */
+	private _isWorkspacelessChatDirectory(directory: URI | undefined): boolean {
+		return !!directory && extUriBiasedIgnorePathCase.isEqualOrParent(directory, workspacelessChatsRoot(this._environmentService.userHome));
 	}
 
 	/** Ensures a workspace-less chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
@@ -5698,6 +5713,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
+				getUserMcpServerNames: async () => {
+					const client = await this._ensureClient();
+					return new Set(Object.keys((await client.rpc.mcp.config.list()).servers));
+				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
 				telemetryContext: () => this.getTelemetryContext(),

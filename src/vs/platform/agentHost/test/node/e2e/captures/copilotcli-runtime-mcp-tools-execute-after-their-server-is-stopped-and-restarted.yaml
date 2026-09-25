@@ -6,7 +6,25 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+          content: Reply exactly READY. Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly READY. Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-probe-runtime_probe
+            </tools_changed_notice>
+
+            Call runtime_probe exactly once with tag "before", then reply with its exact result.
     response:
       content:
         - type: tool_use
@@ -20,7 +38,16 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+          content: Reply exactly READY. Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-probe-runtime_probe
+            </tools_changed_notice>
+
+            Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
             - type: thinking
@@ -41,7 +68,16 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+          content: Reply exactly READY. Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-probe-runtime_probe
+            </tools_changed_notice>
+
+            Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
             - type: thinking
@@ -71,7 +107,16 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+          content: Reply exactly READY. Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-probe-runtime_probe
+            </tools_changed_notice>
+
+            Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
             - type: thinking

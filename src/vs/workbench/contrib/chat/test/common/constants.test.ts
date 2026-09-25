@@ -228,6 +228,57 @@ suite('ChatConfiguration defaults', () => {
 		);
 	});
 
+	for (const type of ['history-only', 'remote-history-only-copilot']) {
+		test(`hidden session type ${type} remains registered but is excluded from new-chat choices and defaults`, () => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			const chatSessionsService = new MockChatSessionsService();
+			chatSessionsService.setContributions([
+				{ type, name: type, displayName: type, description: '', hideFromSessionTypePicker: true },
+				{ type: SessionType.CopilotCloud, name: 'Cloud', displayName: 'Cloud', description: '' },
+			]);
+			const storageService = disposables.add(new TestStorageService());
+			storeUserSelectedSessionType(storageService, type);
+
+			assert.deepStrictEqual({
+				registered: !!chatSessionsService.getChatSessionContribution(type),
+				visible: isVisibleEditorChatSessionType(type, configurationService, chatSessionsService, localWorkspace),
+				usable: isNewChatSessionTypeUsable(type, configurationService, chatSessionsService, localWorkspace),
+				cloudVisible: isVisibleEditorChatSessionType(SessionType.CopilotCloud, configurationService, chatSessionsService, localWorkspace),
+				computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+				remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+				current: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: type }),
+			}, {
+				registered: true,
+				visible: false,
+				usable: false,
+				cloudVisible: true,
+				computed: SessionType.CopilotCloud,
+				remembered: SessionType.CopilotCloud,
+				current: SessionType.CopilotCloud,
+			});
+		});
+	}
+
+	test('hidden session types do not prevent the last-resort local fallback', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+		});
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([
+			{ type: 'history-only', name: 'History', displayName: 'History', description: '', hideFromSessionTypePicker: true },
+		]);
+
+		assert.deepStrictEqual({
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
+		}, {
+			computed: localChatSessionType,
+			localVisible: true,
+		});
+	});
+
 	test('editor default keeps local as last resort when local is disabled without any provider', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,

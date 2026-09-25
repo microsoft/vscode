@@ -26,8 +26,8 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -445,6 +445,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly sourceHover = this._register(new MutableDisposable());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
+	private readonly continuationScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(true), 0));
 	private catalogPage: ICatalogPageState | undefined;
 	private enabledSourceIds: readonly string[];
 	private readonly browseCatalogCache = new Map<string, IBrowseCatalogCache>();
@@ -452,6 +453,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingInstalls = new Set<string>();
 	private readonly pendingUninstalls = new Set<string>();
 	private readonly pendingDirectUninstalls = new Set<string>();
+	private forceMarketplaceRefresh = false;
+	private readonly marketplaceRefreshScheduler = this._register(new RunOnceScheduler(() => {
+		const force = this.forceMarketplaceRefresh;
+		this.forceMarketplaceRefresh = false;
+		this.updateSources();
+		this.handleAvailabilityChanged(force);
+	}, 0));
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
@@ -534,7 +542,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.sourceButton = this._register(new Button(sourceContainer, { ...defaultButtonStyles, secondary: true, small: true }));
 		this.updateSourceButton();
 		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
-		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.sources, () => {
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
 			this.browseCatalogCache.clear();
 			if (!this.visible) {
 				this.pendingRecoveryReload = true;
@@ -563,7 +571,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.hoverService,
 			resource => this.getInstallState(resource),
 			resource => this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)),
-			resource => this.getMarketplaceSourceLabel(resource.sourceId),
+			resource => this.getMarketplaceResourceLabel(resource),
 			resource => void this.install(resource),
 			resource => void this.repair(resource),
 			item => void this.uninstall(item),
@@ -600,7 +608,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
 		this._register(this.resultList.onDidScroll(event => {
 			if (!this.query.isEmpty() && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
-				void this.loadCatalog(true);
+				this.continuationScheduler.schedule();
 			}
 		}));
 
@@ -619,6 +627,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		});
 		this._register(this.installService.onDidChange(() => this.render()));
+		if (this.marketplaceService.onDidChangeSources) {
+			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
+		}
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AccessibilityVerbositySettingId.CustomizationDiscovery)) {
@@ -630,15 +641,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render();
 		this.updateSources();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
-				this.updateSources();
-				this.handleAvailabilityChanged();
+			if (affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources)) {
+				this.scheduleMarketplaceRefresh(this.isCurrentQueryAffectedBySourceConfiguration(event));
 			}
 		}));
 	}
 
+	private scheduleMarketplaceRefresh(force: boolean): void {
+		this.forceMarketplaceRefresh ||= force;
+		this.marketplaceRefreshScheduler.schedule();
+	}
+
 	private updateSources(): void {
-		this.marketplaceSources = getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
+		this.marketplaceSources = getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
 		if (this.selectedSourceId && !this.marketplaceSources.some(source => source.id === this.selectedSourceId)) {
 			this.selectedSourceId = undefined;
 		}
@@ -730,7 +745,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.Plugins))));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -884,9 +899,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(): void {
+	private handleAvailabilityChanged(force = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (equals(this.enabledSourceIds, enabledSourceIds)) {
+		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;
@@ -1026,9 +1041,20 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		return this.getEnabledCatalogSourceIds().length > 0;
 	}
 
+	private isCurrentQueryAffectedBySourceConfiguration(event: IConfigurationChangeEvent): boolean {
+		return this.getCurrentQuerySources().some(source =>
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+	}
+
+	private getCurrentQuerySources(): readonly ICustomizationMarketplaceSourceInfo[] {
+		return this.selectedSourceId
+			? this.marketplaceSources.filter(source => source.id === this.selectedSourceId)
+			: this.marketplaceSources;
+	}
+
 	private getEnabledCatalogSourceIds(): readonly string[] {
 		return this.entitlementService.sentiment.hidden ? []
-			: getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).map(source => source.id);
+			: getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).map(source => source.id);
 	}
 
 	private hasNextCatalogPage(): boolean {
@@ -1036,11 +1062,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private getMarketplaceSourceLabel(sourceId: string): string {
-		const source = this.marketplaceSources.find(source => source.id === sourceId) ?? this.marketplaceService.sources.find(source => source.id === sourceId);
+		const source = this.marketplaceSources.find(source => source.id === sourceId)
+			?? (this.marketplaceService.allSources ?? this.marketplaceService.sources).find(source => source.id === sourceId);
 		return source?.displayName ?? sourceId;
 	}
 
+	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
+		const source = this.getMarketplaceSourceLabel(resource.sourceId);
+		return resource.originLabel ? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel) : source;
+	}
+
 	private cancelCatalogRequest(): void {
+		this.continuationScheduler.cancel();
 		this.request.value?.cancel();
 		this.request.clear();
 		this.loading = false;
@@ -1058,7 +1091,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.loading = true;
 		this.loadingMore = append;
 		this.errorMessage = undefined;
-		this.lastAnnouncement = undefined;
 		this.render();
 
 		try {
@@ -1134,6 +1166,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.layout(this.lastDimension);
 	}
 
+	private scheduleContinuationIfNeeded(): void {
+		if (!this.visible || this.query.isEmpty() || this.loading || this.errorMessage || !this.hasNextCatalogPage()) {
+			this.continuationScheduler.cancel();
+			return;
+		}
+		const renderHeight = this.resultList.renderHeight;
+		if (renderHeight > 0 && (this.resultList.scrollHeight <= renderHeight || this.resultList.scrollTop + renderHeight >= this.resultList.scrollHeight - resultRowHeight * 3)) {
+			this.continuationScheduler.schedule();
+		}
+	}
+
 	private getLoadingLabel(): string {
 		return this.loadingMore
 			? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
@@ -1172,7 +1215,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				if (matchingInstalledIndex >= 0) {
 					installed[matchingInstalledIndex] = {
 						...installed[matchingInstalledIndex],
-						sourceLabel: this.getMarketplaceSourceLabel(resource.sourceId),
+						sourceLabel: this.getMarketplaceResourceLabel(resource),
 						catalogResource: resource,
 					};
 				} else {
@@ -1181,7 +1224,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						id: `installed:catalog:${getCustomizationMarketplaceResourceKey(resource)}`,
 						name: resource.displayName,
 						description: resource.description,
-						sourceLabel: this.getMarketplaceSourceLabel(resource.sourceId),
+						sourceLabel: this.getMarketplaceResourceLabel(resource),
 						type,
 						section: getSectionForCatalogType(type),
 						catalogResource: resource,
@@ -1198,6 +1241,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const installError = this.installErrors.values().next().value;
 		const catalogPending = this.loading || (!this.loaded && this.shouldQueryCatalog());
+		this.resultListContainer.setAttribute('aria-busy', String(catalogPending));
 		if (installError) {
 			this.resultStatus.textContent = installError;
 		} else if (catalogPending && entries.length === 0) {
@@ -1221,10 +1265,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
 		}
-		if (!catalogPending && this.hasNextCatalogPage() && !this.errorMessage && this.resultList.scrollHeight <= this.resultList.renderHeight) {
-			const loadMore = this.resultStatusDisposables.add(new Button(this.resultStatus, { ...defaultButtonStyles, secondary: true, small: true }));
-			loadMore.label = localize('customizationDiscovery.loadMore', "Load More");
-			this.resultStatusDisposables.add(loadMore.onDidClick(() => void this.loadCatalog(true)));
+		if (catalogPending) {
+			this.announce(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
@@ -1595,7 +1637,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		const type = getCatalogType(entry.resource);
 		const state = this.getInstallState(entry.resource);
-		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceSourceLabel(entry.resource.sourceId), entry.resource.description, state.kind);
+		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), entry.resource.description, state.kind);
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -1619,6 +1661,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.shouldQueryCatalog() && (this.pendingRecoveryReload || !this.loaded)) {
 			this.pendingRecoveryReload = false;
 			void this.loadCatalog(false);
+		} else {
+			this.render();
 		}
 		if (this.lastDimension) {
 			DOM.getWindow(this.container).requestAnimationFrame(() => this.layout(this.lastDimension));
@@ -1655,6 +1699,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const statusHeight = this.resultStatus.offsetHeight;
 		this.resultList.layout(Math.max(0, availableHeight - statusHeight), this.resultListContainer.clientWidth);
 		this.browseScrollable.scanDomNode();
+		this.scheduleContinuationIfNeeded();
 	}
 
 	getAccessibilityContent(): string {
@@ -1682,7 +1727,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), getInstallationStateLabel(state)].join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
 			...available.map(item => {
 				const state = this.getInstallState(item);
-				return `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceSourceLabel(item.sourceId)}\n${item.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
+				return `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceResourceLabel(item)}\n${item.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
 			}),
 		].filter(Boolean).join('\n\n');
 	}

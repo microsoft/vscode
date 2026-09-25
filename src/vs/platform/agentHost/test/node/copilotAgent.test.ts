@@ -57,7 +57,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -80,7 +80,7 @@ import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkIns
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { getCopilotHomePath } from '../../common/copilotHome.js';
+import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
@@ -1321,7 +1321,7 @@ async function writeExtensionHostMarker(userHome: URI, sessionId: string, metada
  * after classification actually ran. Returns a comparable snapshot of
  * everything the agent emitted.
  */
-async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: string; external: boolean; adoptable: boolean }>> {
+async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: string; external: boolean; adoptable: boolean; workspaceless?: true }>> {
 	const discovered: IAgentDiscoveredChat[] = [];
 	const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
 	try {
@@ -1330,6 +1330,7 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 			id: sessionIdOfChat(chat.chat),
 			external: chat.external,
 			adoptable: readSessionEhcliAdoptable(chat._meta) === true,
+			...(readSessionWorkspaceless(chat._meta) ? { workspaceless: true as const } : {}),
 		}));
 	} finally {
 		listener.dispose();
@@ -1788,7 +1789,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('installs client identity and the GitHub telemetry callback in CopilotClientOptions', async () => {
+	test('installs client identity, Copilot home, and the GitHub telemetry callback in CopilotClientOptions', async () => {
 		const client = new TestCopilotClient([]);
 		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
 		try {
@@ -1796,12 +1797,14 @@ suite('CopilotAgent', () => {
 			const clientOptions = getCreatedClientOptions(agent).at(-1);
 			assert.deepStrictEqual({
 				clientInfo: clientOptions?.clientInfo,
+				copilotHome: clientOptions?.env?.['COPILOT_HOME'],
 				onGitHubTelemetry: typeof clientOptions?.onGitHubTelemetry,
 			}, {
 				clientInfo: {
 					applicationName: 'vscode-agent-host',
 					applicationVersion: '1.2.3',
 				},
+				copilotHome: getCopilotHomePath('/mock-home', process.env),
 				onGitHubTelemetry: 'function',
 			});
 		} finally {
@@ -8482,6 +8485,29 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getChatMetadata infers workspace-less from the Copilot chats folder only when the host recorded no marker', async () => {
+		const userHome = URI.file('/home/user');
+		const chatDirectory = URI.joinPath(userHome, '.copilot', 'chats', '2026-09-23', 'app-chat').fsPath;
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const db = sessionDataService.openDatabase(AgentSession.uri('copilotcli', 'host-owned'));
+		await db.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+		db.dispose();
+		const client = new TestCopilotClient([sdkSession('unowned', chatDirectory), sdkSession('host-owned', chatDirectory)]);
+		const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const workspaceless = await Promise.all(['unowned', 'host-owned'].map(async sessionId => {
+				const session = AgentSession.uri('copilotcli', sessionId);
+				const chat = defaultChatUri(session);
+				return readSessionWorkspaceless((await agent.getChatMetadata(chat, exactChatContext(session, chat, session)))?._meta);
+			}));
+			assert.deepStrictEqual(workspaceless, [true, false]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('listChatsToMigrate checks but does not create databases for unowned SDK sessions', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([sdkSession('external', '/workspace')]) });
@@ -8906,6 +8932,30 @@ suite('CopilotAgent', () => {
 			try {
 				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 					{ id: 'repository-less', external: true, adoptable: false },
+				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('marks a session working under the Copilot chats folder as workspace-less', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/workspaceless-discovery-home-`));
+			// The GitHub Copilot app nests its chat folders by date, not by session id.
+			const chatDirectory = join(userHome.fsPath, '.copilot', 'chats', '2026-09-23', 'congenial-happiness');
+			await fs.mkdir(chatDirectory, { recursive: true });
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/workspaceless-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				sdkSession('app-chat', chatDirectory, { clientName: 'github/autopilot', modifiedTime: new Date() }),
+				sdkSession('cli-folder', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
+					{ id: 'app-chat', external: true, adoptable: false, workspaceless: true },
+					{ id: 'cli-folder', external: true, adoptable: false },
 				]);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

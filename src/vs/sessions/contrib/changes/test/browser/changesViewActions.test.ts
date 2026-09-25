@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable, derivedObservableWithCache, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derivedObservableWithCache, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -37,14 +39,14 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneChangesEditorTransitionContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
@@ -259,6 +261,7 @@ suite('Changes View Actions', () => {
 			id: 'branch',
 			label: 'Branch Changes',
 			isEnabled,
+			isDefault: constObservable(true),
 		});
 		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('picker.changesets', [changeset]);
 		const loading = observableValue('picker.loading', false);
@@ -273,13 +276,16 @@ suite('Changes View Actions', () => {
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const actionWidgetService = new class extends mock<IActionWidgetService>() { }();
 		const telemetryService = new class extends mock<ITelemetryService>() { }();
-		const labelObs = derivedObservableWithCache<string | undefined>(disposables, (reader, lastValue) => {
+		const labelObs = derivedObservableWithCache<{ label: string; isNonDefault: boolean } | undefined>(disposables, (reader, lastValue) => {
 			const changeset = selected.read(reader);
-			return !changeset && loading.read(reader) ? lastValue : changeset?.label;
+			if (!changeset && loading.read(reader)) {
+				return lastValue;
+			}
+			return changeset ? { label: changeset.label, isNonDefault: false } : undefined;
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, false, labelObs, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -305,6 +311,173 @@ suite('Changes View Actions', () => {
 			remounted: { label: 'Branch Changes', disabled: false, ariaDisabled: 'false' },
 			empty: { label: 'Versions', disabled: true, ariaDisabled: 'true' },
 		});
+	});
+
+	test('marks the picker label when the selected changeset is not the default', () => {
+		const createChangeset = (id: string, label: string, isDefault: IObservable<boolean>) => upcastPartial<ISessionChangeset>({
+			id,
+			label,
+			isEnabled: constObservable(true),
+			isDefault,
+		});
+		const sessionIsDefault = observableValue('picker.sessionIsDefault', true);
+		const branchIsDefault = observableValue('picker.branchIsDefault', false);
+		const sessionChangeset = createChangeset('session', 'Session Changes', sessionIsDefault);
+		const branchChangeset = createChangeset('branch', 'Branch Changes', branchIsDefault);
+		const matchingLabelChangeset = createChangeset('matching-label', 'Session Changes', constObservable(false));
+		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('picker.changesets', [sessionChangeset, branchChangeset]);
+		const loading = observableValue('picker.loading', false);
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', sessionChangeset);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = changesets;
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		const snapshot = () => {
+			const label = container.querySelector('.changes-picker-label');
+			return {
+				label: label?.textContent,
+				nonDefault: label?.classList.contains('non-default'),
+				ariaLabel: container.querySelector<HTMLElement>('.action-label')?.ariaLabel,
+			};
+		};
+
+		const defaultSelected = snapshot();
+		selected.set(branchChangeset, undefined);
+		const nonDefaultSelected = snapshot();
+		transaction(tx => {
+			sessionIsDefault.set(false, tx);
+			branchIsDefault.set(true, tx);
+		});
+		const changedDefault = snapshot();
+		transaction(tx => {
+			sessionIsDefault.set(true, tx);
+			branchIsDefault.set(false, tx);
+		});
+		changesets.set([sessionChangeset, branchChangeset, matchingLabelChangeset], undefined);
+		selected.set(matchingLabelChangeset, undefined);
+		const matchingLabelSelected = snapshot();
+		selected.set(branchChangeset, undefined);
+		transaction(tx => {
+			loading.set(true, tx);
+			selected.set(undefined, tx);
+		});
+		const loadingCatalogue = snapshot();
+		transaction(tx => {
+			changesets.set([branchChangeset], tx);
+			loading.set(false, tx);
+			selected.set(branchChangeset, tx);
+		});
+		const onlyEnabledFallback = snapshot();
+
+		assert.deepStrictEqual({ defaultSelected, nonDefaultSelected, changedDefault, matchingLabelSelected, loadingCatalogue, onlyEnabledFallback }, {
+			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Versions: Session Changes' },
+			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
+			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
+			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Versions: Session Changes' },
+			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
+			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
+		});
+	});
+
+	test('renders the changes summary with the shared stats widget and updates it in place', async () => {
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			label: 'Branch Changes',
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const summary = observableValue<ISessionChangesSummary | undefined>('picker.summary', { files: 2, additions: 5, deletions: 1 });
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([changeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesSummaryObs = summary;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const container = document.createElement('div');
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+
+		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
+		const snapshot = () => ({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			ariaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+			summaryVisible: summaryElement?.style.display !== 'none',
+			summary: [...summaryElement?.children ?? []].map(child => child.textContent),
+			summaryTags: [...summaryElement?.children ?? []].map(child => child.tagName),
+			sameSummaryElement: container.querySelector('.changes-picker-summary') === summaryElement,
+		});
+
+		const initial = snapshot();
+		summary.set({ files: 1, additions: 7, deletions: 3 }, undefined);
+		await timeout(0);
+		const updated = snapshot();
+		summary.set(undefined, undefined);
+		await timeout(0);
+		const empty = snapshot();
+
+		assert.deepStrictEqual({ initial, updated, empty }, {
+			initial: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			updated: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			empty: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+		});
+	});
+
+	test('re-created pickers take over the shared summary so its counters keep animating', () => {
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			label: 'Branch Changes',
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([changeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const renderPicker = () => {
+			const container = document.createElement('div');
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
+			picker.render(container);
+			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
+		};
+
+		const first = renderPicker();
+		first.picker.dispose();
+		const recreated = renderPicker();
+		const concurrent = renderPicker();
+
+		assert.deepStrictEqual({
+			recreatedTakesOver: recreated.summary === first.summary,
+			concurrentGetsOwn: !!concurrent.summary && concurrent.summary !== recreated.summary,
+			concurrentSummary: [...concurrent.summary?.children ?? []].map(child => child.textContent),
+		}, {
+			recreatedTakesOver: true,
+			concurrentGetsOwn: true,
+			concurrentSummary: ['2 Files', '+5', '-1'],
+		});
+
+		recreated.picker.dispose();
+		concurrent.picker.dispose();
 	});
 
 	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {

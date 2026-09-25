@@ -38,7 +38,7 @@ import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, 
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentBackgroundActivity, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
@@ -1321,7 +1321,27 @@ suite('ChatListRenderer', () => {
 			return invocation;
 		};
 		const roundEnded: IChatRendererContent = { kind: 'thinking', value: '' };
+		const backgroundTerminal = (toolCallId: string, running: boolean): IChatToolInvocationSerialized => ({
+			kind: 'toolInvocationSerialized',
+			toolCallId,
+			toolId: 'bash',
+			source: ToolDataSource.Internal,
+			invocationMessage: 'Running command',
+			originMessage: undefined,
+			pastTenseMessage: undefined,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			toolSpecificData: {
+				kind: 'terminal',
+				commandLine: { original: 'npm run export-policy-data' },
+				language: 'shellscript',
+				didContinueInBackground: true,
+				terminalCommandState: running ? undefined : { exitCode: 0 },
+			},
+		});
 		const label = (parts: IChatRendererContent[]) => getPersistentWaitingLabel(parts)?.value.replaceAll('&nbsp;', ' ');
+		const inheritedBackgroundActivity = getPersistentBackgroundActivity([backgroundTerminal('previous-shell', true)]);
 
 		assert.deepStrictEqual({
 			foreground: label([agent('faint', true, false)]),
@@ -1341,6 +1361,14 @@ suite('ChatListRenderer', () => {
 			readTerminalOutput: label([{ kind: 'markdownContent', content: new MarkdownString('The build is running in the background.') }, await readTool('get_terminal_output', false)]),
 			readShell: label([agent('faint', true), await readTool('read_bash', false)]),
 			readShellComplete: label([await readTool('read_powershell', true)]),
+			backgroundTerminal: label([backgroundTerminal('current-shell', true)]),
+			backgroundTerminalComplete: label([backgroundTerminal('current-shell', false)]),
+			previousTurnBackgroundTerminal: getPersistentWaitingLabel([
+				{ kind: 'markdownContent', content: new MarkdownString('I answered the steering question.') },
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
+			combinedBackgroundWork: getPersistentWaitingLabel([
+				agent('faint', true),
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
 		}, {
 			foreground: 'Waiting for 1 subagent',
 			background: 'Waiting for 1 subagent',
@@ -1358,7 +1386,55 @@ suite('ChatListRenderer', () => {
 			readTerminalOutput: 'Waiting for terminal output',
 			readShell: 'Waiting for terminal output',
 			readShellComplete: undefined,
+			backgroundTerminal: 'Waiting for 1 background command',
+			backgroundTerminalComplete: undefined,
+			previousTurnBackgroundTerminal: 'Waiting for 1 background command',
+			combinedBackgroundWork: 'Waiting for 1 subagent and 1 background command',
 		});
+	});
+
+	test('persistent footer updates cached activity when a prior response tool changes', async () => {
+		const { model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundTerminal = new ChatToolInvocation(
+			{
+				invocationMessage: 'Regenerate policy data',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm run export-policy-data' },
+					language: 'shellscript',
+					didContinueInBackground: true,
+				},
+			},
+			{ id: 'bash', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+			'background-shell', undefined, {},
+		);
+		await backgroundTerminal.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTerminal);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({
+			text: 'What does policy mean?',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 22), new Range(1, 1, 1, 23), 'What does policy mean?')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Policy lets administrators centrally manage settings.') });
+		const nextResponse = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(nextResponse);
+		const node = { element: nextResponse, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		const whileRunning = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		const terminalData = backgroundTerminal.toolSpecificData;
+		assert.strictEqual(terminalData?.kind, 'terminal');
+		terminalData.terminalCommandState = { exitCode: 0 };
+		backgroundTerminal.notifyToolSpecificDataChanged();
+		renderer.renderElement(node, 0, template);
+		const afterCompletion = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		assert.deepStrictEqual({ whileRunning, afterCompletion }, {
+			whileRunning: 'Waiting for 1 background command',
+			afterCompletion: 'Working',
+		});
+		nextRequest.response?.complete();
 	});
 
 	test('working progress ignores subagent-owned response parts', () => {
@@ -1620,7 +1696,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('persistent progress is enabled by default and owns the only shimmer regardless of the mode-specific renderer option', async () => {
+	test('persistent progress defaults off and owns the only shimmer when an experiment enables it', async () => {
 		const { disposables, configurationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
 		const streamingTool = ChatToolInvocation.createStreaming({
@@ -1637,17 +1713,25 @@ suite('ChatListRenderer', () => {
 		streamingTool.updateStreamingMessage('Searching 42 files...');
 		model.acceptResponseProgress(request, streamingTool);
 		renderer.renderElement(node, 0, template);
+		const defaultOff = {
+			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
+			workingLogos: template.value.querySelectorAll('.chat-working-logo').length,
+		};
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		renderer.renderElement(node, 0, template);
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 
 		const workingProgress = template.value.querySelector<HTMLElement>('.chat-working-progress');
 		assert.deepStrictEqual({
+			defaultOff,
 			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
 			shimmerCount: template.value.querySelectorAll('.shimmer-progress').length,
 			workingIsActive: workingProgress?.classList.contains('chat-working-progress-active'),
 			workingIsFinalPart: template.value.lastElementChild === workingProgress,
 			hasStableProductIcon: !!workingProgress?.querySelector('.chat-progress-icon.codicon-vscode.chat-working-progress-icon-stable[aria-hidden="true"]'),
 		}, {
+			defaultOff: { hasPersistentState: false, workingLogos: 0 },
 			hasPersistentState: true,
 			shimmerCount: 1,
 			workingIsActive: true,
@@ -2467,6 +2551,56 @@ suite('ChatListRenderer', () => {
 			afterRepeat: ['Authentication required'],
 		});
 	});
+
+	test('persistent progress reports prolonged inactivity and resets for response activity or known background work', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, configurationService, model, request, response } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const working = {
+			kind: 'working' as const,
+			content: new MarkdownString('Working'),
+			isActive: true,
+			progressStep: 0,
+			showDelayedProgressMessage: true,
+		};
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+		await timeout(89_999);
+		const beforeThreshold = part.workingLabel;
+		await timeout(1);
+		const afterThreshold = part.workingLabel;
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('New response activity') });
+		const afterActivity = part.workingLabel;
+		await timeout(90_000);
+		const afterSecondThreshold = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for 1 background command'), true, false, 1, false);
+		await timeout(90_000);
+		const knownBackgroundWork = part.workingLabel;
+		const statuses = [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({
+			beforeThreshold,
+			afterThreshold,
+			afterActivity,
+			afterSecondThreshold,
+			knownBackgroundWork,
+			statuses,
+		}, {
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+			afterActivity: 'Working',
+			afterSecondThreshold: 'This is taking a little longer than usual',
+			knownBackgroundWork: 'Waiting for 1 background command',
+			statuses: ['This is taking a little longer than usual'],
+		});
+	}));
 
 	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
@@ -3744,6 +3878,7 @@ suite('ChatListRenderer', () => {
 					countsCentered: [...stats.children].every(child => Math.abs(center(child) - center(title)) < 0.1),
 					chevronCentered: Math.abs(center(chevron) - center(title)) < 0.1,
 					chevronSize: mainWindow.getComputedStyle(chevron).fontSize,
+					chevronBox: [chevron.getBoundingClientRect().width, chevron.getBoundingClientRect().height],
 					compactGlyph: chevron.classList.contains('codicon-chevron-right-compact'),
 				};
 			};
@@ -3759,8 +3894,8 @@ suite('ChatListRenderer', () => {
 			assert.ok(summary);
 			const expected = { counts: ['+10', '-36'], countsCentered: true, chevronCentered: true, chevronSize: '12px', compactGlyph: true };
 			assert.deepStrictEqual({ thinking, completed: snapshot(summary), thinkingHeight }, {
-				thinking: expected,
-				completed: expected,
+				thinking: { ...expected, chevronBox: [0, 0] },
+				completed: { ...expected, chevronBox: [12, 12] },
 				thinkingHeight: fontSize * 1.5,
 			});
 		});
@@ -4937,9 +5072,9 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress defaults to compact tool chains without explicit settings', async () => {
+	test('experiment-enabled persistent progress defaults to compact tool chains without an explicit verbosity', async () => {
 		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, undefined);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		for (const id of ['read-renderer', 'read-tests']) {
