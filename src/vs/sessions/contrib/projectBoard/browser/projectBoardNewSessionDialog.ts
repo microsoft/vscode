@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -23,6 +24,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -34,7 +36,7 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { registerSessionDialogKeyboardNavigation, sessionDialogAllowableCommands } from '../../../browser/sessionDialogKeyboardNavigation.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
-import { ISession, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionDraft, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatWidgetHost, NewChatWidget } from '../../chat/browser/newChatWidget.js';
@@ -46,6 +48,7 @@ export interface IProjectBoardNewSessionOptions {
 	readonly container: HTMLElement;
 	readonly boardState: ProjectBoardState;
 	readonly onDidCreate: (session: ISession, placement: IProjectBoardPlacement | undefined) => void;
+	readonly onDidResolve?: (from: ISession, to: ISession) => void;
 }
 
 interface IModalDraft {
@@ -67,6 +70,7 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 	}
@@ -88,11 +92,12 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 		];
 		let placement: IProjectBoardPlacement | undefined = destinations[0]?.placement;
 		let current: IModalDraft | undefined;
+		let transferredDraft: ISessionDraft | undefined;
 		let generation = 0;
 		let closed = false;
 		let sending = false;
 		let submitted = false;
-		let committed: ISession | undefined;
+		let submittedSession: ISession | undefined;
 		let closeWithResult = false;
 		let widget: NewChatWidget | undefined;
 		let dialog: Dialog | undefined;
@@ -131,7 +136,9 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 			const previous = current;
 			current = undefined;
 			previous?.visible.dispose();
-			previous?.draft.dispose();
+			if (previous?.draft !== transferredDraft) {
+				previous?.draft.dispose();
+			}
 		};
 		const disposeComposer = () => {
 			widget?.saveState();
@@ -252,19 +259,51 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 					setSending(true);
 					started = true;
 					const destination = placement && { ...placement };
-					const created = await selected.draft.send({ ...request, background: true });
+					const ready = new DeferredPromise<ISession>();
+					const send = selected.draft.send({ ...request, background: true });
+					const observer = autorun(reader => {
+						this.sessionsManagementService.sessionDrafts.read(reader);
+						const candidate = selected.draft.session;
+						const status = candidate.status.read(reader);
+						// Use the running provisional chat, as SessionView does, without
+						// treating an unpublished send failure as an accepted request.
+						if (status !== SessionStatus.Untitled && status !== SessionStatus.Error && !ready.isSettled) {
+							void ready.complete(candidate);
+						}
+					});
+					const outcome = await Promise.race([
+						send.then(session => ({ session, pending: false })),
+						ready.p.then(session => ({ session, pending: true })),
+					]).finally(() => observer.dispose());
+					const created = outcome.session;
 					submitted = true;
 					if (!created) {
 						this.logService.warn('[Agents Hub] Session sent during shutdown; no canonical session is available for placement.');
 						return true;
 					}
-					committed = created;
+					submittedSession = created;
 					try {
 						options.onDidCreate(created, destination);
 					} catch (error) {
 						// Provider submission has committed. A placement failure must never
 						// return false and invite a duplicate send.
 						showError(localize('projectBoard.newSessionPlacementFailed', "The session started, but its project path could not be saved."), error);
+					}
+					if (outcome.pending) {
+						// The send, not the now-dismissable composer, owns the draft until
+						// canonical discovery settles. Disposing it here cancels that wait.
+						transferredDraft = selected.draft;
+						void send.then(canonical => {
+							if (canonical) {
+								submittedSession = canonical;
+								options.onDidResolve?.(created, canonical);
+							} else {
+								this.logService.warn('[Agents Hub] Session sent during shutdown; canonical discovery did not finish.');
+							}
+						}).catch(error => {
+							this.logService.error('[Agents Hub] Failed to finalize started session', error);
+							this.notificationService.error(localize('projectBoard.newSessionFinalizeFailed', "The session started, but could not be finalized: {0}. Check the conversation before sending again.", toErrorMessage(error)));
+						}).finally(() => selected.draft.dispose());
 					}
 					return true;
 				} catch (error) {
@@ -410,7 +449,7 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 			const showing = dialog.show();
 			widget?.focusInput();
 			await showing;
-			return closeWithResult ? committed : undefined;
+			return closeWithResult ? submittedSession : undefined;
 		} finally {
 			this._store.delete(store);
 		}

@@ -135,7 +135,9 @@ suite('ProjectBoardService', () => {
 			providerAvailable: true,
 		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
+		const sessionReplaced = store.add(new Emitter<{ from: ISession; to: ISession }>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const sessionDrafts = observableValue<ReadonlySet<ISession>>('sessionDrafts', new Set());
 		const opened: URI[] = [];
 		const sidePanelOpened: URI[] = [];
 		let sidePanelFocusRestorer: (() => void) | undefined;
@@ -303,7 +305,9 @@ suite('ProjectBoardService', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
+				override readonly onDidReplaceSession = sessionReplaced.event;
 				override readonly newSession = newSession;
+				override readonly sessionDrafts = sessionDrafts;
 				override getSessions() { return state.sessions; }
 				override async archiveSession(archived: ISession): Promise<void> {
 					state.archiveAttempts.push(archived);
@@ -357,7 +361,7 @@ suite('ProjectBoardService', () => {
 			instantiationService.get(ICustomViewService),
 		));
 		return {
-			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, providersChanged, provider, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
+			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, sessionReplaced, providersChanged, provider, newSession, sessionDrafts, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -2191,6 +2195,65 @@ suite('ProjectBoardService', () => {
 			sourcePlacements: h.catalog.boards.get().find(board => board.id === DEFAULT_PROJECT_BOARD_ID)!.configuration.placements.length,
 			selected: h.catalog.selectedBoardId.get(),
 		}, { windows: [], panels: [], sourcePlacements: 1, selected: other });
+	});
+
+	test('canonical handoff preserves moves made after opening without stealing focus or opening another chat', async () => {
+		const h = createBoard(mainWindow.document);
+		store.add(h.service.createView(h.container));
+		h.state.creationPlacement = { rowId: 'general', columnId: 'p0' };
+		await h.service.createSession();
+		const provisional = h.state.createdSession!;
+		const from = getProjectBoardCardId(provisional, provisional.mainChat.get());
+		const canonical = new TestBoardSession([new TestChat('canonical')], 'canonical');
+		const to = getProjectBoardCardId(canonical, canonical.mainChat.get());
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+			...configuration, placements: [{ cardId: from, rowId: 'general', columnId: 'p2' }],
+		}));
+		const other = h.catalog.createBoard('Other');
+		h.catalog.selectBoard(other);
+		h.sessionReplaced.fire({ from: provisional, to: canonical });
+		assert.deepStrictEqual(h.catalog.boards.get()[0].configuration.placements, [{ cardId: to, rowId: 'general', columnId: 'p2' }]);
+		h.state.creationOptions!.onDidResolve!(provisional, canonical);
+		assert.deepStrictEqual(h.catalog.boards.get()[0].configuration.placements, [{ cardId: to, rowId: 'general', columnId: 'p2' }]);
+		assert.strictEqual(h.catalog.selectedBoardId.get(), other);
+		assert.deepStrictEqual(h.sidePanelOpened, [provisional.mainChat.get().resource]);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('an accepted detached draft appears before discovery and deduplicates against provider publication', () => {
+		const h = createBoard(mainWindow.document);
+		store.add(h.service.createView(h.container));
+		const draft = new TestBoardSession([new TestChat('detached')], 'detached');
+		const cards = () => h.container.querySelectorAll(`[data-chat-resource="${draft.mainChat.get().resource}"]`).length;
+		h.sessionDrafts.set(new Set([draft]), undefined);
+		assert.strictEqual(cards(), 0, 'Unsubmitted modal drafts stay private');
+		draft.status.set(SessionStatus.InProgress, undefined);
+		assert.strictEqual(cards(), 1, 'Use the existing identity while canonical discovery is pending');
+		h.state.sessions = [draft];
+		h.sessionsChanged.fire({ added: [draft], removed: [], changed: [] });
+		assert.strictEqual(cards(), 1);
+		h.sessionDrafts.set(new Set(), undefined);
+		assert.strictEqual(cards(), 1);
+	});
+
+	test('coalesces draft publication bursts while handing off the new-session composer', async () => {
+		const chat = new TestChat('existing');
+		const h = createBoard(mainWindow.document, [chat]);
+		store.add(h.service.createView(h.container));
+		const card = h.container.querySelector(`[data-chat-resource="${chat.resource}"]`);
+		assert.ok(card);
+		const barrier = new DeferredPromise<void>();
+		h.state.creationBarrier = barrier;
+		h.state.createdSession = undefined;
+		const creating = h.service.createSession();
+		for (let i = 0; i < 10; i++) {
+			chat.title.set(`Updated ${i}`, undefined);
+		}
+		assert.strictEqual(h.container.querySelector(`[data-chat-resource="${chat.resource}"]`), card);
+		await timeout(0);
+		assert.match(h.container.querySelector(`[data-chat-resource="${chat.resource}"]`)!.textContent!, /Updated 9/);
+		await barrier.complete();
+		await creating;
 	});
 
 	test('failed post-creation side-panel opening reports the error without a standalone fallback', async () => {

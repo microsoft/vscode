@@ -446,14 +446,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		try {
 			const dialog = this._register(this.instantiationService.createInstance(ProjectBoardNewSessionDialog));
+			let createdCardId: string | undefined;
 			const session = await dialog.show({
 				container: this.boardElement.closest<HTMLElement>('.monaco-workbench') ?? this.boardElement,
 				boardState: this.boardState,
 				onDidCreate: (session, placement) => {
 					const chat = session.mainChat.get();
+					createdCardId = getProjectBoardCardId(session, chat);
 					this.onOpenChat(chat.resource);
 					try {
-						this.boardState.moveCard(getProjectBoardCardId(session, chat), placement);
+						this.boardState.moveCard(createdCardId, placement);
 						if (!this._store.isDisposed && this.expandPlacement(placement)) {
 							this.render();
 						}
@@ -461,6 +463,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 						this.logService.error('[ProjectBoard] Failed to place created session', error);
 						this.notificationService.error(localize('projectBoard.createdPlacementFailed', "The session was created, but could not be placed on its original board. It is available in the sessions list."));
 					}
+				},
+				onDidResolve: (from, to) => {
+					this.catalog.replaceCardPlacements(createdCardId ?? getProjectBoardCardId(from, from.mainChat.get()), getProjectBoardCardId(to, to.mainChat.get()));
+					this.onOpenChat(to.mainChat.get().resource);
 				},
 			}).finally(() => this._store.delete(dialog));
 			if (session && this.active && !this._store.isDisposed) {
@@ -569,6 +575,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				starting: !!newSession.isNewSessionRequestInProgress?.read(reader) || newSession.status.read(reader) === SessionStatus.InProgress,
 			} : undefined;
 			const sessions = this.sessionsManagementService.getSessions().filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
+			const sessionKeys = new Set(sessions.map(getProjectBoardSessionKey));
+			for (const draft of this.sessionsManagementService.sessionDrafts.read(reader)) {
+				const status = draft.status.read(reader);
+				if (status !== SessionStatus.Untitled && status !== SessionStatus.Error && !sessionKeys.has(getProjectBoardSessionKey(draft))) {
+					sessions.push(draft);
+					sessionKeys.add(getProjectBoardSessionKey(draft));
+				}
+			}
 			this.model.updateSessions(sessions, reader);
 			this.pruneSelection();
 			for (const card of this.model.cards) {
@@ -585,7 +599,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (this.waitingForPreview) {
 				this.readPreview(observableSignalFromEvent(this, this.previewPool.onDidChangeAvailability), reader);
 			}
-			if (summary.previewOnly) {
+			if (summary.previewOnly || this.creatingSession) {
 				this.previewRender.schedule();
 			} else {
 				this.render();
@@ -2564,6 +2578,14 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		this.chatWindows = this._register(instantiationService.createInstance(ProjectBoardChatWindows));
 		this.chatSidePanel = this._register(instantiationService.createInstance(ProjectBoardChatSidePanel));
 		this.previewPool = this._register(instantiationService.createInstance(ProjectBoardPreviewPool));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			try {
+				this.catalog.replaceCardPlacements(getProjectBoardCardId(from, from.mainChat.get()), getProjectBoardCardId(to, to.mainChat.get()));
+			} catch (error) {
+				// The catalog reports persistence failures; provider publication must continue.
+				this.logService.error('[ProjectBoard] Failed to reconcile session placement', error);
+			}
+		}));
 		// Creation always uses the panel; unrelated catalog edits must not close it.
 		const openChatInSidePanel = derived(reader => this.catalog.boards.read(reader)
 			.find(board => board.id === this.catalog.selectedBoardId.read(reader))?.configuration.openChatInSidePanel === true);

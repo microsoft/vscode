@@ -104,6 +104,31 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 		});
 	}
 
+	replaceCardPlacements(from: string, to: string): void {
+		if (from === to && isIdentifier(from)) {
+			return;
+		}
+		this.mutate(collection => {
+			if (!isIdentifier(from) || !isIdentifier(to)) {
+				throw new Error(localize('projectBoard.invalidCardId', "A card must have a nonempty ID."));
+			}
+			return {
+				...collection,
+				boards: collection.boards.map(board => {
+					const placements = board.configuration.placements;
+					const hasTarget = placements.some(placement => placement.cardId === to);
+					return {
+						...board,
+						configuration: {
+							...board.configuration,
+							placements: placements.flatMap(placement => placement.cardId !== from ? [placement] : hasTarget ? [] : [{ ...placement, cardId: to }]),
+						},
+					};
+				}),
+			};
+		});
+	}
+
 	reset(): void {
 		try {
 			this.save(defaultCollection());

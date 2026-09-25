@@ -39,7 +39,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { VisibleSession } from '../../../../services/sessions/browser/visibleSessions.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { PROJECT_BOARD_CHAT_CONTAINER_ID, ProjectBoardChatContent, ProjectBoardChatSidePanel, ProjectBoardChatViewPane } from '../../browser/projectBoardChatSidePanel.js';
@@ -408,20 +408,29 @@ suite('ProjectBoardChatContent', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function setup() {
+	function setup(currentSession?: (card: IProjectBoardCard) => ISession, mainChat = false) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IHoverService, { setupDelayedHover: () => ({ dispose() { } }) });
 		instantiation.stubInstance(WorkbenchToolBar, { setActions() { }, dispose() { } });
+		const replacements = store.add(new Emitter<{ from: ISession; to: ISession }>());
+		const originalCard = createCard();
+		const card = mainChat ? { ...originalCard, chat: originalCard.session.mainChat.get() } : originalCard;
+		const getSession = sinon.stub().returns(currentSession?.(card));
+		instantiation.stub(ISessionsManagementService, { getSession, onDidReplaceSession: replacements.event });
+		const notify = sinon.spy();
+		instantiation.stub(INotificationService, { info: notify });
 		const widget = new class extends mock<ChatWidget>() {
-			override render(): void { }
+			override render = sinon.spy();
 			override setReadOnly = sinon.spy();
 			override setLoading = sinon.spy();
 			override setVisible = sinon.spy();
-			override getInput(): string { return ''; }
+			override getInput = sinon.stub().returns('');
 			override getInputState = sinon.stub().returns(undefined);
+			override setInput = sinon.spy();
 			override setModel = sinon.spy();
 			override restoreViewState = sinon.spy();
 			override getViewState(): IChatWidgetViewState { return { scrollTop: 42, isAtBottom: false }; }
+			override focusInput = sinon.spy();
 			override layout(): void { }
 			override lockToCodingAgent = sinon.spy();
 			override dispose = sinon.spy();
@@ -431,10 +440,10 @@ suite('ProjectBoardChatContent', () => {
 		const load = sinon.stub();
 		instantiation.stub(IChatService, { acquireOrLoadSession: load });
 		const child = sinon.spy(instantiation, 'createChild');
-		const card = createCard();
 		const cache = new LRUCache<string, IChatWidgetViewState>(10);
 		const pendingInputs = new LRUCache<string, IChatModelInputState>(10);
-		const content = store.add(instantiation.createInstance(ProjectBoardChatContent, card, cache, pendingInputs, () => { }));
+		const close = sinon.spy();
+		const content = store.add(instantiation.createInstance(ProjectBoardChatContent, card, cache, pendingInputs, close));
 		const inputState = observableValue<IChatModelInputState | undefined>('inputState', undefined);
 		const setInputState = sinon.spy((state: IChatModelInputState) => inputState.set(state, undefined));
 		const model = new class extends mock<IChatModel>() {
@@ -447,8 +456,207 @@ suite('ProjectBoardChatContent', () => {
 		const released = sinon.spy();
 		const ref: IChatModelReference = { object: model, dispose: released };
 		load.resolves(ref);
-		return { instantiation, content, card, widget, child, cache, pendingInputs, load, ref, released, setInputState, inputState };
+		return { instantiation, content, card, widget, child, cache, pendingInputs, load, ref, released, setInputState, inputState, replacements, getSession, close, notify };
 	}
+
+	function canonicalSession(card: IProjectBoardCard, resource = card.chat.resource) {
+		const chat = {
+			...card.chat, resource,
+			title: observableValue('canonicalTitle', 'Canonical chat'),
+			interactivity: observableValue<ChatInteractivity>('canonicalInteractivity', ChatInteractivity.ReadOnly),
+			modelId: constObservable('canonical-model'),
+		};
+		return {
+			...createTestSession('canonical').session,
+			mainChat: constObservable(chat),
+			chats: constObservable([chat]),
+		};
+	}
+
+	test('replacement switches scoped session, title and readonly without disturbing the live widget', async () => {
+		const h = setup();
+		await h.content.load(CancellationToken.None);
+		h.widget.getInput.returns('unsent draft');
+		const scoped = h.child.firstCall.returnValue;
+		const previous = scoped.get(ISessionContext).session.get()! as VisibleSession;
+		const previousDisposed = sinon.spy(previous, 'dispose');
+		const canonical = canonicalSession(h.card);
+		h.replacements.fire({ from: { ...h.card.session }, to: canonical });
+		const session = scoped.get(ISessionContext).session.get()!;
+		assert.deepStrictEqual({
+			resource: session.resource,
+			chat: session.activeChat.get(),
+			modelId: session.modelId.get(),
+			contextSession: scoped.get(IContextKeyService).getContextKeyValue('sessionId'),
+			title: h.content.element.getAttribute('aria-label'),
+			readOnly: h.widget.setReadOnly.lastCall.args[0],
+			input: h.widget.getInput(),
+			renders: h.widget.render.callCount,
+			loads: h.load.callCount,
+			models: h.widget.setModel.getCalls().map(call => call.args[0]),
+			inputWrites: h.widget.setInput.callCount,
+			viewRestores: h.widget.restoreViewState.callCount,
+			focuses: h.widget.focusInput.callCount,
+			releases: h.released.callCount,
+			previousDisposed: previousDisposed.callCount,
+		}, {
+			resource: canonical.resource, chat: canonical.mainChat.get(), modelId: 'canonical-model',
+			contextSession: canonical.sessionId, title: 'Agents Hub chat: Canonical chat', readOnly: true,
+			input: 'unsent draft', renders: 1, loads: 1, models: [h.ref.object],
+			inputWrites: 0, viewRestores: 0, focuses: 0, releases: 0, previousDisposed: 1,
+		});
+		canonical.mainChat.get().title.set('Updated canonical chat', undefined);
+		canonical.mainChat.get().interactivity.set(ChatInteractivity.Full, undefined);
+		assert.deepStrictEqual({
+			title: h.content.element.getAttribute('aria-label'),
+			readOnly: h.widget.setReadOnly.lastCall.args[0],
+		}, { title: 'Agents Hub chat: Updated canonical chat', readOnly: false });
+	});
+
+	test('replacement during loading keeps the pending model acquisition', async () => {
+		const h = setup();
+		const deferred = new DeferredPromise<IChatModelReference>();
+		const started = new DeferredPromise<void>();
+		h.load.callsFake(() => { void started.complete(); return deferred.p; });
+		const loading = h.content.load(CancellationToken.None);
+		await started.p;
+		h.replacements.fire({ from: h.card.session, to: canonicalSession(h.card) });
+		await deferred.complete(h.ref);
+		await loading;
+		assert.deepStrictEqual({
+			loads: h.load.callCount,
+			models: h.widget.setModel.getCalls().map(call => call.args[0]),
+			title: h.content.element.getAttribute('aria-label'),
+			releases: h.released.callCount,
+		}, { loads: 1, models: [h.ref.object], title: 'Agents Hub chat: Canonical chat', releases: 0 });
+	});
+
+	test('ignores replacements from a different provider or session', () => {
+		const h = setup();
+		const scoped = h.child.firstCall.returnValue;
+		const original = scoped.get(ISessionContext).session.get();
+		const to = canonicalSession(h.card);
+		h.replacements.fire({ from: { ...h.card.session, providerId: 'other-provider' }, to });
+		h.replacements.fire({ from: { ...h.card.session, sessionId: 'other-session' }, to });
+		assert.deepStrictEqual({
+			session: scoped.get(ISessionContext).session.get(),
+			title: h.content.element.getAttribute('aria-label'),
+			readOnly: h.widget.setReadOnly.lastCall.args[0],
+			closed: h.close.callCount,
+		}, { session: original, title: 'Agents Hub chat: child', readOnly: false, closed: 0 });
+	});
+
+	test('resolves an already replaced card before constructing its scoped session', () => {
+		const h = setup(card => canonicalSession(card));
+		const canonical = h.getSession.firstCall.returnValue as ISession;
+		const scoped = h.child.firstCall.returnValue;
+		assert.deepStrictEqual({
+			lookup: h.getSession.firstCall.args[0],
+			resource: scoped.get(ISessionContext).session.get()!.resource,
+			chat: scoped.get(ISessionContext).session.get()!.activeChat.get(),
+			title: h.content.element.getAttribute('aria-label'),
+			readOnly: h.widget.setReadOnly.lastCall.args[0],
+		}, {
+			lookup: h.card.session.resource, resource: canonical.resource, chat: canonical.mainChat.get(),
+			title: 'Agents Hub chat: Canonical chat', readOnly: true,
+		});
+	});
+
+	test('does not resolve a stale card to another provider', () => {
+		const h = setup(card => ({ ...canonicalSession(card), providerId: 'other-provider' }));
+		const scoped = h.child.firstCall.returnValue;
+		assert.deepStrictEqual({
+			resource: scoped.get(ISessionContext).session.get()!.resource,
+			chat: scoped.get(ISessionContext).session.get()!.activeChat.get(),
+		}, { resource: h.card.session.resource, chat: h.card.chat });
+	});
+
+	test('resolves a replaced main chat resource before loading without closing the surface', async () => {
+		const resource = URI.parse('test-chat:canonical');
+		const h = setup(card => canonicalSession(card, resource), true);
+		const ref = {
+			object: { ...h.ref.object, sessionResource: resource },
+			dispose: sinon.spy(),
+		};
+		h.load.resolves(ref);
+		await h.content.load(CancellationToken.None);
+		assert.deepStrictEqual({
+			loaded: h.load.firstCall.args[0],
+			model: h.widget.setModel.firstCall.args[0],
+			closed: h.close.callCount,
+		}, { loaded: resource, model: ref.object, closed: 0 });
+	});
+
+	test('changed main chat resource closes explicitly and preserves the live draft for reopening', async () => {
+		const h = setup(undefined, true);
+		await h.content.load(CancellationToken.None);
+		const draft: IChatModelInputState = {
+			inputText: 'unsent main draft', attachments: [], selections: [],
+			mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, contrib: {},
+		};
+		h.widget.getInputState.returns(draft);
+		const canonical = canonicalSession(h.card, URI.parse('test-chat:canonical'));
+		h.replacements.fire({ from: h.card.session, to: canonical });
+		h.content.dispose();
+		const reopened = store.add(h.instantiation.createInstance(ProjectBoardChatContent, {
+			session: canonical, chat: canonical.mainChat.get(),
+		}, h.cache, h.pendingInputs, () => { }));
+		const ref = {
+			object: { ...h.ref.object, sessionResource: canonical.mainChat.get().resource },
+			dispose: sinon.spy(),
+		};
+		h.load.resolves(ref);
+		await reopened.load(CancellationToken.None);
+		assert.deepStrictEqual({
+			closed: h.close.callCount,
+			notifications: h.notify.callCount,
+			restored: h.setInputState.lastCall.args[0],
+			pending: h.pendingInputs.size,
+			viewRestores: h.widget.restoreViewState.callCount,
+			focuses: h.widget.focusInput.callCount,
+		}, { closed: 1, notifications: 1, restored: draft, pending: 0, viewRestores: 0, focuses: 0 });
+	});
+
+	test('changed resource while loading preserves the draft and never binds the late model', async () => {
+		const h = setup(undefined, true);
+		const draft: IChatModelInputState = {
+			inputText: 'loading draft', attachments: [], selections: [],
+			mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, contrib: {},
+		};
+		h.widget.getInputState.returns(draft);
+		const deferred = new DeferredPromise<IChatModelReference>();
+		const started = new DeferredPromise<void>();
+		h.load.callsFake(() => { void started.complete(); return deferred.p; });
+		const loading = h.content.load(CancellationToken.None);
+		await started.p;
+		const canonical = canonicalSession(h.card, URI.parse('test-chat:canonical'));
+		h.replacements.fire({ from: h.card.session, to: canonical });
+		await deferred.complete(h.ref);
+		await loading;
+		assert.deepStrictEqual({
+			pending: [...h.pendingInputs.values()],
+			closed: h.close.callCount,
+			models: h.widget.setModel.callCount,
+			released: h.released.callCount,
+			readOnly: h.widget.setReadOnly.lastCall.args[0],
+		}, { pending: [draft], closed: 1, models: 0, released: 1, readOnly: true });
+	});
+
+	test('disposal releases the canonical facade and detaches replacement listeners', () => {
+		const h = setup();
+		const canonical = canonicalSession(h.card);
+		h.replacements.fire({ from: h.card.session, to: canonical });
+		const session = h.child.firstCall.returnValue.get(ISessionContext).session.get()! as VisibleSession;
+		const disposed = sinon.spy(session, 'dispose');
+		h.content.dispose();
+		const reads = h.widget.setReadOnly.callCount;
+		h.replacements.fire({ from: canonical, to: h.card.session });
+		assert.deepStrictEqual({
+			disposed: disposed.callCount,
+			reads: h.widget.setReadOnly.callCount,
+			title: h.content.element.getAttribute('aria-label'),
+		}, { disposed: 1, reads, title: 'Agents Hub chat: Canonical chat' });
+	});
 
 	test('input pickers receive an independent active-session facade for the exact child', () => {
 		const h = setup();
