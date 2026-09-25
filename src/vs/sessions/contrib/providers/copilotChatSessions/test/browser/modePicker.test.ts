@@ -39,7 +39,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(name: string) {
+	function createSession(name: string, withDuplicate = false) {
 		const resource = URI.parse(`copilotcli:/${name}`);
 		const customAgent = new CustomChatMode({
 			id: name,
@@ -51,10 +51,20 @@ suite('ScopedModePickerModelCache', () => {
 			visibility: { userInvocable: true, agentInvocable: true },
 			enabled: true,
 		});
+		const duplicateAgent = withDuplicate ? new CustomChatMode({
+			id: `${name}-duplicate`,
+			uri: URI.file(`/workspace/${name}-duplicate.agent.md`),
+			name,
+			agentInstructions: { content: '', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
+		}) : undefined;
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: customAgent.id, kind: ChatMode.Agent.kind });
 		const session = upcastPartial<IActiveSession>({ resource, mode, providerId: 'default-copilot' });
 		const scope = observableValue<IActiveSession | undefined>('scope', session);
-		return { session, scope, mode, customAgent };
+		return { session, scope, mode, customAgent, customAgents: [customAgent, ...(duplicateAgent ? [duplicateAgent] : [])] };
 	}
 
 	function createInstantiationService(sessions: readonly ReturnType<typeof createSession>[], disposed: string[]) {
@@ -69,9 +79,9 @@ suite('ScopedModePickerModelCache', () => {
 				const modes: IChatModes & IDisposable = {
 					onDidChange: Event.None,
 					builtin: [ChatMode.Agent],
-					custom: [entry.customAgent],
-					findModeById: id => id === entry.customAgent.id ? entry.customAgent : id === ChatMode.Agent.id ? ChatMode.Agent : undefined,
-					findModeByName: name => name === entry.customAgent.name.get() ? entry.customAgent : undefined,
+					custom: entry.customAgents,
+					findModeById: id => entry.customAgents.find(mode => mode.id === id) ?? (id === ChatMode.Agent.id ? ChatMode.Agent : undefined),
+					findModeByName: name => entry.customAgents.find(mode => mode.name.get() === name),
 					waitForPendingUpdates: async () => { },
 					dispose: () => disposed.push(entry.customAgent.name.get()),
 				};
@@ -163,6 +173,15 @@ suite('ScopedModePickerModelCache', () => {
 			availableAfterSwitchingProvider: ['agent'],
 			disposed: ['first', 'second'],
 		});
+	});
+
+	test('deduplicates custom modes with the same label', () => {
+		const session = createSession('reviewer', true);
+		const instantiationService = createInstantiationService([session], []);
+		const cache = store.add(new ScopedModePickerModelCache(() => true));
+		const reference = store.add(cache.acquire(session.scope, instantiationService));
+
+		assert.deepStrictEqual(reference.model.getAvailableModes().map(mode => mode.id), ['agent', session.customAgent.id]);
 	});
 });
 
