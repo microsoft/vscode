@@ -492,8 +492,6 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 //#region Sessions Header Renderer
 
 interface ISessionsHeaderTemplate {
-	readonly container: HTMLElement;
-	readonly isSticky: boolean;
 	readonly disposables: DisposableStore;
 }
 
@@ -501,82 +499,36 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	static readonly TEMPLATE_ID = 'sessions-header';
 	readonly templateId = SessionsHeaderRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'sessions-list-header-row';
-	private elementToRefocusAfterRerender: HTMLElement | undefined;
-	private sourceContainer: HTMLElement | undefined;
 
 	constructor(
-		private readonly header: HTMLElement,
-		private readonly headerContainer: HTMLElement,
-		private readonly layoutHeader: () => void,
+		private readonly createHeader: (container: HTMLElement, disposables: DisposableStore) => void,
+		private readonly findOpen: IObservable<boolean>,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionsHeaderTemplate {
 		const disposables = new DisposableStore();
 		container.classList.add('sessions-list-header', this.rowClassName);
+		this.createHeader(container, disposables);
 		for (const eventType of [DOM.EventType.POINTER_DOWN, DOM.EventType.CLICK, DOM.EventType.CONTEXT_MENU]) {
 			disposables.add(DOM.addDisposableListener(container, eventType, event => event.stopPropagation()));
 		}
-		return { container, isSticky: container.classList.contains('monaco-tree-sticky-row'), disposables };
-	}
-
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
-		if (isSessionSection(node.element) && node.element.id === SESSIONS_HEADER_SECTION_ID) {
-			if (!template.isSticky) {
-				this.sourceContainer = template.container;
+		disposables.add(autorun(reader => {
+			const hidden = this.findOpen.read(reader);
+			container.style.visibility = hidden ? 'hidden' : '';
+			container.style.pointerEvents = hidden ? 'none' : '';
+			const row = container.closest<HTMLElement>('.monaco-list-row');
+			if (hidden) {
+				row?.setAttribute('aria-hidden', 'true');
+			} else {
+				row?.removeAttribute('aria-hidden');
 			}
-			template.container.append(this.header);
-			DOM.show(this.header);
-			if (this.elementToRefocusAfterRerender) {
-				const activeElement = DOM.getActiveElement();
-				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
-					this.elementToRefocusAfterRerender.focus({ preventScroll: true });
-				}
-				this.elementToRefocusAfterRerender = undefined;
-			}
-			this.layoutHeader();
-		}
+		}));
+		return { disposables };
 	}
 
-	private preserveFocusedElement(): void {
-		const activeElement = DOM.getActiveElement();
-		if (DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.header)) {
-			this.elementToRefocusAfterRerender = activeElement;
-		}
-	}
-
-	private restoreHeader(template: ISessionsHeaderTemplate): void {
-		if (this.header.parentElement !== template.container) {
-			return;
-		}
-		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
-		const restoredToSource = target !== this.headerContainer;
-		target.append(this.header);
-		if (restoredToSource) {
-			DOM.show(this.header);
-		} else {
-			DOM.hide(this.header);
-		}
-		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
-		if (restoredToSource) {
-			this.elementToRefocusAfterRerender = undefined;
-		}
-		this.layoutHeader();
-	}
-
-	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
-		this.preserveFocusedElement();
-		if (!template.isSticky && this.sourceContainer === template.container) {
-			this.sourceContainer = undefined;
-		}
-		this.restoreHeader(template);
-	}
+	renderElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionsHeaderTemplate): void { }
 
 	disposeTemplate(template: ISessionsHeaderTemplate): void {
-		this.preserveFocusedElement();
-		if (!template.isSticky && this.sourceContainer === template.container) {
-			this.sourceContainer = undefined;
-		}
-		this.restoreHeader(template);
 		template.disposables.dispose();
 	}
 }
@@ -3095,6 +3047,8 @@ interface ISessionsListControlBaseOptions {
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly findWidgetContainer?: HTMLElement;
+	readonly createSessionsHeader?: (container: HTMLElement, disposables: DisposableStore) => HTMLElement;
+	readonly onDidScroll?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -3114,15 +3068,7 @@ interface ISessionsListControlBaseOptions {
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
 
-export type ISessionsListControlOptions = ISessionsListControlBaseOptions & ({
-	readonly sessionsHeader: HTMLElement;
-	readonly sessionsHeaderContainer: HTMLElement;
-	readonly layoutSessionsHeader?: () => void;
-} | {
-	readonly sessionsHeader?: undefined;
-	readonly sessionsHeaderContainer?: undefined;
-	readonly layoutSessionsHeader?: undefined;
-});
+export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
 
 /**
  * @deprecated Use {@link ISessionsListControlOptions} instead.
@@ -3211,7 +3157,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
-	private readonly findFocusRestore = this._register(new MutableDisposable());
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
 	 * approval and workspace state. Owned by the list (not the row templates), so
@@ -3278,6 +3223,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
 	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
+	private readonly sessionsHeaders = new Set<HTMLElement>();
+	private readonly findOpen = observableValue(this, false);
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3342,9 +3289,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
-		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
-			throw new Error('Sessions header and its container must be provided together.');
-		}
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
@@ -3529,8 +3473,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			() => this.getSessionsHeaderHeight(),
 		);
 		this._delegate = delegate;
-		const sessionsHeaderRenderer = this.options.sessionsHeader
-			? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
+		const sessionsHeaderRenderer = this.options.createSessionsHeader
+			? [new SessionsHeaderRenderer((container, disposables) => {
+				const header = this.options.createSessionsHeader!(container, disposables);
+				this.sessionsHeaders.add(header);
+				disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
+			}, this.findOpen)]
 			: [];
 
 		this.tree = this._register(instantiationService.createInstance(
@@ -3663,8 +3611,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: 'force-no-twistie',
 			}
 		));
+		this.tree.setFocusNavigationFilter(node => !this.findOpen.get()
+			|| !node.element
+			|| !isSessionSection(node.element)
+			|| node.element.id !== SESSIONS_HEADER_SECTION_ID);
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+		if (this.options.onDidScroll) {
+			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
+		}
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
 		// the session whose guides it belongs to, so hovering/selecting/focusing
@@ -3841,6 +3796,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this.tree.onDidChangeFindOpenState(open => {
 			isFindOpen = open;
+			this.findOpen.set(open, undefined);
 			this._onDidChangeFindOpenState.fire(open);
 			updateFindPatternState();
 		}));
@@ -3850,19 +3806,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// and the find widget is open. Opening the empty find widget should not
 		// reorder the list, and closing find should restore the capped layout.
 		this._register(this.tree.onDidChangeFindPattern(pattern => {
-			const activeElement = DOM.getActiveElement();
-			const elementToRefocus = this.options.sessionsHeader && DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.options.sessionsHeader)
-				? activeElement
-				: undefined;
 			findPattern = pattern;
 			updateFindPatternState();
-			if (elementToRefocus) {
-				this.findFocusRestore.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(elementToRefocus), () => {
-					if (isFindOpen && elementToRefocus.isConnected) {
-						elementToRefocus.focus({ preventScroll: true });
-					}
-				});
-			}
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -4332,22 +4277,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(archivedSection));
 		}
 
-		if (showNavigationShortcuts && this.options.sessionsHeader) {
+		if (showNavigationShortcuts && this.options.createSessionsHeader) {
 			this.tree.setChildren(null, [
 				...navigationChildren,
 				{
 					element: SESSIONS_HEADER_SECTION,
 					collapsible: false,
 					collapsed: false,
+					children,
 				},
-				...children,
 			]);
 		} else {
-			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
-				this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);
-				DOM.show(this.options.sessionsHeader);
-				this.options.layoutSessionsHeader?.();
-			}
 			this.tree.setChildren(null, [...navigationChildren, ...children]);
 		}
 		this.nestedSessionResources = nextNestedSessionResources;
@@ -4551,16 +4491,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	layout(height: number, width: number): void {
-		if (this.options.sessionsHeader && this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
+		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
 			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
 		}
 		this.tree.layout(height, width);
 	}
 
 	private getSessionsHeaderHeight(): number {
-		const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
-		if (headerHeight > 0) {
-			this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+		for (const header of this.sessionsHeaders) {
+			const headerHeight = header.offsetHeight;
+			if (headerHeight > 0) {
+				this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+				break;
+			}
 		}
 		return this.sessionsHeaderHeight;
 	}
@@ -4615,19 +4558,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	updateNavigationVisibility(): void {
-		const activeElement = DOM.getActiveElement();
-		const elementToRefocus = this.options.sessionsHeader && DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.options.sessionsHeader)
-			? activeElement
-			: undefined;
 		this.update();
-		elementToRefocus?.focus({ preventScroll: true });
 	}
 
 	openFind(): void {
-		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
-			this.tree.reveal(SESSIONS_HEADER_SECTION);
-			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
-		}
 		this.tree.openFind();
 	}
 

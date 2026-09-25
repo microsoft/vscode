@@ -938,7 +938,7 @@ suite('AgentHostSessionInputPills', () => {
 		const button = row?.querySelector('.chat-pill-button');
 		const recomputing = {
 			hidden: row?.classList.contains('hidden'),
-			label: row?.querySelector('.chat-pill-label')?.textContent,
+			label: row?.querySelector('.changes-stats-files')?.textContent,
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
 			persistentContentHeight,
 		};

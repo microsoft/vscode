@@ -31,31 +31,23 @@ export function codexAccountStateFromResponse(response: GetAccountResponse): ICo
 	return { usageSource: 'openai', status: response.requiresOpenaiAuth ? 'signedOut' : 'unavailable', requiresOpenaiAuth: response.requiresOpenaiAuth };
 }
 
-export function codexAccountRateLimitFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
+export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimitsResponse): readonly ICodexAccountRateLimitInfo[] {
 	const codexSnapshot = response.rateLimitsByLimitId?.codex;
 	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
-	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window);
-	if (windows.length === 0) {
-		return undefined;
-	}
+	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window
+		&& Number.isFinite(window.usedPercent) && window.usedPercent >= 0 && window.usedPercent <= 100
+		&& (window.windowDurationMins === null || (Number.isFinite(window.windowDurationMins) && window.windowDurationMins > 0))
+		&& (window.resetsAt === null || (Number.isFinite(window.resetsAt) && window.resetsAt > 0)));
 	const weeklyWindowMins = 7 * 24 * 60;
-	const window = windows.reduce((best, candidate) => {
-		if (candidate.windowDurationMins === null) {
-			return best;
-		}
-		if (best.windowDurationMins === null) {
-			return candidate;
-		}
-		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
+	// Keep the weekly window first for the account summary and older clients.
+	windows.sort((a, b) => {
+		const aDistance = a.windowDurationMins === null ? Infinity : Math.abs(a.windowDurationMins - weeklyWindowMins);
+		const bDistance = b.windowDurationMins === null ? Infinity : Math.abs(b.windowDurationMins - weeklyWindowMins);
+		return aDistance - bDistance;
 	});
-	if (!Number.isFinite(window.usedPercent) || window.usedPercent < 0 || window.usedPercent > 100
-		|| (window.windowDurationMins !== null && (!Number.isFinite(window.windowDurationMins) || window.windowDurationMins <= 0))
-		|| (window.resetsAt !== null && (!Number.isFinite(window.resetsAt) || window.resetsAt <= 0))) {
-		return undefined;
-	}
-	return {
+	return windows.map(window => ({
 		usedPercent: window.usedPercent,
 		windowDurationMins: window.windowDurationMins ?? undefined,
 		resetsAt: window.resetsAt ?? undefined,
-	};
+	}));
 }
