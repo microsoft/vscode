@@ -23,9 +23,9 @@ const maxStoredStringLength = 8192;
 const maxStoredSkillFiles = 1000;
 const maxStoredSkillPathCharacters = 1024 * 1024;
 
-type RecordedCustomizationMarketplaceInstallation = Exclude<CustomizationMarketplaceInstallation, { readonly kind: 'copilotConnector' }>;
+type RecordedCustomizationMarketplaceInstallation = CustomizationMarketplaceInstallation;
 
-/** A durable association between one marketplace resource and its exact installed target. */
+/** A durable association between one marketplace resource and its exact local or account-scoped target. */
 export interface ICustomizationMarketplaceInstallationRecord {
 	readonly id: string;
 	readonly sourceId: string;
@@ -52,7 +52,14 @@ export type CustomizationMarketplaceInstallationRecordTarget =
 		readonly session?: URI;
 	}
 	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision: string }
-	| { readonly kind: 'mcp'; readonly id: string };
+	| { readonly kind: 'mcp'; readonly id: string }
+	| {
+		readonly kind: 'copilotConnector';
+		readonly name: string;
+		readonly providerId: string;
+		readonly accountName: string;
+		readonly enterprise: boolean;
+	};
 
 interface IStoredCustomizationMarketplaceInstallationRecord {
 	readonly version: number;
@@ -79,7 +86,14 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 			readonly session?: string;
 		}
 		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision: string }
-		| { readonly kind: 'mcp'; readonly id: string };
+		| { readonly kind: 'mcp'; readonly id: string }
+		| {
+			readonly kind: 'copilotConnector';
+			readonly name: string;
+			readonly providerId: string;
+			readonly accountName: string;
+			readonly enterprise: boolean;
+		};
 	};
 }
 
@@ -205,6 +219,14 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 		let target: CustomizationMarketplaceInstallationRecordTarget;
 		if (record.target.kind === 'mcp') {
 			target = { kind: 'mcp', id: record.target.id };
+		} else if (record.target.kind === 'copilotConnector') {
+			target = {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			};
 		} else if (record.target.kind === 'plugin') {
 			target = { kind: 'plugin', uri: URI.parse(record.target.uri), resolvedRevision: record.target.resolvedRevision };
 		} else {
@@ -246,6 +268,14 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 function serializeInstallationRecord(record: ICustomizationMarketplaceInstallationRecord): IStoredCustomizationMarketplaceInstallationRecord {
 	const target: IStoredCustomizationMarketplaceInstallationRecord['record']['target'] = record.target.kind === 'mcp'
 		? { kind: 'mcp', id: record.target.id }
+		: record.target.kind === 'copilotConnector'
+			? {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			}
 		: record.target.kind === 'plugin'
 			? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
 			: {
@@ -296,6 +326,15 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 	if (record.target.kind === 'mcp') {
 		return record.mediaType === CustomizationMarketplaceMediaType.McpServer && isBoundedString(record.target.id);
 	}
+	if (record.target.kind === 'copilotConnector') {
+		return record.mediaType === CustomizationMarketplaceMediaType.McpServer
+			&& isBoundedString(record.target.name)
+			&& record.installation.kind === 'copilotConnector'
+			&& record.installation.name === record.target.name
+			&& isBoundedString(record.target.providerId)
+			&& isBoundedString(record.target.accountName)
+			&& typeof record.target.enterprise === 'boolean';
+	}
 	if (record.target.kind === 'plugin') {
 		return (record.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || record.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
 			&& isBoundedString(record.target.uri)
@@ -337,6 +376,9 @@ function isStoredInstallation(value: unknown): value is RecordedCustomizationMar
 		return isBoundedString(value.name)
 			&& (value.registry === 'custom' || value.registry === 'default')
 			&& isBoundedString(value.registryUrl);
+	}
+	if (value.kind === 'copilotConnector') {
+		return isBoundedString(value.name);
 	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
 		&& isBoundedString(value.repository)

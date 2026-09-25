@@ -38,7 +38,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { CustomizationMarketplaceInstallationRecordStore } from '../../../browser/aiCustomization/customizationMarketplaceInstallationRecordStore.js';
@@ -358,17 +359,26 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 		}();
 		const connectorChanges = store.add(new Emitter<void>());
+		const connectorAccountChanges = store.add(new Emitter<void>());
+		const connectorDisconnected = store.add(new Emitter<string>());
 		const connectedConnectors = new Set<string>();
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = connectorChanges.event;
+			override readonly onDidChangeAccount = connectorAccountChanges.event;
+			override readonly onDidDisconnect = connectorDisconnected.event;
+			accountOverride: ICopilotConnectorAccount | undefined = { providerId: 'github', accountName: 'octocat', enterprise: false };
+			override get account() { return this.accountOverride; }
+			connectionStateKnownOverride = true;
+			override get connectionStateKnown() { return this.connectionStateKnownOverride; }
 			readonly connectCalls: string[] = [];
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
 			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
+			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			override get connectors() {
-				return [{
+				return this.catalogVisible ? [{
 					name: 'mail',
 					displayName: 'Mail',
 					description: 'Search mail',
@@ -380,7 +390,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					connectionStatusDetail: this.statusDetailOverride,
 					scopes: [],
 					mcpServers: [],
-				}];
+				}] : [];
 			}
 			override readonly connectedMcpServers = [];
 			override async connect(name: string, token: CancellationToken): Promise<void> {
@@ -398,6 +408,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				}
 				connectedConnectors.delete(name);
 				connectorChanges.fire();
+				connectorDisconnected.fire(name);
 			}
 		}();
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
@@ -517,7 +528,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
-			connectorsService, connectorChanges, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
+			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
 
@@ -1023,6 +1034,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 				bounded = error instanceof Error && error.message === 'Too many customization marketplace installations are recorded. Uninstall an existing marketplace customization before installing another.';
 			}
 			assert.deepStrictEqual({ records: malformed.records.size, bounded }, { records: 0, bounded: true });
+		});
+
+		test('rejects a connector record without a valid account identity', () => {
+			const storage = store.add(new TestStorageService());
+			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
+			const id = 'a'.repeat(64);
+			storage.store(`${prefix}${id}`, JSON.stringify({
+				version: 1,
+				record: {
+					id,
+					sourceId: 'copilotConnectors',
+					identifier: 'mail',
+					displayName: 'Mail',
+					description: 'Search mail',
+					mediaType: CustomizationMarketplaceMediaType.McpServer,
+					installation: { kind: 'copilotConnector', name: 'mail' },
+					target: { kind: 'copilotConnector', name: 'mail', providerId: 'github', accountName: '', enterprise: false },
+				},
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+			const records = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService()))).records;
+
+			assert.strictEqual(records.size, 0);
 		});
 
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
@@ -1765,11 +1799,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 				disconnects: fixture.connectorsService.disconnectCalls,
 				registryLookups: fixture.mcpService.lookups,
 				after: fixture.service.getInstallState(candidate),
+				recordedResources: fixture.service.getRecordedResources(),
 			}, {
 				before: { kind: 'installed', target: connectorInstallationTarget },
 				disconnects: ['mail'],
 				registryLookups: [],
 				after: { kind: 'available' },
+				recordedResources: [],
 			});
 		});
 
@@ -1827,7 +1863,36 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		}
 
-		test('uses the connector consent flow and reflects the connected state', async () => {
+		test('a connector record created during disconnect keeps the operation deduplicated', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectedConnectors.add('mail');
+			const disconnect = new DeferredPromise<void>();
+			fixture.connectorsService.onDisconnect = async name => {
+				await disconnect.p;
+				fixture.connectorDisconnected.fire(name);
+			};
+
+			const pending = fixture.service.uninstall(candidate);
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const during = fixture.service.getInstallState(candidate);
+			const joined = fixture.service.uninstall(candidate);
+			disconnect.complete();
+			await Promise.all([pending, joined]);
+
+			assert.deepStrictEqual({
+				during,
+				disconnects: fixture.connectorsService.disconnectCalls,
+				recorded: fixture.service.getRecordedResources(),
+			}, {
+				during: { kind: 'uninstalling', target: connectorInstallationTarget },
+				disconnects: ['mail'],
+				recorded: [],
+			});
+		});
+
+		test('uses the connector consent flow and records the account-scoped connection', async () => {
 			const fixture = await createFixture();
 			const candidate = connectorResource();
 			const before = fixture.service.getInstallState(candidate);
@@ -1839,14 +1904,187 @@ suite('CustomizationMarketplaceInstallService', () => {
 				before,
 				connectCalls: fixture.connectorsService.connectCalls,
 				after: fixture.service.getInstallState(candidate),
-				recordedResources: fixture.service.getRecordedResources(),
-				installationRecordKeys: fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.includes('customizations.marketplace.installationRecord.v1')),
+				recordedResources: fixture.service.getRecordedResources().map(resource => ({
+					sourceId: resource.sourceId,
+					identifier: resource.identifier,
+					installation: resource.installation,
+				})),
+				installationRecordCount: fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.includes('customizations.marketplace.installationRecord.v1')).length,
 			}, {
 				before: { kind: 'available' },
 				connectCalls: ['mail'],
 				after: { kind: 'installed', target: connectorInstallationTarget },
-				recordedResources: [],
-				installationRecordKeys: [],
+				recordedResources: [{
+					sourceId: 'copilotConnectors',
+					identifier: 'mail',
+					installation: { kind: 'copilotConnector', name: 'mail' },
+				}],
+				installationRecordCount: 1,
+			});
+		});
+
+		test('retains a previously connected connector when it leaves the catalog', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(connectorResource());
+			fixture.connectorsService.catalogVisible = false;
+			fixture.connectorsService.connectionStateKnownOverride = false;
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const beforeAuthoritativeCatalog = fixture.service.getInstallState(connectorResource());
+			fixture.connectorsService.connectionStateKnownOverride = true;
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const recorded = fixture.service.getRecordedResources();
+			const state = fixture.service.getInstallState(recorded[0]);
+
+			assert.deepStrictEqual({
+				beforeAuthoritativeCatalog,
+				recorded: recorded.map(resource => resource.displayName),
+				state,
+			}, {
+				beforeAuthoritativeCatalog: { kind: 'checking', target: connectorInstallationTarget },
+				recorded: ['Mail'],
+				state: {
+					kind: 'missing',
+					target: connectorInstallationTarget,
+					repairUnavailableMessage: 'This connector is no longer available from the Copilot Connectors catalog.',
+				},
+			});
+		});
+
+		test('records a connector that was already connected outside this workbench', async () => {
+			const fixture = await createFixture();
+			fixture.connectedConnectors.add('mail');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				state: fixture.service.getInstallState(connectorResource()),
+			}, {
+				recorded: ['mail'],
+				state: { kind: 'installed', target: connectorInstallationTarget },
+			});
+		});
+
+		test('restores an account-scoped connector record after service recreation', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				recorded: restored.getRecordedResources().map(resource => resource.identifier),
+				state: restored.getInstallState(candidate),
+			}, {
+				recorded: ['mail'],
+				state: { kind: 'installed', target: connectorInstallationTarget },
+			});
+		});
+
+		test('explicitly disconnecting a connector that left the catalog removes its record', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(connectorResource());
+			fixture.connectorsService.catalogVisible = false;
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const recorded = fixture.service.getRecordedResources()[0];
+
+			await fixture.service.uninstall(recorded);
+
+			assert.deepStrictEqual({
+				disconnects: fixture.connectorsService.disconnectCalls,
+				recorded: fixture.service.getRecordedResources(),
+			}, {
+				disconnects: [],
+				recorded: [],
+			});
+		});
+
+		test('disconnecting from another connector surface removes the record', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(connectorResource());
+
+			await fixture.connectorsService.disconnect('mail', CancellationToken.None);
+
+			assert.deepStrictEqual({
+				disconnects: fixture.connectorsService.disconnectCalls,
+				recorded: fixture.service.getRecordedResources(),
+			}, {
+				disconnects: ['mail'],
+				recorded: [],
+			});
+		});
+
+		test('a not-found disconnect removes a stale connector record', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectedConnectors.delete('mail');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			fixture.connectorsService.onDisconnect = async () => {
+				throw new CopilotConnectorsError('Not found', 404);
+			};
+
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				disconnects: fixture.connectorsService.disconnectCalls,
+				recorded: fixture.service.getRecordedResources(),
+			}, {
+				disconnects: ['mail'],
+				recorded: [],
+			});
+		});
+
+		test('repairs a recorded connector by reconnecting it', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectedConnectors.delete('mail');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const before = fixture.service.getInstallState(candidate);
+
+			await fixture.service.repair(candidate);
+
+			assert.deepStrictEqual({
+				before,
+				connectCalls: fixture.connectorsService.connectCalls,
+				after: fixture.service.getInstallState(candidate),
+				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+			}, {
+				before: { kind: 'missing', target: connectorInstallationTarget, repairUnavailableMessage: undefined },
+				connectCalls: ['mail', 'mail'],
+				after: { kind: 'installed', target: connectorInstallationTarget },
+				recorded: ['mail'],
+			});
+		});
+
+		test('shows connector records only for the account that created them', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(connectorResource());
+			const originalAccount = fixture.service.getRecordedResources().map(resource => resource.identifier);
+
+			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'hubot', enterprise: false };
+			fixture.connectorAccountChanges.fire();
+			const otherAccount = fixture.service.getRecordedResources();
+
+			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'octocat', enterprise: false };
+			fixture.connectorAccountChanges.fire();
+
+			assert.deepStrictEqual({
+				originalAccount,
+				otherAccount,
+				restoredAccount: fixture.service.getRecordedResources().map(resource => resource.identifier),
+			}, {
+				originalAccount: ['mail'],
+				otherAccount: [],
+				restoredAccount: ['mail'],
 			});
 		});
 

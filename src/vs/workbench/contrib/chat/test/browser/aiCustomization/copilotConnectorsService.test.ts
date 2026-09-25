@@ -249,6 +249,7 @@ suite('CopilotConnectorsService', () => {
 		await fixture.service.refresh(CancellationToken.None);
 		assert.deepStrictEqual({
 			authorizationRequired: fixture.service.authorizationRequired,
+			connectionStateKnown: fixture.service.connectionStateKnown,
 			requests: fixture.requests.map(request => request.url),
 			authorization: fixture.authorizationHeaders.every(header => header === `Bearer ${fixture.initialSession.accessToken}`),
 			status: connectors[0]?.connectionStatus,
@@ -260,6 +261,7 @@ suite('CopilotConnectorsService', () => {
 			consent: fixture.consentCalls,
 		}, {
 			authorizationRequired: false,
+			connectionStateKnown: false,
 			requests: ['https://api.github.test/copilot-connectors/api/v1/plugins', 'https://api.github.test/copilot-connectors/api/v1/plugins'],
 			authorization: true,
 			status: 'unknown',
@@ -565,6 +567,8 @@ suite('CopilotConnectorsService', () => {
 		test(`${change} changes invalidate native snapshots and the catalog cache`, async () => {
 			const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }, { body: catalogResponse('available', ['fresh']) }]);
 			const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
+			let accountChanges = 0;
+			store.add(fixture.service.onDidChangeAccount(() => accountChanges++));
 			const first = await source.query({ pageSize: 1 }, CancellationToken.None);
 			if (change === 'account') {
 				fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' });
@@ -582,9 +586,9 @@ suite('CopilotConnectorsService', () => {
 			const readsBeforeNewQuery = fixture.requests.length;
 			const fresh = await source.query({ pageSize: 1 }, CancellationToken.None);
 			assert.deepStrictEqual({
-				cleared, invalid: first.cacheToken?.isCancellationRequested, readsBeforeNewQuery,
+				accountChanges, cleared, invalid: first.cacheToken?.isCancellationRequested, readsBeforeNewQuery,
 				fresh: fresh.items.map(item => item.identifier), requests: fixture.requests.length,
-			}, { cleared: true, invalid: true, readsBeforeNewQuery: 1, fresh: ['fresh'], requests: 2 });
+			}, { accountChanges: change === 'account' ? 1 : 0, cleared: true, invalid: true, readsBeforeNewQuery: 1, fresh: ['fresh'], requests: 2 });
 		});
 	}
 
@@ -791,6 +795,7 @@ suite('CopilotConnectorsService', () => {
 		assert.deepStrictEqual({
 			requests: fixture.requests,
 			opened: fixture.opened,
+			connectionStateKnown: fixture.service.connectionStateKnown,
 			connected: fixture.service.connectedMcpServers.map(server => ({
 				connector: server.connector.name,
 				serverName: server.serverName,
@@ -810,6 +815,7 @@ suite('CopilotConnectorsService', () => {
 				data: undefined,
 			}],
 			opened: ['https://github.com/settings/copilot/connectors/mail'],
+			connectionStateKnown: true,
 			connected: [{ connector: 'mail', serverName: 'mail-server' }],
 		});
 	});
@@ -821,12 +827,15 @@ suite('CopilotConnectorsService', () => {
 			{ body: catalogResponse('available') },
 		]);
 		await fixture.service.getConnectors(CancellationToken.None);
+		const disconnected: string[] = [];
+		store.add(fixture.service.onDidDisconnect(name => disconnected.push(name)));
 
 		await fixture.service.disconnect('mail', CancellationToken.None);
 
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => ({ type: request.type, url: request.url })),
 			status: fixture.service.connectors[0]?.connectionStatus,
+			disconnected,
 		}, {
 			requests: [{
 				type: 'GET',
@@ -839,6 +848,7 @@ suite('CopilotConnectorsService', () => {
 				url: 'https://api.github.test/copilot-connectors/api/v1/plugins',
 			}],
 			status: 'not_connected',
+			disconnected: ['mail'],
 		});
 	});
 

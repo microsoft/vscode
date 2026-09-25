@@ -39,6 +39,7 @@ export class CopilotConnectorsError extends Error {
 	}
 }
 
+// TODO: Replace this pre-session HTTP adapter when the Copilot SDK exposes client-scoped Connector management with rich catalog metadata.
 export class CopilotConnectorsRequestService implements ICopilotConnectorsRequestService {
 	declare readonly _serviceBrand: undefined;
 

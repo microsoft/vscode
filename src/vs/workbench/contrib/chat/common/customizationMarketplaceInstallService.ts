@@ -30,7 +30,7 @@ export interface ICustomizationMarketplaceInstallService {
 	getRecordedResources(): readonly ICustomizationMarketplaceResource[];
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
-	/** Restores files or registrations missing from a recorded installation. */
+	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Removes a previously installed marketplace resource through its owning service. */
 	uninstall(resource: ICustomizationMarketplaceResource): Promise<void>;

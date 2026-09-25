@@ -85,6 +85,12 @@ export interface IConnectedCopilotConnectorMcpServer {
 	readonly serverName: string;
 }
 
+export interface ICopilotConnectorAccount {
+	readonly providerId: string;
+	readonly accountName: string;
+	readonly enterprise: boolean;
+}
+
 function getConnectedMcpServerId(connectorName: string, serverName: string): string {
 	return `${encodeURIComponent(connectorName)}:${encodeURIComponent(serverName)}`;
 }
@@ -105,7 +111,11 @@ export const ICopilotConnectorsService = createDecorator<ICopilotConnectorsServi
 export interface ICopilotConnectorsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
+	readonly onDidChangeAccount: Event<void>;
+	readonly onDidDisconnect: Event<string>;
+	readonly account: ICopilotConnectorAccount | undefined;
 	readonly connectors: readonly ICopilotConnector[];
+	readonly connectionStateKnown: boolean;
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
 	readonly authorizationRequired: boolean;
 	readonly catalogMayRequireConsent: boolean;
@@ -127,6 +137,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
+	readonly onDidChangeAccount = this._onDidChangeAccount.event;
+	private readonly _onDidDisconnect = this._register(new Emitter<string>());
+	readonly onDidDisconnect = this._onDidDisconnect.event;
 	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly authorizationCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private authorizationPromise: Promise<void> | undefined;
@@ -136,6 +150,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private _authorizationRequired = false;
 	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
+	private _connectionStateKnown = false;
 	private _lastRefreshTime = 0;
 	private refreshGeneration = 0;
 
@@ -168,6 +183,19 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	get connectors(): readonly ICopilotConnector[] {
 		return this._connectors;
+	}
+
+	get connectionStateKnown(): boolean {
+		return this._connectionStateKnown;
+	}
+
+	get account(): ICopilotConnectorAccount | undefined {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		return account ? {
+			providerId: account.authenticationProvider.id,
+			accountName: account.accountName,
+			enterprise: account.enterprise,
+		} : undefined;
 	}
 
 	get authorizationRequired(): boolean {
@@ -301,7 +329,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			}
 			if (document === undefined) {
 				if (generation === this.refreshGeneration) {
-					this.setConnectors([]);
+					this.setConnectors([], false);
 				}
 				return this._connectors;
 			}
@@ -313,7 +341,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				return this._connectors;
 			}
 			this._lastRefreshTime = Date.now();
-			this.setConnectors(connectors);
+			this.setConnectors(connectors, scoped);
 			return this._connectors;
 		} finally {
 			operation.dispose();
@@ -362,6 +390,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			while (Date.now() < deadline) {
 				const connectors = await this.refresh(operation.token);
 				if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+					this._onDidDisconnect.fire(name);
 					return;
 				}
 				await timeout(connectionPollInterval, operation.token);
@@ -393,7 +422,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this._authorizationRequired = false;
 		this._catalogMayRequireConsent = false;
 		this._lastRefreshTime = 0;
-		this.setConnectors([]);
+		this.setConnectors([], false);
 	}
 
 	private updateAccountIdentity(account: IDefaultAccount | null): void {
@@ -402,6 +431,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			this.accountIdentity = identity;
 			this.authenticationAccountId = undefined;
 			this.resetCatalogContext();
+			this._onDidChangeAccount.fire();
 		}
 	}
 
@@ -502,11 +532,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private setConnectors(connectors: readonly ICopilotConnector[]): void {
-		if (equals(this._connectors, connectors)) {
+	private setConnectors(connectors: readonly ICopilotConnector[], connectionStateKnown = this._connectionStateKnown): void {
+		if (equals(this._connectors, connectors) && this._connectionStateKnown === connectionStateKnown) {
 			return;
 		}
 		this._connectors = connectors;
+		this._connectionStateKnown = connectionStateKnown;
 		this._onDidChange.fire();
 	}
 
@@ -574,8 +605,8 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 			}
 			const entries = words.length ? connectors.flatMap(connector => {
 				const score = scoreConnector(connector, words);
-				return score === undefined ? [] : [{ ...toMarketplaceEntry(connector), score }];
-			}).sort((a, b) => b.score - a.score) : connectors.map(connector => toMarketplaceEntry(connector));
+				return score === undefined ? [] : [{ ...toCopilotConnectorMarketplaceEntry(connector), score }];
+			}).sort((a, b) => b.score - a.score) : connectors.map(connector => toCopilotConnectorMarketplaceEntry(connector));
 			continuation = { query: text, mediaType: options.mediaType, pageSize, entries, offset: 0, cacheToken, expiresAt: Date.now() + 30 * 60_000 };
 		}
 		if (continuation.cacheToken.isCancellationRequested) {
@@ -661,7 +692,7 @@ function scoreConnectorField(word: string, value: string): number | undefined {
 	return best;
 }
 
-function toMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
+export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
 	return {
 		identifier: connector.name,
 		displayName: connector.displayName,
