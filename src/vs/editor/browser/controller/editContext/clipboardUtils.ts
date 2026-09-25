@@ -45,7 +45,7 @@ function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataT
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const isBlock = viewModel.getCursorColumnSelectData().isReal && modelSelections.length === 1;
+	const isBlock = viewModel.getCursorColumnSelectData().isReal;
 	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 

@@ -71,40 +71,40 @@ suite('Column selection paste', () => {
 				expected: ['leftAright', 'leftBC--right', 'leftD--right']
 			},
 			{
-				name: 'replaces the selected slices of an equal-height continuous selection',
+				name: 'replaces an equal-height continuous selection with the first row',
 				text: ['left--right', 'left--right', 'left--right'],
 				selections: [new Selection(1, 5, 3, 7)],
-				expected: ['leftA', 'BC', 'Dright']
+				expected: ['leftAright', '    BC', '    D']
 			},
 			{
 				name: 'replaces a reversed equal-height continuous selection',
 				text: ['left--right', 'left--right', 'left--right'],
 				selections: [new Selection(3, 7, 1, 5)],
-				expected: ['leftA', 'BC', 'Dright']
+				expected: ['leftAright', '    BC', '    D']
 			},
 			{
-				name: 'preserves the newline after an equal-height full-line selection',
+				name: 'replaces a full-line selection including its final newline',
 				text: ['first', 'second', 'third', 'unselected'],
 				selections: [new Selection(1, 1, 4, 1)],
-				expected: ['A', 'BC', 'D', 'unselected']
+				expected: ['Aunselected', 'BC', 'D']
 			},
 			{
-				name: 'excludes the empty end row of a reversed continuous selection',
+				name: 'preserves the suffix when a reversed selection ends at column one',
 				text: ['left--right', 'second', 'third', 'unselected'],
 				selections: [new Selection(4, 1, 1, 5)],
-				expected: ['leftA', 'BC', 'D', 'unselected']
+				expected: ['leftAunselected', '    BC', '    D']
 			},
 			{
-				name: 'uses normal replacement for a shorter continuous selection',
+				name: 'replaces a shorter continuous selection with the first row',
 				text: ['left--right', 'left--right', 'last'],
 				selections: [new Selection(1, 5, 2, 7)],
-				expected: ['leftA', 'BC', 'Dright', 'last']
+				expected: ['leftAright', 'lastBC', '    D']
 			},
 			{
-				name: 'uses normal replacement for a taller continuous selection',
+				name: 'replaces a taller continuous selection with the first row',
 				text: ['left--right', 'middle', 'middle', 'left--right'],
 				selections: [new Selection(1, 5, 4, 7)],
-				expected: ['leftA', 'BC', 'Dright']
+				expected: ['leftAright', '    BC', '    D']
 			},
 			{
 				name: 'pads short and empty lines to the block column',
@@ -210,25 +210,25 @@ suite('Column selection paste', () => {
 				expected: ['xA', 'BC', 'Dx', 'yy', 'zA', 'BC', 'Dz']
 			},
 			{
-				name: 'repeats the whole text when multiple non-empty selection counts differ',
-				text: ['[one]', '[two]', '[three]'],
-				selections: [new Selection(1, 2, 1, 5), new Selection(3, 2, 3, 7)],
-				expected: ['[A', 'BC', 'D]', '[two]', '[A', 'BC', 'D]']
+				name: 'uses normal replacement for multiple destinations including a multiline selection',
+				text: ['xx', 'yy', 'zz', '[one]', '[two]'],
+				selections: [new Selection(1, 2, 1, 2), new Selection(4, 2, 5, 5)],
+				expected: ['xA', 'BC', 'Dx', 'yy', 'zz', '[A', 'BC', 'D]']
 			},
 			{
-				name: 'does not discard an empty trailing row to match cursor counts',
+				name: 'retains ordinary trailing-newline handling when spreading to multiple cursors',
 				text: ['xx', 'yy'],
 				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
 				pastedText: 'A\nB\n',
-				expected: ['xA', 'B', 'x', 'yA', 'B', 'y']
+				expected: ['xAx', 'yBy']
 			},
 			{
-				name: 'block mode is independent of multiCursorPaste full',
+				name: 'block mode respects multiCursorPaste full for multiple destinations without row metadata',
 				text: ['xx', 'yy', 'zz'],
 				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
 				options: { multiCursorPaste: 'full' },
 				payload: { multicursorText: null },
-				expected: ['xAx', 'yBCy', 'zDz']
+				expected: ['xA', 'BC', 'Dx', 'yA', 'BC', 'Dy', 'zA', 'BC', 'Dz']
 			},
 			{
 				name: 'text mode retains single-cursor multiline pasting',
@@ -293,6 +293,53 @@ suite('Column selection paste', () => {
 			});
 		});
 	}
+
+	test('preserves multi-cursor distribution through undo and redo in block mode', () => {
+		const text = ['xx', 'yy', 'zz'];
+		withTestCodeEditor(text, { columnSelectionPaste: 'block' }, editor => {
+			const model = editor.getModel();
+			const selections = [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)];
+			editor.setSelections(selections);
+			paste(editor);
+			const after = { text: model.getLinesContent(), selections: editor.getSelections() };
+			model.undo();
+			const undone = { text: model.getLinesContent(), selections: editor.getSelections() };
+			model.redo();
+			const expected = {
+				text: ['xAx', 'yBCy', 'zDz'],
+				selections: [new Selection(1, 3, 1, 3), new Selection(2, 4, 2, 4), new Selection(3, 3, 3, 3)]
+			};
+			assert.deepStrictEqual({ after, undone, redone: { text: model.getLinesContent(), selections: editor.getSelections() } }, {
+				after: expected,
+				undone: { text, selections },
+				redone: expected
+			});
+		});
+	});
+
+	test('replaces a multiline selection and aligns later rows through undo and redo', () => {
+		const text = ['\tfirst', 'middle', 'last--suffix', 'x', ''];
+		withTestCodeEditor(text, { columnSelectionPaste: 'block' }, editor => {
+			const model = editor.getModel();
+			model.updateOptions({ tabSize: 4 });
+			const selection = new Selection(3, 7, 1, 2);
+			editor.setSelection(selection);
+			paste(editor, '\nBC\n');
+			const after = { text: model.getLinesContent(), selections: editor.getSelections() };
+			model.undo();
+			const undone = { text: model.getLinesContent(), selections: editor.getSelections() };
+			model.redo();
+			const expected = {
+				text: ['\tsuffix', 'x   BC', '    '],
+				selections: [new Selection(3, 5, 3, 5)]
+			};
+			assert.deepStrictEqual({ after, undone, redone: { text: model.getLinesContent(), selections: editor.getSelections() } }, {
+				after: expected,
+				undone: { text, selections: [selection] },
+				redone: expected
+			});
+		});
+	});
 
 	test('preserves CRLF line endings', () => {
 		withTestCodeEditor(['left', 'x'], { columnSelectionPaste: 'block' }, editor => {
@@ -368,7 +415,7 @@ suite('Column selection paste', () => {
 		});
 	});
 
-	test('reports block pastes but not normal text fallbacks', () => {
+	test('reports pasted ranges for cursors and multiline destination selections', () => {
 		withTestCodeEditor(['left--right', 'left--right', 'left--right'], { columnSelectionPaste: 'block' }, editor => {
 			const events: Pick<IPasteEvent, 'range'>[] = [];
 			editor.registerDisposable(editor.onDidPaste(e => events.push({ range: e.range })));
@@ -379,7 +426,7 @@ suite('Column selection paste', () => {
 			paste(editor);
 			assert.deepStrictEqual(events, [
 				{ range: new Range(1, 5, 3, 6) },
-				{ range: new Range(1, 5, 3, 2) }
+				{ range: new Range(1, 5, 3, 6) }
 			]);
 		});
 	});

@@ -343,10 +343,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const token = cts.token;
 			try {
-				// if (metadata?.defaultPastePayload.isBlock === true && editor.getOption(EditorOption.columnSelectionPaste) === 'block') {
-				// 	await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
-				// 	return;
-				// }
 				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, token);
 				if (token.isCancellationRequested) {
 					return;

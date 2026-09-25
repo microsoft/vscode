@@ -667,25 +667,10 @@ export class EnterOperation {
 export class PasteOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[], isBlock: boolean = false) {
-		if (isBlock && !pasteOnNewLine && config.columnSelectionPaste === 'block') {
-			const lines = strings.splitLines(text);
-			if (selections.length === 1) {
-				const selection = selections[0];
-				const selectedLineCount = selection.endLineNumber - selection.startLineNumber + (selection.endColumn === 1 ? 0 : 1);
-				if (selection.startLineNumber === selection.endLineNumber || selectedLineCount === lines.length) {
-					return new EditOperationResult(EditOperationType.Other, [
-						new ColumnSelectionPasteCommand(selection, lines, config.tabSize, config.overtypeOnPaste && config.inputMode === 'overtype')
-					], {
-						shouldPushStackElementBefore: true,
-						shouldPushStackElementAfter: true
-					});
-				}
-			} else if (lines.length === selections.length) {
-				return this._distributedPaste(config, model, selections.sort(Range.compareRangesUsingStarts), lines);
-			}
-			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
+		const distributeBlockToCursor = isBlock && config.columnSelectionPaste === 'block' && selections.length === 1;
+		if (distributeBlockToCursor) {
+			return this._blockPaste(config, selections[0], text);
 		}
-
 		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 		if (distributedPaste) {
 			selections = selections.sort(Range.compareRangesUsingStarts);
@@ -693,6 +678,16 @@ export class PasteOperation {
 		} else {
 			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
 		}
+	}
+
+	private static _blockPaste(config: CursorConfiguration, selection: Selection, text: string): EditOperationResult {
+		const lines = strings.splitLines(text);
+		const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
+		const command = new ColumnSelectionPasteCommand(selection, lines, config.tabSize, shouldOvertypeOnPaste);
+		return new EditOperationResult(EditOperationType.Other, [command], {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 
 	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
