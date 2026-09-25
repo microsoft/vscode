@@ -1093,7 +1093,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				identifier: getPluginMarketplaceIdentifier(plugin.plugin),
 				displayName: plugin.plugin.name,
 				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-				installation: undefined,
+				installation: { kind: 'configuredPlugin' },
 			});
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			const disabled = fixture.service.getInstallState(candidate);
@@ -1113,12 +1113,15 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 			await fixture.service.install(candidate);
 			fixture.installedPlugins.set([plugin], undefined);
-			const installed = fixture.service.getInstallState(candidate);
+			fixture.service.dispose();
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			const installed = restored.getInstallState(candidate);
 			assert.deepStrictEqual({
 				disabled, available, installed,
 				directInstalls: fixture.pluginService.directInstalls,
 				legacyInstalls: fixture.pluginService.calls,
-				recordedInstallations: fixture.service.getRecordedResources().map(resource => resource.installation),
+				recordedInstallations: restored.getRecordedResources().map(resource => resource.installation),
 			}, {
 				disabled: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				available: { kind: 'available' },
@@ -1134,7 +1137,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
 				identifier: 'stale',
 				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-				installation: undefined,
+				installation: { kind: 'configuredPlugin' },
 			});
 			await assert.rejects(fixture.service.install(candidate), /no longer available/);
 			assert.deepStrictEqual({ direct: fixture.pluginService.directInstalls, legacy: fixture.pluginService.calls }, { direct: [], legacy: [] });
@@ -1148,7 +1151,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
 				identifier: getPluginMarketplaceIdentifier(plugin),
 				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-				installation: undefined,
+				installation: { kind: 'configuredPlugin' },
 			});
 			if (isWeb) {
 				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
@@ -1186,7 +1189,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
 					identifier: getPluginMarketplaceIdentifier(plugin),
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					installation: undefined,
+					installation: { kind: 'configuredPlugin' },
 				});
 				if (isWeb) {
 					await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
