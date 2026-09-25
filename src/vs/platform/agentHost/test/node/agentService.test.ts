@@ -16530,6 +16530,82 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('an unloaded session status change is not published before its catalog is synchronized', async () => {
+			class BlockingCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+				readonly dirtyStarted = new DeferredPromise<void>();
+				readonly releaseDirty = new DeferredPromise<void>();
+				blockDirty = false;
+
+				override async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+					if (!this.blockDirty) {
+						return super.markSessionV2PayloadDirty(session);
+					}
+					this.dirtyStarted.complete();
+					await this.releaseDirty.p;
+					return super.markSessionV2PayloadDirty(session);
+				}
+			}
+
+			const sessionDatabase = new TestSessionDatabase();
+			const catalogDatabase = new BlockingCatalogDatabase();
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(sessionDatabase),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
+
+			const created = await localService.createSession({ provider: 'copilot' });
+			await localService.whenCatalogReconciliationIdle();
+			const session = created.toString();
+			const stateManager = getStateManager(localService);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(session)!]);
+			stateManager.removeSession(session);
+			catalogDatabase.blockDirty = true;
+
+			const notifications: INotification[] = [];
+			const listener = disposables.add(localService.onDidNotification(notification => notifications.push(notification)));
+			const published = Event.toPromise(Event.filter(localService.onDidNotification, notification =>
+				notification.type === 'root/sessionSummaryChanged'
+				&& notification.session === session
+				&& notification.changes.status !== undefined
+				&& (notification.changes.status & SessionStatus.IsRead) !== 0,
+			), disposables);
+			localService.dispatchAction(session, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await catalogDatabase.dirtyStarted.p;
+			const publishedBeforeDirty = notifications.some(notification =>
+				notification.type === 'root/sessionSummaryChanged'
+				&& notification.session === session
+				&& notification.changes.status !== undefined
+				&& (notification.changes.status & SessionStatus.IsRead) !== 0,
+			);
+
+			catalogDatabase.releaseDirty.complete();
+			await published;
+			listener.dispose();
+
+			assert.deepStrictEqual({
+				publishedBeforeDirty,
+				persistedRead: await sessionDatabase.getMetadata(AH_META_IS_READ_DB_KEY),
+				centralRead: !!(((await localService.listSessions()).find(candidate => candidate.session.toString() === session)?.status ?? 0) & SessionStatus.IsRead),
+			}, {
+				publishedBeforeDirty: false,
+				persistedRead: 'true',
+				centralRead: true,
+			});
+		});
+
 		test('deleting a session drops its announced summary so a later toggle cannot revive it', async () => {
 			// `removeSession` keeps the announced baseline for eviction; deletion must
 			// still clear it, or a stale toggle could republish a deleted session.

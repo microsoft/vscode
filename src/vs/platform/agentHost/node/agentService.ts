@@ -6438,11 +6438,11 @@ export class AgentService extends Disposable implements IAgentService {
 			[key]: set ? 'true' : '',
 			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
 		});
+		await this._markCatalogPayloadDirty(session);
+		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
+		await this._whenBackgroundCatalogStateWritesIdle(session);
 		this._invalidateSessionList();
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
-		const payloadDirty = this._markCatalogPayloadDirty(session);
-		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
-		await payloadDirty;
 		return true;
 	}
 
