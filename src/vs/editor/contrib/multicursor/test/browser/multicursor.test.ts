@@ -284,6 +284,36 @@ suite('Multicursor selection', () => {
 		});
 	}
 
+	test('issue #107090: Add Selection to Next Find Match uses regex with editor focus', () => {
+		testAddSelectionToNextFindMatchAction(['foo1', 'foo22', 'foo3'], (editor, action, findController) => {
+			findController.getState().change({ searchString: 'foo\\d+', isRegex: true, isRevealed: true }, false);
+			editor.setSelection(new Selection(1, 1, 1, 5));
+			editor.focus();
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [[1, 1, 1, 5], [2, 1, 2, 6]]);
+			assert.strictEqual(findController.getState().searchString, 'foo\\d+');
+			assert.strictEqual(findController.getState().isRegex, true);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [[1, 1, 1, 5], [2, 1, 2, 6], [3, 1, 3, 5]]);
+			assert.strictEqual(findController.getState().searchString, 'foo\\d+');
+			assert.strictEqual(findController.getState().isRegex, true);
+		});
+	});
+
+	test('issue #107090: a partial line selection does not match an anchored regex', () => {
+		testAddSelectionToNextFindMatchAction(['foobar', 'foo', 'foo'], (editor, action, findController) => {
+			findController.getState().change({ searchString: '^foo$', isRegex: true, isRevealed: true }, false);
+			editor.setSelection(new Selection(1, 1, 1, 4));
+			editor.focus();
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+		});
+	});
+
 	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
 		const text = [
 			'abc pizza',
