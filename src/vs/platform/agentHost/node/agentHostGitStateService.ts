@@ -331,10 +331,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (primaryWorkingDirectoryChanged) {
 					return;
 				}
-				// An `undefined` result means Git could not be queried (e.g.
-				// `git status` timed out), not that the repository went away.
-				// Keep the last known state so a transient failure does not drop
-				// the Git-backed changesets from the catalogue.
+				// An `undefined` result is inconclusive: it is returned both when
+				// Git could not be queried (e.g. `git status` timed out) and when
+				// no repository was found. Keep the last known state so a
+				// transient failure does not drop the Git-backed changesets from
+				// the catalogue.
 				if (gitState) {
 					const previousGitState = this.getSessionGitState(sessionKey);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
