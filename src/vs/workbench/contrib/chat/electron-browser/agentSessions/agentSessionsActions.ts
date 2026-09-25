@@ -9,10 +9,12 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IAction } from '../../../../../base/common/actions.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsLinuxContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,7 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
@@ -140,7 +142,8 @@ export class OpenAgentsWindowAction extends Action2 {
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated()),
+				// On Linux, Ctrl+Shift+A is Toggle Block Comment, so defer to it in a focused writable editor.
+				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated(), ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly)),
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}, {
 				// In screen reader mode, Cmd/Ctrl+Shift+A conflicts with many screen reader keybindings,
