@@ -80,7 +80,7 @@ suite('WorktreeIsolation', () => {
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let commitCalls: { worktree: URI; message: string }[];
 	let commitError: Error | undefined;
-	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
+	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
 	let hasUncommittedChanges: boolean;
@@ -115,8 +115,8 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 			},
-			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
-				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs] });
+			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId) => {
+				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId });
 				if (copyIncludeError) {
 					throw copyIncludeError;
 				}
@@ -655,7 +655,7 @@ suite('WorktreeIsolation', () => {
 			await timeout(50);
 			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
-		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
+		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, _sessionId, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
 			onProgress?.({ filesDone: 4, filesTotal: 4 });
 		};
@@ -835,6 +835,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: call.repositoryRoot.toString(),
 				worktree: call.worktree.toString(),
 				globs: call.globs,
+				sessionId: call.sessionId,
 			})),
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
@@ -843,6 +844,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: repoRoot.toString(),
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
+				sessionId,
 			}],
 			resolvedWorktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 		});

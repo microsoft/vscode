@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -232,8 +232,15 @@ interface IWorkspaceRootsHarness {
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
-	readonly _session: IObservable<IActiveSession | undefined>;
-	readonly _workspacePicker: { isNoWorkspaceSelected(): boolean };
+	readonly _noWorkspaceRestore: MutableDisposable<IDisposable>;
+	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	_createdSessionId: string | undefined;
+	readonly _workspacePicker: Pick<WorkspacePicker, 'isNoWorkspaceSelected' | 'selectedFolderUri' | 'whenWorkspaceRestored'>;
+	readonly sessionsService: {
+		readonly activeSession: IObservable<IActiveSession | undefined>;
+		readonly initialRestoreComplete: IObservable<boolean>;
+		openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
+	};
 	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
 	selectNoWorkspace(): void;
 }
@@ -244,7 +251,7 @@ const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: IS
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
-const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => boolean;
+const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -425,28 +432,172 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('restores a pending No workspace selection when quick chats become available', () => {
-		let quickChatAvailable = false;
-		let selectNoWorkspaceCalls = 0;
-		const harness: IRestoreNoWorkspaceDraftHarness = {
-			_session: constObservable(undefined),
-			_workspacePicker: { isNoWorkspaceSelected: () => true },
-			sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
-			selectNoWorkspace: () => selectNoWorkspaceCalls++,
-		};
+	suite('workspace-less fallback', () => {
+		function createRestoreHarness() {
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const initialRestoreComplete = observableValue('initialRestoreComplete', true);
+			const opened: string[] = [];
+			let quickChatAvailable = true;
+			let noWorkspaceSelected = false;
+			let selectedFolderUri: URI | undefined;
+			let workspaceRestored = Promise.resolve(true);
+			const open = (kind: string): IActiveSession => {
+				opened.push(kind);
+				const session = upcastPartial<IActiveSession>({ sessionId: `quick-chat-${opened.length}` });
+				activeSession.set(session, undefined);
+				return session;
+			};
+			const harness: IRestoreNoWorkspaceDraftHarness = {
+				_noWorkspaceRestore: disposables.add(new MutableDisposable<IDisposable>()),
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_createdSessionId: undefined,
+				_workspacePicker: {
+					isNoWorkspaceSelected: () => noWorkspaceSelected,
+					get selectedFolderUri() { return selectedFolderUri; },
+					whenWorkspaceRestored: token => raceCancellationError(workspaceRestored, token),
+				},
+				sessionsService: {
+					activeSession,
+					initialRestoreComplete,
+					openQuickChat: (_options, preserveNavigation) => open(preserveNavigation ? 'automatic' : 'explicit'),
+				},
+				sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
+				selectNoWorkspace: () => { open('checked'); },
+			};
+			return {
+				harness, activeSession, initialRestoreComplete, opened,
+				set quickChatAvailable(value: boolean) { quickChatAvailable = value; },
+				set noWorkspaceSelected(value: boolean) { noWorkspaceSelected = value; },
+				set selectedFolderUri(value: URI | undefined) { selectedFolderUri = value; },
+				set workspaceRestored(value: Promise<boolean>) { workspaceRestored = value; },
+				restore: () => restoreNoWorkspaceDraft.call(harness),
+			};
+		}
 
-		const pending = restoreNoWorkspaceDraft.call(harness);
-		quickChatAvailable = true;
-		const restored = restoreNoWorkspaceDraft.call(harness);
+		test('selects Chat without a previous Chat selection and without persisting a user choice', async () => {
+			const { harness, opened, restore } = createRestoreHarness();
 
-		assert.deepStrictEqual({
-			pending,
-			restored,
-			selectNoWorkspaceCalls,
-		}, {
-			pending: true,
-			restored: true,
-			selectNoWorkspaceCalls: 1,
+			await restore();
+			await restore();
+
+			assert.deepStrictEqual({
+				opened,
+				checked: harness._workspacePicker.isNoWorkspaceSelected(),
+				createdSessionId: harness._createdSessionId,
+			}, {
+				opened: ['automatic'],
+				checked: false,
+				createdSessionId: 'quick-chat-1',
+			});
+		});
+
+		for (const previouslySelected of [false, true]) {
+			test(`does not infer Chat from failed workspace restoration (previously selected: ${previouslySelected})`, async () => {
+				const state = createRestoreHarness();
+				state.noWorkspaceSelected = previouslySelected;
+				state.workspaceRestored = Promise.resolve(false);
+
+				await state.restore();
+
+				assert.deepStrictEqual(state.opened, previouslySelected ? ['checked'] : []);
+			});
+
+			test(`retries when a quick-chat provider becomes available (previously selected: ${previouslySelected})`, async () => {
+				const state = createRestoreHarness();
+				state.noWorkspaceSelected = previouslySelected;
+				state.quickChatAvailable = false;
+				await state.restore();
+				const beforeAvailable = [...state.opened];
+
+				state.quickChatAvailable = true;
+				await state.restore();
+
+				assert.deepStrictEqual({ beforeAvailable, afterAvailable: state.opened }, {
+					beforeAvailable: [],
+					afterAvailable: [previouslySelected ? 'checked' : 'automatic'],
+				});
+			});
+		}
+
+		test('allows automatic Chat fallback after workspace restoration recovers', async () => {
+			const state = createRestoreHarness();
+			state.workspaceRestored = Promise.resolve(false);
+			await state.restore();
+			const afterFailure = [...state.opened];
+
+			state.workspaceRestored = Promise.resolve(true);
+			await state.restore();
+
+			assert.deepStrictEqual({ afterFailure, afterRecovery: state.opened }, {
+				afterFailure: [],
+				afterRecovery: ['automatic'],
+			});
+		});
+
+		test('waits for workspace discovery before selecting Chat', async () => {
+			const state = createRestoreHarness();
+			const discovery = new DeferredPromise<boolean>();
+			state.workspaceRestored = discovery.p;
+			const restoring = state.restore();
+			await timeout(0);
+			const whileDiscovering = [...state.opened];
+
+			await discovery.complete(true);
+			await restoring;
+
+			assert.deepStrictEqual({ whileDiscovering, afterDiscovery: state.opened }, {
+				whileDiscovering: [],
+				afterDiscovery: ['automatic'],
+			});
+		});
+
+		for (const target of ['workspace', 'activeSession', 'pendingWorkspaceCreation'] as const) {
+			test(`preserves a ${target} that arrives while discovering workspaces`, async () => {
+				const state = createRestoreHarness();
+				const discovery = new DeferredPromise<boolean>();
+				state.workspaceRestored = discovery.p;
+				const restoring = state.restore();
+				await timeout(0);
+
+				if (target === 'workspace') {
+					state.selectedFolderUri = URI.file('/from-window');
+				} else if (target === 'activeSession') {
+					state.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'restored-session' }), undefined);
+				} else {
+					state.harness._newSessionCreation.value = toDisposable(() => { });
+				}
+				await discovery.complete(true);
+				await restoring;
+
+				assert.deepStrictEqual(state.opened, []);
+			});
+		}
+
+		test('waits for initial session restoration before selecting Chat', async () => {
+			const state = createRestoreHarness();
+			state.initialRestoreComplete.set(false, undefined);
+			const restoring = state.restore();
+			await timeout(0);
+			const beforeRestore = [...state.opened];
+
+			state.initialRestoreComplete.set(true, undefined);
+			await restoring;
+
+			assert.deepStrictEqual({ beforeRestore, afterRestore: state.opened }, {
+				beforeRestore: [],
+				afterRestore: ['automatic'],
+			});
+		});
+
+		test('cancels pending restoration when the composer is disposed', async () => {
+			const state = createRestoreHarness();
+			state.initialRestoreComplete.set(false, undefined);
+			const restoring = state.restore();
+			state.harness._noWorkspaceRestore.dispose();
+			await restoring;
+			state.initialRestoreComplete.set(true, undefined);
+
+			assert.deepStrictEqual(state.opened, []);
 		});
 	});
 
@@ -1334,7 +1485,7 @@ suite('NewChatWidget', () => {
 				options: { canApplyWorkspaceDefault: () => canApplyWorkspaceDefault.call(widget) },
 			});
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
-				_session: constObservable(protectedState === 'restoredDraft' ? upcastPartial<IActiveSession>({ sessionId: 'restored' }) : undefined),
+				_session: constObservable(protectedState === 'restoredDraft' || protectedState === 'quickChat' ? upcastPartial<IActiveSession>({ sessionId: protectedState }) : undefined),
 				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
 				_newChatInput: input,
 				_isQuickChatComposer: constObservable(protectedState === 'quickChat'),
@@ -1347,8 +1498,8 @@ suite('NewChatWidget', () => {
 		});
 	}
 
-	for (const createdSessionId of [undefined, 'late-draft', 'another-draft']) {
-		test(`checks late draft ownership before applying a default (created: ${createdSessionId})`, () => {
+	for (const { createdSessionId, quickChat } of [false, true].flatMap(quickChat => [undefined, 'late-draft', 'another-draft'].map(createdSessionId => ({ createdSessionId, quickChat })))) {
+		test(`checks late draft ownership before applying a default (created: ${createdSessionId}, quick chat: ${quickChat})`, () => {
 			const session = observableValue<IActiveSession | undefined>('session', undefined);
 			const creation = disposables.add(new MutableDisposable<IDisposable>());
 			const selected: URI[] = [];
@@ -1366,7 +1517,7 @@ suite('NewChatWidget', () => {
 				_createdSessionId: createdSessionId,
 				_newSessionCreation: creation,
 				_newChatInput: input,
-				_isQuickChatComposer: constObservable(false),
+				_isQuickChatComposer: constObservable(quickChat),
 				uriIdentityService: { extUri },
 				_workspacePicker: {
 					get selectionSnapshot() { return selection; },
@@ -1378,7 +1529,7 @@ suite('NewChatWidget', () => {
 			});
 			const initiallyEligible = input.canApplyWorkspaceDefault;
 			session.set(upcastPartial<IActiveSession>({
-				sessionId: 'late-draft', workspace: constObservable(undefined),
+				sessionId: 'late-draft', workspace: constObservable(undefined), isQuickChat: constObservable(quickChat),
 			}), undefined);
 			creation.value = toDisposable(() => { });
 			const folderUri = URI.file('/from-editor');

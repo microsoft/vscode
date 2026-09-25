@@ -26,7 +26,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -90,7 +90,7 @@ export interface IFixtureMessage {
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
-		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean }
+		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean; background?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
@@ -565,32 +565,51 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			} else if (part.kind === 'terminal' || part.kind === 'terminalConfirmation') {
 				const confirmation = part.kind === 'terminalConfirmation' ? part : undefined;
 				const title = confirmation?.title ?? 'Run pwsh command?';
-				const toolInvocation = new ChatToolInvocation(
-					{
+				const toolSpecificData = {
+					kind: 'terminal' as const,
+					commandLine: { original: part.command },
+					language: 'pwsh',
+					isPty: part.kind === 'terminal' && part.output ? false : undefined,
+					terminalCommandOutput: part.kind === 'terminal' && part.output ? { text: part.output } : undefined,
+					intention: part.kind === 'terminal' ? part.intention : undefined,
+					terminalCommandState: part.kind === 'terminal' && part.complete ? { exitCode: 0 } : undefined,
+					didContinueInBackground: part.kind === 'terminal' && part.background,
+					requestUnsandboxedExecution: confirmation?.requestUnsandboxedExecution,
+					requestUnsandboxedExecutionReason: confirmation?.requestUnsandboxedExecutionReason,
+					confirmation: confirmation?.confirmation,
+				};
+				if (part.kind === 'terminal' && part.background) {
+					const toolInvocation: IChatToolInvocationSerialized = {
+						kind: 'toolInvocationSerialized',
+						toolCallId: generateUuid(),
+						toolId: fixtureToolData.id,
+						source: ToolDataSource.Internal,
 						invocationMessage: new MarkdownString(`Running \`${part.command}\``),
-						pastTenseMessage: message.responseComplete === false ? undefined : new MarkdownString(`Ran \`${part.command}\``),
-						confirmationMessages: confirmation ? { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
-						toolSpecificData: {
-							kind: 'terminal',
-							commandLine: { original: part.command },
-							language: 'pwsh',
-							isPty: part.kind === 'terminal' && part.output ? false : undefined,
-							terminalCommandOutput: part.kind === 'terminal' && part.output ? { text: part.output } : undefined,
-							intention: part.kind === 'terminal' ? part.intention : undefined,
-							terminalCommandState: part.kind === 'terminal' && part.complete ? { exitCode: 0 } : undefined,
-							requestUnsandboxedExecution: confirmation?.requestUnsandboxedExecution,
-							requestUnsandboxedExecutionReason: confirmation?.requestUnsandboxedExecutionReason,
-							confirmation: confirmation?.confirmation,
+						originMessage: undefined,
+						pastTenseMessage: new MarkdownString(`Ran \`${part.command}\``),
+						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						isComplete: true,
+						presentation: undefined,
+						toolSpecificData,
+					};
+					model.acceptResponseProgress(request, toolInvocation);
+				} else {
+					const toolInvocation = new ChatToolInvocation(
+						{
+							invocationMessage: new MarkdownString(`Running \`${part.command}\``),
+							pastTenseMessage: message.responseComplete === false ? undefined : new MarkdownString(`Ran \`${part.command}\``),
+							confirmationMessages: confirmation ? { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
+							toolSpecificData,
 						},
-					},
-					fixtureToolData,
-					generateUuid(),
-					undefined,
-					{ command: part.command },
-				);
-				model.acceptResponseProgress(request, toolInvocation);
-				if (part.kind === 'terminal' && part.complete) {
-					await toolInvocation.didExecuteTool({ content: [] });
+						fixtureToolData,
+						generateUuid(),
+						undefined,
+						{ command: part.command },
+					);
+					model.acceptResponseProgress(request, toolInvocation);
+					if (part.kind === 'terminal' && part.complete) {
+						await toolInvocation.didExecuteTool({ content: [] });
+					}
 				}
 			}
 		}
@@ -1008,6 +1027,23 @@ const PERSISTENT_PROGRESS_TERMINAL_OUTPUT: IFixtureMessage[] = [{
 	responseComplete: false,
 }];
 
+const PERSISTENT_PROGRESS_BACKGROUND_TERMINAL: IFixtureMessage[] = [{
+	user: 'Regenerate the enterprise policy catalog',
+	assistant: [{
+		kind: 'terminal',
+		command: 'npm run export-policy-data',
+		background: true,
+	}],
+	responseComplete: true,
+}, {
+	user: 'What does policy mean?',
+	assistant: [{
+		kind: 'markdown',
+		text: 'A policy lets an administrator centrally manage the setting for users in an organization.',
+	}],
+	responseComplete: false,
+}];
+
 function parallelSubagentMessages(complete = false): IFixtureMessage[] {
 	return [{
 		user: 'Start five subagents to compute 1 + 1',
@@ -1265,11 +1301,11 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		}
 	}
 	const terminalParts = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'terminal');
-	const terminalWidgets = [...response.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.querySelector('.chat-terminal-content-part, .chat-terminal-thinking-collapsible'));
+	const terminalWidgets = [...context.container.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.querySelector('.chat-terminal-content-part, .chat-terminal-thinking-collapsible'));
 	if (terminalWidgets.length !== terminalParts.length) {
 		throw new Error('The terminal tool did not use the terminal progress renderer');
 	}
-	const renderedCommands = [...response.querySelectorAll('.chat-terminal-command-block, .chat-terminal-thinking-collapsible > .chat-used-context-label code')].map(element => element.textContent?.replace(/\u00a0/g, ' ') ?? '');
+	const renderedCommands = [...context.container.querySelectorAll('.chat-terminal-command-block, .chat-terminal-thinking-collapsible > .chat-used-context-label code')].map(element => element.textContent?.replace(/\u00a0/g, ' ') ?? '');
 	if (terminalParts.some(part => !renderedCommands.some(rendered => rendered.includes(part.command)
 		|| rendered.length > 3 && rendered.endsWith('...') && part.command.startsWith(rendered.slice(0, -3))))) {
 		throw new Error('The terminal command code block is empty or incomplete');
@@ -1893,7 +1929,7 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
 			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
 			tool('read_file', 'Read `src/progress.test.ts`', true),
-			{ kind: 'markdown', text: 'Persistent progress defaults to Draw with Compact tool previews. Tool verbosity is configured separately:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+			{ kind: 'markdown', text: 'Persistent progress defaults to Off unless an experiment enables it. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
 		])),
 		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
 		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),
@@ -2480,6 +2516,18 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		ResponseStreamingInsiders: defineComponentFixture({
 			labels: { kind: 'animated' },
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_RESPONSE, { productQuality: 'insider' }),
+		}),
+		WaitingForBackgroundCommand: defineComponentFixture({
+			labels: { kind: 'animated' },
+			render: context => renderChatWidget(context, {
+				messages: PERSISTENT_PROGRESS_BACKGROUND_TERMINAL,
+				persistentProgress: ChatProgressAnimation.Draw,
+				persistentProgressVerbosity: ChatProgressVerbosity.Compact,
+				terminalToolsInThinking: true,
+				simpleTerminalCollapsible: true,
+				height: 560,
+				listHeight: 340,
+			}),
 		}),
 		AskQuestionsTool: defineComponentFixture({
 			labels: { kind: 'animated' },

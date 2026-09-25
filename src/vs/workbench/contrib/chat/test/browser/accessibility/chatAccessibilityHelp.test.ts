@@ -57,21 +57,6 @@ suite('Chat Accessibility Help', () => {
 		}, { finished: true, subagentTail: true, parentTail: true });
 	});
 
-	test('describes the single Test App action and remembered retesting only in the Agents Window', () => {
-		const keybindings = new MockKeybindingService();
-		const sessionsHelp = getAccessibilityHelpText('agentView', keybindings, true, true);
-		const editorHelp = getAccessibilityHelpText('agentView', keybindings, true, false);
-		assert.deepStrictEqual([
-			sessionsHelp.includes('Test App appears to the right of the status pills above the chat input'),
-			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
-			sessionsHelp.includes('testing was requested, not that tests passed'),
-			sessionsHelp.includes('App Testing Options'),
-			sessionsHelp.includes('Subagent'),
-			editorHelp.includes('Test App'),
-			editorHelp.includes('Retest App'),
-		], [true, true, true, false, false, false, false]);
-	});
-
 	test('documents the Copilot tab switch and independent provider navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

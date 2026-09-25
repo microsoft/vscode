@@ -220,10 +220,21 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _syncOuterEdgeClasses(part: Element | null): void {
 		this.overlayLayout.content.classList.toggle('webview-overlay-modal', part?.classList.contains('modal-editor-part') ?? false);
-		for (const edge of ['left', 'right', 'top', 'bottom']) {
-			const isOuterEdge = part?.classList.contains(`floating-part-outer-${edge}`)
-				|| part?.classList.contains(`floating-editor-outer-${edge}`)
-				|| false;
+		const anchorBounds = this._anchorState?.anchorElement.getBoundingClientRect();
+		const partBounds = part?.getBoundingClientRect();
+		const contentBounds = part && partBounds ? {
+			left: partBounds.left + part.clientLeft,
+			top: partBounds.top + part.clientTop,
+			right: partBounds.left + part.clientLeft + part.clientWidth,
+			bottom: partBounds.top + part.clientTop + part.clientHeight,
+		} : undefined;
+
+		for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
+			const isOuterEdge = !!anchorBounds && !!contentBounds
+				&& Math.abs(anchorBounds[edge] - contentBounds[edge]) <= 1
+				&& (part?.classList.contains(`floating-part-outer-${edge}`)
+					|| part?.classList.contains(`floating-editor-outer-${edge}`)
+					|| false);
 			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
 		}
 	}

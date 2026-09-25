@@ -2203,7 +2203,7 @@ suite('ProtocolServerHandler', () => {
 			summary: 'Session Summary',
 			chats: [
 				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		});
 
@@ -2220,7 +2220,7 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			chats: [
 				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
 			],
 			defaultChat: defaultChat.toString(),
 		});

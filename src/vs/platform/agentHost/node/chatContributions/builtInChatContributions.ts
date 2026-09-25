@@ -8,6 +8,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
+import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
@@ -55,5 +56,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SideChatContribution));
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
+	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	return registrations;
 }

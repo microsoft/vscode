@@ -229,9 +229,12 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	test('runtime MCP: tools execute after their server is stopped and restarted', async function () {
 		this.timeout(180_000);
 		const { sessionUri, pluginUri, calls } = await createPluginSession();
-		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-restart', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 2);
-		assert.deepStrictEqual(probeResults(sessionUri), ['MCP_PROBE:before']);
+		const warmup = await driveTurnToCompletion(context.client, sessionUri, 'probe-warmup', 'Reply exactly READY. Do not call tools.', 2);
+		assert.strictEqual(warmup.responseText.trim(), 'READY');
 		const server = await serverState(sessionUri, pluginUri);
+		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
+		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-restart', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 3);
+		assert.deepStrictEqual(probeResults(sessionUri), ['MCP_PROBE:before']);
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 10,

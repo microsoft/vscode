@@ -54,7 +54,9 @@ suite('Agent Host Provider Integration — Codex Sandbox', function () {
 		if (!CODEX_SDK_ROOT || !isMacintosh) {
 			this.skip();
 		}
-		fixtureRoot = await mkdtemp(join(tmpdir(), 'codex-sandbox-'));
+		// Prefer CI-owned temp roots because Codex grants macOS system temp roots by design.
+		const fixtureParent = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
+		fixtureRoot = await mkdtemp(join(fixtureParent, 'codex-sandbox-'));
 		userHome = join(fixtureRoot, 'home');
 		codexHome = join(userHome, '.codex');
 		workspace = join(fixtureRoot, 'workspace');

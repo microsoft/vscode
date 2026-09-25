@@ -22,6 +22,12 @@ export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 /** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 
+/** Archives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
+
+/** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
+export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
+
 /** Marks one or more sessions as read. Registered in `sessionsViewActions.ts`. */
 export const MARK_SESSION_READ_COMMAND_ID = 'sessionsViewPane.markRead';
 

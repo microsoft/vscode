@@ -13,7 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -525,7 +525,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// If switching to a model with a request in progress, play progress sound
 			if (viewModel.model.requestInProgress.get()) {
-				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource, true);
+				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource, true, viewModel.model);
 			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
@@ -3116,18 +3116,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		const expectedSessionResource = options?.expectedSessionResource;
-		const expectedViewModel = expectedSessionResource ? this.viewModel : undefined;
-		const validateSession = expectedSessionResource ? () => {
-			if (this._store.isDisposed || !expectedViewModel || this.viewModel !== expectedViewModel || !isEqual(expectedViewModel.sessionResource, expectedSessionResource)) {
-				throw new ErrorNoTelemetry(localize('chat.submitSessionChanged', "The chat session changed or was closed before the request could be sent. Please try again in the original chat."));
-			}
-			if (this._readOnly || expectedViewModel.model.isReadOnly.get()) {
-				throw new ErrorNoTelemetry(localize('chat.submitSessionReadOnly', "The chat session is read-only. The request was not sent."));
-			}
-		} : undefined;
-		validateSession?.();
-
 		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
@@ -3156,13 +3144,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// requests) leave the input draft untouched, so they must not stop an
 				// unrelated dictation and flush its final transcript into that draft.
 				await stopDictationForEditor(this.inputEditor);
-				validateSession?.();
 			}
 
 			if (this.viewModel) {
 				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
 			}
-			const response = await this._acceptInput(query ? { query } : undefined, options, validateSession, (_response, kind) => {
+			const response = await this._acceptInput(query ? { query } : undefined, options, (_response, kind) => {
 				if (kind === 'queued') {
 					interaction.cancel('queued');
 				}
@@ -3287,7 +3274,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * @returns `false` when the prompt metadata requested an agent switch that the
 	 * user cancelled, signalling that input submission should be aborted.
 	 */
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI, validateSession?: () => void): Promise<boolean> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI): Promise<boolean> {
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
@@ -3300,7 +3287,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionResource, CancellationToken.None);
-		validateSession?.();
 		if (!slashCommand) {
 			return true;
 		}
@@ -3327,8 +3313,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		if (parseResult.header) {
-			const applied = await this._applyPromptMetadata(parseResult.header, requestInput, validateSession);
-			validateSession?.();
+			const applied = await this._applyPromptMetadata(parseResult.header, requestInput);
 			if (!applied) {
 				return false;
 			}
@@ -3337,7 +3322,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive) {
 			return undefined;
 		}
@@ -3346,7 +3331,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const generatingAutoSubmitWindow = 500;
 			const start = Date.now();
 			await this.input.generating;
-			validateSession?.();
 			if (Date.now() - start > generatingAutoSubmitWindow) {
 				return;
 			}
@@ -3354,7 +3338,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		while (!this._viewModel && !this._store.isDisposed) {
 			await Event.toPromise(this.onDidChangeViewModel, this._store);
-			validateSession?.();
 		}
 
 		if (!this.viewModel) {
@@ -3371,11 +3354,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			try {
 				const inputValue = !query ? this.getInput() : query.query;
 				await saveAllBeforeChatSend(this.configurationService, this.editorService);
-				validateSession?.();
 				savedBeforeSend = true;
 				const attachedContext = this.input.getAttachedContext().asArray();
 				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
-				validateSession?.();
 				if (handled) {
 					return;
 				}
@@ -3386,20 +3367,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 		const inputValue = isUserQuery ? this.getInput() : query.query;
-		if (this.viewModel.model.hasActiveRequest.get()) {
-			const handled = await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined);
-			validateSession?.();
-			if (handled) {
-				this.setInput('');
-				return;
-			}
+		if (this.viewModel.model.hasActiveRequest.get() && await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined)) {
+			this.setInput('');
+			return;
 		}
 		if (isUserQuery) {
 			const preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
 				sessionResource: this.viewModel.sessionResource,
 				input: inputValue,
 			});
-			validateSession?.();
 			if (preSubmitResult) {
 				this.setInput('');
 				return;
@@ -3408,14 +3384,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!savedBeforeSend) {
 			await saveAllBeforeChatSend(this.configurationService, this.editorService);
-			validateSession?.();
 		}
 
 		if (!options.preserveInput) {
 			// Would stop dictation the preserved draft may still be using.
 			this._onDidAcceptInput.fire();
 		}
-		validateSession?.();
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
 		const requestInputs: IChatRequestInputOptions = {
@@ -3428,9 +3402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		const executedSlashCommand = await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus);
-		validateSession?.();
-		if (executedSlashCommand) {
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -3460,7 +3432,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			} else {
 				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
-				validateSession?.();
 				cancelledCurrentRequest = true;
 				options.queue = undefined;
 			}
@@ -3473,7 +3444,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.recentlyRestoredCheckpoint = true;
 			}
 			this.finishedEditing(true);
-			validateSession?.();
 			if (!preserveCheckpoint) {
 				this.viewModel.model?.setCheckpoint(undefined);
 			}
@@ -3482,7 +3452,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const model = this.viewModel.model;
 		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
-			validateSession?.();
 			cancelledCurrentRequest = true;
 			options.queue = undefined;
 		}
@@ -3495,25 +3464,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// request just as confirmation is triggered.
 		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
-			validateSession?.();
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress && !options.cancelCurrentRequest) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (!requestInProgress && !isEditing) {
-			const confirmed = await this.confirmPendingRequestsBeforeSend(model, options, validateSession);
-			validateSession?.();
-			if (!confirmed) {
-				return;
-			}
+		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
+			return;
 		}
 
 		// process the prompt command
 		// Skipped for preserveInput: parsedInput is the draft, and an agent switch can clear the session.
 		if (!options.preserveInput) {
-			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource, validateSession);
-			validateSession?.();
+			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
 			if (!promptApplied) {
 				return;
 			}
@@ -3552,7 +3515,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.validateAgentMode();
-		validateSession?.();
 
 		if (this.viewModel.model.checkpoint) {
 			const requests = this.viewModel.model.getRequests();
@@ -3567,7 +3529,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
-		validateSession?.();
 		const submittedWithImage = isUserQuery && hasChatPetImageAttachment([
 			...requestInputs.attachedContext.asArray(),
 			...resolvedImageVariables,
@@ -3583,13 +3544,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modeInfo = resolveEditedRequestSelection(editedModeInfo, this.input.currentModeInfo);
 		const selectedModelRequestOptions = resolveEditedRequestSelection(editedModelRequestOptions, this.getSelectedModelRequestOptions());
 
-		validateSession?.();
 		const transcriptContext = this.transcriptContextValue;
 		if (transcriptContext) {
 			requestInputs.attachedContext.insertFirst(transcriptContext);
 			this.setTranscriptContext(undefined);
 		}
-		validateSession?.();
 		let result: ChatSendResult;
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
@@ -3810,7 +3769,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
-	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions, validateSession?: () => void): Promise<boolean> {
+	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {
 		if (options.queue) {
 			return true;
 		}
@@ -3836,7 +3795,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			],
 			cancelButton: true
 		});
-		validateSession?.();
 
 		if (!promptResult.result) {
 			return false;
@@ -4135,7 +4093,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _switchToAgentByName(agentName: string, validateSession?: () => void): Promise<boolean> {
+	private async _switchToAgentByName(agentName: string): Promise<boolean> {
 		const currentAgent = this.input.currentModeObs.get();
 
 		// already on the target agent
@@ -4151,14 +4109,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (currentAgent.kind !== agent.kind) {
 			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model);
-			validateSession?.();
 			if (!chatModeCheck) {
 				return false;
 			}
 
 			if (chatModeCheck.needToClearSession) {
 				await this.clear();
-				validateSession?.();
 			}
 		}
 		this.input.setChatMode(agent.id);
@@ -4170,15 +4126,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * mode-switch confirmation dialog), signalling that the caller should abort the
 	 * current input submission.
 	 */
-	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions, validateSession?: () => void): Promise<boolean> {
+	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<boolean> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
 			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
 		if (agent) {
-			const switched = await this._switchToAgentByName(agent, validateSession);
-			validateSession?.();
+			const switched = await this._switchToAgentByName(agent);
 			if (!switched) {
 				return false;
 			}
