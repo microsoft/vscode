@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -171,13 +172,14 @@ suite('CreateAndRunTaskTool', () => {
 		};
 
 		const prepared = await tool.prepareToolInvocation(preparationContext({ parameters: maliciousParameters }), CancellationToken.None);
+		const escapedWorkspaceFolder = new MarkdownString().appendText(workspaceFolder.fsPath).value;
 
 		assert.deepStrictEqual({
 			allowAutoConfirm: prepared?.confirmationMessages?.allowAutoConfirm,
 			message: typeof prepared?.confirmationMessages?.message === 'string' ? prepared.confirmationMessages.message : prepared?.confirmationMessages?.message?.value,
 		}, {
 			allowAutoConfirm: false,
-			message: `Task&nbsp;'\\[build\\]\\(command:workbench.action.closeWindow\\)'&nbsp;will&nbsp;be&nbsp;created&nbsp;in&nbsp;'${workspaceFolder.fsPath}'&nbsp;and&nbsp;run&nbsp;with&nbsp;this&nbsp;command:\n\`\`\`shell\necho \`\`\` run build\n\`\`\`\n`,
+			message: `Task&nbsp;'\\[build\\]\\(command:workbench.action.closeWindow\\)'&nbsp;will&nbsp;be&nbsp;created&nbsp;in&nbsp;'${escapedWorkspaceFolder}'&nbsp;and&nbsp;run&nbsp;with&nbsp;this&nbsp;command:\n\`\`\`shell\necho \`\`\` run build\n\`\`\`\n`,
 		});
 	});
 });
