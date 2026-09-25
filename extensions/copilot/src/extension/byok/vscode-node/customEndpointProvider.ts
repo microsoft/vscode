@@ -84,6 +84,7 @@ function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSuppo
 export interface CustomEndpointModelProviderConfig extends LanguageModelChatConfiguration {
 	url?: string;
 	apiType?: CustomEndpointApiType;
+	autoFetch?: boolean;
 	models?: CustomEndpointModelConfig[];
 }
 
@@ -137,18 +138,61 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	}
 
 	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: CustomEndpointModelProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[]> {
-		if (configuration?.url) {
-			return super.getAllModels(silent, apiKey, configuration);
+		const autoFetch = configuration?.autoFetch ?? (!configuration?.models || configuration.models.length === 0);
+		
+		let fetchedModels: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
+		if (autoFetch && configuration?.url) {
+			fetchedModels = await super.getAllModels(silent, apiKey, configuration);
 		}
+
+		const fetchedModelMap = new Map<string, OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>>();
+		for (const model of fetchedModels) {
+			fetchedModelMap.set(model.id, model);
+		}
+
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
-		if (Array.isArray(configuration?.models)) {
-			for (const modelConfig of configuration.models) {
+		const explicitModels = configuration?.models || [];
+		const explicitIds = new Set(explicitModels.map(m => m.id));
+
+		for (const explicitModel of explicitModels) {
+			const fetched = fetchedModelMap.get(explicitModel.id);
+			const mergedConfig: CustomEndpointModelConfig = {
+				name: fetched?.name || explicitModel.id,
+				maxInputTokens: fetched?.maxInputTokens,
+				maxOutputTokens: fetched?.maxOutputTokens,
+				...explicitModel
+			} as CustomEndpointModelConfig;
+			
+			const url = mergedConfig.url || configuration?.url;
+			if (url) {
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
-					url: modelConfig.url
+					...byokKnownModelToAPIInfoWithEffort(this._name, mergedConfig.id, mergedConfig),
+					url
 				});
 			}
 		}
+
+		if (autoFetch) {
+			for (const model of fetchedModels) {
+				if (!explicitIds.has(model.id)) {
+					const mergedConfig = {
+						id: model.id,
+						name: model.name,
+						maxInputTokens: model.maxInputTokens,
+						maxOutputTokens: model.maxOutputTokens,
+						url: configuration!.url!,
+						toolCalling: false,
+						vision: false
+					} as CustomEndpointModelConfig;
+					
+					models.push({
+						...byokKnownModelToAPIInfoWithEffort(this._name, model.id, mergedConfig),
+						url: configuration!.url!
+					});
+				}
+			}
+		}
+		
 		return models;
 	}
 
@@ -161,8 +205,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
 			contextWindow: modelConfiguration?.contextWindow,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
+			toolCalling: !!model.capabilities?.toolCalling,
+			vision: !!model.capabilities?.imageInput,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
@@ -184,8 +228,34 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		return this._instantiationService.createInstance(CustomEndpointOAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 
-	protected getModelsBaseUrl(configuration: CustomEndpointModelProviderConfig | undefined): string | undefined {
-		return configuration?.url;
+	protected override getModelsBaseUrl(configuration: CustomEndpointModelProviderConfig | undefined): string | undefined {
+		if (!configuration?.url) {
+			return undefined;
+		}
+		try {
+			const parsed = new URL(configuration.url);
+			parsed.pathname = parsed.pathname
+				.replace(/\/chat\/completions\/?$/, '')
+				.replace(/\/messages\/?$/, '')
+				.replace(/\/responses\/?$/, '');
+			return parsed.toString();
+		} catch {
+			return configuration.url;
+		}
+	}
+
+	protected override resolveModelCapabilities(modelData: any): BYOKModelCapabilities | undefined {
+		if (!modelData || typeof modelData.id !== 'string') {
+			return undefined;
+		}
+		return {
+			name: modelData.name || modelData.id,
+			contextWindow: 128000,
+			maxOutputTokens: 8192,
+			maxInputTokens: 100000,
+			toolCalling: false,
+			vision: false
+		};
 	}
 }
 
