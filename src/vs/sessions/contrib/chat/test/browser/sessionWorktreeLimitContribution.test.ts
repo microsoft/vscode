@@ -89,14 +89,20 @@ suite('SessionWorktreeLimitContribution', () => {
 		const eligible = createSession('eligible', new Date(0));
 		let confirmationCount = 0;
 		const archived: string[] = [];
+		let pickerShown = false;
+		let measuredAfterPicker = false;
 		const service = disposables.add(createService([eligible], {
 			confirm: async () => {
 				confirmationCount++;
 				return { confirmed: true };
 			},
 		}, true, {
-			quickInputService: createAcceptingQuickInputService(),
+			quickInputService: createAcceptingQuickInputService(() => pickerShown = true),
 			getSnoozedUntil: () => Date.now() + 24 * 60 * 60 * 1000,
+			getSessionWorktreeDiskUsage: async () => {
+				measuredAfterPicker = pickerShown;
+				return 1024;
+			},
 			archiveSession: async session => {
 				archived.push(session.sessionId);
 				eligible.isArchived.set(true, undefined);
@@ -105,9 +111,10 @@ suite('SessionWorktreeLimitContribution', () => {
 
 		await service.cleanupWorktrees();
 
-		assert.deepStrictEqual({ confirmationCount, archived }, {
+		assert.deepStrictEqual({ confirmationCount, archived, measuredAfterPicker }, {
 			confirmationCount: 1,
 			archived: ['eligible'],
+			measuredAfterPicker: true,
 		});
 	});
 

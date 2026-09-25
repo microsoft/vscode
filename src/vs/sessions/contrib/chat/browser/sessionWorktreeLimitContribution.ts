@@ -5,6 +5,7 @@
 
 import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -57,6 +58,7 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.sessionWorktreeLimit';
 
 	private _promptPromise: Promise<void> | undefined;
+	private _automaticPromptCancellation: CancellationTokenSource | undefined;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -103,10 +105,21 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		}
 
 		this.storageService.store(STORAGE_KEY_SNOOZED_UNTIL, Date.now() + PROMPT_COOLDOWN_DURATION_MS, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		return this._trackPrompt(this._measureAndPromptForCleanup(worktreeCount, availableSessions, recommendedSessionIds));
+		const cancellation = new CancellationTokenSource();
+		this._automaticPromptCancellation = cancellation;
+		try {
+			await this._measureAndPromptForCleanup(worktreeCount, availableSessions, recommendedSessionIds, cancellation.token);
+		} finally {
+			if (this._automaticPromptCancellation === cancellation) {
+				this._automaticPromptCancellation = undefined;
+			}
+			cancellation.dispose();
+		}
 	}
 
 	async cleanupWorktrees(): Promise<void> {
+		this._automaticPromptCancellation?.dispose(true);
+		this._automaticPromptCancellation = undefined;
 		if (this._promptPromise) {
 			return this._promptPromise;
 		}
@@ -167,35 +180,55 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		return { worktreeCount, availableSessions, recommendedSessionIds };
 	}
 
-	private async _measureCandidates(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<readonly ICleanupCandidate[]> {
+	private async _measureCandidates(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>, token = CancellationToken.None): Promise<readonly ICleanupCandidate[]> {
+		const candidates = this._createCandidates(availableSessions, recommendedSessionIds);
 		const getDiskUsage = this.sessionsManagementService.getSessionWorktreeDiskUsage;
 		const limiter = new Limiter<number | undefined>(2);
-		return Promise.all(availableSessions.map(async session => {
+		return Promise.all(candidates.map(async candidate => {
 			let sizeBytes: number | undefined;
 			if (getDiskUsage) {
 				try {
-					sizeBytes = await limiter.queue(() => getDiskUsage.call(this.sessionsManagementService, session));
+					sizeBytes = await limiter.queue(() => token.isCancellationRequested
+						? Promise.resolve(undefined)
+						: getDiskUsage.call(this.sessionsManagementService, candidate.session));
 				} catch (error) {
-					this.logService.warn(`[SessionWorktreeLimitContribution] Failed to measure worktree for session ${session.sessionId}`, error);
+					this.logService.warn(`[SessionWorktreeLimitContribution] Failed to measure worktree for session ${candidate.session.sessionId}`, error);
 				}
 			}
-			const recommendation = recommendedSessionIds.has(session.sessionId)
-				? CleanupRecommendation.Recommended
-				: this.sessionsListModelService.isSessionPinned(session)
-					? CleanupRecommendation.Pinned
-					: CleanupRecommendation.Recent;
-			return { session, sizeBytes, recommendation };
+			return { ...candidate, sizeBytes };
 		}));
 	}
 
-	private async _measureAndPromptForCleanup(worktreeCount: number, availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<void> {
-		const candidates = await this._measureCandidates(availableSessions, recommendedSessionIds);
-		await this._promptForCleanup(worktreeCount, candidates);
+	private _createCandidates(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): readonly ICleanupCandidate[] {
+		return availableSessions.map(session => ({
+			session,
+			sizeBytes: undefined,
+			recommendation: recommendedSessionIds.has(session.sessionId)
+				? CleanupRecommendation.Recommended
+				: this.sessionsListModelService.isSessionPinned(session)
+					? CleanupRecommendation.Pinned
+					: CleanupRecommendation.Recent,
+		}));
+	}
+
+	private async _measureAndPromptForCleanup(worktreeCount: number, availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>, token: CancellationToken): Promise<void> {
+		const candidates = await this._measureCandidates(availableSessions, recommendedSessionIds, token);
+		if (!token.isCancellationRequested) {
+			await this._trackPrompt(this._promptForCleanup(worktreeCount, candidates));
+		}
 	}
 
 	private async _measureAndReviewCleanup(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<void> {
-		const candidates = await this._measureCandidates(availableSessions, recommendedSessionIds);
-		await this._reviewAndCleanup(candidates);
+		const selected = await this._pickCandidates(this._createCandidates(availableSessions, recommendedSessionIds));
+		if (selected.length === 0) {
+			return;
+		}
+		const measured = await this._measureCandidates(selected.map(candidate => candidate.session), new Set(
+			selected
+				.filter(candidate => candidate.recommendation === CleanupRecommendation.Recommended)
+				.map(candidate => candidate.session.sessionId),
+		));
+		await this._confirmAndArchive(measured);
 	}
 
 	private async _trackPrompt(prompt: Promise<void>): Promise<void> {
@@ -240,6 +273,10 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			return;
 		}
 
+		await this._confirmAndArchive(selected);
+	}
+
+	private async _confirmAndArchive(selected: readonly ICleanupCandidate[]): Promise<void> {
 		const selectedBytes = selected.reduce((total, candidate) => total + (candidate.sizeBytes ?? 0), 0);
 		const selectedMeasuredCount = selected.filter(candidate => candidate.sizeBytes !== undefined).length;
 		const archiveConfirmation = await this.dialogService.confirm({
@@ -317,5 +354,10 @@ export class SessionWorktreeLimitContribution extends Disposable {
 
 	private _isPromptOnCooldown(): boolean {
 		return this.storageService.getNumber(STORAGE_KEY_SNOOZED_UNTIL, StorageScope.APPLICATION, 0) > Date.now();
+	}
+
+	override dispose(): void {
+		this._automaticPromptCancellation?.dispose(true);
+		super.dispose();
 	}
 }
