@@ -35,13 +35,16 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService } fr
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const secondSource = { id: 'other', displayName: 'Other Feed', enablementSetting: 'test.marketplace.other.enabled' };
-	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource, CustomizationMarketplaceSources.PluginMarketplaces];
+	const pluginSource = {
+		...CustomizationMarketplaceSources.PluginMarketplaces,
+		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
+	};
+	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource, pluginSource];
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -90,9 +93,6 @@ suite('AICustomizationDiscoveryPage', () => {
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
-		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
-			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
-		}());
 		let recoveryAction: ICustomizationMarketplaceSourceRecoveryAction | undefined;
 		const deletions: DeferredPromise<void>[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
@@ -108,6 +108,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = sources;
+			override readonly allSources = sources;
+			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return sourceId === 'other' ? recoveryAction : undefined; }
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();

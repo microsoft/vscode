@@ -4,128 +4,139 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { LRUCache } from '../../../../../base/common/map.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 
 const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!.canonicalId;
+const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
+	...CustomizationMarketplaceSources.PluginMarketplaces,
+	configurationDependencies: [
+		CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+		ChatConfiguration.PluginsEnabled,
+		ChatConfiguration.PluginMarketplaces,
+		ChatConfiguration.ExtraMarketplaces,
+		ChatConfiguration.StrictMarketplaces,
+	],
+};
+const allMarketplaceTypes = new Set([MarketplaceType.Claude, MarketplaceType.Copilot, MarketplaceType.OpenPlugin]);
+const copilotMarketplaceTypes = new Set([MarketplaceType.Copilot, MarketplaceType.OpenPlugin]);
+const claudeMarketplaceTypes = new Set([MarketplaceType.Claude]);
 
 export function getPluginMarketplaceIdentifier(plugin: IMarketplacePlugin): string {
 	return JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name, plugin.sourceDescriptor, plugin.version]);
 }
 
-export class PluginCustomizationMarketplaceProvider extends Disposable implements ICustomizationMarketplaceProvider {
-	readonly id = 'pluginMarketplaces';
-	private generation = 0;
-	private readonly continuations = new LRUCache<string, {
-		readonly query: string;
-		readonly mediaType: string | undefined;
-		readonly pageSize: number;
-		readonly entries: readonly ICustomizationMarketplaceSourceEntry[];
-		readonly errors: readonly string[];
-		readonly offset: number;
-		readonly expiresAt: number;
-	}>(32);
+export function getPluginCustomizationMarketplaceSourceInfos(
+	configurationService: IConfigurationService,
+	marketplaceService: IPluginMarketplaceService,
+): readonly ICustomizationMarketplaceSourceInfo[] {
+	const sources = getAllPluginCustomizationMarketplaceSourceInfos();
+	if (configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
+		return sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
+	}
+	const references = marketplaceService.getMarketplaceReferences();
+	const hasCustomMarketplace = references.some(reference => reference.canonicalId !== defaultMarketplaceId);
+	const usesDefaultMarketplace = configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true &&
+		references.some(reference => reference.canonicalId === defaultMarketplaceId);
+	return hasCustomMarketplace || usesDefaultMarketplace
+		? sources
+		: sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
+}
+
+export function getAllPluginCustomizationMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
+	return [pluginMarketplaceSourceInfo, CustomizationMarketplaceSources.AgentFinderPublicFeed];
+}
+
+export function createPluginCustomizationMarketplaceProviders(instantiationService: IInstantiationService): readonly ICustomizationMarketplaceProvider[] {
+	return (['custom', 'default'] as const).map(registry => {
+		const id = `${CustomizationMarketplaceSources.PluginMarketplaces.id}.${registry}`;
+		return createLazyCustomizationMarketplaceProvider(
+			id,
+			() => instantiationService.createInstance(PluginCustomizationMarketplaceProvider, registry),
+			CustomizationMarketplaceSources.PluginMarketplaces.id,
+		);
+	});
+}
+
+export class PluginCustomizationMarketplaceProvider implements ICustomizationMarketplaceProvider {
+	readonly id: string;
+	readonly sourceId = CustomizationMarketplaceSources.PluginMarketplaces.id;
 
 	constructor(
+		private readonly registry: 'custom' | 'default',
 		@IPluginMarketplaceService private readonly marketplaceService: IPluginMarketplaceService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
-		this._register(marketplaceService.onDidChangeMarketplaces(() => this.invalidate()));
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-				event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
-				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)) {
-				this.invalidate();
-			}
-		}));
-	}
-
-	private invalidate(): void {
-		this.generation++;
-		this.continuations.clear();
+		this.id = `${this.sourceId}.${registry}`;
 	}
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.CopilotPlugin && options.mediaType !== CustomizationMarketplaceMediaType.ClaudePlugin) {
+		const marketplaceTypes = getPluginMarketplaceTypes(options.mediaType);
+		if (!marketplaceTypes) {
 			return { items: [], total: 0 };
 		}
-		const query = options.query?.toLowerCase() ?? '';
-		const generation = this.generation;
-		const pageSize = Math.min(options.pageSize ?? 30, 100);
-		const continuation = options.cursor ? this.continuations.get(options.cursor) : undefined;
-		if (options.cursor && (!continuation || continuation.expiresAt <= Date.now() || continuation.query !== query ||
-			continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize)) {
-			throw new Error(localize('pluginMarketplace.invalidPage', "The plugin marketplace page is invalid. Start a new search."));
+		if (this.registry === 'default' &&
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true) {
+			return { items: [], total: 0 };
 		}
-		const includeDefaultMarketplace = this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true;
-		const errors: string[] = [];
-		const plugins = continuation ? [] : await this.marketplaceService.fetchMarketplacePlugins(token, undefined, {
-			onMarketplaceError: (reference, error) => {
-				if (includeDefaultMarketplace || reference.canonicalId !== defaultMarketplaceId) {
-					errors.push(`${reference.displayLabel}: ${getErrorMessage(error)}`);
-				}
-			},
-		});
-		if (token.isCancellationRequested || generation !== this.generation) {
-			throw new CancellationError();
+		const marketplaceIds = new Set(this.marketplaceService.getMarketplaceReferences()
+			.filter(reference => this.registry === 'default'
+				? reference.canonicalId === defaultMarketplaceId
+				: reference.canonicalId !== defaultMarketplaceId)
+			.map(reference => reference.canonicalId));
+		if (!marketplaceIds.size) {
+			return { items: [], total: 0 };
 		}
-		const customPlugins = plugins.filter(plugin => plugin.marketplaceReference.canonicalId !== defaultMarketplaceId);
-		if (includeDefaultMarketplace) {
-			customPlugins.push(...plugins.filter(plugin => plugin.marketplaceReference.canonicalId === defaultMarketplaceId));
-		}
-		const entries = continuation?.entries ?? customPlugins.flatMap(plugin => {
-			const mediaType = getPluginMediaType(plugin);
-			if (!mediaType ||
-				(this.marketplaceService.isStrictMarketplacePolicyActive() && !this.marketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) ||
-				(options.mediaType && mediaType !== options.mediaType) ||
-				(query && ![plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(query)))) {
-				return [];
-			}
-			return [{
-				identifier: getPluginMarketplaceIdentifier(plugin),
-				displayName: plugin.name,
-				description: plugin.description,
-				mediaType,
-				tags: [],
-				capabilities: [],
-				representativeQueries: [],
-				originLabel: plugin.marketplace,
-				version: plugin.version,
-				url: plugin.readmeUri,
-				score: query ? 0 : undefined,
-				priority: plugin.marketplaceReference.canonicalId === defaultMarketplaceId ? 0 : 1,
-			} satisfies ICustomizationMarketplaceSourceEntry];
-		}).sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
-		const offset = continuation?.offset ?? 0;
-		const end = Math.min(offset + pageSize, entries.length);
-		const nextCursor = end < entries.length ? generateUuid() : undefined;
-		if (nextCursor) {
-			this.continuations.set(nextCursor, {
-				query, mediaType: options.mediaType, pageSize, entries, errors: continuation?.errors ?? errors,
-				offset: end, expiresAt: Date.now() + 30 * 60_000,
-			});
-		}
-		const sourceErrors = continuation?.errors ?? errors;
+		const page = await this.marketplaceService.queryMarketplacePlugins({
+			text: options.query,
+			pageSize: options.pageSize ?? 30,
+			cursor: options.cursor,
+			marketplaceIds,
+			marketplaceTypes,
+		}, token);
 		return {
-			items: entries.slice(offset, end),
-			total: sourceErrors.length ? undefined : entries.length,
-			nextCursor,
-			...(sourceErrors.length ? { warning: sourceErrors.join('; ') } : {}),
+			items: page.items.map(plugin => toMarketplaceEntry(plugin, this.registry, !!options.query)),
+			total: page.total,
+			nextCursor: page.nextCursor,
+			...(page.errors.length ? { warning: page.errors.map(error => `${error.marketplace}: ${error.message}`).join('; ') } : {}),
 		};
 	}
+}
+
+function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'default', search: boolean): ICustomizationMarketplaceSourceEntry {
+	return {
+		identifier: getPluginMarketplaceIdentifier(plugin),
+		displayName: plugin.name,
+		description: plugin.description,
+		mediaType: getPluginMediaType(plugin)!,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		originLabel: plugin.marketplace,
+		version: plugin.version,
+		url: plugin.readmeUri,
+		score: search ? 0 : undefined,
+		priority: registry === 'custom' ? 1 : 0,
+		installation: { kind: 'configuredPlugin' },
+	};
+}
+
+function getPluginMarketplaceTypes(mediaType: string | undefined): ReadonlySet<MarketplaceType> | undefined {
+	if (!mediaType) {
+		return allMarketplaceTypes;
+	}
+	if (mediaType === CustomizationMarketplaceMediaType.CopilotPlugin) {
+		return copilotMarketplaceTypes;
+	}
+	if (mediaType === CustomizationMarketplaceMediaType.ClaudePlugin) {
+		return claudeMarketplaceTypes;
+	}
+	return undefined;
 }
 
 function getPluginMediaType(plugin: IMarketplacePlugin): string | undefined {

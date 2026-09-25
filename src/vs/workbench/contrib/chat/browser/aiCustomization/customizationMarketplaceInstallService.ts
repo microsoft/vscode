@@ -16,7 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -96,13 +96,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.recordStates.set(record.id, { kind: 'checking' });
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
-				this.customizationMarketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
+			if (affectsCustomizationMarketplaceSources(event, this.customizationMarketplaceService.allSources ?? this.customizationMarketplaceService.sources)) {
 				this.updateEnablement();
 			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this._onDidChange.fire();
 			}
 		}));
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateEnablement()));
+		}
 		this._register(this.recordStore.onDidChange(() => {
 			this.synchronizeRecordStates(true);
 			this._onDidChange.fire();
@@ -372,7 +374,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getSourceUnavailableMessage(sourceId: string): string | undefined {
-		const source = this.customizationMarketplaceService.sources.find(candidate => candidate.id === sourceId);
+		const source = (this.customizationMarketplaceService.allSources ?? this.customizationMarketplaceService.sources).find(candidate => candidate.id === sourceId);
 		if (!source) {
 			return localize('customizationMarketplace.sourceUnavailableForRepair', "This resource's marketplace source is no longer available, so it cannot be repaired.");
 		}
@@ -432,7 +434,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (this.pending.has(resourceKey)) {
 			return { kind: 'installing' };
 		}
-		if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+		const source = resource.installation;
+		if (source?.kind === 'configuredPlugin') {
 			if (isWeb) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginWebUnsupported', "Installing configured marketplace plugins is not available in VS Code for the Web.") };
 			}
@@ -441,7 +444,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			return { kind: 'available' };
 		}
-		const source = resource.installation;
 		if (!source) {
 			return {
 				kind: 'unavailable',
@@ -488,13 +490,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this.recordStore.ensureCanAdd();
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const isPluginMarketplace = resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id;
+		const isConfiguredPlugin = resource.installation?.kind === 'configuredPlugin';
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
-		if (isPluginMarketplace) {
+		if (isConfiguredPlugin) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
-			if (!this.isSourceEnabled(resource.sourceId) || isPluginMarketplace && (
+			if (!this.isSourceEnabled(resource.sourceId) || isConfiguredPlugin && (
 				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
 				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)
 			)) {
@@ -651,9 +653,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async doInstall(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<ICustomizationMarketplaceInstallationRecord> {
 		this.checkEnabled(resource.sourceId, token);
-		const source = resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id
-			? { kind: 'configuredPlugin' } as const
-			: resource.installation;
+		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}

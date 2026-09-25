@@ -42,6 +42,51 @@ suite('CustomizationMarketplaceSources', () => {
 		});
 	});
 
+	test('changing selected source query configuration cancels an in-flight request', async () => {
+		const source = {
+			id: 'plugins',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: ['test.plugins.marketplaces'],
+		};
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			'test.plugins.marketplaces': ['old'],
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [source], {}, CancellationToken.None, () => deferred.p);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, 'test.plugins.marketplaces', true);
+		await cancelled;
+		await deferred.complete({ items: [] });
+		assert.strictEqual(configuration.onDidChangeConfigurationEmitter.hasListeners(), false);
+	});
+
+	test('changing unselected source query configuration preserves an in-flight request', async () => {
+		const selected = { id: 'public', enablementSetting: 'test.public.enabled' };
+		const unrelated = {
+			id: 'plugins',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: ['test.plugins.marketplaces'],
+		};
+		const configuration = new TestConfigurationService({
+			'test.public.enabled': true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [selected, unrelated], { sourceIds: ['public'] }, CancellationToken.None, () => deferred.p);
+		await setEnabled(configuration, 'test.plugins.marketplaces', true);
+		await deferred.complete({ items: [], total: 1 });
+		assert.deepStrictEqual({
+			page: await pending,
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, {
+			page: { items: [], total: 1 },
+			listening: false,
+		});
+	});
+
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])));
 		store.add(configuration.onDidChangeConfigurationEmitter);

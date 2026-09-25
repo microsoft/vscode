@@ -785,6 +785,89 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
 	});
 
+	test('queries selected marketplaces with stable opaque pagination and errors', async () => {
+		const service = createService();
+		const first = makePlugin('first', 'first');
+		const second = { ...makePlugin('second', 'second'), marketplaceType: MarketplaceType.Claude };
+		let calls = 0;
+		const fetch = sinon.stub(service, 'fetchMarketplacePlugins').callsFake(async (_token, _marketplaceIds, options) => {
+			calls++;
+			options?.onMarketplaceError?.(marketplaceRef, new Error('Unavailable'));
+			return [first, second];
+		});
+		const query = {
+			text: 'description',
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot, MarketplaceType.Claude]),
+		};
+		const firstPage = await service.queryMarketplacePlugins(query, CancellationToken.None);
+		const secondPage = await service.queryMarketplacePlugins({ ...query, cursor: firstPage.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			pages: [firstPage, secondPage].map(page => ({
+				items: page.items.map(plugin => plugin.name),
+				total: page.total,
+				hasMore: !!page.nextCursor,
+				errors: page.errors,
+			})),
+			calls,
+			opaqueCursor: firstPage.nextCursor !== undefined && !Number.isSafeInteger(Number(firstPage.nextCursor)),
+			requestedIds: [...fetch.firstCall.args[1]!],
+		}, {
+			pages: [
+				{ items: ['first'], total: undefined, hasMore: true, errors: [{ marketplace: 'microsoft/plugins', message: 'Unavailable' }] },
+				{ items: ['second'], total: undefined, hasMore: false, errors: [{ marketplace: 'microsoft/plugins', message: 'Unavailable' }] },
+			],
+			calls: 1,
+			opaqueCursor: true,
+			requestedIds: [marketplaceRef.canonicalId],
+		});
+	});
+
+	test('invalidates query continuations when configured marketplaces change', async () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		});
+		const service = createService({ configurationService });
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([makePlugin('first', 'first'), makePlugin('second', 'second')]);
+		const query = {
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot]),
+		};
+		const page = await service.queryMarketplacePlugins(query, CancellationToken.None);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.PluginMarketplaces]),
+			change: { keys: [ChatConfiguration.PluginMarketplaces], overrides: [] },
+			affectsConfiguration: key => key === ChatConfiguration.PluginMarketplaces,
+		} satisfies IConfigurationChangeEvent);
+		await assert.rejects(service.queryMarketplacePlugins({ ...query, cursor: page.nextCursor }, CancellationToken.None), /invalid/);
+	});
+
+	test('filters unsupported marketplace types before paging and totals', async () => {
+		const service = createService();
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([
+			{ ...makePlugin('unsupported', 'unsupported'), marketplaceType: 'cursor' as MarketplaceType },
+			makePlugin('supported', 'supported'),
+		]);
+		const page = await service.queryMarketplacePlugins({
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot, MarketplaceType.OpenPlugin]),
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: page.items.map(plugin => plugin.name),
+			total: page.total,
+			nextCursor: page.nextCursor,
+		}, {
+			items: ['supported'],
+			total: 1,
+			nextCursor: undefined,
+		});
+	});
+
 	test('addInstalledPlugin makes plugin appear in installedPlugins', () => {
 		const service = createService();
 		const uri = URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin');
