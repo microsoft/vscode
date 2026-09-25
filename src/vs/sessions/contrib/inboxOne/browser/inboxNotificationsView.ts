@@ -27,7 +27,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -1917,6 +1917,31 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (actionKind === InboxNotificationActionKind.DeleteSession) {
 			await this.configurationService.updateValue(AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, ALWAYS_MERGED_SESSION_CLEANUP_AFTER_DAYS, ConfigurationTarget.USER);
 		}
+		this.showMergedSessionCleanupAlwaysEnabledNotification(actionKind);
+	}
+
+	/**
+	 * Confirms that the "Always" opt-in enabled the automatic merged-session
+	 * cleanup setting, and links to it so the user can review or change it.
+	 */
+	private showMergedSessionCleanupAlwaysEnabledNotification(actionKind: InboxMergedSessionCleanupActionKind): void {
+		const settingId = actionKind === InboxNotificationActionKind.DeleteSession
+			? AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING
+			: AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING;
+		const message = actionKind === InboxNotificationActionKind.DeleteSession
+			? localize('inboxNotifications.alwaysDelete.enabled', "Enabled setting: merged sessions are now marked as done and deleted automatically.")
+			: localize('inboxNotifications.alwaysMarkAsDone.enabled', "Enabled setting: merged sessions are now marked as done automatically.");
+		this.notificationService.notify({
+			severity: Severity.Info,
+			message,
+			actions: {
+				primary: [toAction({
+					id: 'inboxNotifications.openMergedSessionCleanupSetting',
+					label: localize('inboxNotifications.viewSetting', "View Setting"),
+					run: () => this.commandService.executeCommand('workbench.action.openSettings', `@id:${settingId}`),
+				})],
+			},
+		});
 	}
 
 	private async runAgentMergeInboxAction(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, enableAlways: boolean, sourceElement: HTMLElement | undefined): Promise<InboxInteractionResult> {

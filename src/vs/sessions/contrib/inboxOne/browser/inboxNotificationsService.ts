@@ -1495,7 +1495,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return this.sessionActions(true, [
 				{
 					id: 'archive-session',
-					label: localize('inboxNotifications.action.archiveSession', "Archive Session"),
+					label: localize('inboxNotifications.action.markAsDone', "Mark as Done"),
 					kind: InboxNotificationActionKind.ArchiveSession,
 				},
 				{
