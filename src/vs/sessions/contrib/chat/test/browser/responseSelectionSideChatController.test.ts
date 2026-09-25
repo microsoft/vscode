@@ -136,18 +136,32 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
 
-		const setSelection = (text: string, selectionTop?: number) => {
+		const setSelectionWithoutEvent = (text: string, selectionTop?: number) => {
 			activeRange = range;
 			selectionText = text;
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
 			}
+		};
+		const setSelection = (text: string, selectionTop?: number) => {
+			setSelectionWithoutEvent(text, selectionTop);
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const setSelectionOutsideTranscript = (text: string) => {
 			activeRange = outsideRange;
 			selectionText = text;
 			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const beginPointerSelection = () => {
+			markdown.dispatchEvent(new targetWindow.MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+		};
+		const releasePointerSelection = () => {
+			targetWindow.dispatchEvent(new targetWindow.MouseEvent('pointerup', { bubbles: true, button: 0 }));
+		};
+		const waitForAnimationFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, resolve));
+		const finishPointerSelection = async () => {
+			releasePointerSelection();
+			await waitForAnimationFrame();
 		};
 		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
 		/**
@@ -218,7 +232,12 @@ suite('ResponseSelectionSideChatController', () => {
 		return {
 			controller,
 			setSelection,
+			setSelectionWithoutEvent,
 			setSelectionOutsideTranscript,
+			beginPointerSelection,
+			releasePointerSelection,
+			finishPointerSelection,
+			waitForAnimationFrame,
 			setTranscriptRect,
 			detachSelectedRow,
 			scroll,
@@ -325,6 +344,97 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
 			actions: ['Ask with /btw', 'Quote', 'Copy'],
+		});
+	});
+
+	test('shows the enhanced action menu after pointer selection settles', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			setSelectionWithoutEvent,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+		setSelectionOutsideTranscript('unrelated text');
+		setSelectionWithoutEvent('hello world');
+		const visibleAfterTransientSelection = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterTransientSelection,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			actions: menuActionLabels(controller),
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterTransientSelection: false,
+			visibleAfterRelease: true,
+			actions: ['Ask with /btw', 'Quote', 'Copy'],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('keeps the enhanced action menu dismissed when pointer selection settles outside a response', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			autoScrollHolds,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		setSelectionOutsideTranscript('unrelated text');
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			autoScrollHolds: autoScrollHolds(),
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			autoScrollHolds: 0,
+			telemetryEvents: [],
+		});
+	});
+
+	test('chat navigation cancels pending pointer selection reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		releasePointerSelection();
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			telemetryEvents: [],
 		});
 	});
 
