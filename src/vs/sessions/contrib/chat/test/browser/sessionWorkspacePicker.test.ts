@@ -1127,6 +1127,54 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
+	test('appends every workspace known from sessions after recent workspaces', async () => {
+		let sessions: ISession[] = [];
+		const provider = createMockProvider('local-1', { getSessions: () => sessions });
+		providersService.setProviders([provider]);
+
+		const agentsRecent = URI.file('/local/agents-recent');
+		const vscodeRecent = URI.file('/local/vscode-recent');
+		const sessionOnlyFirst = URI.file('/local/session-only-first');
+		const sessionOnlySecond = URI.file('/local/session-only-second');
+		sessions = [
+			createMockSession(provider, agentsRecent, 5),
+			createMockSession(provider, sessionOnlyFirst, 4),
+			createMockSession(provider, sessionOnlySecond, 3),
+			createMockSession(provider, sessionOnlyFirst, 2),
+		];
+
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: agentsRecent, providerId: provider.id, checked: false }]);
+		const workspacesService = {
+			getRecentlyOpened: async () => ({ workspaces: [{ folderUri: vscodeRecent }], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			storage,
+			undefined,
+			TestWebWorkspacePicker,
+			undefined,
+			workspacesService,
+			recentWorkspacesService,
+		) as TestWebWorkspacePicker;
+
+		assert.deepStrictEqual(
+			picker.getItems()
+				.flatMap(entry => entry.item?.folderUri
+					? [{ uri: entry.item.folderUri.toString(), removable: !!entry.onRemove }]
+					: []),
+			[
+				{ uri: agentsRecent.toString(), removable: true },
+				{ uri: vscodeRecent.toString(), removable: true },
+				{ uri: sessionOnlyFirst.toString(), removable: false },
+				{ uri: sessionOnlySecond.toString(), removable: false },
+			],
+		);
+	});
+
 	test('restore selects the most recent VS Code workspace when own history is empty', async () => {
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
