@@ -9,6 +9,7 @@ import {
 	CLAUDE_PLAN_DECLINED_MESSAGE,
 	CLAUDE_QUESTION_CANCELLED_MESSAGE,
 	CLAUDE_USER_DECLINED_MESSAGE,
+	claudePlanFeedbackMessage,
 	claudeToolDenialCode,
 } from '../../node/claude/claudeToolDenial.js';
 
@@ -24,6 +25,7 @@ suite('claudeToolDenial', () => {
 			userDeclined: claudeToolDenialCode(CLAUDE_USER_DECLINED_MESSAGE),
 			planDeclined: claudeToolDenialCode(CLAUDE_PLAN_DECLINED_MESSAGE),
 			questionCancelled: claudeToolDenialCode(CLAUDE_QUESTION_CANCELLED_MESSAGE),
+			planFeedback: claudeToolDenialCode(claudePlanFeedbackMessage('use vitest')),
 			genuineError: claudeToolDenialCode('permission denied'),
 			empty: claudeToolDenialCode(''),
 		};
@@ -31,6 +33,7 @@ suite('claudeToolDenial', () => {
 			userDeclined: 'denied',
 			planDeclined: 'denied',
 			questionCancelled: 'cancelled',
+			planFeedback: 'denied',
 			genuineError: undefined,
 			empty: undefined,
 		});

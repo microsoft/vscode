@@ -10,7 +10,7 @@ export interface IAgentHostPlanReviewAction {
 	readonly label: string;
 	readonly description?: string;
 	readonly default?: boolean;
-	readonly permissionLevel?: 'autopilot';
+	readonly permissionLevel?: 'autopilot' | 'bypass';
 }
 
 export interface IAgentHostPlanReview {

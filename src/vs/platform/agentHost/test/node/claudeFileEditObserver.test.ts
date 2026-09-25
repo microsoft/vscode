@@ -16,6 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -52,6 +53,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
+		[INativeEnvironmentService, { userHome: URI.file('/home/testuser') } as INativeEnvironmentService],
 		[IEditArcReporterService, {
 			_serviceBrand: undefined,
 			reportEdit: async (params: IEditArcReporterLaunchParams) => {
@@ -113,6 +115,88 @@ suite('ClaudeFileEditObserver', () => {
 			arcMode: 'plan',
 			clientContext,
 		});
+	});
+
+	test('promotes a plan-file write only after its tool_result succeeds', async () => {
+		const { observer, mapperState } = createObserver(disposables);
+
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-p1', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-a.md', content: '# a' } },
+			{ type: 'tool_use', id: 'tu-p2', name: 'Write', input: { file_path: '/work/notes.md', content: 'not a plan' } },
+			{ type: 'tool_use', id: 'tu-p3', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/nested/deep.md', content: 'nested' } },
+		]));
+		const beforeResult = observer.lastPlanFileUri;
+
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p1', content: 'ok' },
+		]), 'turn-1', mapperState);
+		const afterSuccess = observer.lastPlanFileUri;
+
+		// The outside-the-plan-dir and nested candidates complete
+		// successfully too - only the path filter keeps them out.
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p2', content: 'ok' },
+			{ type: 'tool_result', tool_use_id: 'tu-p3', content: 'ok' },
+		]), 'turn-1', mapperState);
+		const afterNonPlanResults = observer.lastPlanFileUri;
+
+		// A denied or failed write must not replace the last good plan file.
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-p4', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-b.md', content: '# b' } },
+		]));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p4', content: 'denied', is_error: true },
+		]), 'turn-1', mapperState);
+
+		assert.deepStrictEqual({
+			beforeResult: beforeResult?.toString(),
+			afterSuccess: afterSuccess?.toString(),
+			afterNonPlanResults: afterNonPlanResults?.toString(),
+			afterFailed: observer.lastPlanFileUri?.toString(),
+		}, {
+			beforeResult: undefined,
+			afterSuccess: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+			afterNonPlanResults: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+			afterFailed: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+		});
+	});
+
+	test('accepts plan files under CLAUDE_CONFIG_DIR when the override is set', async () => {
+		const previous = process.env['CLAUDE_CONFIG_DIR'];
+		process.env['CLAUDE_CONFIG_DIR'] = URI.file('/custom/claude-config').fsPath;
+		try {
+			const { observer, mapperState } = createObserver(disposables);
+
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: 'tu-c1', name: 'Write', input: { file_path: '/custom/claude-config/plans/plan.md', content: '# c' } },
+			]));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: 'tu-c1', content: 'ok' },
+			]), 'turn-1', mapperState);
+			const custom = observer.lastPlanFileUri;
+
+			// The default location stays accepted alongside the override.
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: 'tu-c2', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan.md', content: '# d' } },
+			]));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: 'tu-c2', content: 'ok' },
+			]), 'turn-1', mapperState);
+
+			assert.deepStrictEqual({
+				custom: custom?.toString(),
+				fallback: observer.lastPlanFileUri?.toString(),
+			}, {
+				custom: URI.file('/custom/claude-config/plans/plan.md').toString(),
+				fallback: URI.file('/home/testuser/.claude/plans/plan.md').toString(),
+			});
+		} finally {
+			if (previous === undefined) {
+				delete process.env['CLAUDE_CONFIG_DIR'];
+			} else {
+				process.env['CLAUDE_CONFIG_DIR'] = previous;
+			}
+		}
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

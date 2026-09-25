@@ -1347,6 +1347,28 @@ export class ClaudeAgentSession extends Disposable {
 		return this._pendingUserInputs.respond(requestId, { response, answers });
 	}
 
+	/**
+	 * Read the plan document for an `ExitPlanMode` review: the most
+	 * recent `~/.claude/plans/*.md` write observed on the SDK message
+	 * stream. The SDK no longer carries the plan text on the tool
+	 * input, so the tracked file is the canonical source. Best-effort:
+	 * returns `undefined` when no plan file was observed (e.g. a
+	 * resumed session) or the read fails.
+	 */
+	async readPlanReview(): Promise<{ uri: URI; content: string } | undefined> {
+		const uri = this._pipeline?.lastPlanFileUri;
+		if (!uri) {
+			return undefined;
+		}
+		try {
+			const content = await this._fileService.readFile(uri);
+			return { uri, content: content.value.toString() };
+		} catch (err) {
+			this._logService.warn(`[ClaudeAgentSession] Failed to read plan file ${uri.toString()}: ${err}`);
+			return undefined;
+		}
+	}
+
 	// #endregion
 
 	// #region Phase 10 — client tools

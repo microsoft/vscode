@@ -225,8 +225,8 @@ export function isClaudeFileEditTool(toolName: string): boolean {
  * Phase 7 S3.5. Tools whose `canUseTool` invocation is satisfied by a
  * host-driven round-trip rather than the SDK's auto-approval:
  * - `AskUserQuestion` — carousel (S3.5a).
- * - `ExitPlanMode` — `pending_confirmation` with custom Approve/Deny
- *   labels and the plan body as `invocationMessage` (S3.5b).
+ * - `ExitPlanMode` — plan-review input request rendered by the
+ *   workbench's plan widget (S3.5b).
  *
  * Membership only signals that the SDK does not auto-approve under any
  * `permissionMode`, ensuring the call always reaches the host.
