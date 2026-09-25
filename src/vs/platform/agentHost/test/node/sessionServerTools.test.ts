@@ -16,6 +16,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -70,8 +71,7 @@ suite('SessionServerTools', () => {
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
-			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
-			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => overrides?.isActiveAgentTitleGenerationEnabled?.() === false ? 'utility' : 'activeAgent'),
+			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
@@ -160,8 +160,8 @@ suite('SessionServerTools', () => {
 		});
 		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.ListSessions)?.inputSchema?.properties?.label, undefined);
 		const renameDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat);
-		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required }], [
-			{ name: SessionServerToolName.RenameChat, required: ['title'] },
+		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required, deferLoading: renameDefinition?.deferLoading }], [
+			{ name: SessionServerToolName.RenameChat, required: ['title'], deferLoading: true },
 		]);
 		assert.deepStrictEqual([renameDefinition?.inputSchema?.properties?.title], [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
@@ -235,8 +235,8 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
-	test('new sessions use the current setting while materialized sessions keep their advertised tools', async () => {
-		let enabled = false;
+	test('new sessions use the current strategy while materialized sessions keep their advertised tools', async () => {
+		let strategy: AutomaticTitleGenerationStrategy = 'utility';
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const disabledSession = 'copilot:/s1';
 		const enabledSession = 'copilot:/s2';
@@ -251,7 +251,7 @@ suite('SessionServerTools', () => {
 			});
 		}
 		const accessor = createAccessor({
-			isActiveAgentTitleGenerationEnabled: () => enabled,
+			getAutomaticTitleGenerationStrategy: () => strategy,
 			listSessions: async () => [
 				sessionMeta('s1', SessionStatus.Idle, workspace),
 				sessionMeta('s2', SessionStatus.Idle, workspace),
@@ -262,7 +262,7 @@ suite('SessionServerTools', () => {
 		]);
 
 		host.advertise(disabledSession);
-		enabled = true;
+		strategy = 'deferred';
 		host.advertise(enabledSession);
 
 		await assert.rejects(
@@ -291,8 +291,8 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
-	test('materialized rename tools remain executable after the root setting is disabled', async () => {
-		let enabled = true;
+	test('materialized rename tools remain executable after the strategy changes', async () => {
+		let strategy: AutomaticTitleGenerationStrategy = 'deferred';
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const session = 'copilot:/s1';
 		stateManager.createSession({
@@ -304,11 +304,11 @@ suite('SessionServerTools', () => {
 			modifiedAt: new Date(0).toISOString(),
 		});
 		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
+			createSessionServerToolGroup(createAccessor({ getAutomaticTitleGenerationStrategy: () => strategy })),
 		]);
 
 		host.advertise(session);
-		enabled = false;
+		strategy = 'utility';
 
 		assert.strictEqual(
 			await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, { title: 'Still enabled' }),
@@ -328,7 +328,6 @@ suite('SessionServerTools', () => {
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			});
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
-				isActiveAgentTitleGenerationEnabled: () => false,
 				getAutomaticTitleGenerationStrategy: () => 'deferred',
 			}))]);
 			host.advertise(session);
@@ -432,7 +431,7 @@ suite('SessionServerTools', () => {
 			execute: () => '',
 		};
 		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => sessionToolsEnabled })),
+			createSessionServerToolGroup(createAccessor({ getAutomaticTitleGenerationStrategy: () => sessionToolsEnabled ? 'deferred' : 'utility' })),
 			dynamicGroup,
 		]);
 
