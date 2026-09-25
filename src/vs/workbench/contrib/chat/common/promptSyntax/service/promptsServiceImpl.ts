@@ -560,7 +560,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// dedup below keeps a deterministic winner (e.g. workspace over personal).
 		const enabledSkills = skills
 			.filter(s => !disabledSkills.has(s.uri))
-			.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
+			.sort((a, b) => this.getPromptPathPriority(a) - this.getPromptPathPriority(b));
 		const slashCommandFiles = [
 			...promptFiles,
 			...enabledSkills,
@@ -768,7 +768,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
-		const files = await Promise.all(allAgentFiles.map(promptPath => this.queueDiscoveryRead(async (): Promise<IAgentDiscoveryResult> => {
+		// Order agents by precedence before parsing so that the duplicate-name
+		// dedup below keeps a deterministic winner (e.g. workspace over plugin).
+		// This avoids showing the same agent twice when it is contributed by
+		// multiple sources, e.g. both a VS Code extension and a Copilot CLI
+		// plugin.
+		const orderedAgentFiles = allAgentFiles.slice().sort((a, b) => this.getPromptPathPriority(a) - this.getPromptPathPriority(b));
+
+		const parseResults = await Promise.all(orderedAgentFiles.map(promptPath => this.queueDiscoveryRead(async (): Promise<IAgentDiscoveryResult> => {
 			const uri = promptPath.uri;
 			const isEnabled = !disabledAgents.has(uri);
 
@@ -817,6 +824,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 				};
 			}
 		})));
+
+		// Deduplicate agents that resolve to the same canonical name. This can
+		// happen when the same agent is contributed by multiple sources, e.g.
+		// a VS Code extension and a Copilot CLI plugin. `parseResults`
+		// preserves input order, so agents are already sorted by precedence;
+		// the first occurrence of a name wins.
+		const seenAgentNames = new Map<string, URI>();
+		const files: IAgentDiscoveryResult[] = [];
+		for (const result of parseResults) {
+			if (result.status === 'loaded' && result.agent) {
+				const name = result.agent.name;
+				const duplicateOf = seenAgentNames.get(name);
+				if (duplicateOf) {
+					this.logger.debug(`[computeAgentDiscoveryInfo] Skipping duplicate agent name: ${name} at ${result.promptPath.uri}`);
+					files.push({ status: 'skipped', skipReason: 'duplicate-name', duplicateOf, promptPath: result.promptPath });
+					continue;
+				}
+				seenAgentNames.set(name, result.promptPath.uri);
+			}
+			files.push(result);
+		}
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
@@ -1469,24 +1497,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Precedence used when deduplicating skills that share the same canonical
-	 * name: workspace > personal > plugin > extension API > extension contribution.
-	 * Lower numbers win.
+	 * Precedence used when deduplicating prompt files that share the same
+	 * canonical name (e.g. skills or agents): workspace > personal > plugin >
+	 * extension API > extension contribution. Lower numbers win.
 	 */
-	private getSkillPriority(skill: IPromptPath): number {
-		if (skill.storage === PromptsStorage.local) {
+	private getPromptPathPriority(promptPath: IPromptPath): number {
+		if (promptPath.storage === PromptsStorage.local) {
 			return 0; // workspace
 		}
-		if (skill.storage === PromptsStorage.user) {
+		if (promptPath.storage === PromptsStorage.user) {
 			return 1; // personal
 		}
-		if (skill.storage === PromptsStorage.plugin) {
+		if (promptPath.storage === PromptsStorage.plugin) {
 			return 2; // plugin
 		}
-		if (skill.source === PromptFileSource.ExtensionAPI) {
+		if (promptPath.source === PromptFileSource.ExtensionAPI) {
 			return 3;
 		}
-		if (skill.source === PromptFileSource.ExtensionContribution) {
+		if (promptPath.source === PromptFileSource.ExtensionContribution) {
 			return 4;
 		}
 		return 5;
@@ -1515,7 +1543,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			allSkills.push(...skillList);
 		}
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
-		allSkills.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
+		allSkills.sort((a, b) => this.getPromptPathPriority(a) - this.getPromptPathPriority(b));
 
 		for (const skill of allSkills) {
 			const uri = skill.uri;
