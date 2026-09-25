@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -99,6 +100,7 @@ function makeAgentSession(opts: {
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
+		changesets: constObservable([]),
 		modelId: observableValue('test.modelId', undefined),
 		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -120,8 +122,6 @@ function makeAgentSession(opts: {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('test.loading', opts.loading ?? false),
@@ -170,6 +170,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
+		changesets: constObservable([]),
 		modelId: observableValue('test.modelId', undefined),
 		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -191,8 +192,6 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('test.loading', false),
@@ -267,6 +266,8 @@ suite('SessionsTerminalContribution', () => {
 
 	let createdTerminals: { cwd: URI }[];
 	let agentHostTerminalAddresses: string[];
+	/** The agent host each agent host terminal runs on, keyed by instance id. */
+	let agentHostTerminalAddressById: Map<number, string>;
 	let terminalCreationBarriers: Map<string, DeferredPromise<void>>;
 	let terminalCreationStarted: string[];
 	let activeInstanceSet: number[];
@@ -291,6 +292,7 @@ suite('SessionsTerminalContribution', () => {
 	setup(() => {
 		createdTerminals = [];
 		agentHostTerminalAddresses = [];
+		agentHostTerminalAddressById = new Map();
 		terminalCreationBarriers = new Map();
 		terminalCreationStarted = [];
 		activeInstanceSet = [];
@@ -409,9 +411,13 @@ suite('SessionsTerminalContribution', () => {
 				}
 				const instance = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
 				agentHostTerminalAddresses.push(address);
+				agentHostTerminalAddressById.set(instance.instanceId, address);
 				createdTerminals.push({ cwd });
 				terminalInstances.set(instance.instanceId, instance);
 				return instance;
+			}
+			override getAgentHostAddress(instance: ITerminalInstance): string | undefined {
+				return agentHostTerminalAddressById.get(instance.instanceId);
 			}
 		});
 
@@ -530,6 +536,7 @@ suite('SessionsTerminalContribution', () => {
 		const session = makeAgentSession({ repository: URI.file('/repo-a'), providerType: AgentSessionProviders.Local });
 		activeSessionObs.set(session, undefined);
 		await tick();
+		addCommandToInstance(terminalInstances.get(1)!, 100);
 
 		const activeChat = session.activeChat.get();
 		const secondWorkspace: ISessionWorkspace = {
@@ -553,9 +560,13 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({
 			createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
 			defaultCwd: defaultCwdCalls.at(-1)?.fsPath,
+			activeInstanceId,
+			backgrounded: [...backgroundedInstances],
 		}, {
 			createdCwds: [URI.file('/repo-a').fsPath, URI.file('/repo-b').fsPath],
 			defaultCwd: URI.file('/repo-b').fsPath,
+			activeInstanceId: 2,
+			backgrounded: [1],
 		});
 	});
 
@@ -2121,6 +2132,50 @@ suite('SessionsTerminalContribution', () => {
 		const result = await contribution.ensureTerminal(worktreeUri, false, session);
 		assert.strictEqual(createdTerminals.length, 2, 'should create a new terminal since the tracked one was disposed');
 		assert.notStrictEqual(result[0].instanceId, instance.instanceId, 'should be a different terminal');
+	});
+
+	test('does not adopt a same-cwd terminal of another Agent Host', async () => {
+		const cwd = URI.file('/worktree');
+		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
+		const otherHostTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(otherHostTerminal.instanceId, otherHostTerminal);
+		agentHostTerminalAddressById.set(otherHostTerminal.instanceId, 'ssh-remote+two');
+		const session = makeAgentSession({ sessionId: 'test:host-one', providerId: 'agenthost-one', worktree: cwd, providerType: AgentSessionProviders.Background });
+
+		const terminals = await contribution.ensureTerminal(cwd, false, session);
+
+		assert.deepStrictEqual({
+			terminals: terminals.map(terminal => terminal.instanceId),
+			agentHostAddresses: agentHostTerminalAddresses,
+		}, {
+			terminals: [otherHostTerminal.instanceId + 1],
+			agentHostAddresses: ['ssh-remote+one'],
+		});
+	});
+
+	test('shows a local task terminal of a local Agent Host session after switching back to it', async () => {
+		const cwd = URI.file('/worktree');
+		const otherCwd = URI.file('/other-worktree');
+		sessionProviders.set(LOCAL_AGENT_HOST_PROVIDER_ID, { id: LOCAL_AGENT_HOST_PROVIDER_ID } as unknown as ISessionsProvider);
+		const session = makeAgentSession({ sessionId: 'test:local-host', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, worktree: cwd, providerType: AgentSessionProviders.Background });
+		const otherSession = makeAgentSession({ sessionId: 'test:other', worktree: otherCwd, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+		// A task terminal runs locally, in the session's folder, untracked by this contribution.
+		const taskTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(taskTerminal.instanceId, taskTerminal);
+
+		activeSessionObs.set(otherSession, undefined);
+		await tick();
+		const hiddenWhileAway = backgroundedInstances.has(taskTerminal.instanceId);
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.deepStrictEqual({ agentHostAddresses: agentHostTerminalAddresses, hiddenWhileAway, visibleAfterReturn: !backgroundedInstances.has(taskTerminal.instanceId) }, {
+			agentHostAddresses: ['__local__'],
+			hiddenWhileAway: true,
+			visibleAfterReturn: true,
+		});
 	});
 
 	test('untracked restored terminals are visible alongside tracked terminals for the same session', async () => {

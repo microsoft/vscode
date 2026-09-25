@@ -10,6 +10,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -38,6 +39,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** UI-only response observation, forwarded to the chat service rather than the backend. */
+	readonly onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'];
 	/** The query text to send. */
 	readonly query: string;
 	/** Provider-specific request metadata, separate from the prompt. */
@@ -54,6 +57,10 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Initial model identifier selected for the draft. */
+	readonly modelId?: string;
+	/** Model-specific primitive values applied only to this draft. */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -239,6 +246,8 @@ export interface ISessionsProvider {
 
 	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether model-specific configuration can be scoped to a newly created draft. */
+	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -353,6 +362,12 @@ export interface ISessionsProvider {
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
+	 * Get selectable models before creating a session.
+	 * Providers apply the same availability, visibility, and identifier-resolution rules as {@link getModelsSnapshot}.
+	 */
+	getModelsSnapshotForCreation?(workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
+
+	/**
 	 * Get the presentation options for the sessions-core model picker for the
 	 * given session. The provider — not the core picker — decides how its models
 	 * are presented (grouping, featured models, whether the manage-models action
@@ -436,11 +451,20 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/** Permanently imports an external session without sending a message or changing its identity. */
+	importSession?(sessionId: string): Promise<void>;
+
 	/**
 	 * Unarchive a session.
 	 * @param sessionId The ID of the session to unarchive.
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat?(sessionId: string, chatResource: URI): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat?(sessionId: string, chatResource: URI): Promise<void>;
 
 	/**
 	 * Set the read/unread state of a session. The provider owns and persists

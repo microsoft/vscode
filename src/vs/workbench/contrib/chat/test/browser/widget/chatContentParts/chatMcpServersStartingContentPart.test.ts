@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -25,7 +27,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
-	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true) {
+	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true, onDidRemoveFocusedAction?: () => void) {
 		const servers$ = observableValue<readonly IChatMcpStartingServer[]>('servers', servers);
 		const data: IChatMcpServersStartingSlow = {
 			kind: 'mcpServersStartingSlow',
@@ -44,9 +46,64 @@ suite('ChatMcpServersStartingContentPart', () => {
 			createSpinner,
 			showSpinner,
 			onDidFinishStarting: () => finishedCount++,
+			onDidRemoveFocusedAction,
 		}));
 		return { part, servers$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
 	}
+
+	function attach(element: HTMLElement): void {
+		document.body.appendChild(element);
+		disposables.add(toDisposable(() => element.remove()));
+	}
+
+	test('preserves Skip focus when remaining servers still block startup', () => {
+		const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+		const { part, servers$ } = createPart([server, { ...server, id: 'b', name: 'beta' }]);
+		attach(part.domNode);
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		assert.ok(link);
+		link.focus();
+
+		servers$.set([server], undefined);
+
+		assert.strictEqual(document.activeElement, part.domNode.querySelector('a[data-href="#skip"]'));
+	});
+
+	for (const allFinished of [false, true]) {
+		test(`returns focus to the input when ${allFinished ? 'all servers finish' : 'startup is no longer blocking'}`, () => {
+			const input = document.createElement('input');
+			attach(input);
+			let fallbackCount = 0;
+			const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+			const { part, servers$ } = createPart([server], true, () => {
+				fallbackCount++;
+				input.focus();
+			});
+			attach(part.domNode);
+			const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+			assert.ok(link);
+			link.focus();
+
+			servers$.set(allFinished ? [] : [{ ...server, blocking: false }], undefined);
+
+			assert.deepStrictEqual({ inputFocused: document.activeElement === input, fallbackCount }, { inputFocused: true, fallbackCount: 1 });
+		});
+	}
+
+	test('does not move focus from outside the part when servers change or finish', () => {
+		const input = document.createElement('input');
+		attach(input);
+		let fallbackCount = 0;
+		const server = { id: 'a', name: 'alpha', blocking: true, background: async () => { } };
+		const { part, servers$ } = createPart([server], true, () => fallbackCount++);
+		attach(part.domNode);
+		input.focus();
+
+		servers$.set([{ ...server, name: 'beta' }], undefined);
+		servers$.set([], undefined);
+
+		assert.deepStrictEqual({ inputFocused: document.activeElement === input, fallbackCount }, { inputFocused: true, fallbackCount: 0 });
+	});
 
 	test('reflects the starting servers and hides when empty as the observable updates', () => {
 		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }]);
@@ -79,6 +136,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 		const initial = {
 			text: part.domNode.textContent,
 			hasPixelSpinner: !!part.domNode.querySelector('.monaco-pixel-spinner'),
+			hasSkipLink: !!part.domNode.querySelector('a[data-href="#skip"]'),
 		};
 		servers$.set([{ id: 'b', name: 'beta' }], undefined);
 		const updatedText = part.domNode.textContent;
@@ -90,12 +148,219 @@ suite('ChatMcpServersStartingContentPart', () => {
 			disposedSpinners: getDisposedSpinners(),
 			finishedCount: getFinishedCount(),
 		}, {
-			initial: { text: 'Starting MCP servers alpha...', hasPixelSpinner: false },
+			initial: { text: 'Starting MCP servers alpha...', hasPixelSpinner: false, hasSkipLink: false },
 			updatedText: 'Starting MCP servers beta...',
 			hidden: true,
 			disposedSpinners: 0,
 			finishedCount: 1,
 		});
+	});
+
+	test('reflects a blocking server becoming nonblocking', () => {
+		const { part, servers$ } = createPart([{
+			id: 'a',
+			name: 'alpha',
+			blocking: true,
+			background: async () => { },
+		}]);
+
+		const initial = {
+			text: part.domNode.textContent,
+			hasSkipLink: !!part.domNode.querySelector('a[data-href="#skip"]'),
+		};
+		servers$.set([{ id: 'a', name: 'alpha', blocking: false }], undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			updated: {
+				text: part.domNode.textContent,
+				hasSkipLink: !!part.domNode.querySelector('a[data-href="#skip"]'),
+			},
+		}, {
+			initial: { text: 'Waiting for MCP servers alpha... Skip', hasSkipLink: true },
+			updated: { text: 'Starting MCP servers alpha...', hasSkipLink: false },
+		});
+	});
+
+	test('offers to continue all blocking server startups in the background', async () => {
+		const requests: string[] = [];
+		const { part } = createPart([
+			{
+				id: 'a',
+				name: 'alpha',
+				blocking: true,
+				background: async () => {
+					requests.push('alpha');
+				},
+			},
+			{
+				id: 'b',
+				name: 'beta',
+				blocking: true,
+				background: async () => {
+					requests.push('beta');
+				},
+			},
+			{
+				id: 'c',
+				name: 'gamma',
+				blocking: false,
+				background: async () => {
+					requests.push('gamma');
+				},
+			},
+		]);
+
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		link?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			text: part.domNode.textContent,
+			hidden: part.domNode.style.display === 'none',
+			requests,
+		}, {
+			text: '',
+			hidden: true,
+			requests: ['alpha', 'beta'],
+		});
+	});
+
+	test('Skip immediately hides existing startups and restores focus while allowing new startups', async () => {
+		const accepted = new DeferredPromise<void>();
+		const input = document.createElement('input');
+		attach(input);
+		const alpha = { id: 'a', name: 'alpha', blocking: true, background: () => accepted.p };
+		const beta = { id: 'b', name: 'beta', blocking: false };
+		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([alpha, beta], true, () => input.focus());
+		attach(part.domNode);
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')!;
+		link.focus();
+		link.click();
+
+		const immediate = {
+			hidden: part.domNode.style.display === 'none',
+			text: part.domNode.textContent,
+			inputFocused: document.activeElement === input,
+			disposedSpinners: getDisposedSpinners(),
+			finishedCount: getFinishedCount(),
+		};
+		servers$.set([{ ...alpha, blocking: false }, beta], undefined);
+		const afterStateChange = part.domNode.textContent;
+		servers$.set([alpha, beta, { id: 'c', name: 'gamma' }], undefined);
+		const withNewServer = part.domNode.textContent;
+		await accepted.complete();
+		await timeout(0);
+		const afterSkipCompletes = part.domNode.textContent;
+		servers$.set([beta], undefined);
+		servers$.set([alpha, beta], undefined);
+		const afterRestart = part.domNode.textContent;
+
+		assert.deepStrictEqual({ immediate, afterStateChange, withNewServer, afterSkipCompletes, afterRestart }, {
+			immediate: { hidden: true, text: '', inputFocused: true, disposedSpinners: 1, finishedCount: 1 },
+			afterStateChange: '',
+			withNewServer: 'Starting MCP servers gamma...',
+			afterSkipCompletes: 'Starting MCP servers gamma...',
+			afterRestart: 'Waiting for MCP servers alpha... Skip',
+		});
+	});
+
+	test('reports background failures and keeps the action retryable', async () => {
+		const reported: unknown[] = [];
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error));
+		try {
+			let requests = 0;
+			const { part } = createPart([{
+				id: 'a',
+				name: 'alpha',
+				blocking: true,
+				background: async () => {
+					requests++;
+					throw new Error('background failed');
+				},
+			}]);
+
+			const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+			link?.click();
+			await timeout(0);
+			part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')?.click();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requests,
+				reported: reported.map(error => (error as Error).message),
+			}, {
+				requests: 2,
+				reported: ['background failed', 'background failed'],
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
+
+	test('supports keyboard activation without duplicate requests while skipping', async () => {
+		const accepted = new DeferredPromise<void>();
+		let requests = 0;
+		const { part } = createPart([{
+			id: 'a',
+			name: 'alpha',
+			blocking: true,
+			background: async () => {
+				requests++;
+				await accepted.p;
+			},
+		}]);
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		link?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+		await timeout(0);
+		await accepted.complete();
+
+		assert.deepStrictEqual({ requests, tabIndex: link?.tabIndex, text: link?.textContent }, { requests: 1, tabIndex: 0, text: 'Skip' });
+	});
+
+	test('shows blocked loading without an unavailable background action', () => {
+		const { part } = createPart([{ id: 'a', name: 'alpha', blocking: true }]);
+
+		assert.deepStrictEqual({
+			text: part.domNode.textContent,
+			hasSkipLink: !!part.domNode.querySelector('a[data-href="#skip"]'),
+		}, {
+			text: 'Waiting for MCP servers alpha...',
+			hasSkipLink: false,
+		});
+	});
+
+	test('disposes controls from the previous render', async () => {
+		let staleRequests = 0;
+		let currentRequests = 0;
+		const { part, servers$ } = createPart([{
+			id: 'a',
+			name: 'alpha',
+			blocking: true,
+			background: async () => {
+				staleRequests++;
+			},
+		}]);
+
+		const staleLink = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		servers$.set([{
+			id: 'b',
+			name: 'beta',
+			blocking: true,
+			background: async () => {
+				currentRequests++;
+			},
+		}], undefined);
+		const staleClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+		// The disposed link has no handler to prevent native navigation to the test runner.
+		staleClick.preventDefault();
+		staleLink?.dispatchEvent(staleClick);
+		part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ staleRequests, currentRequests }, { staleRequests: 0, currentRequests: 1 });
 	});
 
 	test('hasSameContent matches only the same kind', () => {

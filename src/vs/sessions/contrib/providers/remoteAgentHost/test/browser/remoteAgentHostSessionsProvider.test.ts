@@ -14,19 +14,20 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationType, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,13 +39,13 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -55,7 +56,7 @@ import { IAgentHostActiveClientService } from '../../../../../../workbench/contr
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -117,9 +118,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	public createdSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto');
 		this.createdSessionUris.push(uri);
+		this.createdSessionConfigs.push(config);
 		return uri;
 	}
 
@@ -129,6 +132,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 			throw new Error('resolveSessionConfig unavailable');
 		}
 		return this.resolveSessionConfigResult;
+	}
+
+	override async sessionConfigCompletions() {
+		return { items: [] };
 	}
 
 	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -146,9 +153,9 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 	// ---- Session-state subscriptions ---------------------------------------
 
-	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState | AutomationState>>();
+	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState | AutomationState | ChatState | ChangesetState>>();
 	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
-	private readonly _sessionStateValues = new Map<string, SessionState | AutomationState>();
+	private readonly _sessionStateValues = new Map<string, SessionState | AutomationState | ChatState | ChangesetState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 	/**
@@ -169,7 +176,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
-			emitter = new Emitter<SessionState | AutomationState>();
+			emitter = new Emitter<SessionState | AutomationState | ChatState | ChangesetState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
 		let errorEmitter = this._sessionStateErrorEmitters.get(key);
@@ -204,7 +211,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	setSessionState(rawId: string, provider: string, state: SessionState): void {
-		const key = AgentSession.uri(provider, rawId).toString();
+		this.setChannelState(AgentSession.uri(provider, rawId), state);
+	}
+
+	setChannelState(resource: URI, state: SessionState | ChatState | ChangesetState): void {
+		const key = resource.toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
 	}
@@ -252,7 +263,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -306,7 +317,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
+		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -331,6 +342,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
+		devContainerSourceWorkspaceUri: overrides?.devContainerSourceWorkspace,
 		resolveDevContainerWorktreeConnection: overrides?.resolveDevContainerWorktreeConnection,
 		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
 	};
@@ -488,6 +500,154 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			},
 		}]);
 	});
+
+	test('restores and streams advertised chat changes across connection and session switches', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('changes', {
+			provider: 'ahp-session',
+			workingDirectory: toAgentHostUri(URI.file('/repo'), agentHostAuthority('localhost:4321')),
+		});
+		const backendChat = URI.parse('ahp-chat:/primary');
+		const sessionChangesUri = URI.parse('ahp-changeset:/all-edits');
+		const turnChangesUri = (id: string) => URI.parse(`ahp-changeset:/turn-edits/${id}`);
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const provider = createProvider(disposables, connection, {
+			noConnection: true,
+			activeSession,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+		});
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get();
+		const active = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		activeSession.set(active, undefined);
+
+		const describeFiles = (changes: readonly ISessionFileChange[]) => changes.map(change => ({
+			path: isIChatSessionFileChange2(change) ? change.uri.path : change.modifiedUri.path,
+			added: change.insertions,
+			removed: change.deletions,
+		}));
+		const readChanges = () => {
+			const changesets = chat.changesets.get();
+			return {
+				selected: changesets?.find(changeset => changeset.isDefault.get())?.id,
+				files: describeFiles(chat.changes.get()),
+				turnFiles: describeFiles(changesets?.find(changeset => changeset.id === ChangesetKind.Turn)?.changes.get() ?? []),
+			};
+		};
+		disposables.add(autorun(reader => {
+			chat.changes.read(reader);
+			chat.changesets.read(reader)?.find(changeset => changeset.id === ChangesetKind.Turn)?.changes.read(reader);
+		}));
+		const beforeConnection = readChanges();
+		const file = (name: string, added: number): ChangesetFile => ({
+			id: name,
+			edit: {
+				after: { uri: `file:///repo/${name}`, content: { uri: `file:///repo/${name}` } },
+				diff: { added, removed: 0 },
+			},
+		});
+		const previousFile = file('previous.ts', 2);
+		const editedFile = file('hello-world.html', 36);
+		const liveFile = file('live.ts', 3);
+		const chatState: ChatState = {
+			...createChatState({ resource: backendChat.toString(), title: 'Chat', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }),
+			turns: [{ id: 't1', state: TurnState.Complete, message: { text: 'Edit', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+		};
+		const sessionState: SessionState = {
+			provider: 'copilot',
+			title: 'Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			workingDirectories: ['file:///repo'],
+			activeClients: [],
+			chats: [chatState],
+			defaultChat: backendChat.toString(),
+			changesets: [
+				{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: sessionChangesUri.toString() },
+				{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'ahp-changeset:/branch' },
+				{ label: 'Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'ahp-changeset:/turn-edits/{turnId}' },
+			],
+		};
+		connection.addSession(metadata);
+		connection.setChannelState(metadata.session, sessionState);
+		connection.setChannelState(backendChat, chatState);
+		connection.setChannelState(sessionChangesUri, { status: ChangesetStatus.Ready, files: [previousFile, editedFile] });
+		connection.setChannelState(turnChangesUri('t1'), { status: ChangesetStatus.Ready, files: [editedFile] });
+		provider.setConnection(connection);
+		await timeout(0);
+		const restored = readChanges();
+
+		const liveChat: ChatState = {
+			...chatState,
+			activeTurn: {
+				id: 't2',
+				startedAt: new Date(0).toISOString(),
+				message: { text: 'Another edit', origin: { kind: MessageKind.User } },
+				usage: undefined,
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'edit',
+						toolName: 'edit_file',
+						displayName: 'Edit File',
+						invocationMessage: 'Editing',
+						pastTenseMessage: 'Edited',
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						success: true,
+						content: [{ type: ToolResultContentType.FileEdit, ...liveFile.edit }],
+					},
+				}],
+			},
+		};
+		connection.setChannelState(backendChat, liveChat);
+		const streaming = readChanges();
+		const completedChat: ChatState = {
+			...chatState,
+			turns: [...chatState.turns, { ...liveChat.activeTurn!, state: TurnState.Complete }],
+		};
+		connection.setChannelState(backendChat, completedChat);
+		connection.setChannelState(sessionChangesUri, { status: ChangesetStatus.Ready, files: [previousFile, editedFile, liveFile] });
+		connection.setChannelState(turnChangesUri('t2'), { status: ChangesetStatus.Ready, files: [liveFile] });
+		const completed = readChanges();
+		activeSession.set(undefined, undefined);
+		activeSession.set(active, undefined);
+		const reopened = readChanges();
+
+		provider.clearConnection();
+		const released = [backendChat, sessionChangesUri, turnChangesUri('t2')].every(resource =>
+			connection.sessionSubscribeCounts.get(resource.toString()) === connection.sessionUnsubscribeCounts.get(resource.toString()));
+		const replacement = new MockAgentConnection();
+		disposables.add(toDisposable(() => replacement.dispose()));
+		replacement.addSession(metadata);
+		replacement.setChannelState(metadata.session, sessionState);
+		replacement.setChannelState(backendChat, completedChat);
+		replacement.setChannelState(sessionChangesUri, { status: ChangesetStatus.Ready, files: [editedFile, liveFile] });
+		replacement.setChannelState(turnChangesUri('t2'), { status: ChangesetStatus.Ready, files: [liveFile] });
+		provider.setConnection(replacement);
+		await timeout(0);
+		connection.setChannelState(sessionChangesUri, { status: ChangesetStatus.Ready, files: [] });
+
+		const previous = { path: '/repo/previous.ts', added: 2, removed: 0 };
+		const edited = { path: '/repo/hello-world.html', added: 36, removed: 0 };
+		const live = { path: '/repo/live.ts', added: 3, removed: 0 };
+		const expectedCompleted = { selected: 'session', files: [previous, edited, live], turnFiles: [live] };
+		assert.deepStrictEqual({
+			beforeConnection, restored, streaming, completed, reopened, released,
+			reconnected: readChanges(),
+			inventedChatSubscriptions: connection.sessionSubscribeCounts.get(buildDefaultChatUri(metadata.session)) ?? 0,
+		}, {
+			beforeConnection: { selected: undefined, files: [], turnFiles: [] },
+			restored: { selected: 'session', files: [previous, edited], turnFiles: [edited] },
+			streaming: expectedCompleted,
+			completed: expectedCompleted,
+			reopened: expectedCompleted,
+			released: true,
+			reconnected: { selected: 'session', files: [edited, live], turnFiles: [live] },
+			inventedChatSubscriptions: 0,
+		});
+	}));
 
 	test('session types update when the host advertises additional agents', () => {
 		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
@@ -905,6 +1065,22 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session lifecycle -------
 
+	test('advertises workspace-less creation and sends its origin to the remote host without a working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection);
+		provider.setAuthenticationPending(false);
+		const origin = { session: 'agent-host-copilotcli:/parent', chat: 'agent-host-copilotcli:/parent#peer', depth: 1 };
+		const session = provider.createQuickChat(provider.sessionTypes[0].id, { metadata: withRemoteSessionOrigin(undefined, origin) });
+		await timeout(0);
+		assert.deepStrictEqual({
+			supported: provider.supportsQuickChats,
+			quickChat: session.isQuickChat?.get(),
+			workspace: session.workspace.get(),
+			createdCount: connection.createdSessionConfigs.length,
+			directories: connection.createdSessionConfigs[0]?.workingDirectories,
+			origin: readRemoteSessionOrigin(connection.createdSessionConfigs[0]),
+		}, { supported: true, quickChat: true, workspace: undefined, createdCount: 1, directories: undefined, origin });
+	}));
+
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
@@ -1115,7 +1291,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider.setAgent(draft.sessionId, { uri: 'file:///project/.github/agents/reviewer.agent.md', name: 'Reviewer' });
 			const replacement: ISession = { ...draft, sessionId: 'container:replacement', providerId: targetProvider.id };
 			const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
-			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container...');
+			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container');
 			const prepared = await provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it');
 			request.dispose();
 			provider.deleteNewSession(draft.sessionId);
@@ -1821,11 +1997,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 				if (options) {
 					sendOptions.push(options);
 				}
-				connection.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+				connection.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -2161,7 +2337,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
+		// A failed pre-creation subscribe must remain retryable so later session state can arrive.
 		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
@@ -2180,7 +2356,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' }],
 		} as unknown as SessionState);
 		provider.getSessionByResource(session.resource);
 		await timeout(0);
@@ -2188,45 +2363,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			afterFailedSubscribe,
 			afterRetry: connection.sessionSubscribeCounts.get(backendUri),
-			changesets: provider.getSessions()[0].changesets.get()?.map(c => c.id),
 		}, {
 			afterFailedSubscribe: 1,
 			afterRetry: 2,
-			changesets: ['branch'],
-		});
-	}));
-
-	test('a configured defaultChangesetKind reaches the session adapter', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const gitBackedCatalogue = [
-			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: 'session' },
-			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' },
-		];
-		const defaultChangesetIds = async (defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']) => {
-			const localConnection = disposables.add(new MockAgentConnection());
-			localConnection.addSession(createSession('changeset-default-1', { summary: 'Changeset default' }));
-			const provider = createProvider(disposables, localConnection, { defaultChangesetKind });
-			provider.getSessions();
-			await timeout(0);
-			localConnection.setSessionState('changeset-default-1', 'copilotcli', {
-				provider: 'copilotcli', title: 'Changeset default', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready,
-				activeClients: [],
-				chats: [],
-				changesets: gitBackedCatalogue,
-			} as unknown as SessionState);
-			const session = provider.getSessions()[0];
-			provider.getSessionByResource(session.resource);
-			await timeout(0);
-			return provider.getSessions()[0].changesets.get()
-				?.map(c => `${c.id}${c.isDefault.get() ? '*' : ''}`);
-		};
-
-		assert.deepStrictEqual({
-			configured: await defaultChangesetIds(ChangesetKind.Session),
-			unconfigured: await defaultChangesetIds(),
-		}, {
-			configured: ['session*', 'branch'],
-			unconfigured: ['session', 'branch*'],
 		});
 	}));
 
@@ -2296,6 +2435,21 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			browsed: 'project',
 		});
 	}));
+
+	test('container source workspace is retained without a connection', () => {
+		const source = toAgentHostUri(URI.file('/project'), agentHostAuthority('wsl:Ubuntu'));
+		const provider = createProvider(disposables, connection, { noConnection: true, devContainerSourceWorkspace: source });
+		const before = provider.devContainerSourceWorkspace;
+		provider.setConnection(connection);
+		provider.clearConnection();
+		assert.deepStrictEqual({
+			before: before?.toString(),
+			after: provider.devContainerSourceWorkspace?.toString(),
+		}, {
+			before: source.toString(),
+			after: source.toString(),
+		});
+	});
 
 	test('workspaceTypeIcon reaches the built workspace, and is absent by default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('sandbox-icon', {

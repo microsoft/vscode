@@ -33,7 +33,7 @@ import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../../contrib/chat/browser/actions/chatToolActions.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { IChatProgress, IChatSubagentToolInvocationData, IChatToolInvocation } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatModel, ChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -57,6 +57,7 @@ interface Scenario {
 	readonly narrow?: boolean;
 	readonly confirmations?: boolean;
 	readonly sectionTail?: 'subagents' | 'thinking' | 'tool';
+	readonly persistentProgress?: ChatProgressAnimation;
 }
 
 interface Child {
@@ -88,18 +89,21 @@ const scenarios: Record<string, Scenario> = {
 	ChildStartsAfterParentComplete: { phase: 'lateStart', description: 'The child starts after the parent finished. Its pill is appended after the original answer, not into the newer response below it.' },
 	LateSubagentClassification: { phase: 'lateClassification', description: 'A completed generic task is identified as a running background agent after the parent finishes. It becomes a rich pill at its original position, before the final answer.' },
 	ChildCompletesAfterParent: { phase: 'childComplete', description: 'The child completes after its parent. The existing pill settles in place and completed earlier work can fold again.' },
-	RetainedFollowUpFullConversation: { phase: 'followUp', description: 'Log-derived case: a later write_agent sends a follow-up to an older, already-running background worker. Its original pill is active above; the newest parent response still says Working. No new child turn starts.' },
-	RetainedFollowUpLatestTurn: { phase: 'followUp', latestTurnOnly: true, description: 'Known visibility gap from the supplied logs: this viewport shows the latest turn, while the active worker pill belongs to an earlier response. Use Show Original Agent to find it.' },
-	ResumedIdleBackgroundAgent: { phase: 'resumedFollowUp', description: 'A different case: the older background worker completed before the follow-up. Resuming it reactivates its original pill, without adding a launch to the latest parent response.' },
+	RetainedFollowUpFullConversation: { phase: 'followUp', description: 'Log-derived case: a later write_agent sends a follow-up to an older, already-running background worker. Its original pill is active above, and the newest parent response reports that it is waiting for the retained subagent. No new child turn starts.' },
+	RetainedFollowUpLatestTurn: { phase: 'followUp', latestTurnOnly: true, description: 'This viewport shows only the latest turn while the active worker pill belongs to an earlier response. Persistent progress still reports that the parent is waiting for the retained subagent.' },
+	ResumedIdleBackgroundAgent: { phase: 'resumedFollowUp', description: 'The older background worker completed before the follow-up. Resuming it reactivates its original pill and the latest parent response reports the retained wait, without adding a launch to that response.' },
 	OffscreenSubagentApprovals: { phase: 'resumedFollowUp', latestTurnOnly: true, confirmations: true, description: 'Request approvals from two retained agents while their original launch response is virtualized away. The real input carousel must expose both commands; Allow or the Accept/Skip commands act only on the selected mock agent.' },
 	BackgroundCompletionNotification: { phase: 'notified', description: 'The retained worker finishes while the latest parent is waiting. The old pill settles, and the current response receives the background-completion notice.' },
 	CompletionWakesIdleParent: { phase: 'idleNotice', description: 'A background-completion notification starts a new system-initiated turn. The old parent response remains complete; it is not reopened.' },
 	BackgroundFailureNotification: { phase: 'failed', description: 'A failed background task stops running and its failure notice appears in a new system-initiated turn. The original child pill is retained.' },
 	NestedBackgroundRunning: { phase: 'nested', description: 'A direct child finishes while its nested background worker continues. The containing root card must not be folded into completed steps.' },
 	ParallelBackgroundAgents: { phase: 'parallel', description: 'Two background workers are active with different tasks. A third is queued and does not reserve an earlier empty slot.' },
-	CompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', description: 'Four subagents remain working after the parent finishes its section. Their pills are the last visible content, so there is no redundant Working shimmer below them.' },
-	CompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', description: 'The parent finishes a thinking section after four subagent pills. Thinking is no longer active, and the ordinary Working shimmer appears below the intervening content.' },
-	CompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', description: 'A completed Read agent row displays a canonical agent name (the label is supplied by the agent host, not resolved here). Its tool section finishes, and ordinary Working shimmer remains because the last visible content is not a subagent pill.' },
+	CompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, four subagents remain working after the parent finishes its section. Their pills are the last visible content, so there is no redundant Working shimmer below them.' },
+	CompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, the parent finishes a thinking section after four subagent pills. Thinking is no longer active, and the ordinary Working shimmer appears below the intervening content.' },
+	CompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, a completed Read agent row displays a canonical agent name supplied by the agent host. Its tool section finishes, and ordinary Working shimmer remains because the last visible content is not a subagent pill.' },
+	PersistentCompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps four active subagent pills after the finished parent section, followed by one persistent footer saying Waiting for 4 subagents.' },
+	PersistentCompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the finished parent reasoning inactive after four active subagent pills, with one persistent footer saying Waiting for 4 subagents.' },
+	PersistentCompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the completed Read agent row after four active subagent pills, with one persistent footer saying Waiting for 4 subagents.' },
 	UnknownModel: { phase: 'running', model: 'unknown', description: 'The child is known to be running, but its model is not known yet. Do not invent a model name.' },
 	LateModelDiscovery: { phase: 'running', model: 'late', description: 'The worker starts without model metadata. Show Model publishes its identity while it is still running; the existing pill must update without waiting for completion.' },
 	MatchingParentModel: { phase: 'running', model: 'same', description: 'The child and parent have the same canonical model. The redundant inline model label is hidden.' },
@@ -114,6 +118,7 @@ const scenarios: Record<string, Scenario> = {
 async function renderLifecycle(context: ComponentFixtureContext, name: string, scenario: Scenario): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = scenario.narrow ? 380 : 760;
+	const persistentProgress = scenario.persistentProgress ?? ChatProgressAnimation.Draw;
 	const isFollowUp = scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp' || scenario.phase === 'notified';
 	const height = scenario.sectionTail ? 640 : scenario.confirmations ? 620 : scenario.latestTurnOnly ? 280 : isFollowUp ? 760 : 500;
 	container.style.width = `${width}px`;
@@ -151,6 +156,8 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget({ ...context, container: preview }, {
 		messages: [],
+		persistentProgress,
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		agentHostSession: true,
 		inputVisible: scenario.confirmations === true,
 		width,
@@ -713,19 +720,40 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	}
 	if ((scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp') && !scenario.confirmations) {
 		const latestResponse = preview.querySelector('.chat-most-recent-response');
-		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || latestResponse?.querySelector('.shimmer-progress')?.textContent !== 'Working') {
-			throw new Error(`${name}: the latest turn must expose the current generic Working visibility gap`);
+		const progress = latestResponse?.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || progress !== 'Waiting for 1 subagent') {
+			throw new Error(`${name}: the latest turn must report the retained subagent wait, got ${JSON.stringify(progress)}`);
 		}
 	}
 	if (scenario.confirmations && preview.querySelector('.chat-subagent-pill-widget')) {
 		throw new Error(`${name}: approval scenario must start with the original agent response virtualized away`);
 	}
 	if (scenario.sectionTail) {
-		const shimmer = preview.querySelector('.chat-most-recent-response .shimmer-progress')?.textContent;
-		if (shimmer !== (scenario.sectionTail === 'subagents' ? undefined : 'Working') || preview.querySelector('.chat-thinking-active:not(.chat-subagent-part)')) {
-			throw new Error(`${name}: finished sections must leave Working shimmer only after non-subagent content`);
+		const response = preview.querySelector('.chat-most-recent-response');
+		if (!response || response.querySelector('.chat-thinking-active:not(.chat-subagent-part)')) {
+			throw new Error(`${name}: finished parent sections must no longer be active`);
 		}
-		if (preview.querySelectorAll('.chat-subagent-pill-widget').length !== 4 || [...children.values()].some(child => !child.data.isActive)) {
+		const shimmers = [...response.querySelectorAll('.shimmer-progress')].map(element => element.textContent?.replace(/\u00a0/g, ' '));
+		const expectedShimmers = persistentProgress === ChatProgressAnimation.Off
+			? scenario.sectionTail === 'subagents' ? [] : ['Working']
+			: ['Waiting for 4 subagents'];
+		if (shimmers.length !== expectedShimmers.length || shimmers.some((text, index) => text !== expectedShimmers[index])) {
+			throw new Error(`${name}: expected progress labels ${JSON.stringify(expectedShimmers)}, got ${JSON.stringify(shimmers)}`);
+		}
+		if (persistentProgress === ChatProgressAnimation.Off) {
+			if (response.querySelector('.chat-working-progress')) {
+				throw new Error(`${name}: Off must not render a persistent footer`);
+			}
+		} else {
+			const footer = response.querySelector(':scope > .value > .chat-working-progress');
+			if (!footer || response.querySelectorAll('.chat-working-progress').length !== 1
+				|| footer.parentElement?.lastElementChild !== footer
+				|| !footer.querySelector('.chat-working-logo[data-animation="draw"]')) {
+				throw new Error(`${name}: Draw must render exactly one persistent footer after the parent content`);
+			}
+		}
+		const pills = [...response.querySelectorAll('.chat-subagent-pill-widget')];
+		if (pills.length !== 4 || pills.some(pill => pill.getBoundingClientRect().height === 0) || [...children.values()].some(child => !child.data.isActive)) {
 			throw new Error(`${name}: all four subagent pills must remain visible and active`);
 		}
 	}

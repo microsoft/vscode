@@ -15,7 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
@@ -23,7 +24,9 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -31,7 +34,8 @@ import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -62,11 +66,6 @@ suite('Sessions - Chat View', () => {
 			results: ['notReady', 'notReady', 'applied'],
 			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
 		});
-	});
-
-	test('reserves the expanded context usage widget width from long requests', () => {
-		const expandedContextUsageWidth = 14 + 6 + 4 + 44;
-		assert.ok(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE >= expandedContextUsageWidth);
 	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
@@ -134,6 +133,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_preparationModel: { value: undefined },
 			_loadChat: (chatResource: URI) => loads.push(chatResource),
 		}) as {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
@@ -150,16 +150,26 @@ suite('Sessions - Chat View', () => {
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
+		const maximumWidths: number[] = [];
+		let layouts = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_isPrimaryObs: observableValue(disposables, true),
+			_isSplit: false,
 			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
 			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
+			_widget: { setMaximumWidth: (value: number) => maximumWidths.push(value) },
+			_layoutChatWidget: () => layouts++,
 		}) as ChatView;
 
-		view.setPrimary(false);
-		view.setPrimary(true);
+		view.setPrimary(false, true);
+		view.setPrimary(true, true);
+		view.setPrimary(true, false);
 
-		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+		assert.deepStrictEqual({ bannerSessions, maximumWidths, layouts }, {
+			bannerSessions: [undefined, session],
+			maximumWidths: [Number.POSITIVE_INFINITY, AGENTS_CENTERED_CONTENT_MAX_WIDTH],
+			layouts: 2,
+		});
 	});
 
 	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
@@ -1461,12 +1471,16 @@ suite('Sessions - Chat View', () => {
 		combinedSecondaryAction.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const newSessionView = dom.append(part, dom.$('.session-view'));
+		// The default dark themes make the secondary button background fully transparent.
+		newSessionView.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0)');
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
-		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view-new'));
+		// Unlike the session chat, the new-session view has no chat list to set `--vscode-chat-list-background`.
+		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view.chat-view-new'));
 		const productionNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget'));
 		const productionNewChatContainer = dom.append(productionNewChatWidget, dom.$('.new-chat-widget-container'));
 		const productionBottomContainer = dom.append(productionNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
+		const productionCombinedBottomAction = dom.append(dom.append(productionBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -1514,6 +1528,7 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBackgroundImage: productionBottomActionStyle.backgroundImage,
 			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
 			productionBottomActionForeground: productionBottomActionStyle.color,
+			productionCombinedBottomActionBackgroundColor: dom.getWindow(productionCombinedBottomAction).getComputedStyle(productionCombinedBottomAction).backgroundColor,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
@@ -1541,9 +1556,10 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
 			productionBottomActionBackgroundColor: 'rgb(255, 255, 255)',
-			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
+			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionBottomActionBorderColor: 'rgb(128, 128, 128)',
 			productionBottomActionForeground: 'rgb(32, 32, 32)',
+			productionCombinedBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
@@ -2220,7 +2236,7 @@ suite('Sessions - Chat View', () => {
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', undefined);
 		const session = new class extends mock<ISession>() {
 			override readonly status = constObservable(SessionStatus.Untitled);
-			override readonly description = constObservable(new MarkdownString('Starting Dev Container...'));
+			override readonly description = constObservable(new MarkdownString('Starting Dev Container'));
 			override readonly isNewSessionRequestInProgress = preparing;
 			override readonly preparationProgress = preparationProgress;
 		}();
@@ -2229,6 +2245,7 @@ suite('Sessions - Chat View', () => {
 			_store: disposables,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
 			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
 			_widget: { setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => calls.push(args) },
 		});
 		view._setupTranscriptPreparationProgress(constObservable(undefined));
@@ -2236,7 +2253,7 @@ suite('Sessions - Chat View', () => {
 		let logOpened = false;
 		const cancel = () => { canceled = true; };
 		const showLog = () => { logOpened = true; };
-		preparationProgress.set({ message: 'Starting Dev Container...', showLog, cancel }, undefined);
+		preparationProgress.set({ message: 'Starting Dev Container', showLog, cancel }, undefined);
 		calls.at(-1)?.[2]?.detail?.run();
 		calls.at(-1)?.[2]?.onCancel?.();
 		transaction(tx => {
@@ -2245,12 +2262,72 @@ suite('Sessions - Chat View', () => {
 		});
 		assert.deepStrictEqual({ calls, canceled, logOpened }, {
 			calls: [
-				['Starting Dev Container...', 'Starting Dev Container...', undefined],
-				['Starting Dev Container...', 'Starting Dev Container...', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel }],
+				['Starting Dev Container', 'Starting Dev Container', undefined],
+				['Starting Dev Container', 'Starting Dev Container', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel, inTranscript: false }],
 				[undefined, undefined, undefined],
 			],
 			canceled: true,
 			logOpened: true,
+		});
+	});
+
+	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+			override getDefaultAgent() { return undefined; }
+		}());
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', { message: 'Preparing worktree', cancel: () => { } });
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly description = constObservable(undefined);
+			override readonly isNewSessionRequestInProgress = constObservable(true);
+			override readonly preparationProgress = preparationProgress;
+		}();
+		const chatModel = observableValue<IChatModel | undefined>('model', undefined);
+		const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
+		const progressCalls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
+		const view: {
+			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void;
+			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
+			_saveCurrentViewState(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			instantiationService,
+			_preparationModel: preparationModel,
+			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_currentSessionObs: constObservable(session),
+			_widget: {
+				setModel: (model: IChatModel) => chatModel.set(model, undefined),
+				setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => progressCalls.push(args),
+			},
+		});
+		view._setupTranscriptPreparationProgress(chatModel);
+		const attachment = { kind: 'file' as const, id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') };
+		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] });
+		const model = preparationModel.value!;
+		const request = model.getRequests()[0];
+		preparationProgress.set({ message: 'Starting Dev Container', cancel: () => { } }, undefined);
+		preparationProgress.set({ message: 'Initializing Agent Host session', cancel: () => { } }, undefined);
+		view._saveCurrentViewState();
+		assert.deepStrictEqual({
+			sameModel: chatModel.get() === model,
+			requests: model.getRequests().length,
+			text: request.message.text,
+			attachments: request.variableData.variables,
+			progress: request.response?.response.value.map(part => part.kind === 'progressMessage' ? part.content.value : part.kind),
+			keepAlive: model.willKeepAlive,
+			readOnly: model.isReadOnly.get(),
+			inTranscript: progressCalls.at(-1)?.[2]?.inTranscript,
+		}, {
+			sameModel: true,
+			requests: 1,
+			text: 'Review this file\nand explain it.',
+			attachments: [attachment],
+			progress: ['Initializing&nbsp;Agent&nbsp;Host&nbsp;session'],
+			keepAlive: false,
+			readOnly: true,
+			inTranscript: true,
 		});
 	});
 

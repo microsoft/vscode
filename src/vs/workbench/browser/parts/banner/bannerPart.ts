@@ -30,7 +30,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { BannerFocused } from '../../../common/contextkeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 // Banner Part
 
@@ -73,7 +72,6 @@ export class BannerPart extends Part implements IBannerService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
 	}
@@ -231,9 +229,6 @@ export class BannerPart extends Part implements IBannerService {
 		const messageContainer = append(this.element, $('div.message-container'));
 		messageContainer.setAttribute('aria-hidden', 'true');
 		messageContainer.appendChild(this.getBannerMessage(item.message));
-		if (ariaLabel) {
-			this.itemDisposables.add(this.hoverService.setupDelayedHover(messageContainer, { content: ariaLabel }));
-		}
 
 		// Message Actions
 		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));

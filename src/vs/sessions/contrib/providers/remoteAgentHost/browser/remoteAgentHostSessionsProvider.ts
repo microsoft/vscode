@@ -144,6 +144,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	get label(): string { return this._label; }
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -708,6 +709,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
@@ -743,6 +745,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
 		this.updateResourceLabelHomes();

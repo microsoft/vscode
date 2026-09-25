@@ -8,7 +8,8 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -28,10 +29,12 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -59,6 +62,31 @@ const authority = agentHostAuthority(address);
 const sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 const resource = URI.from({ scheme: sessionType, path: `/${discovered.sessionId}` });
 const backendSession = AgentSession.uri('ahp-session', discovered.sessionId);
+const workspaceFolder = URI.file('/local/project');
+const otherDiscovered: ICloudSandboxDiscoveredSession = {
+	...discovered,
+	environmentId: 'environment-two',
+	sessionId: 'other-session',
+	taskId: 'other-task',
+	repoName: 'other/project',
+};
+
+function repository(remoteUrls: readonly string[], rootUri = workspaceFolder): IGitRepository {
+	return new class extends mock<IGitRepository>() {
+		override readonly rootUri = rootUri;
+		override readonly state = observableValue<GitRepositoryState>(this, {
+			remotes: remoteUrls.map((fetchUrl, index) => ({ name: `remote-${index}`, fetchUrl, isReadOnly: false })),
+			mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [],
+		});
+		override updateState(state: GitRepositoryState): void {
+			this.state.set(state, undefined);
+		}
+	}();
+}
+
+function scmRepository(repository: IGitRepository): ISCMRepository {
+	return upcastPartial<ISCMRepository>({ provider: upcastPartial<ISCMProvider>({ providerId: 'git', rootUri: repository.rootUri }) });
+}
 
 class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContribution {
 	activate(): Promise<boolean> {
@@ -99,6 +127,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
 	readonly storageService?: IStorageService;
+	readonly workspaceFolders?: readonly URI[];
+	readonly repositories?: readonly IGitRepository[];
+	readonly scmRepositories?: readonly IGitRepository[];
+	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -112,13 +144,18 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const sentimentChanged = store.add(new Emitter<void>());
 	const accountChanged = store.add(new Emitter<string | undefined>());
 	const focusChanged = store.add(new Emitter<boolean>());
+	const workspaceFoldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+	const repositoryAdded = store.add(new Emitter<ISCMRepository>());
+	const repositoryRemoved = store.add(new Emitter<ISCMRepository>());
 	const controllers = new Map<string, IChatSessionItemController>();
 	const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], history: [] as string[], removed: [] as string[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
 	const state = {
+		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
+		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
 		result: { kind: 'complete', sessions: [discovered] } as ICloudSandboxDiscoveryResult,
 		online: false,
 		connected: false,
@@ -133,6 +170,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			workingDirectories: [URI.file('/remote/project')],
 		}] as IAgentSessionMetadata[],
 	};
+	const scmRepositories = new Map<IGitRepository, ISCMRepository>((options?.scmRepositories ?? state.repositories).map(repository => [repository, scmRepository(repository)]));
 	const rootState: RootState = { agents: [{ provider: CLOUD_SANDBOX_AGENT_PROVIDER, displayName: 'Copilot', description: '', models: [] }] };
 	const connection = new class extends mock<IAgentConnection>() {
 		override readonly clientId = 'editor-client';
@@ -165,7 +203,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}();
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
 	instantiationService.stub(IConfigurationService, configuration);
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override warn(message: string): void { calls.repositoryErrors.push(message); }
+	}());
 	instantiationService.stub(IStorageService, options?.storageService ?? store.add(new InMemoryStorageService()));
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanged.event;
@@ -238,10 +278,21 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 	}());
 	instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-		override readonly onDidChangeWorkspaceFolders = Event.None;
+		override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
 		override getWorkspace() {
-			return { id: 'unrelated-workspace', folders: [{ uri: URI.file('/local/unrelated'), name: 'unrelated', index: 0, toResource: () => URI.file('/local/unrelated') }] };
+			return { id: 'editor-workspace', folders: state.workspaceFolders };
 		}
+	}());
+	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
+		override get repositories() { return options?.openRepository ? [] : state.repositories; }
+		override async openRepository(root: URI) {
+			return options?.openRepository ? options.openRepository(root) : state.repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root));
+		}
+	}());
+	instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
+		override readonly onDidAddRepository = repositoryAdded.event;
+		override readonly onDidRemoveRepository = repositoryRemoved.event;
+		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidDisposeSession = Event.None;
@@ -257,6 +308,27 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			await Promise.all(initialRefreshes);
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
+		setWorkspaceFolders: (folders: readonly URI[]) => {
+			const removed = state.workspaceFolders;
+			state.workspaceFolders = folders.map(toWorkspaceFolder);
+			workspaceFoldersChanged.fire({ added: state.workspaceFolders, removed, changed: [] });
+		},
+		addRepository: (repository: IGitRepository) => {
+			if (!state.repositories.includes(repository)) {
+				state.repositories.push(repository);
+			}
+			const scm = scmRepository(repository);
+			scmRepositories.set(repository, scm);
+			repositoryAdded.fire(scm);
+		},
+		removeRepository: (repository: IGitRepository) => {
+			state.repositories = state.repositories.filter(candidate => candidate !== repository);
+			const scm = scmRepositories.get(repository);
+			scmRepositories.delete(repository);
+			if (scm) {
+				repositoryRemoved.fire(scm);
+			}
+		},
 		setEnabled: async (key: string, enabled: boolean) => {
 			await configuration.setUserConfiguration(key, enabled);
 			configuration.onDidChangeConfigurationEmitter.fire({
@@ -284,7 +356,27 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
 	});
 
-	test('discovers once per identity without connecting, creating, or filtering to the local workspace', async () => {
+	test('keeps sandbox history registered without offering creation targets', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		assert.deepStrictEqual({
+			providers: [...h.contributions].map(([type, contribution]) => ({
+				type,
+				hiddenFromPicker: contribution.hideFromSessionTypePicker,
+				canDelegate: contribution.canDelegate,
+				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
+			})),
+			created: h.calls.created,
+		}, {
+			providers: [
+				{ type: 'cloud-sandbox', hiddenFromPicker: true, canDelegate: false, canCreate: false },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
+			],
+			created: 0,
+		});
+	});
+
+	test('discovers matching repositories without connecting or creating a session', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		await h.refresh();
@@ -298,6 +390,286 @@ suite('Editor cloud sandbox discovery', () => {
 			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: undefined, isRead: undefined }],
 			created: 0, connected: [], isNew: false, group: SessionType.CopilotCloud,
 		});
+	});
+
+	test('scopes discovery to workspace repositories and excludes sessions with no repository', async () => {
+		const h = createHarness(store);
+		h.state.result = {
+			kind: 'complete', sessions: [discovered, otherDiscovered, {
+				...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
+			}]
+		};
+		await h.refresh();
+		assert.deepStrictEqual({
+			items: h.items().map(item => item.resource.path),
+			created: h.calls.created,
+			connected: h.calls.connected,
+		}, { items: ['/original-session'], created: 0, connected: [] });
+	});
+
+	test('an empty window lists all projects, including sessions with no repository', async () => {
+		const h = createHarness(store, { workspaceFolders: [] });
+		h.state.result = {
+			kind: 'complete', sessions: [discovered, otherDiscovered, {
+				...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
+			}]
+		};
+		await h.refresh();
+		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session', '/other-session', '/unscoped-session']);
+	});
+
+	for (const remoteUrl of ['https://github.com/Example/Project.git/', 'git@github.com:EXAMPLE/PROJECT.git', 'ssh://git@github.com/example/project.git']) {
+		test(`matches repository identity rather than checkout name for ${remoteUrl}`, async () => {
+			const folder = URI.file('/local/different-checkout-name');
+			const h = createHarness(store, { workspaceFolders: [folder], repositories: [repository([remoteUrl], folder)] });
+			await h.refresh();
+			assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session']);
+		});
+	}
+
+	for (const remoteUrls of [[], ['https://gitlab.com/example/project.git'], ['https://github.com/unrelated/project.git']]) {
+		test(`does not list unrelated sandboxes for workspace remotes ${JSON.stringify(remoteUrls)}`, async () => {
+			const h = createHarness(store, { repositories: [repository(remoteUrls)] });
+			await h.refresh();
+			assert.deepStrictEqual(h.items(), []);
+		});
+	}
+
+	test('matches all workspace roots and GitHub fetch remotes', async () => {
+		const secondFolder = URI.file('/local/second');
+		const h = createHarness(store, {
+			workspaceFolders: [workspaceFolder, secondFolder],
+			repositories: [
+				repository(['https://github.com/fork/project.git', 'git@github.com:example/project.git']),
+				repository(['https://github.com/other/project.git'], secondFolder),
+			],
+		});
+		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered] };
+		await h.refresh();
+		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session', '/other-session']);
+	});
+
+	test('matches an open subfolder of a repository', async () => {
+		const h = createHarness(store, { workspaceFolders: [URI.joinPath(workspaceFolder, 'src')] });
+		await h.refresh();
+		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session']);
+	});
+
+	for (const folder of [workspaceFolder, URI.joinPath(workspaceFolder, 'src')]) {
+		test(`resolves the workspace repository before SCM registration for ${folder.path}`, async () => {
+			const opened: string[] = [];
+			const h = createHarness(store, {
+				workspaceFolders: [folder],
+				scmRepositories: [],
+				openRepository: async root => {
+					opened.push(root.toString());
+					return repository(['https://github.com/example/project.git']);
+				},
+			});
+			await h.refresh();
+			assert.deepStrictEqual({
+				opened,
+				items: h.items().map(item => item.resource.path),
+				created: h.calls.created,
+				connected: h.calls.connected,
+			}, { opened: [folder.toString()], items: ['/original-session'], created: 0, connected: [] });
+		});
+	}
+
+	test('rejects a repository outside the workspace returned by Git', async () => {
+		const h = createHarness(store, {
+			scmRepositories: [],
+			openRepository: async () => repository(['https://github.com/example/project.git'], URI.file('/unrelated')),
+		});
+		await h.refresh();
+		assert.deepStrictEqual({ items: h.items(), warnings: h.calls.repositoryErrors }, {
+			items: [],
+			warnings: ['[CloudSandbox] Ignoring repository outside the requested workspace folder'],
+		});
+	});
+
+	test('retries repository resolution when SCM registers after an unresolved workspace lookup', async () => {
+		const available = repository(['https://github.com/example/project.git']);
+		let resolved = false;
+		let lookups = 0;
+		const h = createHarness(store, {
+			repositories: [],
+			openRepository: async () => {
+				lookups++;
+				return resolved ? available : undefined;
+			},
+		});
+		await h.refresh();
+		const before = h.items().map(item => item.resource.path);
+		const added = Event.toPromise(Event.filter(h.controllers.get(sessionType)!.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.length));
+		resolved = true;
+		h.addRepository(available);
+		await added;
+		assert.deepStrictEqual({ before, after: h.items().map(item => item.resource.path), lookups, scans: h.calls.discovered }, {
+			before: [], after: ['/original-session'], lookups: 2, scans: 1,
+		});
+	});
+
+	test('does not use repositories outside the workspace', async () => {
+		const h = createHarness(store, { workspaceFolders: [URI.file('/local/unrelated')] });
+		await h.refresh();
+		assert.deepStrictEqual(h.items(), []);
+	});
+
+	test('workspace changes remove and restore cached rows without rediscovery or connections', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		const deltas: IChatSessionItemsDelta[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => deltas.push(delta)));
+		h.setWorkspaceFolders([URI.file('/local/unrelated')]);
+		const unrelated = h.items().map(item => item.resource.path);
+		h.setWorkspaceFolders([]);
+		assert.deepStrictEqual({
+			unrelated,
+			restored: h.items().map(item => item.resource.path),
+			removed: deltas.flatMap(delta => delta.removed?.map(resource => resource.path) ?? []),
+			added: deltas.flatMap(delta => delta.addedOrUpdated?.map(item => item.resource.path) ?? []),
+			scans: h.calls.discovered,
+			connected: h.calls.connected,
+		}, { unrelated: [], restored: ['/original-session'], removed: ['/original-session'], added: ['/original-session'], scans: 1, connected: [] });
+	});
+
+	test('repository discovery, remote changes, and removal update the scoped list', async () => {
+		const h = createHarness(store, { repositories: [] });
+		await h.refresh();
+		const before = h.items().map(item => item.resource.path);
+		const localRepository = repository(['https://github.com/example/project.git']);
+		const addedEvent = Event.toPromise(Event.filter(h.controllers.get(sessionType)!.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.length));
+		h.addRepository(localRepository);
+		await addedEvent;
+		const added = h.items().map(item => item.resource.path);
+		const originalState = localRepository.state.get();
+		localRepository.updateState({ ...originalState, remotes: [{ name: 'origin', fetchUrl: 'https://github.com/other/project.git', isReadOnly: false }] });
+		const changed = h.items().map(item => item.resource.path);
+		localRepository.updateState(originalState);
+		const restored = h.items().map(item => item.resource.path);
+		h.removeRepository(localRepository);
+		assert.deepStrictEqual({ before, added, changed, restored, removed: h.items(), scans: h.calls.discovered, connected: h.calls.connected }, {
+			before: [], added: ['/original-session'], changed: [], restored: ['/original-session'], removed: [], scans: 1, connected: [],
+		});
+	});
+
+	test('ignores Git status changes that do not change repository scope', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const deltas: IChatSessionItemsDelta[] = [];
+		store.add(h.controllers.get(sessionType)!.onDidChangeChatSessionItems(delta => deltas.push(delta)));
+		const localRepository = h.state.repositories[0];
+		localRepository.updateState({
+			...localRepository.state.get(),
+			indexChanges: [{ uri: URI.joinPath(workspaceFolder, 'file.ts'), originalUri: undefined, modifiedUri: undefined }],
+		});
+		assert.deepStrictEqual(deltas, []);
+	});
+
+	test('refreshes discovery repository scope without accepting older metadata', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const snapshots: string[][] = [];
+		for (const session of [
+			{ ...discovered, repoName: 'other/project', updatedAt: '2026-01-03T03:04:05.000Z' },
+			discovered,
+			{ ...discovered, updatedAt: '2026-01-04T03:04:05.000Z' },
+			{ ...discovered, repoName: undefined, updatedAt: '2026-01-05T03:04:05.000Z' },
+		]) {
+			h.state.result = { kind: 'complete', sessions: [session] };
+			await h.refresh();
+			snapshots.push(h.items().map(item => item.resource.path));
+		}
+		assert.deepStrictEqual(snapshots, [[], [], ['/original-session'], []]);
+	});
+
+	test('a repository lookup completing after a workspace change does not restore unrelated rows', async () => {
+		const pending = new DeferredPromise<IGitRepository | undefined>();
+		const h = createHarness(store, { openRepository: () => pending.p });
+		await h.refresh();
+		h.setWorkspaceFolders([URI.file('/local/unrelated')]);
+		await pending.complete(repository(['https://github.com/example/project.git']));
+		await h.refresh();
+		assert.deepStrictEqual(h.items(), []);
+	});
+
+	test('repository lookup failures are logged and do not expose all projects', async () => {
+		const h = createHarness(store, { openRepository: async () => { throw new Error('Git unavailable'); } });
+		await h.refresh();
+		assert.deepStrictEqual({ items: h.items(), errors: h.calls.repositoryErrors }, {
+			items: [], errors: ['[CloudSandbox] Failed to resolve workspace repository'],
+		});
+	});
+
+	test('scopes persisted discovery to the new window before network discovery finishes', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness(store, { storageService, workspaceFolders: [] });
+		await first.refresh();
+		first.contribution.dispose();
+		const started = new DeferredPromise<void>();
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const restored = createHarness(store, {
+			storageService,
+			repositories: [repository(['https://github.com/other/project.git'])],
+			listSessions: () => {
+				void started.complete();
+				return pending.p;
+			},
+		});
+		await started.p;
+		const before = restored.items().map(item => item.resource.path);
+		restored.setWorkspaceFolders([]);
+		const unscoped = restored.items().map(item => item.resource.path);
+		await pending.complete({ kind: 'failed', reason: 'Discovery unavailable' });
+		await Promise.all(restored.initialRefreshes);
+		assert.deepStrictEqual({ before, unscoped, connected: restored.calls.connected }, { before: [], unscoped: ['/original-session'], connected: [] });
+	});
+
+	test('scopes connected sessions by repository, retaining discovery identity when the host reports a directory', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		h.state.hostSessions = [
+			{ ...h.state.hostSessions[0], project: { uri: URI.file('/remote/project'), displayName: 'project' } },
+			{
+				...h.state.hostSessions[0], session: AgentSession.uri('ahp-session', 'other-host-session'),
+				project: { uri: URI.parse('https://github.com/other/project'), displayName: 'other/project' },
+			},
+		];
+		await h.contribution.activate();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		const connected = h.items().map(item => item.resource.path);
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		assert.deepStrictEqual({ connected, disconnected: h.items().map(item => item.resource.path) }, {
+			connected: ['/original-session'], disconnected: ['/original-session'],
+		});
+	});
+
+	test('host project changes publish removals and additions without losing session routing', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		const controller = h.controllers.get(sessionType)!;
+		await controller.refresh(CancellationToken.None);
+		const deltas: IChatSessionItemsDelta[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => deltas.push(delta)));
+		for (const project of ['https://gitlab.com/example/project', 'https://github.com/example/project']) {
+			h.notifications.fire({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(),
+				changes: { project: { uri: project, displayName: 'project' } },
+			});
+		}
+		assert.deepStrictEqual(deltas.map(delta => ({
+			added: delta.addedOrUpdated?.map(item => item.resource.toString()),
+			removed: delta.removed?.map(resource => resource.toString()),
+		})), [
+			{ added: undefined, removed: [resource.toString()] },
+			{ added: [resource.toString()], removed: undefined },
+		]);
 	});
 
 	test('keeps refresh available after an empty discovery and finds sessions created later', async () => {
