@@ -14304,6 +14304,21 @@ Use the attached image as context.
 			});
 		});
 
+		test('remote session tools defer behind tool search with eager fallback', async () => {
+			const names = ['list_agent_hosts', 'create_remote_session', 'send_remote_message', 'get_remote_session'];
+			const { runtime } = await createAgentSession(disposables, {
+				clientSnapshot: { ...snapshot, tools: names.map(name => ({ name })) },
+			});
+
+			assert.deepStrictEqual(
+				[true, false].map(enabled => runtime.createClientSdkTools(enabled).map(({ name, defer }) => ({ name, defer }))),
+				[
+					names.map(name => ({ name, defer: 'auto' })),
+					names.map(name => ({ name, defer: undefined })),
+				],
+			);
+		});
+
 		test('semantic search becomes ready without an SDK permission callback', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{

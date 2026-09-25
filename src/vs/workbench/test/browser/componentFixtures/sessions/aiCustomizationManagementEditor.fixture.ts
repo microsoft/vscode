@@ -55,7 +55,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -838,10 +838,11 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
+	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly togglePublicFeed?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
-	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
+	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -884,7 +885,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = agentFinderPublicFeedEnabled || options.otherSourceEnabled === true;
+	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -955,13 +956,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	let customizationMarketplaceQueryCount = 0;
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
+	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.mediaType === CustomizationMarketplaceMediaType.Skill
+		? { kind: 'skill', uri: URI.file(`/workspace/.github/skills/${resource.identifier.split('/').pop()}/SKILL.md`) }
+		: resource.mediaType === CustomizationMarketplaceMediaType.McpServer
+			? { kind: 'mcp', id: 'mcp.config.ws0.remote-browser' }
+			: { kind: 'plugin', uri: URI.file(`/user/plugins/${resource.identifier.split('/').pop()}`) };
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
 		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
 		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
-		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed' });
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed', target: getFixtureInstallationTarget(customizationMarketplaceResources[1]) });
+	} else if (options.customizationMarketplaceInstallationState === 'missing') {
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
 	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -977,6 +985,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceVisibilityEnabled ?? true,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
@@ -1035,6 +1044,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
+				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
+					return customizationMarketplaceResources.filter(resource => {
+						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
+					});
+				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not install resources.');
 					if (options.customizationMarketplaceInstallationState === 'error') {
@@ -1043,12 +1058,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed' });
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
+					customizationMarketplaceInstallChanged.fire();
+				}
+				override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+					assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
+					const target = getFixtureInstallationTarget(resource);
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
+					customizationMarketplaceInstallChanged.fire();
+					await Promise.resolve();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
 					customizationMarketplaceInstallChanged.fire();
 				}
 				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling' });
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
@@ -2954,6 +2978,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	OverviewWithMarketplaceDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: false,
+		}),
+	}),
+
 	DiscoverWithOtherSourceOnly: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -3071,6 +3104,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			customizationMarketplaceInstallationState: 'mixed',
+		}),
+	}),
+
+	DiscoverMissingInstallation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A recorded marketplace skill with missing files is shown as Missing files with primary Repair and secondary Uninstall actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'repository review',
+			customizationMarketplaceInstallationState: 'missing',
 		}),
 	}),
 
