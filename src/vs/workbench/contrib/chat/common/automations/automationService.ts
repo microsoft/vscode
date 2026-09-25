@@ -79,6 +79,7 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 }
 
 /**
@@ -98,6 +99,8 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/** Full replacement; an empty array clears conditions, omission preserves them. */
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 }
 
 /**
@@ -144,6 +147,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		disableConditions: [...automation.disableConditions ?? []].sort((a, b) => a.kind.localeCompare(b.kind)),
 	});
 }
 

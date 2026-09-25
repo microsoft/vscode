@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { getAutomationMaxRuns } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -71,6 +75,7 @@ function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomati
 		mode: 'agent',
 		permissionLevel: 'default',
 		enabled: true,
+		...(getAutomationMaxRuns(overrides?.disableConditions) !== undefined ? { runCount: 0 } : {}),
 		createdAt: NOW,
 		updatedAt: NOW,
 		nextRunAt: '2026-01-02T09:00:00.000Z',
@@ -121,6 +126,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			...options,
 			id: 'created-automation',
 			enabled: options.enabled ?? true,
+			...(getAutomationMaxRuns(options.disableConditions) !== undefined ? { runCount: 0 } : {}),
 			createdAt: NOW,
 			updatedAt: NOW,
 		};
@@ -130,7 +136,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.updated.push({ id, patch });
 		const existing = this.getAutomation(id);
 		assert.ok(existing);
-		return {
+		const updated = {
 			...existing,
 			name: patch.name ?? existing.name,
 			prompt: patch.prompt ?? existing.prompt,
@@ -141,7 +147,16 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			mode: patch.mode === null ? undefined : patch.mode ?? existing.mode,
 			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? existing.permissionLevel,
 			enabled: patch.enabled ?? existing.enabled,
+			disableConditions: patch.disableConditions ?? existing.disableConditions,
 			updatedAt: NOW,
+		};
+		delete updated.runCount;
+		if (getAutomationMaxRuns(updated.disableConditions) === undefined) {
+			return updated;
+		}
+		return {
+			...updated,
+			runCount: getAutomationMaxRuns(existing.disableConditions) === undefined || (!existing.enabled && updated.enabled) ? 0 : existing.runCount,
 		};
 	}
 
@@ -221,6 +236,7 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel,
+		disableConditions: automation.disableConditions,
 		enabled: automation.enabled,
 	});
 }
@@ -431,7 +447,7 @@ suite('AutomationTools', () => {
 				providerOption: { enabled: true },
 			},
 		};
-		const automation = createAutomation({ sessionTemplate });
+		const automation = createAutomation({ sessionTemplate, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 12 }], runCount: 4 });
 		const automationService = new FakeAutomationService([automation]);
 		const tool = createListAutomationsTool(automationService, createConfigurationService());
 
@@ -455,6 +471,8 @@ suite('AutomationTools', () => {
 					isolation: { kind: 'default' },
 				},
 				sessionTemplate,
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 12 }],
+				runCount: 4,
 				enabled: true,
 				createdAt: NOW,
 				updatedAt: NOW,
@@ -518,6 +536,8 @@ suite('AutomationTools', () => {
 						modelId: 'gpt-test',
 						mode: 'agent',
 						permissionLevel: 'default',
+						disableConditions: [],
+						runCount: null,
 						enabled: true,
 						createdAt: NOW,
 						updatedAt: NOW,
@@ -630,6 +650,23 @@ suite('AutomationTools', () => {
 					sessionResource: SESSION_RESOURCE.toString(),
 				},
 			},
+		});
+	});
+
+	test('runAutomation still starts manual runs when scheduled runs are exhausted', async () => {
+		const automation = createAutomation({ enabled: false, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 2 }], runCount: 2 });
+		const automationService = new FakeAutomationService([automation]);
+		const runner = new RecordingAutomationRunner(automationService);
+		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
+
+		const result = await invoke(tool, { automationId: automation.id });
+
+		assert.deepStrictEqual({
+			calls: runner.calls,
+			status: JSON.parse(getText(result)).status,
+		}, {
+			calls: [{ automationId: 'automation-1', cancelled: false }],
+			status: 'started',
 		});
 	});
 
@@ -880,6 +917,154 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation prepares scheduled-run-limit confirmations', async () => {
+		const existing = createAutomation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }], runCount: 3 });
+		const tool = createConfigureAutomationTool(
+			new FakeAutomationService([existing]),
+			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
+			createConfigurationService(),
+		);
+		const createPrepared = await tool.prepareToolInvocation!({
+			parameters: {
+				name: 'Morning review',
+				prompt: 'Review open pull requests',
+				schedule: { interval: 'daily' },
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 7 }],
+			},
+			toolCallId: 'create-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const updatePrepared = await tool.prepareToolInvocation!({
+			parameters: { automationId: existing.id, disableConditions: [] },
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			createMessage: typeof createPrepared.confirmationMessages?.message === 'string'
+				? createPrepared.confirmationMessages.message
+				: createPrepared.confirmationMessages?.message?.value,
+			updateMessage: typeof updatePrepared.confirmationMessages?.message === 'string'
+				? updatePrepared.confirmationMessages.message
+				: updatePrepared.confirmationMessages?.message?.value,
+		}, {
+			createMessage: 'Create the automation **Morning review**?\n\nDisable scheduling after 7 scheduled runs.',
+			updateMessage: 'Apply the proposed changes to **Daily review** (`automation-1`)?\n\nNo automatic disable conditions.',
+		});
+	});
+
+	test('configureAutomation retains both conditions and warns before enabling an expired date', async () => {
+		const disableConditions = [
+			{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 },
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2000-01-01T00:00:00Z' },
+		];
+		const existing = createAutomation({ enabled: false, disableConditions, runCount: 2 });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const prepared = await tool.prepareToolInvocation!({
+			parameters: { automationId: existing.id, enabled: true },
+			toolCallId: 'enable-expired',
+			chatSessionResource: undefined,
+		}, CancellationToken.None);
+		assert.ok(prepared.confirmationMessages);
+		assert.strictEqual(automationService.updated.length, 0);
+		await invoke(tool, { automationId: existing.id, enabled: true }, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+		const result = await invoke(tool, { automationId: existing.id, disableConditions });
+		assert.deepStrictEqual({
+			patches: automationService.updated.map(update => update.patch),
+			conditions: JSON.parse(getText(result)).automation.disableConditions,
+		}, { patches: [{ enabled: true }, { disableConditions }], conditions: disableConditions });
+	});
+
+	for (const operation of ['create', 'update'] as const) {
+		for (const offset of [-1, 0, 1]) {
+			test(`configureAutomation ${operation} requires a future date (${offset}ms from now)`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.parse(NOW) }, async () => {
+				const existing = createAutomation({
+					disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+				});
+				const automationService = new FakeAutomationService([existing]);
+				const tool = createConfigureAutomationTool(
+					automationService,
+					new FakeSessionsManagementService(createSession({ quickChat: true }), true),
+					createConfigurationService(),
+				);
+				const disableConditions = [{ kind: AutomationDisableConditionKind.AfterDate, date: new Date(Date.now() + offset).toISOString() }];
+				const parameters = operation === 'create'
+					? { name: 'Hello World', prompt: 'Hello World', schedule: { interval: 'hourly' }, disableConditions }
+					: { automationId: existing.id, disableConditions };
+				const preparation = tool.prepareToolInvocation({
+					parameters, toolCallId: 'date-boundary', chatSessionResource: SESSION_RESOURCE,
+				}, CancellationToken.None);
+				if (offset <= 0) {
+					await assert.rejects(preparation);
+				} else {
+					await preparation;
+				}
+				const result = await invoke(tool, parameters);
+				assert.deepStrictEqual({
+					rejected: result.toolResultError !== undefined,
+					savedConditions: [...automationService.created, ...automationService.updated.map(update => update.patch)].map(value => value.disableConditions),
+				}, {
+					rejected: offset <= 0,
+					savedConditions: offset <= 0 ? [] : [disableConditions],
+				});
+			}));
+		}
+
+		for (const approvalDelay of [1000, 1001]) {
+			test(`configureAutomation ${operation} rejects a date reached during approval (${approvalDelay}ms)`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.parse(NOW) }, async () => {
+				const existing = createAutomation();
+				const automationService = new FakeAutomationService([existing]);
+				const tool = createConfigureAutomationTool(
+					automationService,
+					new FakeSessionsManagementService(createSession({ quickChat: true }), true),
+					createConfigurationService(),
+				);
+				const disableConditions = [{ kind: AutomationDisableConditionKind.AfterDate, date: new Date(Date.now() + 1000).toISOString() }];
+				const parameters = operation === 'create'
+					? { name: 'Hello World', prompt: 'Hello World', schedule: { interval: 'hourly' }, disableConditions }
+					: { automationId: existing.id, disableConditions };
+				const prepared = await tool.prepareToolInvocation({
+					parameters, toolCallId: 'approval-delay', chatSessionResource: SESSION_RESOURCE,
+				}, CancellationToken.None);
+
+				await timeout(approvalDelay);
+				const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+				assert.deepStrictEqual({
+					rejected: result.toolResultError !== undefined,
+					created: automationService.created,
+					updated: automationService.updated,
+				}, { rejected: true, created: [], updated: [] });
+			}));
+		}
+	}
+
+	test('configureAutomation allows unrelated edits and clearing while preserving a saved expired date', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.parse(NOW) }, async () => {
+		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: NOW };
+		const existing = createAutomation({
+			enabled: false,
+			disableConditions: [date, { kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
+		});
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const patches: IUpdateAutomationOptions[] = [
+			{ name: 'Renamed' },
+			{ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 4 }, date] },
+			{ disableConditions: [] },
+		];
+		const errors = [];
+		for (const patch of patches) {
+			const parameters = { automationId: existing.id, ...patch };
+			await tool.prepareToolInvocation({ parameters, toolCallId: 'preserve-expired-date', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
+			errors.push((await invoke(tool, parameters)).toolResultError);
+		}
+		assert.deepStrictEqual({
+			errors,
+			patches: automationService.updated.map(update => update.patch),
+		}, { errors: [undefined, undefined, undefined], patches });
+	}));
+
 	test('configureAutomation creates from the invoking chat target and returns clickable result data', async () => {
 		const automationService = new FakeAutomationService();
 		const target: AutomationTarget = {
@@ -922,6 +1107,91 @@ suite('AutomationTools', () => {
 			},
 		});
 	});
+
+	test('configureAutomation creates max conditions and accepts an empty array', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ quickChat: true }), true),
+			createConfigurationService(),
+		);
+
+		await invoke(tool, {
+			name: 'Limited',
+			prompt: 'Review open pull requests',
+			schedule: { interval: 'daily' },
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 9 }],
+		}, CHAT_RESOURCE);
+		await invoke(tool, {
+			name: 'Unlimited',
+			prompt: 'Review open pull requests',
+			schedule: { interval: 'daily' },
+			disableConditions: [],
+		}, CHAT_RESOURCE);
+
+		assert.deepStrictEqual(automationService.created, [
+			{
+				name: 'Limited',
+				prompt: 'Review open pull requests',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilot' },
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 9 }],
+			},
+			{
+				name: 'Unlimited',
+				prompt: 'Review open pull requests',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilot' },
+				disableConditions: [],
+			},
+		]);
+	});
+
+	for (const { name, schedule, disableConditions } of [
+		{
+			name: 'four hourly runs',
+			schedule: { interval: 'hourly' as const },
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 4 }],
+		},
+		{
+			name: 'daily at 9am until a final date',
+			schedule: { interval: 'daily' as const, scheduleHour: 9, scheduleMinute: 0 },
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-11T00:00:00-08:00' }],
+		},
+	]) {
+		test(`configureAutomation supports ${name}`, async () => {
+			const automationService = new FakeAutomationService();
+			const tool = createConfigureAutomationTool(
+				automationService,
+				new FakeSessionsManagementService(createSession({ quickChat: true }), true),
+				createConfigurationService(),
+			);
+			const result = await invoke(tool, {
+				name,
+				prompt: 'Review open pull requests',
+				schedule,
+				disableConditions,
+			}, CHAT_RESOURCE);
+			const response = JSON.parse(getText(result));
+			assert.deepStrictEqual({
+				error: result.toolResultError,
+				created: automationService.created,
+				status: response.status,
+				returnedConditions: response.automation.disableConditions,
+			}, {
+				error: undefined,
+				created: [{
+					name,
+					prompt: 'Review open pull requests',
+					schedule: { scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, ...schedule },
+					target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilot' },
+					disableConditions,
+				}],
+				status: 'created',
+				returnedConditions: disableConditions,
+			});
+		});
+	}
 
 	test('configureAutomation rejects a current session without an available Automation authority', async () => {
 		const automationService = new FakeAutomationService();
@@ -992,6 +1262,96 @@ suite('AutomationTools', () => {
 				operation: 'updated',
 			},
 		});
+	});
+
+	test('configureAutomation updates and clears scheduled-run limits without writing runtime usage', async () => {
+		const existing = createAutomation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 12 }], runCount: 4 });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+
+		const limitedResult = await invoke(tool, { automationId: existing.id, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 6 }] });
+		const unlimitedResult = await invoke(tool, { automationId: existing.id, disableConditions: [] });
+
+		assert.deepStrictEqual({
+			updated: automationService.updated,
+			limitedAutomation: JSON.parse(getText(limitedResult)).automation,
+			unlimitedAutomation: JSON.parse(getText(unlimitedResult)).automation,
+		}, {
+			updated: [
+				{ id: existing.id, patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 6 }] } },
+				{ id: existing.id, patch: { disableConditions: [] } },
+			],
+			limitedAutomation: {
+				id: existing.id,
+				name: existing.name,
+				prompt: existing.prompt,
+				schedule: existing.schedule,
+				target: {
+					kind: 'workspace',
+					folderUri: FOLDER.toString(),
+					providerId: 'local-agent-host',
+					sessionTypeId: 'copilot',
+					isolation: { kind: 'default' },
+				},
+				modelId: existing.modelId,
+				mode: existing.mode,
+				permissionLevel: existing.permissionLevel,
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 6 }],
+				runCount: 4,
+				enabled: existing.enabled,
+				createdAt: NOW,
+				updatedAt: NOW,
+				lastRunAt: null,
+				nextRunAt: existing.nextRunAt,
+			},
+			unlimitedAutomation: {
+				id: existing.id,
+				name: existing.name,
+				prompt: existing.prompt,
+				schedule: existing.schedule,
+				target: {
+					kind: 'workspace',
+					folderUri: FOLDER.toString(),
+					providerId: 'local-agent-host',
+					sessionTypeId: 'copilot',
+					isolation: { kind: 'default' },
+				},
+				modelId: existing.modelId,
+				mode: existing.mode,
+				permissionLevel: existing.permissionLevel,
+				disableConditions: [],
+				runCount: null,
+				enabled: existing.enabled,
+				createdAt: NOW,
+				updatedAt: NOW,
+				lastRunAt: null,
+				nextRunAt: existing.nextRunAt,
+			},
+		});
+	});
+
+	test('configureAutomation returns authoritative allowance transitions without configuring usage', async () => {
+		const capped = [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }];
+		const results = [];
+		for (const { existing, patch } of [
+			{ existing: createAutomation(), patch: { disableConditions: capped } },
+			{ existing: createAutomation({ enabled: false, disableConditions: capped, runCount: 2 }), patch: { enabled: true } },
+			{ existing: createAutomation({ disableConditions: capped, runCount: 2 }), patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 4 }] } },
+			{ existing: createAutomation({ disableConditions: capped, runCount: 2 }), patch: { disableConditions: [] } },
+		]) {
+			const automationService = new FakeAutomationService([existing]);
+			const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+			const result = await invoke(tool, { automationId: existing.id, ...patch });
+			results.push({
+				runCount: JSON.parse(getText(result)).automation.runCount,
+				wroteUsage: Object.hasOwn(automationService.updated[0].patch, 'runCount'),
+			});
+		}
+		assert.deepStrictEqual(results, [0, 0, 2, null].map(runCount => ({ runCount, wroteUsage: false })));
 	});
 
 	test('configureAutomation reports persisted, blocked, and failed outcomes without identifiers', async () => {
@@ -1307,6 +1667,31 @@ suite('AutomationTools', () => {
 		}, { creationRejected: true, updateRejected: true, created: [], updated: [] });
 	});
 
+	test('configureAutomation rejects malformed conditions and duplicate kinds before mutation', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ quickChat: true }), false, [], [providerSessionType('local-agent-host', 'copilot')]),
+			createConfigurationService(),
+		);
+		for (const disableConditions of [
+			null, {}, [{ kind: 'unknown' }], [{ kind: 'afterRuns', max: 0 }],
+			[{ kind: 'maxRuns', maxRuns: 4 }],
+			[{ kind: 'finalDate', finalDate: '2026-10-01T00:00:00Z' }],
+			[{ kind: 'afterRuns', max: 4, afterRuns: 4 }],
+			[{ kind: 'afterDate', date: '2026-10-01T00:00:00Z', afterDate: '2026-10-01T00:00:00Z' }],
+			[{ kind: 'afterDate', date: '2026-02-30T00:00:00Z' }],
+			[{ kind: 'afterRuns', max: 3 }, { kind: 'afterRuns', max: 3 }],
+			[{ kind: 'afterDate', date: '2026-10-01T00:00:00Z' }, { kind: 'afterDate', date: '2026-11-01T00:00:00Z' }],
+		]) {
+			const createResult = await invoke(tool, { name: 'Invalid', prompt: 'Do not save', schedule: { interval: 'manual' }, disableConditions });
+			const updateResult = await invoke(tool, { automationId: existing.id, disableConditions });
+			assert.deepStrictEqual([!!createResult.toolResultError, !!updateResult.toolResultError], [true, true]);
+		}
+		assert.deepStrictEqual([automationService.created, automationService.updated], [[], []]);
+	});
+
 	test('configureAutomation reports stale approval before target authority or availability failures', async () => {
 		const existing = createAutomation();
 		const automationService = new FakeAutomationService([existing]);
@@ -1456,17 +1841,32 @@ suite('AutomationTools', () => {
 			target: { kind: 'workspace', folderUri: FOLDER.toString() },
 			sessionTemplate: { config: { value: new Date(0) } },
 		});
+		const runtimeCountResult = await invoke(tool, {
+			automationId: 'missing',
+			runCount: 5,
+		});
+		const invalidLimitResult = await invoke(tool, {
+			name: 'Invalid limit',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString() },
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: Number.MAX_SAFE_INTEGER + 1 }],
+		});
 
 		assert.deepStrictEqual({
 			staleError: staleResult.toolResultError,
 			targetError: malformedTargetResult.toolResultError,
 			mixedConfigurationError: mixedConfigurationResult.toolResultError,
 			unsafeConfigurationError: unsafeConfigurationResult.toolResultError,
+			runtimeCountError: runtimeCountResult.toolResultError,
+			invalidLimitError: invalidLimitResult.toolResultError,
 		}, {
 			staleError: 'Automation "missing" does not exist. Call listAutomations to refresh the available IDs.',
 			targetError: '"target.folderUri" must be a valid absolute URI.',
 			mixedConfigurationError: '"sessionTemplate" cannot be combined with legacy "modelId", "mode", or "permissionLevel" aliases.',
 			unsafeConfigurationError: '"sessionTemplate.config.value" must contain only JSON values.',
+			runtimeCountError: '"runCount" is runtime state returned by listAutomations and cannot be configured.',
+			invalidLimitError: 'The maximum number of scheduled runs must be a positive safe integer.',
 		});
 	});
 

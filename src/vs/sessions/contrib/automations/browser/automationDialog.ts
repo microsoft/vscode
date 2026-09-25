@@ -32,6 +32,8 @@ import { ActionListItemKind, IActionListItem } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationDisableCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -47,7 +49,7 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationService, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -214,6 +216,7 @@ export interface IFormState {
 	isolationMode: string | undefined;
 	branch: string | undefined;
 	enabled: boolean;
+	runOnce: boolean;
 }
 
 export interface IValidationState {
@@ -239,6 +242,34 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 	});
 }
 
+/** Omits unchanged authority-sensitive fields so stale forms cannot reset an exhausted allowance. */
+export function buildChangedAutomationFields(
+	formEnabled: boolean,
+	formRunOnce: boolean,
+	existing: Pick<IAutomationDescriptor, 'enabled' | 'disableConditions'>,
+): Pick<IUpdateAutomationOptions, 'enabled' | 'disableConditions'> {
+	const fields: { enabled?: boolean; disableConditions?: AutomationDisableCondition[] } = {};
+	if (formEnabled !== existing.enabled) {
+		fields.enabled = formEnabled;
+	}
+	if (formRunOnce !== (getAutomationMaxRuns(existing.disableConditions) === 1)) {
+		fields.disableConditions = buildAutomationDisableConditions(formRunOnce, existing.disableConditions);
+	}
+	return fields;
+}
+
+/** Changes the Run once preset without clearing conditions that the dialog does not expose. */
+export function buildAutomationDisableConditions(runOnce: boolean, initial: readonly AutomationDisableCondition[] | undefined): AutomationDisableCondition[] {
+	if (runOnce === (getAutomationMaxRuns(initial) === 1)) {
+		return [...(initial ?? [])];
+	}
+	const conditions: AutomationDisableCondition[] = initial?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterRuns) ?? [];
+	if (runOnce) {
+		conditions.push({ kind: AutomationDisableConditionKind.AfterRuns, max: 1 });
+	}
+	return conditions;
+}
+
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
@@ -251,6 +282,7 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
+	readonly refreshDisableConditionsWarning: () => void;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1017,6 +1049,7 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
+	initialDisableConditions: readonly AutomationDisableCondition[] | undefined,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1442,7 +1475,8 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const enabledRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
+	const checkboxRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
+	const enabledRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
 	const enabledLabelText = localize('automation.form.enabled', "Enabled");
 	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
 	DOM.append(enabledRow, enabledCheckbox.domNode);
@@ -1452,13 +1486,48 @@ export function renderForm(
 			enabledCheckbox.checked = value;
 		}
 		state.enabled = value;
+		refreshDisableConditionsWarning();
 	};
 	disposables.add(enabledCheckbox.onChange(() => {
-		state.enabled = enabledCheckbox.checked;
+		setEnabled(enabledCheckbox.checked);
 	}));
 	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
 		setEnabled(!enabledCheckbox.checked);
 	}));
+
+	const runOnceRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
+	const runOnceLabelText = localize('automation.form.runOnce', "Run once");
+	const runOnceCheckbox = disposables.add(new Checkbox(runOnceLabelText, state.runOnce, defaultCheckboxStyles));
+	runOnceCheckbox.domNode.setAttribute('aria-description', localize('automation.form.runOnceDescription', "Set the scheduled run limit to one. Runs already used in the current allowance count toward this limit. Manual runs do not count."));
+	DOM.append(runOnceRow, runOnceCheckbox.domNode);
+	const runOnceLabel = DOM.append(runOnceRow, $('span.automation-form-checkbox-label', undefined, runOnceLabelText));
+	disposables.add(runOnceCheckbox.onChange(() => {
+		state.runOnce = runOnceCheckbox.checked;
+	}));
+	disposables.add(DOM.addStandardDisposableListener(runOnceLabel, 'click', () => {
+		runOnceCheckbox.checked = !runOnceCheckbox.checked;
+		state.runOnce = runOnceCheckbox.checked;
+	}));
+
+	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
+		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
+	}));
+	const refreshDisableConditionsWarning = () => {
+		const expired = state.enabled && isAutomationAfterDateExpired(initialDisableConditions);
+		DOM.setVisibility(expired, conditionsWarning);
+		const message = expired
+			? localize('automation.form.expiredConditions', "The final date has passed. Scheduling will stop immediately. Use chat to change or remove the final date.")
+			: '';
+		if (conditionsWarning.textContent !== message) {
+			conditionsWarning.textContent = message;
+		}
+		if (expired) {
+			enabledCheckbox.domNode.setAttribute('aria-describedby', conditionsWarning.id);
+		} else {
+			enabledCheckbox.domNode.removeAttribute('aria-describedby');
+		}
+	};
+	refreshDisableConditionsWarning();
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
 		'aria-atomic': 'true',
@@ -1531,6 +1600,7 @@ export function renderForm(
 			suggestController.cancelSuggestWidget();
 			return true;
 		},
+		refreshDisableConditionsWarning,
 	};
 }
 

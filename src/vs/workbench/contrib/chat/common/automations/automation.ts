@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AutomationDisableCondition, JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -113,6 +113,10 @@ export interface IAutomationDescriptor {
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
+	/** Automatic scheduling stops when any condition is met. */
+	readonly disableConditions?: readonly AutomationDisableCondition[];
+	/** Host-owned usage of the current allowance, independent of retained history. */
+	readonly runCount?: number;
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;

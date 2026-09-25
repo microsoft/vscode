@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parseFrontMatter, YamlMapNode, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
+import { isAutomationDisableConditions } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationDisableCondition } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IAutomationDescriptor, IAutomationSchedule } from './automation.js';
 
 export const AUTOMATION_BLUEPRINT_FILE_SUFFIX = '.automation.md';
 export const AUTOMATION_BLUEPRINT_VERSION = 1;
 
 const AUTOMATION_BLUEPRINT_ID_PATTERN = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
-const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
+const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule', 'disableConditions']);
 const AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_HOURLY_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES = new Set(['kind', 'expression', 'timeZone']);
@@ -42,6 +44,7 @@ export interface IAutomationBlueprint {
 	readonly description?: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly disableConditions?: readonly AutomationDisableCondition[];
 }
 
 export function parseAutomationBlueprint(content: string): IAutomationBlueprint {
@@ -65,6 +68,7 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 	const name = readRequiredString(document.header, 'name');
 	const description = readOptionalString(document.header, 'description');
 	const schedule = readSchedule(document.header);
+	const disableConditions = readDisableConditions(document.header);
 	const prompt = document.body.trim();
 	if (!prompt) {
 		throw new AutomationBlueprintParseError('missingPrompt');
@@ -77,6 +81,7 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 		...(description ? { description } : {}),
 		prompt,
 		schedule,
+		...(disableConditions !== undefined ? { disableConditions } : {}),
 	};
 }
 
@@ -89,6 +94,18 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 	];
 	if (blueprint.description) {
 		lines.push(`description: ${quoteYamlString(blueprint.description)}`);
+	}
+	if (blueprint.disableConditions !== undefined) {
+		if (!isAutomationDisableConditions(blueprint.disableConditions)) {
+			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+		}
+		lines.push(blueprint.disableConditions.length ? 'disableConditions:' : 'disableConditions: []');
+		for (const condition of blueprint.disableConditions) {
+			lines.push(`  - kind: ${condition.kind}`);
+			lines.push(condition.kind === AutomationDisableConditionKind.AfterRuns
+				? `    max: ${condition.max}`
+				: `    date: ${quoteYamlString(condition.date)}`);
+		}
 	}
 	lines.push('schedule:');
 	switch (blueprint.schedule.interval) {
@@ -118,6 +135,7 @@ export function automationToBlueprint(automation: IAutomationDescriptor): IAutom
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: normalizeSchedule(automation.schedule),
+		...(automation.disableConditions !== undefined ? { disableConditions: automation.disableConditions } : {}),
 	};
 }
 
@@ -151,12 +169,40 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 	}
 }
 
+function readDisableConditions(root: YamlMapNode): AutomationDisableCondition[] | undefined {
+	const node = getProperty(root, 'disableConditions');
+	if (node === undefined) {
+		return undefined;
+	}
+	if (node.type !== 'sequence') {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
+	const conditions = node.items.map(item => {
+		if (item.type !== 'map') {
+			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+		}
+		const kind = readRequiredString(item, 'kind');
+		if (kind === AutomationDisableConditionKind.AfterRuns) {
+			assertKnownProperties(item, new Set(['kind', 'max']), 'disableConditions.');
+			return { kind, max: readRequiredInteger(item, 'max') };
+		}
+		if (kind === AutomationDisableConditionKind.AfterDate) {
+			assertKnownProperties(item, new Set(['kind', 'date']), 'disableConditions.');
+			return { kind, date: readRequiredString(item, 'date') };
+		}
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions.kind');
+	});
+	if (!isAutomationDisableConditions(conditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
+	return conditions;
+}
+
 function readSchedule(root: YamlMapNode): IAutomationSchedule {
 	const node = getProperty(root, 'schedule');
 	if (!node || node.type !== 'map') {
 		throw new AutomationBlueprintParseError('invalidField', 'schedule');
 	}
-
 	const kind = readRequiredString(node, 'kind');
 	if (kind === 'manual') {
 		assertKnownProperties(node, AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES, 'schedule.');

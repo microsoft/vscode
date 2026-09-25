@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -816,6 +817,158 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('card metadata shows host run usage and both disable conditions without recreating the card', () => {
+		const { automationService, widget } = setup();
+		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
+		const runCondition = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 4 };
+		const formattedDate = new Date(dateCondition.date).toLocaleString(undefined, {
+			year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+		});
+		const states: Partial<IAutomationDescriptor>[] = [
+			{ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }], runCount: 0 },
+			{ disableConditions: [runCondition], runCount: 2 },
+			{ disableConditions: [runCondition], runCount: 4, enabled: false },
+			{ disableConditions: [dateCondition] },
+			{ disableConditions: [runCondition, dateCondition], runCount: 2 },
+			{ disableConditions: [dateCondition, runCondition], runCount: 2 },
+			{ disableConditions: [runCondition] },
+			{ disableConditions: [] },
+			{},
+		];
+		automationService.setAutomations([automation(states[0])]);
+		const card = widget.element.querySelector('.automations-card');
+		const editButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
+		editButton.focus();
+		const metadata = states.map(state => {
+			automationService.setAutomations([automation(state)]);
+			const limit = widget.element.querySelector<HTMLElement>('.automations-card-limit')!;
+			return {
+				schedule: widget.element.querySelector('.automations-card-schedule')?.textContent,
+				folder: widget.element.querySelector('.automations-card-folder')?.textContent,
+				limit: limit.style.display === 'none' ? undefined : limit.textContent,
+				description: editButton.getAttribute('aria-description'),
+				sameCard: widget.element.querySelector('.automations-card') === card,
+				focusPreserved: document.activeElement === editButton,
+			};
+		});
+		const runDescription = 'Scheduled run limit: 4. Manual runs do not count.';
+		const combinedDescription = `Scheduled runs used: 2. Stops when the scheduled run limit of 4 is reached or at ${formattedDate}, whichever comes first. Manual runs do not count.`;
+		assert.deepStrictEqual(metadata, [
+			{ limit: 'Ends after 0/1 runs', description: 'Scheduled runs used: 0. Scheduled run limit: 1. Manual runs do not count.' },
+			{ limit: 'Ends after 2/4 runs', description: `Scheduled runs used: 2. ${runDescription}` },
+			{ limit: undefined, description: null },
+			{ limit: `Ends after ${formattedDate}`, description: `Stops scheduling at ${formattedDate}. Manual runs remain available.` },
+			{ limit: `Ends after 2/4 runs or ${formattedDate}`, description: combinedDescription },
+			{ limit: `Ends after 2/4 runs or ${formattedDate}`, description: combinedDescription },
+			{ limit: 'Ends after 4 runs', description: runDescription },
+			{ limit: undefined, description: null },
+			{ limit: undefined, description: null },
+		].map(expected => ({ schedule: 'Hourly', folder: 'workspace', sameCard: true, focusPreserved: true, ...expected })));
+	});
+
+	test('run limit hovers update only with usage or conditions and dispose on clearing or removal', () => {
+		const hovers: { content: string; disposed: boolean }[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupManagedHover: (delegate, target, content) => {
+				if (!target.classList.contains('automations-card-limit')) {
+					return NullHoverService.setupManagedHover(delegate, target, content);
+				}
+				assert.ok(typeof content === 'string');
+				const entry = { content, disposed: false };
+				hovers.push(entry);
+				return {
+					...NullHoverService.setupManagedHover(delegate, target, content),
+					dispose: () => { entry.disposed = true; },
+				};
+			},
+		};
+		const { automationService } = setup('archive', hoverService);
+		const limited = automation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }], runCount: 0 });
+		automationService.setAutomations([limited]);
+		automationService.setAutomations([{ ...limited, prompt: 'An unrelated edit' }]);
+		automationService.setAutomations([{ ...limited, runCount: 1 }]);
+		automationService.setAutomations([automation()]);
+		automationService.setAutomations([limited]);
+		automationService.setAutomations([]);
+
+		assert.deepStrictEqual(hovers, [
+			{ content: 'Scheduled runs used: 0. Scheduled run limit: 3. Manual runs do not count.', disposed: true },
+			{ content: 'Scheduled runs used: 1. Scheduled run limit: 3. Manual runs do not count.', disposed: true },
+			{ content: 'Scheduled runs used: 0. Scheduled run limit: 3. Manual runs do not count.', disposed: true },
+		]);
+	});
+
+	test('any limit gets a separate row and one-line prompt, reverting when all limits are removed', () => {
+		const { automationService, widget } = setup();
+		const runCondition = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 1 };
+		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
+		const prompt = 'A long automation prompt that should occupy only one line when any limit has its own metadata row.';
+		const states = [[], [runCondition], [runCondition, dateCondition], [dateCondition], [dateCondition, runCondition], []];
+		const layouts = states.map(disableConditions => {
+			automationService.setAutomations([automation({ disableConditions, runCount: 0, prompt })]);
+			const main = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
+			const meta = main.querySelector<HTMLElement>('.automations-card-meta')!;
+			const limit = main.querySelector<HTMLElement>('.automations-card-limit')!;
+			const promptElement = main.querySelector<HTMLElement>('.automations-card-prompt')!;
+			return {
+				hasLimit: main.classList.contains('automations-card-has-limit'),
+				limitVisible: limit.style.display !== 'none',
+				separateRow: limit.parentElement === main && limit.previousElementSibling === meta && limit.nextElementSibling === promptElement,
+				promptLines: getWindow(promptElement).getComputedStyle(promptElement).webkitLineClamp,
+				prompt: promptElement.textContent,
+			};
+		});
+		assert.deepStrictEqual(layouts, [false, true, true, true, true, false].map(hasLimit => ({
+			hasLimit,
+			limitVisible: hasLimit,
+			separateRow: true,
+			promptLines: hasLimit ? '1' : '2',
+			prompt,
+		})));
+	});
+
+	test('host disablement hides saved limits and re-enabling restores them without changing the definition', () => {
+		const { automationService, widget } = setup();
+		const capped = automation({
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
+			runCount: 0,
+		});
+		const dated = automation({
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		for (const item of [capped, dated]) {
+			automationService.setAutomations([item]);
+			const card = widget.element.querySelector('.automations-card');
+			const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
+			main.focus();
+			const states = [true, false, true].map(enabled => {
+				const updated = { ...item, enabled };
+				automationService.setAutomations([updated]);
+				const limit = main.querySelector<HTMLElement>('.automations-card-limit')!;
+				const prompt = main.querySelector<HTMLElement>('.automations-card-prompt')!;
+				return {
+					visible: limit.style.display !== 'none',
+					hasLimitLayout: main.classList.contains('automations-card-has-limit'),
+					hasDescription: main.hasAttribute('aria-description'),
+					promptLines: getWindow(prompt).getComputedStyle(prompt).webkitLineClamp,
+					savedConditions: automationService.getAutomation(item.id)?.disableConditions,
+					sameCard: widget.element.querySelector('.automations-card') === card,
+					focusPreserved: document.activeElement === main,
+				};
+			});
+			assert.deepStrictEqual(states, [true, false, true].map(enabled => ({
+				visible: enabled,
+				hasLimitLayout: enabled,
+				hasDescription: enabled,
+				promptLines: enabled ? '1' : '2',
+				savedConditions: item.disableConditions,
+				sameCard: true,
+				focusPreserved: true,
+			})));
+		}
+	});
+
 	test('persistent history groups survive updates and dispose on removal', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -937,6 +1090,7 @@ suite('AutomationsCardsWidget', () => {
 					id: 'weekly-review',
 					name: 'Weekly review',
 					description: 'Review the past week.',
+					disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
 					prompt: 'Review the workspace for the past week.',
 					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
 				},
@@ -981,6 +1135,7 @@ suite('AutomationsCardsWidget', () => {
 				name: 'Weekly review',
 				prompt: 'Review the workspace for the past week.',
 				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
 				enabled: false,
 			},
 			builtInSection: {
@@ -1148,6 +1303,9 @@ suite('AutomationsCardsWidget', () => {
 						'version: 1',
 						'id: weekly-review',
 						'name: Weekly review',
+						'disableConditions:',
+						'  - kind: afterRuns',
+						'    max: 3',
 						'schedule:',
 						'  kind: cron',
 						'  expression: "30 10 * * 5"',
@@ -1186,6 +1344,7 @@ suite('AutomationsCardsWidget', () => {
 				name: 'Weekly review',
 				prompt: 'Review the workspace for the past week.',
 				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
 				enabled: false,
 			},
 			createCalls: [{
@@ -1840,6 +1999,8 @@ suite('AutomationsCardsWidget', () => {
 		const source = automation({
 			name: 'Daily review',
 			prompt: 'Review all open issues',
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
+			runCount: 2,
 			schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
 			target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
 			sessionTemplate: {
@@ -1884,6 +2045,7 @@ suite('AutomationsCardsWidget', () => {
 				initialValues: {
 					name: 'Daily review Copy',
 					prompt: 'Review all open issues',
+					disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }],
 					schedule: source.schedule,
 					target: source.target,
 					sessionTemplate: source.sessionTemplate,
@@ -2068,6 +2230,29 @@ suite('AutomationsCardsWidget', () => {
 			],
 			automationEnabled: true,
 		});
+	});
+
+	test('Enable warns before sending an expired final date and respects cancellation', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({
+			enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			message: dialogService.confirmations[0].message,
+			detail: dialogService.confirmations[0].detail,
+			updates: automationService.guardedUpdateCalls,
+		}, {
+			message: 'The final date for this automation has passed.',
+			detail: 'The host will disable scheduling immediately. Ask in chat to change or remove the final date before re-enabling scheduled runs.',
+			updates: [],
+		});
+		dialogService.confirmResult = { confirmed: true };
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
 	});
 
 	test('Enable and Disable are unavailable when updates are unsupported', async () => {
@@ -2793,6 +2978,21 @@ suite('AutomationsCardsWidget', () => {
 			includesTemplateSummary: true,
 			includesFullPrompts: false,
 		});
+	});
+
+	test('accessible view describes both disable conditions and authoritative usage', () => {
+		const content = buildAutomationsAccessibleContent([automation({
+			disableConditions: [
+				{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' },
+			],
+			runCount: 2,
+		})], [], 'ready');
+		assert.deepStrictEqual([
+			content.includes('Scheduled run limit: 3, 2 used'),
+			content.includes('Final date: 2099-01-01T00:00:00Z'),
+			content.includes('Scheduling stops when either condition is met.'),
+		], [true, true, true]);
 	});
 
 	test('accessible view shows built-in and plugin templates with saved automations', () => {

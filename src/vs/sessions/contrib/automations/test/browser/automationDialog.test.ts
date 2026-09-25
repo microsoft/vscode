@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -59,7 +60,7 @@ import { SessionModelSelection } from '../../../chat/browser/sessionModelSelecti
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildChangedAutomationFields, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
@@ -152,6 +153,7 @@ suite('Automation dialog layout', () => {
 			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
 			'Review the workspace', undefined, undefined,
 			constObservable([]),
+			undefined,
 		);
 		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
 		workspaceButton.focus();
@@ -407,6 +409,7 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		isolationMode: 'worktree',
 		branch: undefined,
 		enabled: true,
+		runOnce: false,
 		...overrides,
 	};
 }
@@ -1539,6 +1542,229 @@ suite('Automation branch picker', () => {
 		}, {
 			sheet: true,
 			suggestion: true,
+		});
+	});
+
+});
+
+suite('Automation dialog run once', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function renderRunOnceForm(options: {
+		readonly state: IFormState;
+		readonly selectedPick?: MobileSessionTypePicker['selectedPick'];
+		readonly allowedProviders?: readonly string[];
+		readonly disableConditions?: IAutomationDescriptor['disableConditions'];
+	}) {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, disposables);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
+		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		const sessionTypesChanged = disposables.add(new Emitter<void>());
+		const sessionsManagementService = instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(undefined),
+			onDidChangeSessionTypes: sessionTypesChanged.event,
+			getSessionTypesForFolder: () => [],
+			getQuickChatSessionTypes: () => [],
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
+			setTargetModel: () => { },
+			setLayoutService: () => { },
+			onDidSelectWorkspace: Event.None,
+			render: container => container.appendChild(document.createElement('button')),
+			setSelectedWorkspace: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(MobileSessionTypePicker, {
+			setQuickChatSource: () => { },
+			setFolderSource: () => { },
+			modelTargetChatSessionType: constObservable(undefined),
+			onDidChangeSelectedPick: Event.None,
+			selectedPick: options.selectedPick,
+			render: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
+		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
+		const promptInput = document.createElement('textarea');
+		const inputToolbar = document.createElement('div');
+		instantiationService.stubInstance(ChatInputPart, {
+			render: (container, value) => { promptInput.value = value ?? ''; container.appendChild(promptInput); },
+			inputToolbarElement: inputToolbar,
+			setInputToolbarAriaLabel: label => inputToolbar.setAttribute('aria-label', label),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				updateOptions: () => { },
+				onDidChangeModelContent: Event.None,
+				getValue: () => promptInput.value,
+			}),
+			layout: () => { },
+			dispose: () => { },
+		});
+
+		const form = DOM.append(document.body, DOM.$('.automation-form'));
+		disposables.add(toDisposable(() => form.remove()));
+		const formDisposables = disposables.add(new DisposableStore());
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const handle = renderForm(
+			form, options.state, formDisposables, validation, () => { }, instantiationService, contextKeyService,
+			instantiationService.get(IContextViewService), configurationService, instantiationService.get(IWorkbenchLayoutService),
+			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
+			'Prompt', undefined, undefined,
+			constObservable(options.allowedProviders ?? []),
+			options.disableConditions,
+		);
+		const runOnceCheckbox = form.querySelector<HTMLElement>('[role="checkbox"][aria-label="Run once"]')!;
+		const enabledCheckbox = form.querySelector<HTMLElement>('[role="checkbox"][aria-label="Enabled"]')!;
+		return { form, state: options.state, handle, runOnceCheckbox, enabledCheckbox };
+	}
+
+	test('maps Run once to one scheduled run and preserves unrelated fields', () => {
+		assert.deepStrictEqual({
+			unchangedUnlimited: buildChangedAutomationFields(true, false, { enabled: true }),
+			unchangedRunOnce: buildChangedAutomationFields(true, true, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] }),
+			enabledToggled: buildChangedAutomationFields(false, false, { enabled: true }),
+			setRunOnce: buildChangedAutomationFields(true, true, { enabled: true }),
+			clearRunOnce: buildChangedAutomationFields(true, false, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] }),
+			createUnlimited: buildAutomationDisableConditions(false, undefined),
+			createRunOnce: buildAutomationDisableConditions(true, undefined),
+		}, {
+			unchangedUnlimited: {},
+			unchangedRunOnce: {},
+			enabledToggled: { enabled: false },
+			setRunOnce: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			clearRunOnce: { disableConditions: [] },
+			createUnlimited: [],
+			createRunOnce: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
+		});
+	});
+
+	test('retains MCP conditions during unrelated edits, duplication, and import', () => {
+		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
+		const disableConditions = [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }];
+		assert.deepStrictEqual({
+			unrelatedEdit: buildChangedAutomationFields(true, false, { enabled: true, disableConditions }),
+			enable: buildChangedAutomationFields(true, false, { enabled: false, disableConditions }),
+			duplicate: buildAutomationDisableConditions(false, disableConditions),
+			dateOnly: buildAutomationDisableConditions(false, [dateCondition]),
+			runOnce: buildChangedAutomationFields(true, true, { enabled: true, disableConditions }),
+			uncheck: buildChangedAutomationFields(true, false, {
+				enabled: true,
+				disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
+			}),
+		}, {
+			unrelatedEdit: {},
+			enable: { enabled: true },
+			duplicate: disableConditions,
+			dateOnly: [dateCondition],
+			runOnce: { disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			uncheck: { disableConditions: [dateCondition] },
+		});
+	});
+
+	test('Run once changes the absolute cap without resetting consumed allowance or enabling', () => {
+		const existing = {
+			enabled: true,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }],
+			runCount: 2,
+		};
+		const patch = buildChangedAutomationFields(true, true, existing);
+		assert.deepStrictEqual({ patch, runCount: existing.runCount }, {
+			patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			runCount: 2,
+		});
+	});
+
+	test('groups Enabled then Run once with matching keyboard order', () => {
+		const state = createFormState({ isQuickChat: true, folderUri: undefined, providerId: 'host', sessionTypeId: 'copilotcli', runOnce: true });
+		const { form, handle, runOnceCheckbox, enabledCheckbox } = renderRunOnceForm({
+			state,
+			selectedPick: { providerId: 'host', sessionTypeId: 'copilotcli' },
+			allowedProviders: ['host'],
+		});
+		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
+		enabledCheckbox.focus();
+		dispatchKey(enabledCheckbox, 'keydown', 'Tab');
+		assert.deepStrictEqual({
+			labels: Array.from(form.querySelectorAll('.automation-form-checkbox-label'), label => label.textContent),
+			grouped: enabledCheckbox.parentElement?.parentElement === runOnceCheckbox.parentElement?.parentElement,
+			checked: runOnceCheckbox.getAttribute('aria-checked'),
+			description: runOnceCheckbox.getAttribute('aria-description'),
+			focusable: [runOnceCheckbox, enabledCheckbox].every(checkbox => handle.getFocusableElements().includes(checkbox)),
+			tabFocusesRunOnce: document.activeElement === runOnceCheckbox,
+			removedInputs: form.querySelectorAll('input[aria-label="Scheduled run limit"], input[aria-label="Final date"]').length,
+		}, {
+			labels: ['Enabled', 'Run once'],
+			grouped: true,
+			checked: 'true',
+			description: 'Set the scheduled run limit to one. Runs already used in the current allowance count toward this limit. Manual runs do not count.',
+			focusable: true,
+			tabFocusesRunOnce: true,
+			removedInputs: 0,
+		});
+	});
+
+	test('supports changing Run once by checkbox, label, and keyboard without changing Enabled', () => {
+		const { state, runOnceCheckbox } = renderRunOnceForm({ state: createFormState() });
+		const snapshot = () => [state.runOnce, runOnceCheckbox.getAttribute('aria-checked'), state.enabled];
+		runOnceCheckbox.click();
+		const clicked = snapshot();
+		runOnceCheckbox.parentElement!.querySelector<HTMLElement>('.automation-form-checkbox-label')!.click();
+		const labelClicked = snapshot();
+		runOnceCheckbox.focus();
+		runOnceCheckbox.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({ clicked, labelClicked, keyboard: snapshot() }, {
+			clicked: [true, 'true', true],
+			labelClicked: [false, 'false', true],
+			keyboard: [true, 'true', true],
+		});
+	});
+
+	test('leaves advanced MCP conditions unchanged after toggling Run once on and back off', () => {
+		const disableConditions = [
+			{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 },
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' },
+		];
+		const { state, runOnceCheckbox } = renderRunOnceForm({ state: createFormState(), disableConditions });
+		const initialChecked = runOnceCheckbox.getAttribute('aria-checked');
+		runOnceCheckbox.click();
+		runOnceCheckbox.click();
+		assert.deepStrictEqual({
+			initialChecked,
+			checked: runOnceCheckbox.getAttribute('aria-checked'),
+			patch: buildChangedAutomationFields(state.enabled, state.runOnce, { enabled: true, disableConditions }),
+			createdConditions: buildAutomationDisableConditions(state.runOnce, disableConditions),
+		}, { initialChecked: 'false', checked: 'false', patch: {}, createdConditions: disableConditions });
+	});
+
+	test('warns accessibly when enabling an expired date set through MCP', () => {
+		const { form, handle, enabledCheckbox } = renderRunOnceForm({
+			state: createFormState({ enabled: false }),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		const warning = form.querySelector<HTMLElement>('#automation-conditions-warning')!;
+		const disabledMessage = warning.textContent;
+		enabledCheckbox.click();
+		const enabledMessage = warning.textContent;
+		const describedBy = enabledCheckbox.getAttribute('aria-describedby');
+		const announcedContent = warning.firstChild;
+		handle.refreshDisableConditionsWarning();
+		const retainedAnnouncement = warning.firstChild === announcedContent;
+		enabledCheckbox.click();
+		assert.deepStrictEqual({
+			disabledMessage, enabledMessage, describedBy, retainedAnnouncement, cleared: warning.textContent, live: warning.getAttribute('aria-live'),
+		}, {
+			disabledMessage: '',
+			enabledMessage: 'The final date has passed. Scheduling will stop immediately. Use chat to change or remove the final date.',
+			describedBy: warning.id, retainedAnnouncement: true, cleared: '', live: 'polite',
 		});
 	});
 
