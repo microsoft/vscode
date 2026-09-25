@@ -67,15 +67,15 @@ export class ArtifactExecutionService extends Disposable {
 		store.add(autorun(reader => {
 			const session = binding.sessionState.read(reader);
 			binding.presentation.read(reader);
-			this.ledger.state.read(reader);
-			for (const run of this.ledger.state.get().runs.filter(run => run.bindingId === binding.id && run.state === 'cancelled')) {
+			const state = this.ledger.state.read(reader);
+			for (const run of state.runs.filter(run => run.bindingId === binding.id && run.state === 'cancelled')) {
 				this.active.get(run.id)?.cancel();
 			}
 			if (!this.recovering.has(binding.id)) {
 				void this.revokeDisabled(binding.id).catch(error => this.logService.error('[ArtifactIntegrations] Could not revoke disabled automation', error));
 			}
 			if (session.deleted || (session.availability.kind === 'available' && (session.archived || !session.artifacts.some(artifact => artifact.id === binding.artifact.id)))) {
-				for (const run of this.ledger.state.get().runs.filter(run => run.bindingId === binding.id && run.source === 'automation' && !isArtifactRunSettled(run))) {
+				for (const run of state.runs.filter(run => run.bindingId === binding.id && run.source === 'automation' && !isArtifactRunSettled(run))) {
 					void this.cancel(binding.id, run.id).catch(error => this.logService.error('[ArtifactIntegrations] Could not revoke automation', error));
 				}
 			}
@@ -380,7 +380,7 @@ export class ArtifactExecutionService extends Disposable {
 		}
 		const session = binding.sessionState.get();
 		if (session.availability.kind !== 'available') {
-			return 'reason' in session.availability ? session.availability.reason : localize('artifactSessionLoading', "The artifact's session is loading.");
+			return session.availability.kind === 'loading' ? localize('artifactSessionLoading', "The artifact's session is loading.") : session.availability.reason;
 		}
 		const artifact = session.artifacts.find(artifact => artifact.id === binding.artifact.id);
 		if (!artifact || artifact.resource !== binding.artifact.resource) {
@@ -392,7 +392,7 @@ export class ArtifactExecutionService extends Disposable {
 			return localize('artifactActionDefinitionChanged', "This action's definition changed after it was requested. Cancel it and review the new action before requesting it again.");
 		}
 		if (presentation.availability.kind !== 'available') {
-			return 'reason' in presentation.availability ? presentation.availability.reason : localize('artifactStateLoading', "Waiting for current artifact state.");
+			return presentation.availability.kind === 'loading' ? localize('artifactStateLoading', "Waiting for current artifact state.") : presentation.availability.reason;
 		}
 		if (run.source === 'manual' && ![...presentation.stateActions, ...presentation.generalActions].some(action => action.id === run.actionId && action.enabled)) {
 			return localize('artifactActionUnavailable', "This artifact action is no longer available.");

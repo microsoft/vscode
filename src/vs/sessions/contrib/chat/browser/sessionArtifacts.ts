@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
@@ -519,7 +518,7 @@ export class SessionArtifacts extends Disposable {
 			for (const id of lifetimes.keys()) {
 				if (!ids.has(id)) {
 					lifetimes.deleteAndDispose(id);
-					const next = new Map(presentations.get());
+					const next = new Map(presentations.read(undefined));
 					next.delete(id);
 					presentations.set(next, undefined);
 				}
@@ -546,13 +545,13 @@ export class SessionArtifacts extends Disposable {
 						return;
 					}
 					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, () => {
-						const invokingChat = chat.get();
-						if (!invokingChat || session.get() !== current) {
+						const invokingChat = chat.read(undefined);
+						if (!invokingChat || session.read(undefined) !== current) {
 							throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
 						}
 						return invokingChat.resource.toString();
 					}));
-					presentations.set(new Map(presentations.get()).set(artifact.id, presentation), undefined);
+					presentations.set(new Map(presentations.read(undefined)).set(artifact.id, presentation), undefined);
 				}).catch(error => {
 					if (!lifetime.isDisposed) {
 						logService.error('[ArtifactIntegrations] Could not acquire artifact presentation', error);

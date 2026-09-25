@@ -509,7 +509,7 @@ class ArtifactBinding extends Disposable {
 		await this.executor.recover(this.id);
 		this._register(autorun(reader => {
 			const next = this.ledger.state.read(reader).bindings.find(binding => binding.id === this.id);
-			if (next && next.configuration.revision !== this.configuration.get().revision) {
+			if (next && next.configuration.revision !== this.configuration.read(undefined).revision) {
 				this.configuration.set(next.configuration, undefined);
 			}
 			const view = binding.view.read(reader);
@@ -517,7 +517,7 @@ class ArtifactBinding extends Disposable {
 			const available = this.runtime.available.read(reader);
 			try {
 				const actions = [...view.stateActions, ...view.generalActions];
-				const candidate = { authority: this.runtime.authority, session: this.session, artifact: this.artifact, contributions: [{ ...this.snapshot.get(), view }], runs: [] };
+				const candidate = { authority: this.runtime.authority, session: this.session, artifact: this.artifact, contributions: [{ ...this.snapshot.read(undefined), view }], runs: [] };
 				if (!isArtifactSnapshot(candidate) || new Set(actions.map(action => action.id)).size !== actions.length
 					|| actions.some(action => !binding.actions.some(registered => registered.id === action.id))
 					|| new Set(view.sections.map(section => section.id)).size !== view.sections.length
@@ -537,10 +537,10 @@ class ArtifactBinding extends Disposable {
 					automationAvailability: view.automationAvailability.map(option => ({ ...option, available: false, unavailableReason: localize('artifactArchived', "Artifact automation is paused while the session is archived.") })),
 				} : view, undefined);
 			} catch (error) {
-				this.view.set({ ...this.view.get(), availability: { kind: 'error', reason: toErrorMessage(error) } }, undefined);
+				this.view.set({ ...this.view.read(undefined), availability: { kind: 'error', reason: toErrorMessage(error) } }, undefined);
 				this.logService.error('[ArtifactIntegrations] Invalid artifact presentation', error);
 			}
-			const enabled = next && available && this.view.get().availability.kind === 'available' && session.availability.kind === 'available' && !session.archived && session.artifacts.some(artifact => artifact.id === this.artifact.id)
+			const enabled = next && available && this.view.read(undefined).availability.kind === 'available' && session.availability.kind === 'available' && !session.archived && session.artifacts.some(artifact => artifact.id === this.artifact.id)
 				&& this.registration.options.some(option => isArtifactOptionEnabled(option, next.configuration.values[option.id]) && next.consent[option.id] === this.getConsent(option));
 			if (enabled && !this.automation.value) {
 				this.automation.value = binding.activateAutomation({

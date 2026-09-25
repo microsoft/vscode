@@ -7,6 +7,7 @@ import type { Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';

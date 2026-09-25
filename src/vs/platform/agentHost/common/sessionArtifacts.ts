@@ -99,8 +99,11 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
 	const origin = raw['origin'];
-	if (origin && typeof origin === 'object' && 'chat' in origin && typeof origin.chat === 'string' && origin.chat.length > 0) {
-		artifact.origin = { chat: origin.chat, ...('turnId' in origin && typeof origin.turnId === 'string' ? { turnId: origin.turnId } : {}) };
+	if (origin && typeof origin === 'object') {
+		const rawOrigin = origin as Record<string, unknown>;
+		if (typeof rawOrigin['chat'] === 'string' && rawOrigin['chat'].length > 0) {
+			artifact.origin = { chat: rawOrigin['chat'], ...(typeof rawOrigin['turnId'] === 'string' ? { turnId: rawOrigin['turnId'] } : {}) };
+		}
 	}
 	return artifact;
 }

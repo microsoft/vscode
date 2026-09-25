@@ -86,7 +86,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 					: value.interactivity !== undefined && value.interactivity !== ChatInteractivity.Full ? localize('artifactChatReadOnly', "The artifact's chat is not writable.") : undefined,
 			}, undefined);
 		}, error => state.set({ available: false, busy: false, reason: toErrorMessage(error) }, undefined),
-		reason => state.set({ available: false, busy: false, reason }, undefined));
+			reason => state.set({ available: false, busy: false, reason }, undefined));
 		return { state, dispose: () => store.dispose() };
 	}
 
@@ -156,7 +156,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 				void recovery.complete(receipt ? { kind: 'attached', handle: this.createHandle(request, receipt) }
 					: { kind: 'indeterminate', reason: localize('artifactPromptUncertain', "The backend cannot determine whether this artifact prompt was delivered. It will not be resent automatically.") });
 			}, error => { void recovery.complete({ kind: 'indeterminate', reason: toErrorMessage(error) }); },
-			reason => { void recovery.complete({ kind: 'indeterminate', reason }); }));
+				reason => { void recovery.complete({ kind: 'indeterminate', reason }); }));
 			return await recovery.p;
 		} finally {
 			this.recoveries.deleteAndDispose(store);
@@ -196,7 +196,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 					accept({ kind: 'indeterminate', reason: localize('artifactPromptMissing', "This artifact prompt is no longer pending, but its turn could not be found.") });
 				}
 			}, error => accept({ kind: 'indeterminate', reason: toErrorMessage(error) }),
-			reason => accept({ kind: 'unavailable', reason })));
+				reason => accept({ kind: 'unavailable', reason })));
 			return store;
 		}, (receipt, token) => this.cancelSubmission(request, receipt, token), () => this.handles.deleteAndLeak(handle));
 		this.handles.add(handle);

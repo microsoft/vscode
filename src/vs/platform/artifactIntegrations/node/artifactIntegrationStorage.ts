@@ -7,6 +7,7 @@ import { promises as fs } from 'fs';
 import { dirname } from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { Schemas } from '../../../base/common/network.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IArtifactIntegrationStorage } from '../common/artifactRuntime.js';
@@ -27,7 +28,7 @@ export class FileArtifactIntegrationStorage implements IArtifactIntegrationStora
 		try {
 			return await fs.readFile(this.resource.fsPath, 'utf8');
 		} catch (error) {
-			if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+			if (error && typeof error === 'object' && hasKey(error, { code: true }) && error.code === 'ENOENT') {
 				return undefined;
 			}
 			throw error;
@@ -66,7 +67,7 @@ export class FileArtifactIntegrationStorage implements IArtifactIntegrationStora
 				try {
 					await fs.unlink(temporary);
 				} catch (cleanupError) {
-					if (!cleanupError || typeof cleanupError !== 'object' || !('code' in cleanupError) || cleanupError.code !== 'ENOENT') {
+					if (!cleanupError || typeof cleanupError !== 'object' || !hasKey(cleanupError, { code: true }) || cleanupError.code !== 'ENOENT') {
 						throw new AggregateError([error, cleanupError], 'Artifact ledger write and temporary-file cleanup failed');
 					}
 				}

@@ -20,6 +20,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { ArtifactIntegrationUpdateNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -417,11 +418,21 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	test('artifact integration capability is independent of timing and session import', async () => {
+		const capabilities: ReturnType<typeof getAgentHostArtifactIntegrationsCapability>[] = [];
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, true, enabled));
+			capabilities.push(getAgentHostArtifactIntegrationsCapability(client.initializeResult.get()));
+		}
+		assert.deepStrictEqual(capabilities, ['unsupported', 'supported']);
+	});
+
 	test('validates private artifact integration notifications outside the upstream AHP shape', async () => {
 		const log = new NullLogService();
 		const errors = sinon.spy(log, 'error');
 		const { client, transport } = createClient(undefined, undefined, undefined, log);
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true));
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
 		const received: ArtifactIntegrationUpdate[] = [];
 		disposables.add(client.onDidArtifactIntegrationUpdate(update => received.push(update)));
 		const update: ArtifactIntegrationUpdate = {
