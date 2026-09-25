@@ -282,12 +282,12 @@ function isFindWidgetSearch(editor: ICodeEditor, findController: CommonFindContr
 }
 
 function getSelectionSearchOptions(editor: ICodeEditor, findController: CommonFindController): { wholeWord: boolean; matchCase: boolean; usesFindOptions: boolean } {
-	const selectedTextOccurrenceMatching = editor.getOption(EditorOption.selectedTextOccurrenceMatching);
-	if (selectedTextOccurrenceMatching === 'find') {
+	const selectedTextMatchMode = editor.getOption(EditorOption.selectedTextMatchMode);
+	if (selectedTextMatchMode === 'findOptions') {
 		const findState = findController.getState();
 		return { wholeWord: findState.wholeWord, matchCase: findState.matchCase, usesFindOptions: true };
 	}
-	return { wholeWord: false, matchCase: selectedTextOccurrenceMatching === 'caseSensitive', usesFindOptions: false };
+	return { wholeWord: false, matchCase: selectedTextMatchMode === 'caseSensitive', usesFindOptions: false };
 }
 
 export class MultiCursorSession {
@@ -527,13 +527,13 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
 				this._endSession();
 			}));
-			if (this._editor.getOption(EditorOption.selectedTextOccurrenceMatching) !== 'find') {
+			if (this._editor.getOption(EditorOption.selectedTextMatchMode) !== 'findOptions') {
 				this._sessionDispose.add(this._editor.onDidFocusEditorText(() => {
 					this._endSession();
 				}));
 			}
 			this._sessionDispose.add(this._editor.onDidChangeConfiguration(e => {
-				if (e.hasChanged(EditorOption.selectedTextOccurrenceMatching)) {
+				if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
 					this._endSession();
 				}
 			}));
@@ -653,7 +653,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		const allowFindRegex = this._editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find'
+		const allowFindRegex = this._editor.getOption(EditorOption.selectedTextMatchMode) === 'findOptions'
 			|| !this._editor.hasTextFocus();
 		if (allowFindRegex && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 			const editorModel = this._editor.getModel();
@@ -903,7 +903,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 			this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
-			if (e.hasChanged(EditorOption.selectedTextOccurrenceMatching)) {
+			if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
 				this.updateSoon.schedule(0);
 			}
 		}));

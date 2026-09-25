@@ -648,9 +648,9 @@ export interface IEditorOptions {
 	selectionHighlightMaxLength?: number;
 	/**
 	 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
-	 * Defaults to 'find', which uses the Find widget's match case and whole word settings.
+	 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
 	 */
-	selectedTextOccurrenceMatching?: 'find' | 'caseSensitive' | 'caseInsensitive';
+	selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
 	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
@@ -5964,7 +5964,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectionHighlightMaxLength,
 	selectionHighlightMultiline,
-	selectedTextOccurrenceMatching,
+	selectedTextMatchMode,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -6711,17 +6711,17 @@ export const EditorOptions = {
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
 		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
 	)),
-	selectedTextOccurrenceMatching: register(new EditorStringEnumOption(
-		EditorOption.selectedTextOccurrenceMatching, 'selectedTextOccurrenceMatching',
-		'find' as 'find' | 'caseSensitive' | 'caseInsensitive',
-		['find', 'caseSensitive', 'caseInsensitive'] as const,
+	selectedTextMatchMode: register(new EditorStringEnumOption(
+		EditorOption.selectedTextMatchMode, 'selectedTextMatchMode',
+		'findOptions' as 'findOptions' | 'caseSensitive' | 'caseInsensitive',
+		['findOptions', 'caseSensitive', 'caseInsensitive'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('selectedTextOccurrenceMatching.find', "Use the Find widget's match case and whole word settings."),
-				nls.localize('selectedTextOccurrenceMatching.caseSensitive', "Match occurrences case-sensitively and independently of the Find widget."),
-				nls.localize('selectedTextOccurrenceMatching.caseInsensitive', "Match occurrences case-insensitively and independently of the Find widget."),
+				nls.localize('selectedTextMatchMode.findOptions', "Use the Find widget's match case and whole word settings."),
+				nls.localize('selectedTextMatchMode.caseSensitive', "Match occurrences case-sensitively and independently of the Find widget."),
+				nls.localize('selectedTextMatchMode.caseInsensitive', "Match occurrences case-insensitively and independently of the Find widget."),
 			],
-			markdownDescription: nls.localize('selectedTextOccurrenceMatching', "Controls how occurrences of selected text are matched when selecting the next, previous, or all occurrences and when highlighting selection matches. `caseSensitive` and `caseInsensitive` match substrings independently of the Find widget. An empty selection always starts a whole-word, case-sensitive search.")
+			markdownDescription: nls.localize('selectedTextMatchMode', "Controls how occurrences of selected text are matched when selecting the next, previous, or all occurrences and when highlighting selection matches. `caseSensitive` and `caseInsensitive` match substrings independently of the Find widget. An empty selection always starts a whole-word, case-sensitive search.")
 		}
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(

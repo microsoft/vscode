@@ -299,7 +299,7 @@ export enum EditorOption {
 	selectionHighlight = 122,
 	selectionHighlightMaxLength = 123,
 	selectionHighlightMultiline = 124,
-	selectedTextOccurrenceMatching = 125,
+	selectedTextMatchMode = 125,
 	selectOnLineNumbers = 126,
 	showFoldingControls = 127,
 	showUnused = 128,

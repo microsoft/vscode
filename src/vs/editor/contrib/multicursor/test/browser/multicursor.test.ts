@@ -523,10 +523,10 @@ suite('Multicursor selection', () => {
 		const moveSelectionToPrevious = new MoveSelectionToPreviousFindMatchAction();
 		const selectHighlights = new SelectHighlightsAction();
 
-		function assertSelectedText(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', isRevealed: boolean): void {
+		function assertSelectedText(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextMatchMode: 'caseSensitive' | 'caseInsensitive', isRevealed: boolean): void {
 			testMulticursor(text, (editor, findController) => {
 				const state = findController.getState();
-				const matchCase = selectedTextOccurrenceMatching === 'caseSensitive';
+				const matchCase = selectedTextMatchMode === 'caseSensitive';
 				state.change({ searchString: 'FOO.*', isRevealed, matchCase: !matchCase, wholeWord: true, isRegex: true }, false);
 				editor.setSelection(new Selection(startLine, 1, startLine, 4));
 
@@ -539,10 +539,10 @@ suite('Multicursor selection', () => {
 					selections: expectedLines.map(line => [line, 1, line, 4]),
 					findOptions: [!matchCase, true, true],
 				});
-			}, { selectedTextOccurrenceMatching });
+			}, { selectedTextMatchMode: selectedTextMatchMode });
 		}
 
-		function assertEmptySelection(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive'): void {
+		function assertEmptySelection(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectedTextMatchMode: 'caseSensitive' | 'caseInsensitive'): void {
 			testMulticursor(text, (editor, findController) => {
 				const state = findController.getState();
 				state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
@@ -558,7 +558,7 @@ suite('Multicursor selection', () => {
 					selections: expectedLines.map(line => [line, 1, line, 4]),
 					findOptions: [true, true, false],
 				});
-			}, { selectedTextOccurrenceMatching });
+			}, { selectedTextMatchMode });
 		}
 
 		function assertFindOptionsFeedback(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], hasTextFocus: boolean): void {
@@ -576,7 +576,7 @@ suite('Multicursor selection', () => {
 					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
 					highlightCount: highlightFindOptions.callCount,
 				};
-			}, { hasTextFocus, selectedTextOccurrenceMatching: 'caseInsensitive' });
+			}, { hasTextFocus, selectedTextMatchMode: 'caseInsensitive' });
 
 			assert.deepStrictEqual(actual, {
 				selections: expectedLines.map(line => [line, 1, line, 4]),
@@ -587,14 +587,14 @@ suite('Multicursor selection', () => {
 
 		test('defaults to Find and reports live option changes', () => {
 			testMulticursor(text, editor => {
-				const values = [editor.getOption(EditorOption.selectedTextOccurrenceMatching)];
+				const values = [editor.getOption(EditorOption.selectedTextMatchMode)];
 				const changes: boolean[] = [];
-				disposables.add(editor.onDidChangeConfiguration(e => changes.push(e.hasChanged(EditorOption.selectedTextOccurrenceMatching))));
-				for (const selectedTextOccurrenceMatching of ['caseSensitive', 'caseInsensitive'] as const) {
-					editor.updateOptions({ selectedTextOccurrenceMatching });
-					values.push(editor.getOption(EditorOption.selectedTextOccurrenceMatching));
+				disposables.add(editor.onDidChangeConfiguration(e => changes.push(e.hasChanged(EditorOption.selectedTextMatchMode))));
+				for (const selectedTextMatchMode of ['caseSensitive', 'caseInsensitive'] as const) {
+					editor.updateOptions({ selectedTextMatchMode });
+					values.push(editor.getOption(EditorOption.selectedTextMatchMode));
 				}
-				assert.deepStrictEqual({ values, changes }, { values: ['find', 'caseSensitive', 'caseInsensitive'], changes: [true, true] });
+				assert.deepStrictEqual({ values, changes }, { values: ['findOptions', 'caseSensitive', 'caseInsensitive'], changes: [true, true] });
 			});
 		});
 
@@ -748,7 +748,7 @@ suite('Multicursor selection', () => {
 				editor.trigger('test', Handler.Type, { text: 'voucher' });
 
 				assert.strictEqual(editor.getValue(), 'voucherQryConn *grpc.ClientConn\nvoucherQryClient proto.AccountQueryClient');
-			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test('select all replaces only selected-text occurrences while regex Find is visible', () => {
@@ -761,13 +761,13 @@ suite('Multicursor selection', () => {
 				editor.trigger('test', Handler.Type, { text: 'baz' });
 
 				actual = editor.getValue();
-			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { selectedTextMatchMode: 'caseSensitive' });
 
 			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
 
 		test('changing Find options ends caret-started sessions before applying the selected-text matching setting', () => {
-			for (const [selectedTextOccurrenceMatching, expectedLine] of [
+			for (const [selectedTextMatchMode, expectedLine] of [
 				['caseSensitive', 3],
 				['caseInsensitive', 2],
 			] as const) {
@@ -780,7 +780,7 @@ suite('Multicursor selection', () => {
 					action.run(null!, editor);
 
 					assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [expectedLine, 1, expectedLine, 4]]);
-				}, { selectedTextOccurrenceMatching });
+				}, { selectedTextMatchMode });
 			}
 		});
 
@@ -791,7 +791,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
+			}, { selectedTextMatchMode: 'caseInsensitive' });
 		});
 
 		test('Find-focused mixed-case initial selections respect Find match case false', () => {
@@ -801,7 +801,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { hasTextFocus: false, selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test('Find-focused mixed-case initial selections respect Find match case true', () => {
@@ -811,7 +811,7 @@ suite('Multicursor selection', () => {
 				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
-			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseInsensitive' });
+			}, { hasTextFocus: false, selectedTextMatchMode: 'caseInsensitive' });
 		});
 
 		test('switching focus transfers matching rules between selection and Find sessions', () => {
@@ -831,7 +831,7 @@ suite('Multicursor selection', () => {
 				actual.push(editor.getSelections().map(fromRange));
 
 				assert.deepStrictEqual(actual, [[[3, 1, 3, 4]], [[5, 1, 5, 4]], [[7, 1, 7, 4]]]);
-			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test('the default Find session survives returning focus to the editor', () => {
@@ -856,7 +856,7 @@ suite('Multicursor selection', () => {
 				const replacement = disposables.add(createTextModel('bar\nBAR\nbarista'));
 				editor.setModel(replacement);
 				editor.setSelection(new Selection(1, 1, 1, 4));
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseSensitive' });
 				action.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [3, 1, 3, 4]]);
@@ -871,7 +871,7 @@ suite('Multicursor selection', () => {
 				new SelectHighlightsAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [3, 1, 4, 4], [5, 2, 6, 4]]);
-			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
+			}, { selectedTextMatchMode: 'caseInsensitive' });
 		});
 
 		test('multiline CRLF selections match literal substrings with match case true', () => {
@@ -882,47 +882,47 @@ suite('Multicursor selection', () => {
 				new SelectHighlightsAction().run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [5, 2, 6, 4]]);
-			}, { selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test(`${addSelectionToNext.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(1, 1, 1, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseSensitive' });
 				addSelectionToNext.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
-			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { hasTextFocus: false, selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test(`${addSelectionToPrevious.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(5, 1, 5, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseSensitive' });
 				addSelectionToPrevious.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[5, 1, 5, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { hasTextFocus: false, selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test(`${selectHighlights.id}: Find-focused commands retain Find matching rules`, () => {
 			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
 				editor.setSelection(new Selection(1, 1, 1, 4));
 				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseSensitive' });
 				selectHighlights.run(null!, editor);
 
 				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[2, 1, 2, 4], [3, 1, 3, 4]]);
-			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
+			}, { hasTextFocus: false, selectedTextMatchMode: 'caseSensitive' });
 		});
 
 		test('Find-focused regex select all follows Find options in both independent matching modes', () => {
-			for (const [selectedTextOccurrenceMatching, matchCase, expectedLines] of [
+			for (const [selectedTextMatchMode, matchCase, expectedLines] of [
 				['caseSensitive', false, [1, 4, 5]],
 				['caseInsensitive', true, [1, 5]],
 			] as const) {
@@ -933,7 +933,7 @@ suite('Multicursor selection', () => {
 					selectHighlights.run(null!, editor);
 
 					assert.deepStrictEqual(editor.getSelections().map(fromRange), expectedLines.map(line => [line, 1, line, 4]));
-				}, { hasTextFocus: false, selectedTextOccurrenceMatching });
+				}, { hasTextFocus: false, selectedTextMatchMode });
 			}
 		});
 
@@ -965,21 +965,21 @@ suite('Multicursor selection', () => {
 				.map(fromRange);
 		}
 
-		function assertSelectionHighlighting(selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', hasTextFocus: boolean, expectedLines: number[]): void {
+		function assertSelectionHighlighting(selectedTextMatchMode: 'caseSensitive' | 'caseInsensitive', hasTextFocus: boolean, expectedLines: number[]): void {
 			testMulticursor(text, (editor, findController) => {
 				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-				findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: selectedTextOccurrenceMatching !== 'caseSensitive', wholeWord: true, isRegex: true }, false);
+				findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: selectedTextMatchMode !== 'caseSensitive', wholeWord: true, isRegex: true }, false);
 				editor.setSelection(new Selection(1, 1, 1, 4));
 
 				assert.deepStrictEqual(highlights(editor), expectedLines.map(line => [line, 1, line, 4]));
-			}, { selectedTextOccurrenceMatching, hasTextFocus });
+			}, { selectedTextMatchMode, hasTextFocus });
 		}
 
-		function assertDuplicateFindHighlights(selectedTextOccurrenceMatching: 'caseSensitive' | 'caseInsensitive', expectedDifferentCaseLines: number[]): void {
+		function assertDuplicateFindHighlights(selectedTextMatchMode: 'caseSensitive' | 'caseInsensitive', expectedDifferentCaseLines: number[]): void {
 			testMulticursor(text, (editor, findController) => {
 				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
 				editor.setSelection(new Selection(1, 1, 1, 4));
-				const matchCase = selectedTextOccurrenceMatching === 'caseSensitive';
+				const matchCase = selectedTextMatchMode === 'caseSensitive';
 				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase, wholeWord: false }, false);
 				const sameOptions = highlights(editor);
 
@@ -988,7 +988,7 @@ suite('Multicursor selection', () => {
 					sameOptions: [],
 					differentCase: expectedDifferentCaseLines.map(line => [line, 1, line, 4]),
 				});
-			}, { selectedTextOccurrenceMatching });
+			}, { selectedTextMatchMode });
 		}
 
 		test('selection highlighting uses match case false, editor focused true', () => {
@@ -1017,11 +1017,11 @@ suite('Multicursor selection', () => {
 				clock.runAll();
 				actual.push(highlights(editor));
 
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseSensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseSensitive' });
 				clock.runAll();
 				actual.push(highlights(editor));
 
-				editor.updateOptions({ selectedTextOccurrenceMatching: 'caseInsensitive' });
+				editor.updateOptions({ selectedTextMatchMode: 'caseInsensitive' });
 				clock.runAll();
 				actual.push(highlights(editor));
 			});
@@ -1049,7 +1049,7 @@ suite('Multicursor selection', () => {
 					afterFind: [[2, 4, 2, 7], [4, 1, 4, 4]],
 					selections: [[3, 1, 3, 4], [4, 1, 4, 4]],
 				});
-			}, { selectedTextOccurrenceMatching: 'caseInsensitive' });
+			}, { selectedTextMatchMode: 'caseInsensitive' });
 		});
 	});
 
@@ -1065,7 +1065,7 @@ suite('Multicursor selection', () => {
 		];
 
 		test('caret-started sessions temporarily override and restore Find options in every matching mode', () => {
-			for (const selectedTextOccurrenceMatching of [undefined, 'find', 'caseSensitive', 'caseInsensitive'] as const) {
+			for (const selectedTextMatchMode of [undefined, 'findOptions', 'caseSensitive', 'caseInsensitive'] as const) {
 				for (const endSession of ['selection', 'blur', 'dispose', 'configuration'] as const) {
 					testMulticursor(text, (editor, findController) => {
 						const state = findController.getState();
@@ -1098,7 +1098,7 @@ suite('Multicursor selection', () => {
 								MultiCursorSelectionController.get(editor)!.dispose();
 								break;
 							case 'configuration':
-								editor.updateOptions({ selectedTextOccurrenceMatching: editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find' ? 'caseInsensitive' : 'find' });
+								editor.updateOptions({ selectedTextMatchMode: editor.getOption(EditorOption.selectedTextMatchMode) === 'findOptions' ? 'caseInsensitive' : 'findOptions' });
 								break;
 						}
 
@@ -1110,8 +1110,8 @@ suite('Multicursor selection', () => {
 								highlightCount: 1,
 							},
 							afterSession: { effective: [false, false, true], stored: [false, false, true] },
-						}, `${selectedTextOccurrenceMatching ?? 'default'}: ${endSession}`);
-					}, { selectedTextOccurrenceMatching });
+						}, `${selectedTextMatchMode ?? 'default'}: ${endSession}`);
+					}, { selectedTextMatchMode });
 				}
 			}
 		});
