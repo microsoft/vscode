@@ -11,17 +11,21 @@ import { parse, ParseError } from '../../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../../base/common/jsonEdit.js';
 import { FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { toCopilotMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpCopilotConfiguration.js';
+import { parseCopilotGlobalMcpConfiguration } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
 const LOG_PREFIX = '[MCP Customization Migration]';
@@ -32,6 +36,7 @@ export interface IMcpServerCustomizationMigrationPlan {
 }
 
 interface IMcpServerMigrationGroup {
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly candidates: IMcpServerCustomizationMigrationCandidate[];
@@ -50,6 +55,7 @@ interface IMcpTargetDocument extends IJsonDocument {
 interface IMcpServerCustomizationMigrationExecutionOptions {
 	readonly isContextCurrent?: (candidates: readonly IMcpServerCustomizationMigrationCandidate[]) => boolean | Promise<boolean>;
 	readonly roots?: readonly URI[];
+	readonly userTarget?: URI;
 }
 
 /**
@@ -72,7 +78,7 @@ export class McpServerCustomizationMigrator {
 		private readonly configurationResolverService: IConfigurationResolverService,
 	) { }
 
-	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[], token = CancellationToken.None): Promise<IMcpServerCustomizationMigrationPlan> {
+	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[], token = CancellationToken.None, userTarget?: URI): Promise<IMcpServerCustomizationMigrationPlan> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -83,15 +89,20 @@ export class McpServerCustomizationMigrator {
 
 		for (const server of snapshot.servers) {
 			const sourceUri = server.source.collectionUri;
-			const root = sourceUri ? roots.find(candidate => isEqual(sourceUri, URI.joinPath(candidate, '.vscode', 'mcp.json'))) : undefined;
-			if (server.source.kind !== AgentHostMcpServerSourceKind.VscodeWorkspaceFolder || !sourceUri || !root) {
+			const isUser = server.source.kind === AgentHostMcpServerSourceKind.UserProfile || server.source.kind === AgentHostMcpServerSourceKind.RemoteUser;
+			const root = !isUser && sourceUri ? roots.find(candidate => isEqual(sourceUri, URI.joinPath(candidate, '.vscode', 'mcp.json'))) : undefined;
+			const targetUri = isUser
+				? userTarget && server.source.remoteAuthority === (userTarget.scheme === Schemas.vscodeRemote ? userTarget.authority : null) ? userTarget : undefined
+				: server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder && root ? URI.joinPath(root, '.mcp.json') : undefined;
+			if (!sourceUri || !targetUri || (isUser && !isUserSourceTargetPair(sourceUri, targetUri))) {
 				continue;
 			}
 
-			const targetUri = URI.joinPath(root, '.mcp.json');
+			const storage = isUser ? PromptsStorage.user : PromptsStorage.local;
 			const excluded = (reason: McpServerCustomizationMigrationFailureReason, error?: Error): void => {
 				this.logService.trace(`${LOG_PREFIX} Excluded '${server.name}' from ${sourceUri.toString()}: reason=${reason}`);
 				exclusions.push({
+					storage,
 					id: server.id,
 					name: server.name,
 					sourceUri,
@@ -142,7 +153,7 @@ export class McpServerCustomizationMigrator {
 					: McpServerCustomizationMigrationFailureReason.InvalidSource);
 				continue;
 			}
-			if (!isConfigurationRepresentable(server.projectedConfiguration)
+			if (!isConfigurationRepresentable(server.projectedConfiguration, storage)
 				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved())
 				|| !equals(sourceConfiguration, projectedConfiguration)) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
@@ -150,6 +161,7 @@ export class McpServerCustomizationMigrator {
 			}
 			candidates.push({
 				type: CustomizationMigrationType.McpServers,
+				storage,
 				id: server.id,
 				name: server.name,
 				sourceUri,
@@ -202,13 +214,17 @@ async function executeMigration(
 	const groups = new Map<string, IMcpServerMigrationGroup>();
 	const failures: IMcpServerCustomizationMigrationFailure[] = [];
 	for (const candidate of candidates) {
-		if (!isStrictSourceTargetPair(candidate.sourceUri, candidate.targetUri)) {
-			logService.trace(`${LOG_PREFIX} Rejected '${candidate.name}': ${candidate.sourceUri.toString()} to ${candidate.targetUri.toString()} is not a strict .vscode/mcp.json to .mcp.json pair.`);
+		const validPair = candidate.storage === PromptsStorage.user
+			? options.userTarget && isEqual(candidate.targetUri, options.userTarget) && isUserSourceTargetPair(candidate.sourceUri, candidate.targetUri)
+			: isStrictSourceTargetPair(candidate.sourceUri, candidate.targetUri);
+		if (!validPair || isEqual(candidate.sourceUri, candidate.targetUri)) {
+			logService.trace(`${LOG_PREFIX} Rejected '${candidate.name}': ${candidate.sourceUri.toString()} to ${candidate.targetUri.toString()} is not a supported migration pair.`);
 			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.InconsistentTarget));
 			continue;
 		}
 		const key = JSON.stringify([getComparisonKey(candidate.sourceUri), getComparisonKey(candidate.targetUri)]);
 		const group = groups.get(key) ?? {
+			storage: candidate.storage,
 			sourceUri: candidate.sourceUri,
 			targetUri: candidate.targetUri,
 			candidates: [],
@@ -224,8 +240,10 @@ async function executeMigration(
 	}
 	const selectedCandidates = [...groups.values()].flatMap(group => group.candidates);
 	for (const group of groups.values()) {
-		const root = dirname(group.targetUri);
-		roots.set(root, root);
+		if (group.storage === PromptsStorage.local) {
+			const root = dirname(group.targetUri);
+			roots.set(root, root);
+		}
 	}
 	const workingDirectories = [...roots.values()];
 	let migratedCount = 0;
@@ -239,7 +257,7 @@ async function executeMigration(
 		try {
 			const conflicts = await findCrossRootConflicts(group, workingDirectories, fileService);
 			eligibleCandidates = group.candidates.filter(candidate => {
-				const selectedConflict = selectedCandidates.find(other => other.name === candidate.name && !isEqual(other.targetUri, candidate.targetUri));
+				const selectedConflict = selectedCandidates.find(other => other.storage === candidate.storage && other.name === candidate.name && !isEqual(other.targetUri, candidate.targetUri));
 				const conflictingUri = conflicts.get(candidate.name) ?? selectedConflict?.sourceUri;
 				if (!conflictingUri) {
 					return true;
@@ -266,6 +284,9 @@ async function executeMigration(
 
 async function findCrossRootConflicts(group: IMcpServerMigrationGroup, roots: readonly URI[], fileService: IFileService): Promise<Map<string, URI>> {
 	const conflicts = new Map<string, URI>();
+	if (group.storage === PromptsStorage.user) {
+		return conflicts;
+	}
 	for (const root of roots) {
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		if (isEqual(targetUri, group.targetUri)) {
@@ -341,7 +362,7 @@ async function migrateGroup(
 
 	let target: IMcpTargetDocument;
 	try {
-		target = await readTargetDocument(group.targetUri, fileService);
+		target = await readTargetDocument(group.targetUri, fileService, group.storage === PromptsStorage.user);
 	} catch (error) {
 		throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.InvalidTarget, toError(error));
 	}
@@ -355,7 +376,7 @@ async function migrateGroup(
 	};
 
 	for (const candidate of group.candidates) {
-		if (!isConfigurationRepresentable(candidate.projectedConfiguration)) {
+		if (!isConfigurationRepresentable(candidate.projectedConfiguration, candidate.storage)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;
 		}
@@ -363,7 +384,7 @@ async function migrateGroup(
 			reject(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 			continue;
 		}
-		const root = dirname(group.targetUri);
+		const root = group.storage === PromptsStorage.local ? dirname(group.targetUri) : undefined;
 		const sourceConfiguration = await resolveSourceConfiguration(sourceServers[candidate.name], root, configurationResolverService);
 		const migrationConfiguration = canonicalizeConfiguration(candidate.projectedConfiguration);
 		if (!sourceConfiguration) {
@@ -376,8 +397,7 @@ async function migrateGroup(
 			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
 		}
-		const targetConfiguration = await resolveSourceConfiguration(targetServers[candidate.name], root, configurationResolverService);
-		if (Object.hasOwn(targetServers, candidate.name) && (!targetConfiguration || !equals(targetConfiguration, migrationConfiguration))) {
+		if (Object.hasOwn(targetServers, candidate.name) && !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.TargetConflict);
 			continue;
 		}
@@ -403,7 +423,7 @@ async function migrateGroup(
 			targetContent = setJsonValue(
 				targetContent,
 				target.wrapped ? ['mcpServers', candidate.name] : [candidate.name],
-				canonicalizeConfiguration(candidate.projectedConfiguration),
+				getTargetConfiguration(candidate),
 			);
 			targetChanged = true;
 		}
@@ -545,17 +565,14 @@ async function isConcurrentMigrationComplete(
 ): Promise<boolean> {
 	try {
 		const sourceServers = getObjectProperty((await readSourceDocument(group.sourceUri, fileService)).value, 'servers');
-		const targetServers = getTargetServers(await readTargetDocument(group.targetUri, fileService));
+		const targetServers = getTargetServers(await readTargetDocument(group.targetUri, fileService, group.storage === PromptsStorage.user));
 		if (!sourceServers) {
 			return false;
 		}
 		for (const candidate of group.candidates) {
 			if (Object.hasOwn(sourceServers, candidate.name)
 				|| !Object.hasOwn(targetServers, candidate.name)
-				|| !equals(
-					await resolveSourceConfiguration(targetServers[candidate.name], dirname(group.targetUri), configurationResolverService),
-					canonicalizeConfiguration(candidate.projectedConfiguration),
-				)) {
+				|| !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
 				return false;
 			}
 		}
@@ -597,14 +614,11 @@ async function verifyMigration(
 ): Promise<void> {
 	const source = await readSourceDocument(group.sourceUri, fileService);
 	const sourceServers = getObjectProperty(source.value, 'servers');
-	const target = await readTargetDocument(group.targetUri, fileService);
+	const target = await readTargetDocument(group.targetUri, fileService, group.storage === PromptsStorage.user);
 	const targetServers = getTargetServers(target);
 	for (const candidate of candidates) {
 		if (sourceServers?.[candidate.name] !== undefined
-			|| !equals(
-				await resolveSourceConfiguration(targetServers[candidate.name], dirname(group.targetUri), configurationResolverService),
-				canonicalizeConfiguration(candidate.projectedConfiguration),
-			)) {
+			|| !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
 			throw new Error(`MCP server '${candidate.name}' changed during migration.`);
 		}
 	}
@@ -624,17 +638,20 @@ async function readSourceDocument(resource: URI, fileService: IFileService): Pro
 	return { content, value, exists: true };
 }
 
-async function readTargetDocument(resource: URI, fileService: IFileService): Promise<IMcpTargetDocument> {
+async function readTargetDocument(resource: URI, fileService: IFileService, copilotGlobal = false): Promise<IMcpTargetDocument> {
 	try {
 		const file = await fileService.readFile(resource);
 		const content = file.value.toString();
+		if (copilotGlobal) {
+			parseCopilotGlobalMcpConfiguration(content);
+		}
 		const errors: ParseError[] = [];
 		const value = parse(content, errors, { allowTrailingComma: true, allowEmptyContent: false });
 		if (errors.length > 0 || !isJsonObject(value)) {
 			throw new Error(`MCP configuration ${resource.toString()} contains invalid JSON.`);
 		}
-		const wrapped = Object.hasOwn(value, 'mcpServers');
-		if (wrapped && !getObjectProperty(value, 'mcpServers')) {
+		const wrapped = copilotGlobal || Object.hasOwn(value, 'mcpServers');
+		if (Object.hasOwn(value, 'mcpServers') && !getObjectProperty(value, 'mcpServers')) {
 			throw new Error(`MCP configuration ${resource.toString()} does not contain a valid mcpServers object.`);
 		}
 		return { content, value, exists: true, wrapped };
@@ -653,7 +670,27 @@ async function readTargetDocument(resource: URI, fileService: IFileService): Pro
 }
 
 function getTargetServers(target: IMcpTargetDocument): Record<string, unknown> {
-	return target.wrapped ? getObjectProperty(target.value, 'mcpServers')! : target.value;
+	return target.wrapped ? getObjectProperty(target.value, 'mcpServers') ?? {} : target.value;
+}
+
+function getTargetConfiguration(candidate: IMcpServerCustomizationMigrationCandidate) {
+	return candidate.storage === PromptsStorage.user
+		? toCopilotMcpServerConfiguration(candidate.projectedConfiguration)
+		: canonicalizeConfiguration(candidate.projectedConfiguration);
+}
+
+async function isEquivalentTargetConfiguration(raw: unknown, candidate: IMcpServerCustomizationMigrationCandidate, resolver: IConfigurationResolverService): Promise<boolean> {
+	if (candidate.storage === PromptsStorage.user) {
+		if (!isJsonObject(raw)) {
+			return false;
+		}
+		return equals({
+			...(candidate.projectedConfiguration.type === McpServerType.LOCAL ? { args: [] } : {}),
+			tools: ['*'],
+			...raw,
+		}, getTargetConfiguration(candidate));
+	}
+	return equals(await resolveSourceConfiguration(raw, dirname(candidate.targetUri), resolver), getTargetConfiguration(candidate));
 }
 
 async function writeDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService, beforeWrite?: () => Promise<void>): Promise<IFileStatWithMetadata> {
@@ -720,7 +757,7 @@ async function rollbackTarget(
 				for (const candidate of addedCandidates) {
 					if (!Object.hasOwn(sourceServers, candidate.name)
 						|| !equals(
-							await resolveSourceConfiguration(sourceServers[candidate.name], dirname(group.targetUri), configurationResolverService),
+							await resolveSourceConfiguration(sourceServers[candidate.name], group.storage === PromptsStorage.local ? dirname(group.targetUri) : undefined, configurationResolverService),
 							canonicalizeConfiguration(candidate.projectedConfiguration),
 						)) {
 						throw new Error(`Source ${group.sourceUri.toString()} no longer contains all entries added to ${resource.toString()}.`);
@@ -756,6 +793,15 @@ function isStrictSourceTargetPair(sourceUri: URI, targetUri: URI): boolean {
 		&& isEqual(targetUri, URI.joinPath(dirname(dirname(sourceUri)), '.mcp.json'));
 }
 
+function isUserSourceTargetPair(sourceUri: URI, targetUri: URI): boolean {
+	return basename(sourceUri) === 'mcp.json'
+		&& basename(targetUri) === 'mcp-config.json'
+		&& sourceUri.authority === targetUri.authority
+		&& (targetUri.scheme === Schemas.vscodeRemote
+			? sourceUri.scheme === Schemas.vscodeRemote
+			: targetUri.scheme === Schemas.file && (sourceUri.scheme === Schemas.file || sourceUri.scheme === Schemas.vscodeUserData));
+}
+
 function getObjectProperty(value: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
 	const property = value[key];
 	return isJsonObject(property) ? property : undefined;
@@ -783,12 +829,15 @@ function canonicalizeConfiguration(configuration: IMcpServerConfiguration): Reco
 	};
 }
 
-function isConfigurationRepresentable(configuration: IMcpServerConfiguration): boolean {
+function isConfigurationRepresentable(configuration: IMcpServerConfiguration, storage: PromptsStorage.local | PromptsStorage.user): boolean {
 	if (configuration.version !== undefined || configuration.gallery !== undefined || configuration.dev !== undefined) {
 		return false;
 	}
 	if (configuration.type === McpServerType.LOCAL) {
-		return configuration.envFile === undefined && configuration.cwd === undefined && configuration.sandboxEnabled !== true;
+		return configuration.envFile === undefined
+			&& configuration.cwd === undefined
+			&& configuration.sandboxEnabled !== true
+			&& (storage !== PromptsStorage.user || !configuration.env || Object.values(configuration.env).every(value => value !== null));
 	}
 	return configuration.oauth === undefined && configuration.transport !== 'sse';
 }
@@ -815,7 +864,7 @@ function canonicalizeSourceConfiguration(rawConfiguration: unknown): Record<stri
 
 async function resolveSourceConfiguration(
 	rawConfiguration: unknown,
-	root: URI,
+	root: URI | undefined,
 	configurationResolverService: IConfigurationResolverService,
 ): Promise<Record<string, unknown> | undefined> {
 	const configuration = canonicalizeSourceConfiguration(rawConfiguration);
@@ -825,11 +874,12 @@ async function resolveSourceConfiguration(
 
 	const expression = ConfigurationResolverExpression.parse(configuration);
 	for (const replacement of expression.unresolved()) {
-		if (!isPortableMigrationVariable(replacement.name, replacement.arg)) {
+		if (!isPortableMigrationVariable(replacement.name, replacement.arg)
+			|| (!root && replacement.name !== 'pathSeparator' && replacement.name !== '/')) {
 			return undefined;
 		}
 	}
-	const folder: IWorkspaceFolderData = { uri: root, name: basename(root), index: 0 };
+	const folder: IWorkspaceFolderData | undefined = root ? { uri: root, name: basename(root), index: 0 } : undefined;
 	try {
 		await configurationResolverService.resolveAsync(folder, expression);
 	} catch {
@@ -909,6 +959,7 @@ function createFailure(
 	error?: Error,
 ): IMcpServerCustomizationMigrationFailure {
 	return {
+		storage: candidate.storage,
 		id: candidate.id,
 		name: candidate.name,
 		sourceUri: candidate.sourceUri,

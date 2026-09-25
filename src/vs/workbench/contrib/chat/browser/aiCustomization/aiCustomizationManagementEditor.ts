@@ -1813,7 +1813,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationCandidateStorage(candidate: CustomizationMigrationCandidate): PromptsStorage {
-		return isMcpServerCustomizationMigrationCandidate(candidate) ? PromptsStorage.local : candidate.storage;
+		return candidate.storage;
+	}
+
+	private getMcpMigrationExclusions(storage?: PromptsStorage): readonly IMcpServerCustomizationMigrationExclusion[] {
+		return storage === undefined ? this.mcpServerMigrationExclusions : this.mcpServerMigrationExclusions.filter(exclusion => exclusion.storage === storage);
 	}
 
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
@@ -1978,7 +1982,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const context = this.getMigrationActivityContext(PromptsStorage.local);
+		const contexts = new Map(servers.map(server => [server.storage, this.getMigrationActivityContext(server.storage)]));
 		const confirmation = category.getConfirmation(servers, this.getActiveHarnessLabel());
 		const confirmResult = await this.dialogService.confirm({
 			type: 'question',
@@ -2009,13 +2013,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		);
 		const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
 		if (result.migratedCount > 0) {
-			this.recordMigrationActivity(category, context, migratedServers.map(server => ({
-				label: server.name,
-				sourceLabel: this.labelService.getUriLabel(server.sourceUri),
-				targetLabel: this.labelService.getUriLabel(server.targetUri),
-				operation: 'server',
-				migrationKey: this.getMigrationActivityCandidateKey(server),
-			})));
+			for (const [storage, context] of contexts) {
+				this.recordMigrationActivity(category, context, migratedServers.filter(server => server.storage === storage).map(server => ({
+					label: server.name,
+					sourceLabel: this.labelService.getUriLabel(server.sourceUri),
+					targetLabel: this.labelService.getUriLabel(server.targetUri),
+					operation: 'server',
+					migrationKey: this.getMigrationActivityCandidateKey(server),
+				})));
+			}
 		}
 		await this.refreshCustomizationMigrationInfo();
 
@@ -2176,7 +2182,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const mcpServerExclusions = category.id === CustomizationMigrationCategoryId.McpServers
-			? this.mcpServerMigrationExclusions
+			? this.getMcpMigrationExclusions(this.activeMigrationStorage)
 			: [];
 		if (candidates.length === 0 && mcpServerExclusions.length === 0) {
 			this.renderCustomizationMigrationState(category.pageEmptyMessage, category.getPageDescription(candidates, this.getActiveHarnessLabel()));
@@ -2625,7 +2631,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return undefined;
 			}
 			const candidates = this.getMigrationCandidates(activeCategory, this.activeMigrationStorage);
-			const exclusions = activeCategory.id === CustomizationMigrationCategoryId.McpServers ? this.mcpServerMigrationExclusions : [];
+			const exclusions = activeCategory.id === CustomizationMigrationCategoryId.McpServers ? this.getMcpMigrationExclusions(this.activeMigrationStorage) : [];
 			return [
 				activeCategory.pageTitle,
 				...candidates.map(candidate => {
@@ -2668,9 +2674,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const categories = homepageMigrationCategories.flatMap(id => {
 				const candidates = this.getMigrationCandidates(getCustomizationMigrationCategory(id), storage);
 				const hasMcpServerExclusions = id === CustomizationMigrationCategoryId.McpServers
-					&& storage === PromptsStorage.local
-					&& this.mcpServerMigrationExclusions.length > 0;
-				return candidates.length || hasMcpServerExclusions ? [this.getHomepageMigrationCategory(id, candidates)] : [];
+					&& this.getMcpMigrationExclusions(storage).length > 0;
+				return candidates.length || hasMcpServerExclusions ? [this.getHomepageMigrationCategory(id, candidates, storage)] : [];
 			});
 			return {
 				storage,
@@ -2689,7 +2694,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		};
 	}
 
-	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[]): ICustomizationMigrationDashboardCategory {
+	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
 		const count = candidates.length;
 		switch (id) {
 			case CustomizationMigrationCategoryId.PromptFiles:
@@ -2701,11 +2706,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 					highRisk: true,
 				};
 			case CustomizationMigrationCategoryId.McpServers: {
-				const unavailableCount = this.mcpServerMigrationExclusions.length;
+				const unavailableCount = this.getMcpMigrationExclusions(storage).length;
 				return {
 					id, count,
 					label: localize('migrationChecklistMcp', "MCP Servers"),
-					description: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json and review servers that cannot be migrated."),
+					description: storage === PromptsStorage.user
+						? localize('migrationChecklistUserMcpDescription', "Move eligible user servers to mcp-config.json in Copilot home and review servers that cannot be migrated.")
+						: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json and review servers that cannot be migrated."),
 					countLabel: localize('migrationChecklistMcpSupportCounts', "{0} migratable · {1} not migratable", count, unavailableCount),
 					hasDetails: unavailableCount > 0,
 				};
@@ -2777,7 +2784,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const state = this.storageService.getObject<IMigrationActivityState>(context.key, StorageScope.PROFILE, { activity: [], skipped: false });
 		const entry: ICustomizationMigrationDashboardActivity = {
 			id: `${Date.now()}-${generateUuid()}`,
-			categoryLabel: this.getHomepageMigrationCategory(category.id, []).label,
+			categoryLabel: this.getHomepageMigrationCategory(category.id, [], context.storage).label,
 			scopeLabel: context.label,
 			storage: context.storage,
 			items,
@@ -2829,7 +2836,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const destinations = this.getCustomizationMigrationDashboardDestinations(this.getDashboardFileMigrationCandidates().filter(candidate => candidate.storage === storage));
 		if (destinations.length === 0) {
-			this.notificationService.info(localize('migrationNoEditableDestinations', "There are no file migration destinations to configure. MCP servers migrate to the workspace root .mcp.json."));
+			this.notificationService.info(localize('migrationNoEditableDestinations', "There are no file migration destinations to configure. Workspace MCP servers migrate to the root .mcp.json; user MCP servers migrate to mcp-config.json in Copilot home."));
 			return;
 		}
 		const selected = await this.quickInputService.pick(destinations.map(destination => ({
