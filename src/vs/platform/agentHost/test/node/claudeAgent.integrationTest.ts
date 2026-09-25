@@ -94,6 +94,7 @@ const noopOTelService: IAgentHostOTelService = {
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,

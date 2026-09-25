@@ -931,6 +931,8 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
 
+	emitUserInteraction(): void { }
+
 	async getSdkTelemetryConfig() {
 		return undefined;
 	}
@@ -971,6 +973,7 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
+	emitUserInteraction(): void { }
 	readonly released: string[] = [];
 
 	async getSdkTelemetryConfig() { return undefined; }
