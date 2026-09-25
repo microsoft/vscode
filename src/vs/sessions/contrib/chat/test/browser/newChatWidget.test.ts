@@ -207,6 +207,8 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
 	_workspacePickerRow: HTMLElement | undefined;
+	_workspaceSessionOptionsHost: HTMLElement | undefined;
+	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 }
 
 interface ISelectNoWorkspaceHarness {
@@ -277,8 +279,10 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
+	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
 		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
@@ -291,7 +295,9 @@ suite('NewChatWidget', () => {
 					const row = document.createElement('div');
 					target.appendChild(row);
 					for (const trigger of triggers) {
-						const item = document.createElement('div');
+						const item = document.createElement('a');
+						item.role = 'button';
+						item.tabIndex = 0;
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
 						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
@@ -301,13 +307,25 @@ suite('NewChatWidget', () => {
 			},
 			_newChatInput: {
 				pickerVisibility,
-				placeRepositoryControls: () => { },
+				placeRepositoryControls: target => {
+					if (target) {
+						for (const label of ['Worktree', 'Branch']) {
+							const item = document.createElement('a');
+							item.role = 'button';
+							item.tabIndex = label === 'Branch' ? -1 : 0;
+							item.textContent = label;
+							target.appendChild(item);
+						}
+					}
+				},
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
 							return;
 						}
-						const item = document.createElement('div');
+						const item = document.createElement('a');
+						item.role = 'button';
+						item.tabIndex = 0;
 						item.className = options?.className ?? '';
 						item.textContent = harnessLabels[0];
 						target.appendChild(item);
@@ -316,27 +334,90 @@ suite('NewChatWidget', () => {
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
 			_workspacePickerRow: undefined,
+			_workspaceSessionOptionsHost: undefined,
+			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
 		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
+		const details = harness._workspaceSessionOptionsHost!;
+		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
+		const snapshot = () => ({
+			hidden: details.hidden,
+			inert: details.inert,
+			expanded: toggle.getAttribute('aria-expanded'),
+			label: toggle.getAttribute('aria-label'),
+			chevron: toggle.classList.contains('codicon-chevron-right-compact') ? 'right' : toggle.classList.contains('codicon-chevron-left-compact') ? 'left' : undefined,
+		});
+		const collapsed = snapshot();
+		toggle.click();
+		const expanded = snapshot();
+		toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const collapsedAgain = snapshot();
 
 		assert.deepStrictEqual({
-			items: Array.from(harness._workspacePickerRow?.children ?? [], element => ({
+			workspace: harness._workspacePickerRow?.firstElementChild?.textContent,
+			items: Array.from(details.children, element => ({
 				label: element.textContent,
 				className: element.className,
 			})),
 			workspaceTriggers,
 			workspaceVisibility,
+			collapsed,
+			expanded,
+			collapsedAgain,
+			controlsTarget: toggle.getAttribute('aria-controls') === details.id,
+			sameDetails: details === harness._workspaceSessionOptionsHost,
 		}, {
+			workspace: isWeb ? 'Select Repository' : 'Workspace',
 			items: [
-				{ label: isWeb ? 'Select Repository' : 'Workspace', className: '' },
-				{ label: '', className: 'new-chat-repository-controls-host' },
+				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
 			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
 			workspaceVisibility: [false, true],
+			collapsed: { hidden: true, inert: true, expanded: 'false', label: 'Show Session Options', chevron: 'right' },
+			expanded: { hidden: false, inert: false, expanded: 'true', label: 'Hide Session Options', chevron: 'left' },
+			collapsedAgain: { hidden: true, inert: true, expanded: 'false', label: 'Show Session Options', chevron: 'right' },
+			controlsTarget: true,
+			sameDetails: true,
 		});
+
+		const workspace = container.querySelector<HTMLElement>('[role="button"]')!;
+		const focused: (string | null | undefined)[] = [];
+		const press = (key: string, shiftKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+			document.activeElement?.dispatchEvent(event);
+			focused.push(document.activeElement?.textContent || document.activeElement?.getAttribute('aria-label'));
+			return event.defaultPrevented;
+		};
+		workspace.focus();
+		press('Tab');
+		toggle.click();
+		workspace.focus();
+		for (let i = 0; i < 4; i++) {
+			press('Tab');
+		}
+		const exitsTray = !press('Tab');
+		press('Tab', true);
+		press('ArrowLeft');
+		press('ArrowRight');
+		assert.deepStrictEqual({ focused, exitsTray }, {
+			focused: ['Show Session Options', 'Worktree', 'Branch', 'Copilot', 'Hide Session Options', 'Hide Session Options', 'Copilot', 'Branch', 'Copilot'],
+			exitsTray: true,
+		});
+	});
+
+	test('harness focus command expands session options before opening the picker', () => {
+		const expanded = observableValue('sessionOptionsExpanded', false);
+		let expandedWhenOpened = false;
+		const harness = {
+			_sessionOptionsExpanded: expanded,
+			_newChatInput: { sessionTypePicker: { showPicker: () => expandedWhenOpened = expanded.get() } },
+		};
+		const focusHarnessPicker = NewChatWidget.prototype.focusHarnessPicker as (this: typeof harness) => void;
+		focusHarnessPicker.call(harness);
+		assert.strictEqual(expandedWhenOpened, true);
 	});
 
 	test('restores workspace, harness, context DOM and tab order after quick chat', () => {

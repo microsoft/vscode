@@ -434,10 +434,7 @@
  *
  * IMPLEMENTATION NOTE — specificity over `!important`
  *
- * The chips live inside two parallel toolbar groups:
- *   .new-chat-controls-container > div > .monaco-toolbar
- *      > .monaco-action-bar > .actions-container > .action-item
- *        > .sessions-chat-picker-slot                      (Approvals)
+ * Repository chips live inside the secondary toolbar:
  *   .new-chat-secondary-controls-container
  *     > .new-chat-repo-config-container > .monaco-toolbar
  *      > .monaco-action-bar > .actions-container > .action-item
@@ -526,7 +523,6 @@
  * flattening) and only relies on the standard
  * `.monaco-action-bar > .actions-container > .action-item` chain that's
  * part of monaco's public structure. */
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-toolbar,

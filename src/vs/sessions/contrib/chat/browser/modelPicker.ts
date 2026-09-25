@@ -92,6 +92,7 @@ export class ModelPicker extends Disposable {
 
 		const pickerOptions: IChatInputPickerOptions = {
 			compact,
+			minimal: compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));

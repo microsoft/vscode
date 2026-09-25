@@ -170,9 +170,35 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	padding: 4px 6px 6px 6px;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 	color: var(--vscode-icon-foreground);
+}
+
+.new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .actions-container {
+	gap: var(--vscode-spacing-size80);
+}
+
+.new-chat-widget-container .sessions-chat-toolbar .agent-host-mode-permissions-trigger .agent-host-permissions-button {
+	margin-left: var(--vscode-spacing-size80);
+}
+
+.new-chat-widget-container .sessions-chat-toolbar .agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
+	left: calc(-1 * var(--vscode-spacing-size40));
+	width: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+}
+
+.new-chat-widget-container .sessions-chat-toolbar .model-picker-split:not(.compact) .model-picker-config::before {
+	content: "";
+	width: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+	flex-shrink: 0;
 }
 
 /* Voice mode controls (mic / stop / settings / disconnect) */
@@ -245,15 +271,15 @@
 	z-index: 1;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
+.new-chat-widget-container .sessions-chat-config-toolbar.new-chat-session-controls {
 	justify-content: flex-start;
 	flex: 0 1 auto;
 	width: max-content;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
+.new-chat-widget-container .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
+.new-chat-widget-container .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
+.new-chat-widget-container .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
 	overflow: visible;
 }
 
@@ -366,7 +392,7 @@
 	color: var(--vscode-foreground);
 }
 
-.experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
+.sessions-chat-toolbar .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
 	padding: 0;
 }
 
