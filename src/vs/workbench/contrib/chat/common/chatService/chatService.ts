@@ -30,6 +30,7 @@ import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
+import type { getAutoModelTier } from '../languageModels.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
@@ -433,6 +434,8 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	/** The Auto routing tier that produced these edits. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -446,6 +449,7 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	autoTier?: IChatTextEdit['autoTier'];
 }
 
 export interface IChatWorkspaceFileEdit {

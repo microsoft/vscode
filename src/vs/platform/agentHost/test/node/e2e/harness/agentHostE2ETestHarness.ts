@@ -986,6 +986,8 @@ export class AgentHostE2EServerLease {
 		if (!server || !proxy || !capiReplay) {
 			throw new Error('[agent-host-e2e] no replay-backed server to restart');
 		}
+		// Provider discovery after a restart must not leak persisted conversations into the next test.
+		this._needsFreshDataDirectory = true;
 
 		if (crash) {
 			await killServer(server);
@@ -1054,6 +1056,7 @@ export class AgentHostE2EServerLease {
 			this._modelBackedTestsOnCurrentServer = 0;
 			this._testsOnCurrentServer = 0;
 		}
+		this._startOptions = { ...this._startOptions, ...this._createDataDirectories() };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -1187,7 +1190,7 @@ export class AgentHostE2EServerLease {
 		createdSessions.length = 0;
 		this._client = undefined;
 
-		const mustRestart = forceRestart || cleanupErrors.length > 0;
+		const mustRestart = forceRestart || cleanupErrors.length > 0 || this._needsFreshDataDirectory;
 		if (this._shared && !mustRestart) {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.

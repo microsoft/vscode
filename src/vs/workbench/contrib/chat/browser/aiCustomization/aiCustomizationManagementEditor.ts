@@ -1404,6 +1404,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
 				this.showPluginDetail(item);
 			}));
+
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestOpenMigrations(() => {
+				void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
+			}));
 		}
 
 		// Container for Plugins content

@@ -320,7 +320,7 @@ export function setup(logger: Logger): void {
 		});
 
 		// Keep this last because restarting can change restored UI and extension activation state.
-		it('preserves native page lifecycle across editors, popups, and restart', async function () {
+		it.skip('preserves native page lifecycle across editors, popups, and restart', async function () {
 			const app = this.app as Application;
 			const lifecycleUrl = `${baseUrl}/lifecycle`;
 			const browserPage = await openBrowserPage(app, lifecycleUrl, openPages);

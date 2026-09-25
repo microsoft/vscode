@@ -25,17 +25,35 @@ suite('Chat Accessibility Help', () => {
 			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
 		});
 
-		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+		test(`documents Copilot introduction and parallel invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
+				introductionModes: help.includes('when the session starts or after the first request is submitted'),
+				introductionPersists: help.includes('sending messages does not dismiss it'),
+				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
+				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
+				introductionDismissal: help.includes('Not Helpful turns off future introductions'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
-				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				singleOwner: help.includes('Only one chat input notification is shown at a time'),
 				preserve: help.includes('An existing draft in the Agents Window is kept'),
 				ignore: help.includes('Ignore turns off future invitations'),
 				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
-				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
-			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
+			}, {
+				introductionModes: true,
+				introductionPersists: true,
+				introductionActions: true,
+				learnMorePersists: true,
+				introductionDismissal: true,
+				agentHostOnly: true,
+				copy: true,
+				singleOwner: true,
+				preserve: true,
+				ignore: true,
+				dismiss: true,
+				hiddenInAgents: true,
+			});
 		});
 	}
 
@@ -283,6 +301,21 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+
+		test('only documents customization migration entry points in panel chat', () => {
+			const keybindingService = new MockKeybindingService();
+			const expectedText = 'notice above the new-chat input';
+
+			assert.deepStrictEqual({
+				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+			}, {
+				panelChat: true,
+				quickChat: false,
+				agentView: false,
+			});
 		});
 	});
 
