@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, globalShortcut, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
@@ -69,7 +69,7 @@ import { INativeHostMainService, NativeHostMainService } from '../../platform/na
 import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
-import { IGPUProcessMainService } from '../../platform/gpu/electron-main/gpuProcessMainService.js';
+import { GPUProcessTelemetry } from '../../platform/gpu/electron-main/gpuProcessTelemetry.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -235,8 +235,7 @@ export class CodeApplication extends Disposable {
 		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
-		@IGPUProcessMainService private readonly gpuProcessMainService: IGPUProcessMainService
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService
 	) {
 		super();
 
@@ -1428,8 +1427,12 @@ export class CodeApplication extends Disposable {
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
-			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
-			unbufferedEvents: ['onDidBlurMainWindow']
+			unbufferedEvents: [
+				// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+				'onDidBlurMainWindow',
+				// GPU subscribers read current state explicitly; do not replay obsolete capabilities.
+				'onDidChangeGPUCompositing'
+			]
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
@@ -1710,48 +1713,10 @@ export class CodeApplication extends Disposable {
 		// GPU crash telemetry for skia graphite out of order recording failures
 		// Refs https://github.com/microsoft/vscode/issues/284162
 		if (isMacintosh) {
-			instantiationService.invokeFunction(accessor => {
-				const telemetryService = accessor.get(ITelemetryService);
-				const initialGpuFeatureStatus: (GPUFeatureStatus & { skia_graphite?: string }) | undefined = this.gpuProcessMainService.featureStatus;
-				if (initialGpuFeatureStatus?.skia_graphite === 'enabled') {
-					const gpuInfoUpdate = Event.filter<undefined, GPUFeatureStatus>(this.gpuProcessMainService.onDidUpdateFeatureStatus, (status): status is GPUFeatureStatus => status !== undefined, this._store);
-					const pendingGpuInfoListener = this._register(new MutableDisposable());
-					this._register(this.gpuProcessMainService.onDidExitProcess(({ reason }) => {
-						if (reason === 'crashed') {
-							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(currentGpuFeatureStatus => {
-								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
-								if (currentRasterizationStatus !== 'enabled') {
-									// Get last 10 GPU log messages (only the message field)
-									let gpuLogMessages: string[] = [];
-									type AppWithGPULogMethod = typeof app & {
-										getGPULogMessages(): IGPULogMessage[];
-									};
-									const customApp = app as AppWithGPULogMethod;
-									if (typeof customApp.getGPULogMessages === 'function') {
-										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
-									}
-
-									type GpuCrashEvent = {
-										readonly gpuFeatureStatus: string;
-										readonly gpuLogMessages: string;
-									};
-									type GpuCrashClassification = {
-										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
-										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
-										owner: 'deepak1556';
-										comment: 'Tracks GPU process crashes that would result in fallback mode.';
-									};
-
-									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
-										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
-										gpuLogMessages: JSON.stringify(gpuLogMessages)
-									});
-								}
-							});
-						}
-					}));
-				}
-			});
+			this._register(instantiationService.createInstance(GPUProcessTelemetry, () => {
+				const customApp: typeof app & { getGPULogMessages?(): IGPULogMessage[] } = app;
+				return typeof customApp.getGPULogMessages === 'function' ? customApp.getGPULogMessages() : [];
+			}));
 		}
 
 		{
