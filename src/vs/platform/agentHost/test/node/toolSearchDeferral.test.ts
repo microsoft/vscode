@@ -78,7 +78,7 @@ suite('toolSearchDeferral', () => {
 		test('non-deferred client allowlist holds the core VS Code tools, not the search tool', () => {
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('runTests'));
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'));
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'));
+			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'), false);
 			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME), false);
 		});
 	});
