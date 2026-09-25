@@ -45,13 +45,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
 		override readonly status = constObservable(mainChatStatus);
-		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: false });
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
 		override readonly status = constObservable(SessionStatus.Completed);
-		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: true });
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
 	const activeChat = observableValue<IChat>('activeChat', mainChat);
 	const session = new class extends mock<IActiveSession>() {

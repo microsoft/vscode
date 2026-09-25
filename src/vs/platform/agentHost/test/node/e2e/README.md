@@ -242,6 +242,8 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 
 Teardown resolves the default chat's active turn and dispatches the client-supported `chat/turnCancelled` action before disposing the session. Any cancellation, disposal, replay-verification, or server-shutdown failure fails teardown and forces a fresh shared server; cleanup is never silently treated as success.
 
+Windows descendant cleanup verifies process identities before terminating them. Failed kills are rechecked only after all concurrent kills finish, with bounded retries while the process list catches up, so a shared process-list snapshot from an earlier shutdown cannot turn an already-exited process into a teardown failure. A failure remains an error when the same process is still present.
+
 A failed test or teardown also makes the next test use fresh home, user-data, and Codex directories. Restarting only the process would retain any sessions that failed to dispose and could contaminate later session-list assertions. Retired directories remain available for diagnostics until suite teardown removes all of them. Intentional within-test `restart()` / `crashAndRestart()` calls and routine shared-server recycling preserve persistent state.
 
 Remove test workspaces only after disposing the shared server lease in suite teardown. A provider can retain directory watchers after an individual session is released, preventing workspace deletion on Windows while its process is still alive.
@@ -521,6 +523,8 @@ Codex also refuses to create helper aliases when `CODEX_HOME` is inside its effe
 ### A replayed MCP call reports that its tool does not exist
 
 A recorded response can name an MCP tool before the real server finishes starting and enters the turn's tool inventory. For Copilot tests of an initialized server, create an empty chat with `createChat` and wait for its server's `session/customizationUpdated` notification to report `McpServerStatus.Ready` before dispatching the recorded turn. This separates MCP startup from model replay without sleeps or an extra recorded warm-up turn.
+
+If the test must use the default chat, `createChat` on its URI is a no-op. Instead, record a no-tool warm-up turn on that chat, wait for its MCP server to be ready, and re-record the test's fixture. A ready server on a peer chat does not establish readiness for the default chat.
 
 Keep asserting the real tool result: the replayed assistant text can report the recorded success even when the actual tool call failed.
 

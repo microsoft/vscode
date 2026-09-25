@@ -166,14 +166,67 @@ suite('ChatSessionArchiveNudge', () => {
 	});
 
 	test('shows confetti when marking a merged pull request session as done', async () => {
-		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const pending = new DeferredPromise<void>();
+		const { archive, configurationService } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
+		const animationBeforeArchive = document.body.querySelector('.animation-overlay');
+		await pending.complete();
 		const animation = document.body.querySelector('.animation-overlay');
 		animation?.remove();
 
-		assert.ok(animation);
+		assert.deepStrictEqual({
+			animationBeforeArchive,
+			animationAfterArchive: !!animation,
+		}, {
+			animationBeforeArchive: null,
+			animationAfterArchive: true,
+		});
+	});
+
+	test('keeps confetti at the original button position after archiving disposes the nudge', async () => {
+		const completion = new DeferredPromise<void>();
+		const { widget, archive, configurationService, container } = createWidget({
+			onArchive: () => {
+				widget.dispose();
+				return completion.p;
+			},
+		}, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+		container.classList.add('monaco-workbench');
+		archive.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
+
+		archive.click();
+		const animationBeforeCompletion = document.querySelector('.animation-overlay');
+		await completion.complete();
+
+		const overlay = document.querySelector<HTMLElement>('.animation-overlay');
+		store.add(toDisposable(() => overlay?.remove()));
+		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
+		assert.deepStrictEqual({
+			animationBeforeCompletion,
+			buttonConnected: archive.isConnected,
+			bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
+			particleOrigin: particle && [particle.style.left, particle.style.top],
+			inheritsWorkbenchTheme: overlay?.parentElement === container,
+		}, {
+			animationBeforeCompletion: null,
+			buttonConnected: false,
+			bounds: ['120px', '80px', '48px', '24px'],
+			particleOrigin: ['24px', '12px'],
+			inheritsWorkbenchTheme: true,
+		});
+	});
+
+	test('does not show confetti when disabled', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
+
+		archive.click();
+		await Promise.resolve();
+
+		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
 
 	test('does not show confetti when reduced motion is enabled', async () => {
@@ -181,6 +234,7 @@ suite('ChatSessionArchiveNudge', () => {
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
+		await Promise.resolve();
 
 		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
@@ -509,14 +563,16 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('uses Mark as Done wording for errors and retry', async () => {
 		const pending = new DeferredPromise<void>();
-		const { archive, errors } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const { archive, configurationService, errors } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		archive.click();
 		await pending.error(new Error('Worktree cleanup failed'));
 
-		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled') }, {
+		assert.deepStrictEqual({ errors, button: archive.textContent, disabled: archive.getAttribute('aria-disabled'), animation: document.body.querySelector('.animation-overlay') }, {
 			errors: ['Unable to mark the session as done: Worktree cleanup failed'],
 			button: 'Mark as Done',
 			disabled: 'false',
+			animation: null,
 		});
 	});
 

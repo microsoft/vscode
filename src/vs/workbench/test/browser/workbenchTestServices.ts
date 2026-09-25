@@ -145,6 +145,7 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
@@ -379,6 +380,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
 	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
@@ -1658,6 +1660,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
+	floatingBorderWidth: number | undefined;
+
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
@@ -1666,6 +1670,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	testSaveState(): void {
 		return super.saveState();
+	}
+
+	protected override getFloatingBorderWidth(): number {
+		return this.floatingBorderWidth ?? super.getFloatingBorderWidth();
 	}
 
 	clearState(): void {

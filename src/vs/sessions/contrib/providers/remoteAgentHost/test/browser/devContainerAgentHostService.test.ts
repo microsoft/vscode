@@ -13,6 +13,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { resolveDevContainerSourceWorkspace } from '../../../../../browser/openInVSCodeUtils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -150,6 +151,7 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly id: string;
+	override get devContainerSourceWorkspace(): URI | undefined { return this.config.devContainerSourceWorkspaceUri; }
 	readonly sessionsChangedEmitter = new Emitter<ISessionChangeEvent>();
 	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
 	readonly testSession = new class extends mock<ISession>() { }();
@@ -360,6 +362,7 @@ suite('Dev Container Agent Host Service', () => {
 		const target = await firstService.connect(sourceWorkspace, CancellationToken.None);
 		firstService.provider?.publishSession();
 		await target.release();
+		const disconnectedSource = resolveDevContainerSourceWorkspace(firstService.provider);
 		firstService.dispose();
 
 		const secondInstantiationService = store.add(new TestInstantiationService());
@@ -372,6 +375,7 @@ suite('Dev Container Agent Host Service', () => {
 			storageService,
 		));
 		const restoredProvider = secondService.provider;
+		const restoredSource = resolveDevContainerSourceWorkspace(restoredProvider);
 		let connectorCalls = 0;
 		const logWorkspaces: URI[] = [];
 		secondInstantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
@@ -402,6 +406,8 @@ suite('Dev Container Agent Host Service', () => {
 			},
 			registeredProviders: secondSessionsProvidersService.getProviders().map(provider => provider.id),
 			reusedProvider: secondService.provider === restoredProvider,
+			disconnectedSource: disconnectedSource?.folderUri.toString(),
+			restoredSource: restoredSource?.folderUri.toString(),
 			connectorCalls,
 			connected: restoredProvider?.wiredConnection !== undefined,
 			statusBeforeConnector,
@@ -418,6 +424,8 @@ suite('Dev Container Agent Host Service', () => {
 			},
 			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
 			reusedProvider: true,
+			disconnectedSource: sourceWorkspace.toString(),
+			restoredSource: sourceWorkspace.toString(),
 			connectorCalls: 1,
 			connected: true,
 			statusBeforeConnector: RemoteAgentHostConnectionStatus.connecting,
@@ -506,11 +514,13 @@ suite('Dev Container Agent Host Service', () => {
 			status: provider instanceof TestProvider ? provider.status : undefined,
 			remoteWorktree: provider instanceof TestProvider && !!provider.config.resolveDevContainerWorktreeConnection,
 			worktreeScope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
+			sourceWorkspace: resolveDevContainerSourceWorkspace(provider)?.folderUri.toString(),
 		})), sources.map(source => ({
 			id: `agenthost-${agentHostAuthority(devContainerAddress(source))}`,
 			status: RemoteAgentHostConnectionStatus.disconnected,
 			remoteWorktree: true,
 			worktreeScope: getComparisonKey(URI.file('/source')),
+			sourceWorkspace: source.toString(),
 		})));
 	});
 

@@ -23,6 +23,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -155,11 +156,13 @@ suite('Sessions rename', () => {
 			const mainChat = chatSessionBase.mainChat.get();
 			const peerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///offscreen-peer');
+				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Offscreen peer');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chatSession: ISession = {
 				...chatSessionBase,
@@ -373,11 +376,13 @@ suite('Sessions rename', () => {
 			const mainChat = baseSession.mainChat.get();
 			const peerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///peer-draft');
+				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
 			const chatSession: ISession = { ...baseSession, chats, mainChat: constObservable(mainChat) };
@@ -447,11 +452,13 @@ suite('Sessions rename', () => {
 			const mainChat = baseSession.mainChat.get();
 			const peerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///peer');
+				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const session: ISession = {
 				...baseSession,
@@ -630,17 +637,21 @@ suite('Sessions rename', () => {
 			const mainChat = baseSession.mainChat.get();
 			const peerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///grill-and-plan');
+				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Grill and Plan');
 				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
 			}();
 			const otherPeerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///other-peer');
+				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Other Peer');
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
 			const session: ISession = {
@@ -865,6 +876,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
@@ -901,6 +913,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
+				hasShowArchivedChats: content.includes('toggle Show Archived Chats') && content.includes('This action is always available') && content.includes('a check mark means those chats are shown'),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
 				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
@@ -909,7 +922,7 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
-				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
+				hasSidebarCustomizations: content.includes('Focus Chat Customizations in the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -924,6 +937,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
+				hasShowArchivedChats: true,
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
 				hasRemoteDevContainerPrerequisite: true,
@@ -941,7 +955,7 @@ suite('Sessions rename', () => {
 		test('omits the desktop customization focus command on phones', () => {
 			const origin = mainWindow.document.createElement('button');
 			const { provider } = createHelpProvider(origin, false, true);
-			assert.strictEqual(provider.provideContent().includes('Chat Customizations section at the bottom of the left sidebar'), false);
+			assert.strictEqual(provider.provideContent().includes('Focus Chat Customizations in the left sidebar'), false);
 		});
 
 		test('falls back to the active session when the originating element is gone', () => {

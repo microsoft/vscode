@@ -12,7 +12,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -32,6 +32,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -41,6 +42,7 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -63,6 +65,7 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 
 // #region --- New Chat Widget ---
@@ -119,6 +122,7 @@ export class NewChatWidget extends Disposable {
 
 	constructor(
 		private readonly options: IChatViewOptions & {
+			readonly inputVisible?: IObservable<boolean>;
 			readonly petHostPreferred?: IObservable<boolean>;
 			readonly initialAttachments?: readonly IChatRequestVariableEntry[];
 		},
@@ -256,6 +260,11 @@ export class NewChatWidget extends Disposable {
 			() => this._hasEnoughSessionsForFirstRunNotices(),
 		);
 
+		const creationProviderId = observableFromEvent(this, this.agentHostFilterService.onDidChange, () => isWeb ? this.agentHostFilterService.selectedHost?.sessionCreationProviderId : undefined);
+		const creationProviderKey = NewSessionCreationProviderIdContext.bindTo(contextKeyService);
+		this._register(autorun(reader => creationProviderKey.set(creationProviderId.read(reader) ?? '')));
+		this._register(toDisposable(() => creationProviderKey.reset()));
+
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
@@ -268,7 +277,9 @@ export class NewChatWidget extends Disposable {
 				: this._workspacePicker.selectionSnapshot,
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
-			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
+			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			inputVisible: this.options.inputVisible,
+			hostVisible: this.options.hostVisible,
 			canSendRequest,
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
@@ -281,6 +292,7 @@ export class NewChatWidget extends Disposable {
 			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 			sessionTypePickerOptions: {
+				providerId: creationProviderId,
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				focusCommand: {
 					id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
@@ -289,7 +301,6 @@ export class NewChatWidget extends Disposable {
 					enabled: this._useConsolidatedRemoteWorkspaces,
 				},
 			},
-			experimentalComposerLayout: this._useExperimentalComposerLayout,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -513,11 +524,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._newChatInput.render(chatWidgetContent, parent, {
-			workspaceControls: this._quickChatHeaderPickerHost
-				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
-				: [workspacePickerContainer],
-		});
+		this._newChatInput.render(chatWidgetContent, parent);
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const isQuickChat = this._isQuickChatComposer.read(reader);
@@ -529,6 +536,7 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
@@ -739,8 +747,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean {
+		const creationProviderId = isWeb ? this.agentHostFilterService.selectedHost?.sessionCreationProviderId : undefined;
 		return this.sessionsManagementService.getSessionTypesForFolder(folderUri).some(t =>
-			(pick.providerId === undefined || t.providerId === pick.providerId)
+			(!creationProviderId || t.providerId === creationProviderId)
+			&& (pick.providerId === undefined || t.providerId === pick.providerId)
 			&& t.sessionType.id === pick.sessionTypeId);
 	}
 
@@ -947,16 +957,17 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
-			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
+			ariaLabel: selectsRepository ? localize('newSessionWorkspacePicker.repositoryAriaLabel', "Choose a repository for the new session") : localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
 			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
 				enabled: this._useConsolidatedRemoteWorkspaces,
 			},
-			icon: Codicon.project,
+			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
 			attachesContext: false,
 		};
@@ -1098,7 +1109,7 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
@@ -1121,7 +1132,12 @@ export class NewChatWidget extends Disposable {
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
 		const reseedFolderUri = background && !wasQuickChat ? this._workspacePicker.selectedFolderUri : undefined;
-		const sendOptions = { query: request, attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined, background };
+		const sendOptions = {
+			query: request,
+			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
+			background,
+			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
+		};
 		const clearFeedback = () => {
 			for (const item of feedbackItems) {
 				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
@@ -1141,9 +1157,11 @@ export class NewChatWidget extends Disposable {
 		}
 
 		try {
+			userInteraction?.handoff(session, session.activeChat.get());
 			this.newSessionComposerService.notifyWillSendRequest(sendOptions, wasQuickChat ? undefined : this._workspacePicker.selectionSnapshot);
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) || e instanceof WorkspaceNotTrustedError ? 'cancelled' : 'error');
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 				this.logService.error('Failed to send request:', e);

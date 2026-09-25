@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { SymbolKind } from '../../../../../../editor/common/languages.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -29,12 +30,12 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -288,6 +289,47 @@ suite('ChatModel', () => {
 			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
 			completionTokenCount: 5,
 			responseContent: '',
+		});
+	});
+
+	test('retained terminal identity survives chat serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
+		const terminal = URI.parse('agenthost-terminal://shell/session/tool');
+		model.acceptResponseProgress(request, {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'terminal-full-output',
+			toolName: 'bash',
+			isComplete: true,
+			invocationMessage: 'Running command',
+			pastTenseMessage: 'Ran command',
+			toolSpecificData: {
+				kind: 'terminal',
+				language: 'shellscript',
+				commandLine: { original: 'build' },
+				terminalCommandUri: terminal,
+				terminalCommandOutput: { text: 'Saved to: /artifact/output.txt', truncated: true, fullOutputPreview: 'preview' },
+			},
+		});
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.ok(invocation?.kind === 'toolInvocationSerialized' && invocation.toolSpecificData?.kind === 'terminal');
+		const output = invocation.toolSpecificData.terminalCommandOutput;
+		assert.deepStrictEqual({
+			text: output?.text,
+			truncated: output?.truncated,
+			fullOutputPreview: output?.fullOutputPreview,
+			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
+		}, {
+			text: 'Saved to: /artifact/output.txt',
+			truncated: true,
+			fullOutputPreview: 'preview',
+			terminal: terminal.toString(),
 		});
 	});
 
@@ -1445,7 +1487,7 @@ suite('Response', () => {
 		});
 
 		const responseString = response.toString();
-		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)\nTool execution failed');
 		assert.ok(!responseString.includes('sandbox-runtime'));
 		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
 		assert.ok(!responseString.includes('python -c "print(1)"'));
@@ -1656,6 +1698,10 @@ suite('isExportableSessionData', () => {
 	test('invalid - undefined', () => {
 		assert.strictEqual(isExportableSessionData(undefined), false);
 	});
+});
+
+suite('parseChatImport', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('extracts only exportable session fields', () => {
 		const data = {
@@ -1667,11 +1713,169 @@ suite('isExportableSessionData', () => {
 			customTitle: 'Injected title',
 		};
 
-		assert.deepStrictEqual(extractExportableSessionData(data), {
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'assistant',
 		});
+	});
+
+	for (const isTrusted of [true, false, { enabledCommands: ['test.chatImport'] }, 'true']) {
+		test(`removes nested trust permissions: ${JSON.stringify(isTrusted)}`, () => {
+			const createData = (trust: typeof isTrusted) => {
+				const markdown = { value: '[Details](command:test.chatImport)', isTrusted: trust };
+				return {
+					initialLocation: ChatAgentLocation.Chat,
+					responderUsername: 'assistant',
+					requests: [{
+						requestId: 'request',
+						message: 'hello',
+						variableData: { variables: [] },
+						response: [
+							markdown,
+							{ kind: 'markdownContent', content: markdown },
+							{ kind: 'markdownVuln', content: markdown, vulnerabilities: [] },
+							{
+								kind: 'toolInvocationSerialized',
+								toolId: 'test',
+								toolCallId: 'call',
+								invocationMessage: markdown,
+								pastTenseMessage: markdown,
+								originMessage: markdown,
+								isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: markdown },
+								isComplete: true,
+							},
+						],
+						result: { metadata: { nested: [null, { markdown }] } },
+					}],
+				};
+			};
+
+			assert.deepStrictEqual(parseChatImport(JSON.stringify(createData(isTrusted))), createData(false));
+		});
+	}
+
+	test('preserves ordinary content and revives resource URIs', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [
+					{ value: '**Text** [website](https://example.com/)', supportHtml: false, supportThemeIcons: true },
+					{ kind: 'inlineReference', inlineReference: URI.file('/workspace/example.ts'), name: 'example.ts' },
+				],
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	test('rebuilds imported URIs without serialized cache state', () => {
+		const resource = URI.file('/workspace/example.ts');
+		const data = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [{
+					kind: 'workspaceEdit',
+					edits: [{
+						newResource: {
+							...resource.toJSON(),
+							external: 'file:///workspace/example.ts) [Details](command:test.chatImport',
+							fsPath: '/untrusted',
+							_sep: 1,
+						},
+					}],
+				}],
+			}],
+		};
+
+		const imported = parseChatImport(JSON.stringify(data));
+		const response = imported.requests[0].response?.[0];
+		if (!response || !hasKey(response, { kind: true }) || response.kind !== 'workspaceEdit') {
+			assert.fail('Expected a workspace edit');
+		}
+		const newResource = response.edits[0].newResource;
+		assert.deepStrictEqual({
+			uri: newResource?.toString(),
+			fsPath: newResource?.fsPath,
+		}, {
+			uri: resource.toString(),
+			fsPath: resource.fsPath,
+		});
+	});
+
+	test('rejects malformed imported URI components', () => {
+		const createData = (newResource: object) => ({
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				response: [{ kind: 'workspaceEdit', edits: [{ newResource }] }],
+			}],
+		});
+
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: 'file', path: 42 }))), /Invalid chat session data/);
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: '', path: '/workspace/example.ts' }))), /Scheme is missing/);
+	});
+
+	test('preserves unrelated isTrusted properties', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [],
+				result: {
+					metadata: {
+						isTrusted: true,
+						nested: [
+							{ isTrusted: { enabledCommands: ['test.metadata'] } },
+							{ value: 42, isTrusted: true },
+							{ value: null, isTrusted: 'metadata' },
+						],
+					},
+				},
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	for (const options of [{ supportThemeIcons: 'invalid' }, { supportAlertSyntax: 'invalid' }]) {
+		test(`removes markdown trust even with malformed options: ${JSON.stringify(options)}`, () => {
+			const data = {
+				initialLocation: ChatAgentLocation.Chat,
+				responderUsername: 'assistant',
+				requests: [{
+					requestId: 'request',
+					message: 'hello',
+					variableData: { variables: [] },
+					response: [{
+						kind: 'markdownContent',
+						content: { value: '[Details](command:test.chatImport)', isTrusted: true, ...options },
+					}],
+				}],
+			};
+			const imported = parseChatImport(JSON.stringify(data));
+			data.requests[0].response[0].content.isTrusted = false;
+
+			assert.deepStrictEqual(imported, data);
+		});
+	}
+
+	test('rejects invalid JSON and invalid session data', () => {
+		assert.throws(() => parseChatImport('{'), SyntaxError);
+		for (const data of [null, {}, { requests: [], responderUsername: 1 }, { requests: {}, responderUsername: 'assistant' }]) {
+			assert.throws(() => parseChatImport(JSON.stringify(data)), /Invalid chat session data/);
+		}
 	});
 });
 
@@ -2282,6 +2486,62 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(completedNotifications, 1);
 	});
 
+	for (const error of [undefined, false, true, 'Could not read tool input']) {
+		test(`preserves tool errors independently of result details (error=${error})`, async () => {
+			const invocation = new ChatToolInvocation({ invocationMessage: 'Ask questions' }, {
+				id: 'ask_user', displayName: 'Ask questions', modelDescription: 'Ask questions', source: ToolDataSource.Internal,
+			}, 'ask', undefined, {});
+			await invocation.didExecuteTool({ content: [], toolResultError: error });
+			const restored: IChatToolInvocationSerialized = JSON.parse(JSON.stringify(invocation.toJSON()));
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([restored]));
+			const text = 'Ask questions' + (error ? '\nTool execution failed' + (typeof error === 'string' ? `: ${error}` : '') : '');
+			assert.deepStrictEqual({
+				liveError: IChatToolInvocation.resultError(invocation),
+				restoredError: IChatToolInvocation.resultError(restored),
+				liveDetails: IChatToolInvocation.resultDetails(invocation),
+				restoredDetails: IChatToolInvocation.resultDetails(restored),
+				liveText: liveResponse.toString(),
+				restoredText: restoredResponse.toString(),
+			}, { liveError: error, restoredError: error, liveDetails: undefined, restoredDetails: undefined, liveText: text, restoredText: text });
+		});
+	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`includes terminal failures in the response text (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+			const text = 'Ran terminal command: npm test' + (exitCode === 2 ? '\nTool execution failed with exit code 2' : '');
+			assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+		});
+	}
+
+	test('includes result-detail failures in the response text', async () => {
+		const invocation = new ChatToolInvocation({ invocationMessage: 'Read issue' }, {
+			id: 'read', displayName: 'Read', modelDescription: 'Read an issue', source: ToolDataSource.Internal,
+		}, 'read', undefined, {});
+		await invocation.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [], isError: true } });
+		const liveResponse = testDisposables.add(new Response([]));
+		liveResponse.updateContent(invocation);
+		const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+		const text = 'Read issue\nCompleted with input: {}\nTool execution failed';
+		assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+	});
+
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -2540,6 +2800,40 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(restoredOptions.instructionContext?.modeKind, ChatModeKind.Agent);
 		assert.deepStrictEqual(restoredOptions.instructionContext?.enabledTools, enabledTools);
+	});
+
+	test('pending requests restore Agent Host message provenance', () => {
+		const model = createModel();
+		const provenance = {
+			agentHostMessageOrigin: { kind: MessageKind.SystemNotification },
+			metadata: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' },
+			isSystemInitiated: true,
+			systemInitiatedLabel: 'Background task completed',
+		};
+		const request = new ChatRequestModel({
+			session: model,
+			message: { text: 'background task', parts: [] },
+			variableData: { variables: [] },
+			timestamp: 0,
+			isSystemInitiated: provenance.isSystemInitiated,
+			systemInitiatedLabel: provenance.systemInitiatedLabel,
+		});
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, provenance);
+		const operationLog = new ChatSessionOperationLog();
+		const serializedData = operationLog.read(operationLog.createInitial(model));
+		const restoredModel = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const restored = restoredModel.getPendingRequests()[0].sendOptions;
+
+		assert.deepStrictEqual({
+			agentHostMessageOrigin: restored.agentHostMessageOrigin,
+			metadata: restored.metadata,
+			isSystemInitiated: restored.isSystemInitiated,
+			systemInitiatedLabel: restored.systemInitiatedLabel,
+		}, provenance);
 	});
 });
 

@@ -28,6 +28,9 @@ rounds:
       - method: root/sessionAdded
       - channel: ${chat_0}
         action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}

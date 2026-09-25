@@ -110,6 +110,15 @@ interface ITestPeer {
 function createTestPeer(): ITestPeer {
 	const stdin = new PassThrough();
 	const stdout = new PassThrough();
+	const outbound = new PassThrough();
+	stdin.on('data', (chunk: Buffer) => {
+		const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+		if (request.method === 'skills/list' || request.method === 'hooks/list') {
+			stdout.write(JSON.stringify({ id: request.id, result: { data: [] } }) + '\n');
+		} else {
+			outbound.write(chunk);
+		}
+	});
 	const onExit = new Emitter<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>();
 	const onceExitListeners: ((event: { readonly code: number | null; readonly signal: NodeJS.Signals | null }) => void)[] = [];
 	const fireExit = () => {
@@ -128,7 +137,7 @@ function createTestPeer(): ITestPeer {
 	};
 	return {
 		transport,
-		outbound: stdin,
+		outbound,
 		push: message => stdout.write(JSON.stringify(message) + '\n'),
 		exit: fireExit,
 		dispose: () => {
@@ -136,6 +145,7 @@ function createTestPeer(): ITestPeer {
 			onExit.dispose();
 			stdin.destroy();
 			stdout.destroy();
+			outbound.destroy();
 		},
 	};
 }
@@ -1627,6 +1637,12 @@ suite('CodexAgent prewarm eviction', () => {
 	test('does not discover workspace customizations from managed scratch', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: disposables.add(new CodexAppServerClient(peer.transport)),
+			child: { kill: () => true },
+		} as never;
 		const created = await createSession(agent);
 		const chat = defaultChatOf(created.session);
 		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
@@ -1654,6 +1670,12 @@ suite('CodexAgent prewarm eviction', () => {
 	test('workspace skill roots stay session-scoped rather than process-global', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: disposables.add(new CodexAppServerClient(peer.transport)),
+			child: { kill: () => true },
+		} as never;
 		const workspace = URI.file('/repo');
 		const skillRoot = URI.joinPath(workspace, '.github', 'skills');
 		await agent['_fileService'].writeFile(URI.joinPath(skillRoot, 'website', 'SKILL.md'), VSBuffer.fromString('---\nname: website\ndescription: Builds websites\n---\nInclude a footer.'));
@@ -2389,7 +2411,7 @@ suite('CodexAgent prewarm eviction', () => {
 					turnAttempts: 3,
 					events: [{
 						name: 'agentHost.codexProviderSwitch',
-						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
 					}],
 				});
 			} finally {
@@ -2502,7 +2524,7 @@ suite('CodexAgent prewarm eviction', () => {
 			quotaReads: 1,
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptWeeklyUsedPercentBucket: 90 },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
 			}],
 		});
 	});
@@ -2540,7 +2562,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('does not attach another account\'s quota when sign-in changes before a switch turn is accepted', async () => {
+	test('preserves admission context when account state changes before acceptance', async () => {
 		const telemetryService = new TestCodexTelemetryService();
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
@@ -2561,12 +2583,15 @@ suite('CodexAgent prewarm eviction', () => {
 			await materializing;
 			entry.firstTurnSent = true;
 			entry.pendingModelProviderSwitch = { threadId: 'quota-thread', fromProvider: 'openai' };
-			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'team', email: 'person@example.com' });
 			agent['_openAIAccountRateLimit'] = { usedPercent: 97.5, windowDurationMins: 7 * 24 * 60 };
 			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
-			const send = agent.chats.sendMessage(defaultChatOf(session), 'continue', undefined, undefined, 'turn-1');
+			const turnTelemetryContext = agent.captureTurnTelemetryContext();
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedOut' });
+			const chat = defaultChatOf(session);
+			const send = agent.chats.sendMessage(chat, 'continue', undefined, undefined, 'turn-1', undefined, undefined, { ...chatContext(session, chat), turnTelemetryContext });
 			const turn = await readNextRequest(peer.outbound);
-			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'another@example.com' });
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'pro', email: 'another@example.com' });
 			agent['_openAIAccountRateLimit'] = { usedPercent: 12, windowDurationMins: 7 * 24 * 60 };
 			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
 			peer.push({ id: turn.id, result: {} });
@@ -2575,7 +2600,7 @@ suite('CodexAgent prewarm eviction', () => {
 				method: 'turn/start',
 				events: [{
 					name: 'agentHost.codexProviderSwitch',
-					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
 				}],
 			});
 		} finally {
@@ -2715,7 +2740,7 @@ suite('CodexAgent prewarm eviction', () => {
 			method: 'turn/start',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
 			}],
 		});
 
@@ -4400,7 +4425,7 @@ suite('CodexAgent prewarm eviction', () => {
 			threadId: 'desktop-thread',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true },
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
 			}],
 		});
 		peer.exit();

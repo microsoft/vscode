@@ -558,9 +558,6 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
-/** Root config key selecting compact artifact-tool prompt wording independently of tool deferral. */
-export const AgentHostArtifactToolsCompactPromptsConfigKey = 'artifactToolsCompactPrompts';
-
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -898,12 +895,6 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
-		default: false,
-	}),
-	[AgentHostArtifactToolsCompactPromptsConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.artifactToolsCompactPrompts.title', "Compact Artifact Tool Prompts"),
-		description: localize('agentHost.config.artifactToolsCompactPrompts.description', "Whether artifact tools use compact prompt wording instead of the original guidance. Does not change tool availability or deferral."),
 		default: false,
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
