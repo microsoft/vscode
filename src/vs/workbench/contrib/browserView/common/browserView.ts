@@ -683,7 +683,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			if (state.title !== this._title) {
 				this._updateTitle({ title: state.title });
 			}
-			if (state.lastFavicon && state.lastFavicon !== this._favicon) {
+			if (state.lastFavicon !== this._favicon) {
 				this._updateFavicon({ favicon: state.lastFavicon });
 			}
 		}

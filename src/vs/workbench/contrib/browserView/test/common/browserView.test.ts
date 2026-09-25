@@ -148,6 +148,10 @@ suite('BrowserViewModel', () => {
 		const restored = createModel('restored', { url: 'http://127.0.0.1/restored', title: 'Restored' });
 		await snapshots.get('restored')!.complete(snapshot({ loading: true }));
 
+		// A committed page whose favicon was cleared drops the seeded icon.
+		const cleared = createModel('cleared', { url: 'http://127.0.0.1/cleared', title: 'Cleared', lastFavicon: 'data:image/png;base64,AA==' });
+		await snapshots.get('cleared')!.complete(snapshot({ url: 'http://127.0.0.1/cleared', title: 'Cleared' }));
+
 		// A live event that arrives before the snapshot is not repeated.
 		const live = createModel('live', { url: 'http://127.0.0.1/live', title: '' });
 		liveTitle.fire({ title: 'Live' });
@@ -156,10 +160,12 @@ suite('BrowserViewModel', () => {
 		assert.deepStrictEqual({
 			popup: { title: popup.model.title, favicon: popup.model.favicon, loading: popup.model.loading, events: popup.events },
 			restored: { title: restored.model.title, loading: restored.model.loading, events: restored.events },
+			cleared: { favicon: cleared.model.favicon, events: cleared.events },
 			live: { title: live.model.title, events: live.events },
 		}, {
 			popup: { title: 'Popup', favicon: 'data:image/png;base64,AA==', loading: false, events: ['title Popup', 'favicon data:image/png;base64,AA==', 'loading false'] },
 			restored: { title: 'Restored', loading: true, events: ['loading true'] },
+			cleared: { favicon: undefined, events: ['favicon undefined'] },
 			live: { title: 'Live', events: ['title Live'] },
 		});
 	});
