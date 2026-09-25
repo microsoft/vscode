@@ -300,6 +300,17 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
+		// When the reference range is collapsed (e.g. the user deleted the entire tag name)
+		// and the cursor is at that position, keep the existing decorations alive.
+		// This allows the linked editing session to survive the temporarily empty state,
+		// so that typing a new name will be synced to the other ranges.
+		if (this._currentDecorations.length > 0) {
+			const referenceRange = this._currentDecorations.getRange(0);
+			if (referenceRange && referenceRange.isEmpty() && referenceRange.containsPosition(position)) {
+				return;
+			}
+		}
+
 		if (!this._currentRequestPosition?.equals(position)) {
 			// Get the current range of the first decoration (reference range)
 			const currentRange = this._currentDecorations.getRange(0);
