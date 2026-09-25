@@ -63,7 +63,7 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 
 type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
-function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[]) {
+function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[], waitForConnection?: () => Promise<IRemoteAgentHostConnectionInfo>) {
 	let calls = 0;
 	let factory: IRemoteAgentHostConnectionFactory | undefined;
 	let observer: RemoteAgentHostConnectionObserver | undefined;
@@ -71,6 +71,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const started = new DeferredPromise<void>();
 	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
 	const events: { eventName: string; data?: ITelemetryData }[] = [];
+	const removed: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
 		override publicLog2(eventName: string, data?: ITelemetryData): void { events.push({ eventName, data }); }
@@ -116,9 +117,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				started.complete();
 			}
 		}
-		override waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { return ready.p; }
-		override async removeRemoteAgentHost(): Promise<void> {
+		override waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { return waitForConnection ? waitForConnection() : ready.p; }
+		override async removeRemoteAgentHost(address: string): Promise<void> {
+			removed.push(address);
 			observer?.('disposed');
+			observer = undefined;
 			info = undefined;
 		}
 	}());
@@ -136,6 +139,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		},
 		connectCalls: () => calls,
 		events,
+		removed,
 		started: started.p,
 		setState(state: 'reconnecting' | 'connected'): void {
 			assert.ok(info);
@@ -318,6 +322,57 @@ suite('CloudSandboxAgentHostService', () => {
 			calls: 3,
 			sealed: 'copilot-sealed.v1.key.payload',
 		});
+	});
+
+	test('disconnect removes staged credentials as well as the live connection', async () => {
+		const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') }]);
+		fixture.service.connectThroughFactory = true;
+		const connecting = fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		const address = await connecting;
+		await fixture.service.disconnect(address);
+
+		assert.deepStrictEqual({
+			entries: fixture.getFactory().entries.get(),
+			sealed: fixture.service.getSealedGitHubToken('env-1'),
+			removed: fixture.removed,
+		}, { entries: [], sealed: undefined, removed: [address] });
+	});
+
+	test('a replaced dial cannot discard the new connection configuration when it fails late', async () => {
+		const first = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		const second = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		const secondStarted = new DeferredPromise<void>();
+		let waits = 0;
+		const fixture = createService(store, [
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.old.payload') },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.new.payload') },
+		], () => {
+			if (++waits === 1) {
+				return first.p;
+			}
+			secondStarted.complete();
+			return second.p;
+		});
+		fixture.service.connectThroughFactory = true;
+		const options = { environmentId: 'env-1', name: 'Sandbox' };
+		const previous = assert.rejects(fixture.service.connect(options, CancellationToken.None), /old dial failed/);
+		await fixture.started;
+		const address = cloudSandboxAddress(options.environmentId);
+		await fixture.service.disconnect(address);
+		const current = fixture.service.connect(options, CancellationToken.None);
+		await secondStarted.p;
+		await first.error(new Error('old dial failed'));
+		await previous;
+		await second.complete({ address, name: options.name, status: RemoteAgentHostConnectionStatus.connected });
+		await current;
+
+		assert.deepStrictEqual({
+			entries: fixture.getFactory().entries.get().length,
+			sealed: fixture.service.getSealedGitHubToken(options.environmentId),
+			removed: fixture.removed,
+		}, { entries: 1, sealed: 'copilot-sealed.v1.new.payload', removed: [address] });
 	});
 
 	suite('connection telemetry', () => {

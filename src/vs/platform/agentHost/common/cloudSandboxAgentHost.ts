@@ -358,6 +358,9 @@ export interface ICloudSandboxAgentHostService {
 	 */
 	connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string>;
 
+	/** Disconnect a sandbox address and discard its staged credentials. */
+	disconnect(address: string): Promise<void>;
+
 	/**
 	 * The sealed GitHub token for a live connection to the given environment, as minted by
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.

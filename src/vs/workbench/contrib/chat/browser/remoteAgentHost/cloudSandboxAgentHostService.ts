@@ -145,6 +145,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		this._updateEntries();
 	}
 
+	isCurrentConfiguration(entry: IRemoteAgentHostEntry): boolean {
+		return this._stagedConnections.get(getEntryAddress(entry))?.entry === entry;
+	}
+
 	getSealedGitHubToken(environmentId: string): string | undefined {
 		return this._stagedConnections.get(cloudSandboxAddress(environmentId))?.creds.token.encrypted_github_token;
 	}
@@ -256,6 +260,12 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		return this._connectionFactory.getSealedGitHubToken(environmentId);
 	}
 
+	async disconnect(address: string): Promise<void> {
+		this._connectionFactory.endConnectionTelemetry(address, true);
+		this._connectionFactory.unstageConfiguration(address);
+		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+	}
+
 	async connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string> {
 		if (!this._configurationService.getValue<boolean>(CloudSandboxEnabledSettingId)) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
@@ -313,7 +323,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		this._connectionFactory.stageConfiguration(options, clientToken);
+		const entry = this._connectionFactory.stageConfiguration(options, clientToken);
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -328,7 +338,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			const connectionStillLive = this._remoteAgentHostService.connections.some(connection =>
 				connection.address === address
 				&& (RemoteAgentHostConnectionStatus.isConnected(connection.status) || RemoteAgentHostConnectionStatus.isReconnecting(connection.status)));
-			if (token.isCancellationRequested || !connectionStillLive) {
+			if (this._connectionFactory.isCurrentConfiguration(entry) && (token.isCancellationRequested || !connectionStillLive)) {
 				this._connectionFactory.endConnectionTelemetry(address, isCancellationError(error) || token.isCancellationRequested);
 				this._connectionFactory.unstageConfiguration(address);
 				await this._remoteAgentHostService.removeRemoteAgentHost(address);
