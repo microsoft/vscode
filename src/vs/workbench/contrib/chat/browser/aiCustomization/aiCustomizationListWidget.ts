@@ -10,6 +10,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -37,7 +38,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -389,7 +390,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Status icon for external items with sync/loading status
 		const hideLoadedStatus = element.status === 'loaded'
-			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions);
+			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook);
 		if (element.status && !hideLoadedStatus) {
 			templateData.statusIcon.style.display = '';
 			templateData.statusIcon.className = 'item-status-icon';
@@ -481,7 +482,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		const updateActions = () => {
 			templateData.actionBar.clear();
-			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions) {
+			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook) {
 				const moreAction = templateData.elementDisposables.add(new Action(
 					'aiCustomization.moreActions',
 					localize('customizationMoreActionsAria', "More actions for {0}", displayName),
@@ -893,7 +894,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Create list
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
-			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
+			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
 		);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IListEntry>,
@@ -992,8 +993,10 @@ export class AICustomizationListWidget extends Disposable {
 			return;
 		}
 
-		const item = e.element.item;
+		this.showItemContextMenu(e.element.item, e.anchor);
+	}
 
+	private showItemContextMenu(item: IAICustomizationListItem, anchor: IListContextMenuEvent<IListEntry>['anchor']): void {
 		// Create context for the menu actions
 		const context: Record<string, unknown> = {
 			uri: item.uri.toString(),
@@ -1030,7 +1033,8 @@ export class AICustomizationListWidget extends Disposable {
 		const copyActions = item.isBuiltin || !hasReadableCustomizationContent(item.uri) ? [] : [
 			new Separator(),
 			new Action('copyFullPath', localize('copyFullPath', "Copy Full Path"), undefined, true, async () => {
-				await this.clipboardService.writeText(item.uri.fsPath);
+				const path = item.uri.scheme === Schemas.file ? item.uri.fsPath : item.uri.toString(true);
+				await this.clipboardService.writeText(path);
 			}),
 			new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
 				const basePath = this.workspaceService.getActiveProjectRoot();
@@ -1044,71 +1048,23 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}),
 		];
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => [...secondary, ...copyActions],
-		});
-	}
-
-	private showCardItemActions(item: IAICustomizationListItem, anchor: HTMLElement): void {
-		this.cardMenuOpen = true;
-		this.lastCardFocusItemId = item.id;
-		const disposables = new DisposableStore();
-		const context: Record<string, unknown> = {
-			uri: item.uri.toString(),
-			name: item.name,
-			promptType: item.promptType,
-			source: item.source,
-			pluginUri: item.pluginUri?.toString(),
-			itemId: item.id,
-		};
-		const menu = disposables.add(this.createCardItemMenu(item));
-		const groups = menu.getActions({ arg: context, shouldForwardArgs: true });
-		const actions: IAction[] = [];
-		const addedActionIds = new Set<string>();
-		for (const [, groupActions] of groups) {
-			const uniqueGroupActions = groupActions.filter(action => {
-				if (addedActionIds.has(action.id)) {
-					return false;
-				}
-				addedActionIds.add(action.id);
-				return true;
-			});
-			if (uniqueGroupActions.length === 0) {
-				continue;
-			}
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
-			actions.push(...uniqueGroupActions);
-		}
-		if (!item.isBuiltin && hasReadableCustomizationContent(item.uri)) {
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
-			actions.push(disposables.add(new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
-				const basePath = this.workspaceService.getActiveProjectRoot();
-				const relativePath = basePath && item.uri.fsPath.startsWith(basePath.fsPath)
-					? item.uri.fsPath.substring(basePath.fsPath.length + 1)
-					: this.labelService.getUriLabel(item.uri, { relative: true });
-				await this.clipboardService.writeText(relativePath);
-			})));
-		}
-		if (actions.length === 0) {
+		const contextMenuActions = [...secondary, ...copyActions];
+		if (contextMenuActions.length === 0) {
 			this.cardMenuOpen = false;
-			disposables.dispose();
 			return;
 		}
+
+		this.cardMenuOpen = true;
+		this.lastCardFocusItemId = item.id;
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => actions,
+			getActions: () => contextMenuActions,
 			onHide: () => {
 				this.cardMenuOpen = false;
-				if (!this.focusCardSectionItem(item.id)) {
+				if (this.usesCardLayout() && !this.focusCardSectionItem(item.id)) {
 					(this.cardMenuButtonsById.get(item.id) ?? this.cardRowsById.get(item.id) ?? this.firstCardFocusElement)?.focus();
 				}
-				disposables.dispose();
 			},
 		});
 	}
@@ -1885,7 +1841,7 @@ export class AICustomizationListWidget extends Disposable {
 		container.style.height = `${ITEM_HEIGHT}px`;
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
-			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
+			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
 		);
 		const list = this.cardDisposables.add(this.instantiationService.createInstance(
 			WorkbenchList<IFileItemEntry>,
@@ -2160,7 +2116,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (hasItemActions) {
 			this.cardDisposables.add(DOM.addDisposableListener(row, 'contextmenu', event => {
 				event.preventDefault();
-				this.showCardItemActions(item, row);
+				this.showItemContextMenu(item, row);
 			}));
 		}
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(row, () => ({
@@ -2197,7 +2153,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.cardDisposables.add(DOM.addDisposableListener(more.element, 'focus', () => {
 				this.lastCardFocusItemId = item.id;
 			}));
-			this.cardDisposables.add(more.onDidClick(() => this.showCardItemActions(item, more.element)));
+			this.cardDisposables.add(more.onDidClick(() => this.showItemContextMenu(item, more.element)));
 			actionElements.push(more.element);
 		}
 		cardList.addItem({
