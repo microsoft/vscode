@@ -11,6 +11,9 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IOnboardingTryoutRunOptions } from '../../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IURLHandler, IURLService } from '../../../../../platform/url/common/url.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -37,12 +40,13 @@ suite('Onboarding tryout URL handler', () => {
 		readonly scenarios?: readonly IOnboardingTryoutScenario[];
 		readonly confirm?: (confirmation: IConfirmation) => Promise<IConfirmationResult>;
 		readonly getAvailability?: (id: string) => OnboardingTryoutAvailability;
-		readonly executeCommand?: (id: string, ...args: unknown[]) => Promise<void>;
+		readonly run?: (id: string) => Promise<void>;
 	} = {}) {
 		const scenarios = new Map((options.scenarios ?? [createScenario('test.tryout')]).map(scenario => [scenario.id, scenario]));
 		const confirmations: IConfirmation[] = [];
 		const information: { message: string; detail?: string }[] = [];
 		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const runs: { id: string; options?: IOnboardingTryoutRunOptions }[] = [];
 		let focusCount = 0;
 		let registeredHandler: IURLHandler | undefined;
 
@@ -59,6 +63,11 @@ suite('Onboarding tryout URL handler', () => {
 		const tryoutService = upcastPartial<IOnboardingTryoutService>({
 			getTryout: id => scenarios.get(id),
 			getAvailability: id => options.getAvailability?.(id) ?? { kind: 'ready' },
+			run: async (id, _token, runOptions) => {
+				runs.push({ id, options: runOptions });
+				await options.run?.(id);
+				return { kind: 'opened' };
+			},
 		});
 		const dialogService = upcastPartial<IDialogService>({
 			confirm: async confirmation => {
@@ -81,7 +90,6 @@ suite('Onboarding tryout URL handler', () => {
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id: string, ...args: unknown[]) => {
 				commands.push({ id, args });
-				await options.executeCommand?.(id, ...args);
 				return undefined;
 			},
 		});
@@ -92,6 +100,8 @@ suite('Onboarding tryout URL handler', () => {
 			hostService,
 			productService,
 			commandService,
+			new TestNotificationService(),
+			disposables.add(new NullLogService()),
 		));
 
 		return {
@@ -100,6 +110,7 @@ suite('Onboarding tryout URL handler', () => {
 			confirmations,
 			information,
 			commands,
+			runs,
 			get focusCount() { return focusCount; },
 		};
 	}
@@ -142,6 +153,7 @@ suite('Onboarding tryout URL handler', () => {
 				primaryButton: harness.confirmations[0]?.primaryButton,
 			},
 			commands: harness.commands,
+			runs: harness.runs,
 			information: harness.information,
 		}, {
 			handled: true,
@@ -153,7 +165,8 @@ suite('Onboarding tryout URL handler', () => {
 				detail: 'An external link requested this feature example in Visual Studio Code.\n\nOpens a safe example without changing user resources.\n\nOnly continue if you initiated this request.',
 				primaryButton: '&&Open Example',
 			},
-			commands: [{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.tryout'] }],
+			commands: [],
+			runs: [{ id: 'test.tryout', options: { source: 'externalLink' } }],
 			information: [],
 		});
 	});
@@ -169,12 +182,12 @@ suite('Onboarding tryout URL handler', () => {
 			handled,
 			focusCount: harness.focusCount,
 			confirmationCount: harness.confirmations.length,
-			commands: harness.commands,
+			runs: harness.runs,
 		}, {
 			handled: true,
 			focusCount: 1,
 			confirmationCount: 1,
-			commands: [],
+			runs: [],
 		});
 	});
 
@@ -194,7 +207,7 @@ suite('Onboarding tryout URL handler', () => {
 			unknown,
 			focusCount: harness.focusCount,
 			confirmationCount: harness.confirmations.length,
-			commands: harness.commands,
+			runs: harness.runs,
 			information: harness.information,
 		}, {
 			optedOut: true,
@@ -202,7 +215,7 @@ suite('Onboarding tryout URL handler', () => {
 			unknown: true,
 			focusCount: 3,
 			confirmationCount: 0,
-			commands: [],
+			runs: [],
 			information: [{
 				message: 'Feature example unavailable',
 				detail: 'This external link does not identify a feature example available in this version of Visual Studio Code.',
@@ -238,19 +251,19 @@ suite('Onboarding tryout URL handler', () => {
 			second,
 			focusCount: harness.focusCount,
 			confirmationCount: harness.confirmations.length,
-			commands: harness.commands,
+			runs: harness.runs,
 		}, {
 			firstHandled: true,
 			second: true,
 			focusCount: 1,
 			confirmationCount: 1,
-			commands: [],
+			runs: [],
 		});
 	});
 
 	test('allows a new confirmation during an active tryout without clearing its guard when the first run ends', async () => {
-		const firstCommandStarted = new DeferredPromise<void>();
-		const finishFirstCommand = new DeferredPromise<void>();
+		const firstRunStarted = new DeferredPromise<void>();
+		const finishFirstRun = new DeferredPromise<void>();
 		const secondConfirmationStarted = new DeferredPromise<void>();
 		const secondConfirmationResult = new DeferredPromise<IConfirmationResult>();
 		let confirmationCount = 0;
@@ -263,19 +276,19 @@ suite('Onboarding tryout URL handler', () => {
 				secondConfirmationStarted.complete();
 				return secondConfirmationResult.p;
 			},
-			executeCommand: async (_id, ...args) => {
-				if (args[0] === 'test.first') {
-					firstCommandStarted.complete();
-					await finishFirstCommand.p;
+			run: async id => {
+				if (id === 'test.first') {
+					firstRunStarted.complete();
+					await finishFirstRun.p;
 				}
 			},
 		});
 
 		const first = harness.handler.handleURL(URI.parse('vscode://tryout/test.first'));
-		await firstCommandStarted.p;
+		await firstRunStarted.p;
 		const second = harness.handler.handleURL(URI.parse('vscode://tryout/test.second'));
 		await secondConfirmationStarted.p;
-		finishFirstCommand.complete();
+		finishFirstRun.complete();
 		const firstHandled = await first;
 		const thirdHandled = await harness.handler.handleURL(URI.parse('vscode://tryout/test.third'));
 		secondConfirmationResult.complete({ confirmed: true });
@@ -285,14 +298,14 @@ suite('Onboarding tryout URL handler', () => {
 			handled: [firstHandled, secondHandled, thirdHandled],
 			focusCount: harness.focusCount,
 			confirmationCount,
-			commands: harness.commands,
+			runs: harness.runs,
 		}, {
 			handled: [true, true, true],
 			focusCount: 2,
 			confirmationCount: 2,
-			commands: [
-				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.first'] },
-				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.second'] },
+			runs: [
+				{ id: 'test.first', options: { source: 'externalLink' } },
+				{ id: 'test.second', options: { source: 'externalLink' } },
 			],
 		});
 	});
@@ -306,12 +319,12 @@ suite('Onboarding tryout URL handler', () => {
 			handled,
 			focusCount: harness.focusCount,
 			confirmationCount: harness.confirmations.length,
-			commands: harness.commands,
+			runs: harness.runs,
 		}, {
 			handled: false,
 			focusCount: 0,
 			confirmationCount: 0,
-			commands: [],
+			runs: [],
 		});
 	});
 });

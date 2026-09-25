@@ -27,9 +27,10 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
@@ -102,7 +103,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onAgentHostExit = new Emitter<number>();
 	override readonly onAgentHostExit = this._onAgentHostExit.event;
 	override readonly initializeResult = observableValue<InitializeResult>(this, {
-		protocolVersion: '1',
+		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
 		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
@@ -281,6 +282,23 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+		if (action.type === ActionType.ChatIsArchivedChanged) {
+			const session = URI.parse(parseRequiredSessionUriFromChatUri(channel));
+			const existing = this._sessionStateValues.get(session.toString()) as SessionState | undefined;
+			if (existing) {
+				this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
+					...existing,
+					chats: existing.chats.map(summary => summary.resource === channel
+						? {
+							...summary,
+							status: action.isArchived
+								? summary.status | ProtocolSessionStatus.IsArchived
+								: summary.status & ~ProtocolSessionStatus.IsArchived,
+						}
+						: summary),
+				});
+			}
+		}
 	}
 
 	// Test helpers
@@ -6585,7 +6603,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
-		test('list metadata surfaces peer titles without subscribing and loads stable chat details while observed', async () => {
+		test('list metadata surfaces peer titles and archived state without subscribing and loads stable chat details while observed', async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 			const rawId = 'multi-catalog-list';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
@@ -6595,7 +6613,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				summary: 'Session',
 				chats: [
 					{ chat: defaultChat, kind: 'default', summary: 'Default' },
-					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden, archived: true },
 				],
 			}));
 			const provider = createProvider(disposables, agentHost);
@@ -6606,18 +6624,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.ok(session);
 			const initialPeer = session.chats.get()[1];
 			let observedInteractivity: ChatInteractivity | undefined;
+			let observedArchived: boolean | undefined;
 			disposables.add(autorun(reader => {
 				observedInteractivity = initialPeer.interactivity.read(reader);
+				observedArchived = initialPeer.isArchived.read(reader);
 			}));
 			assert.deepStrictEqual({
 				titles: session.chats.get().map(chat => chat.title.get()),
 				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
 				observedInteractivity,
+				observedArchived,
 				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
 			}, {
 				titles: ['Default', 'Catalog Peer'],
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
 				observedInteractivity: ChatInteractivity.Hidden,
+				observedArchived: true,
 				sessionSubscriptions: 0,
 			});
 
@@ -6974,6 +6996,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('leaves a recorded pull request that another folder discovered to that folder', () => {
+			const provider = createProviderWithPullRequestModels();
+			const sessionDirectory = URI.file('/work/vscode');
+			const worktreeDirectory = URI.file('/work/vscode.worktrees/feature');
+			const session = setupMultiChatSession(provider, 'multi-peer-recorded-pr', [sessionDirectory, worktreeDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-peer-recorded-pr').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			// The peer chat created pull request 4 from its worktree and recorded it; pull request 1 was discovered in both folders.
+			let meta: SessionState['_meta'] = {
+				githubData: {
+					[sessionDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
+					[worktreeDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4', 'https://github.com/microsoft/vscode/pull/1'] },
+				},
+			};
+			// Without host-published folder keys, as in list metadata.
+			meta = withSessionArtifacts(meta, [
+				{ id: 'peer-pr', type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/4', isGitHub: true },
+				{ id: 'shared-pr', type: SessionArtifactType.PullRequest, label: 'Shared PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true },
+				{ id: 'recorded-pr', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true },
+			]);
+
+			agentHost.setSessionState('multi-peer-recorded-pr', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [sessionDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [worktreeDirectory.toString()]),
+			], { defaultChat, meta }));
+
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.deepStrictEqual({
+				mainChat: describeFolderGitHubInfo(session.mainChat.get()),
+				peerChat: describeFolderGitHubInfo(peer),
+			}, {
+				mainChat: [{ activePullRequest: 2, pullRequests: [[2, 'recorded-pr'], [1, 'shared-pr']], issues: undefined }],
+				peerChat: [{ activePullRequest: 4, pullRequests: [[4, undefined], [1, undefined]], issues: undefined }],
+			});
+		});
+
 		test('adopts recorded pull requests in every chat of a single-folder session', () => {
 			const provider = createProviderWithPullRequestModels();
 			const sessionDirectory = URI.file('/work/vscode');
@@ -7176,7 +7235,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly],
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
-				subagentCapabilities: { canRename: false, canDelete: false },
+				subagentCapabilities: { canRename: false, canArchive: false, canDelete: false },
 			});
 		});
 
@@ -7208,6 +7267,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		test('the main chat is renameable but never deletable via capabilities', () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'main-caps');
 			const sessionUri = AgentSession.uri('copilotcli', 'main-caps').toString();
@@ -7226,8 +7286,93 @@ suite('LocalAgentHostSessionsProvider', () => {
 				// A regular user peer chat: fully manageable.
 				peer: getChatCapabilities(chats[1], session, undefined),
 			}, {
-				main: { canRename: true, canDelete: false },
-				peer: { canRename: true, canDelete: true },
+				main: { canRename: true, canArchive: false, canDelete: false },
+				peer: { canRename: true, canArchive: false, canDelete: true },
+			});
+		});
+
+		test('peer chat archive state is independent and protocol-version gated', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-archive').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+
+			const [main, peer] = session.chats.get();
+			await provider.archiveChat(session.sessionId, peer.resource);
+			const archived = {
+				main: main.isArchived.get(),
+				peer: peer.isArchived.get(),
+				interactivity: peer.interactivity.get(),
+				capabilities: getChatCapabilities(peer, session, undefined),
+			};
+			await provider.unarchiveChat(session.sessionId, peer.resource);
+
+			assert.deepStrictEqual({
+				archived,
+				restored: peer.isArchived.get(),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isArchived: dispatch.action.type === ActionType.ChatIsArchivedChanged ? dispatch.action.isArchived : undefined,
+					})),
+			}, {
+				archived: {
+					main: false,
+					peer: true,
+					interactivity: ChatInteractivity.ReadOnly,
+					capabilities: { canRename: true, canArchive: true, canDelete: true },
+				},
+				restored: false,
+				actions: [
+					{ channel: peerChat, isArchived: true },
+					{ channel: peerChat, isArchived: false },
+				],
+			});
+		});
+
+		test('peer chat archive dispatches to the host-supplied chat resource', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive-resource');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-archive').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive-resource', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+
+			await provider.archiveChat(session.sessionId, session.chats.get()[1].resource);
+
+			assert.strictEqual(
+				agentHost.dispatchedActions.findLast(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged)?.channel,
+				peerChat,
+			);
+		});
+
+		test('side chats cannot be archived independently', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'side-chat-archive');
+			const sessionUri = AgentSession.uri('copilotcli', 'side-chat-archive').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const sideChat = buildChatUri(sessionUri, 'side');
+			agentHost.setSessionState('side-chat-archive', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{
+					...makeChatSummary(sideChat, 'Side Chat'),
+					origin: { kind: ProtocolChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn-1' },
+				},
+			], { defaultChat }));
+
+			assert.deepStrictEqual(getChatCapabilities(session.chats.get()[1], session, undefined), {
+				canRename: true,
+				canArchive: false,
+				canDelete: true,
 			});
 		});
 

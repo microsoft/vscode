@@ -39,6 +39,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
@@ -99,6 +100,10 @@ export class PluginMarketplaceSnapshotModel {
 
 export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: PluginMarketplaceSnapshotState, marketplaceAvailable: boolean): boolean {
 	return visible && state === 'uninitialized' && marketplaceAvailable;
+}
+
+export function shouldShowLegacyPluginMarketplace(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
 }
 
 export function isCurrentPluginMarketplaceRequest(
@@ -367,7 +372,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 
 		const details = DOM.append(container, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('span'));
+		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
@@ -823,6 +828,16 @@ export class PluginListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
+			}
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				this.marketplaceCts?.dispose(true);
+				this.marketplaceSnapshotCts?.dispose(true);
+				this.marketplaceSnapshot.reset();
+				this.marketplaceItems = [];
+				if (!shouldShowLegacyPluginMarketplace(this.configurationService) && this.browseMode) {
+					this.toggleBrowseMode(false);
+				}
+				void this.refresh();
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsListLayout)) {
 				this.renderPluginTree();
@@ -1443,9 +1458,9 @@ export class PluginListWidget extends Disposable {
 		const remoteEntries = this.remoteItems
 			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
 			.map(item => ({ type: 'remote-item' as const, item }));
-		const availableItems = this.browseMode || this.searchQuery.trim()
-			? this.marketplaceItems
-			: this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
+		const showLegacyMarketplace = shouldShowLegacyPluginMarketplace(this.configurationService);
+		const availableItems = !showLegacyMarketplace ? [] : this.browseMode || this.searchQuery.trim()
+			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const tabDefinitions = [
 			{
@@ -1476,7 +1491,7 @@ export class PluginListWidget extends Disposable {
 				icon: Codicon.extensions,
 				children: availableEntries,
 			},
-		].filter(group => group.id === 'user' || group.id === 'workspace' || group.id === 'available' || group.children.length > 0);
+		].filter(group => (group.id === 'available' ? showLegacyMarketplace : group.id === 'user' || group.id === 'workspace' || group.children.length > 0));
 		const definitions = layout === CustomizationListLayout.Tree
 			? [
 				{
@@ -1486,7 +1501,7 @@ export class PluginListWidget extends Disposable {
 					icon: Codicon.plug,
 					children: [...installedEntries, ...remoteEntries],
 				},
-				tabDefinitions.find(group => group.id === 'available')!,
+				...tabDefinitions.filter(group => group.id === 'available'),
 			]
 			: tabDefinitions;
 
@@ -1683,7 +1698,7 @@ export class PluginListWidget extends Disposable {
 
 		this.renderPluginTree();
 
-		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
+		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable() && shouldShowLegacyPluginMarketplace(this.configurationService))) {
 			void this.queryMarketplaceSnapshot();
 		}
 	}
@@ -1907,7 +1922,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
-		if (!this.isBrowseMarketplaceAvailable()) {
+		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			return;
 		}
 		if (!this.browseMode) {
@@ -1955,6 +1970,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplace(): Promise<void> {
+		if (!shouldShowLegacyPluginMarketplace(this.configurationService)) {
+			return;
+		}
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		const query = this.searchQuery.toLowerCase().trim();
@@ -2014,7 +2032,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryPluginSearch(): Promise<void> {
-		if (!this.isBrowseMarketplaceAvailable()) {
+		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			this.marketplaceItems = [];
 			await this.filterPlugins();
 			return;

@@ -5,20 +5,27 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +45,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, instantiationService.createInstance(PlatformCustomizationMarketplaceWorkbenchService));
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return []; }
+		}());
 		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
 		const create = sinon.spy(instantiationService, 'createInstance');
 		store.add(toDisposable(() => create.restore()));
@@ -54,13 +67,15 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		const pages = [
-			await service.query({}, CancellationToken.None),
-			await service.query({ query: 'review' }, CancellationToken.None),
+			await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None),
+			await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], query: 'review' }, CancellationToken.None),
 		];
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,
@@ -69,5 +84,152 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			requests: requests.map(request => request.type),
 			sources: pages.map(page => page.items.map(item => item.sourceId)),
 		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'], sources: [['agentFinder'], ['agentFinder']] });
+	});
+
+	test('plugin-only Discover does not query the public feed', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		const customReference = parseMarketplaceReference('owner/catalog')!;
+		const defaultReference = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		let publicCalls = 0;
+		const pluginCalls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				publicCalls++;
+				return { items: [] };
+			}
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return [customReference, defaultReference]; }
+			override async queryMarketplacePlugins(options: IPluginMarketplaceQuery) {
+				const reference = options.marketplaceIds.has(defaultReference.canonicalId) ? defaultReference : customReference;
+				pluginCalls.push(reference.canonicalId);
+				return {
+					items: [{
+						name: reference === customReference ? 'Review' : 'Built-in', description: 'Code review', version: '1', source: 'review',
+						sourceDescriptor: { kind: PluginSourceKind.RelativePath as const, path: 'review' },
+						marketplace: reference.displayLabel, marketplaceReference: reference, marketplaceType: MarketplaceType.Copilot,
+					}],
+					total: 1,
+					errors: [],
+				};
+			}
+		}());
+		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const page = await service.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: service.sources.map(source => source.id),
+			items: page.items.map(item => [item.sourceId, item.displayName]),
+			publicCalls, pluginCalls,
+		}, {
+			sources: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+			items: [['pluginMarketplaces', 'Review'], ['pluginMarketplaces', 'Built-in']],
+			publicCalls: 0,
+			pluginCalls: [customReference.canonicalId, defaultReference.canonicalId],
+		});
+	});
+
+	test('enabled public and plugin feeds start together and retain source selection', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		const publicResult = new DeferredPromise<Awaited<ReturnType<ICustomizationMarketplaceService['query']>>>();
+		const pluginResult = new DeferredPromise<IPluginMarketplacePage>();
+		const calls: string[] = [];
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override query() {
+				calls.push('public');
+				return publicResult.p;
+			}
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return [reference]; }
+			override queryMarketplacePlugins() {
+				calls.push('plugin');
+				return pluginResult.p;
+			}
+		}());
+		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const pending = service.query({ pageSize: 2 }, CancellationToken.None);
+		await Promise.resolve();
+		const started = [...calls];
+		await publicResult.complete({
+			items: [{
+				sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
+				mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
+			}]
+		});
+		await pluginResult.complete({
+			items: [{
+				name: 'Plugin', description: 'Plugin from configured marketplace', version: '1', source: 'plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugin' },
+				marketplace: reference.displayLabel, marketplaceReference: reference, marketplaceType: MarketplaceType.Copilot,
+			}],
+			total: 1,
+			errors: [],
+		});
+		const page = await pending;
+		const selected = await service.query({ sourceIds: [CustomizationMarketplaceSources.PluginMarketplaces.id] }, CancellationToken.None);
+		const search = await service.query({ query: 'plugin', pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			started, page: page.items.map(item => item.sourceId),
+			selected: selected.items.map(item => item.sourceId),
+			search: search.items.map(item => item.sourceId), calls,
+		}, {
+			started: ['plugin', 'public'], page: ['pluginMarketplaces', 'agentFinder'],
+			selected: ['pluginMarketplaces'], search: ['pluginMarketplaces', 'agentFinder'],
+			calls: ['plugin', 'public', 'plugin', 'plugin', 'public'],
+		});
+	});
+
+	test('preserves recoverable public feed failures through the renderer composition', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				return {
+					items: [{
+						sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
+						mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
+					}],
+					nextCursor: { token: 'next' },
+					sourceErrors: [{ sourceId: 'agentFinder', message: 'Partial failure' }],
+				};
+			}
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return []; }
+		}());
+		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const page = await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 1 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: page.items.map(item => item.identifier),
+			hasMore: !!page.nextCursor,
+			errors: page.sourceErrors,
+		}, {
+			items: ['public'],
+			hasMore: true,
+			errors: [{ sourceId: 'agentFinder', message: 'Partial failure' }],
+		});
 	});
 });

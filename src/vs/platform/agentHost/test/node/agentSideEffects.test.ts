@@ -52,6 +52,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -193,6 +194,10 @@ function createTestSideEffects(
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostPeerChatPersistenceService, {
+			_serviceBrand: undefined,
+			setArchived: async () => { },
+		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
@@ -2316,12 +2321,15 @@ suite('AgentSideEffects', () => {
 
 			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatError) || undefined);
 
+			const chatError = envelopes.find(e => e.action.type === ActionType.ChatError)?.action;
 			assert.deepStrictEqual({
 				chatErrors: envelopes.filter(e => e.action.type === ActionType.ChatError).length,
+				errorMessage: chatError?.type === ActionType.ChatError ? chatError.part.error.message : undefined,
 				creationFailed: envelopes.some(e => e.action.type === ActionType.SessionCreationFailed),
 				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
 			}, {
 				chatErrors: 1,
+				errorMessage: 'transient send failure',
 				creationFailed: false,
 				lifecycle: SessionLifecycle.Ready,
 			});

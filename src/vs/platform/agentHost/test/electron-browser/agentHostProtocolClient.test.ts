@@ -689,7 +689,7 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
 					chats: [
 						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
-						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', interactivity: ChatInteractivity.Hidden },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', archived: true, interactivity: ChatInteractivity.Hidden },
 					],
 					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
@@ -709,7 +709,7 @@ suite('AgentHostProtocolClient', () => {
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
 			chats: [
 				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
-				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		}]);
 	});
@@ -1870,6 +1870,31 @@ suite('AgentHostProtocolClient', () => {
 			if (enabled) {
 				assert.deepStrictEqual(transport.sentMessages, [{
 					jsonrpc: '2.0', id: 2, method: 'vscode/reportAgentHostFirstResponse', params: diagnostic,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
+	});
+
+	test('UI timing uses its own capability and waits for the host acknowledgement', async () => {
+		const timing = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1,
+			result: 'hidden' as const, requestPhase: 'unknown' as const,
+			timeToTermination: 0, windowVisible: false, windowFocused: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, enabled
+				? getAgentHostExtensionInitializeResultMeta(true, false, true)
+				: { 'vscode.agentHostTiming': true });
+			transport.sentMessages.length = 0;
+			const report = client.reportUserInteraction(timing);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportChatUserInteraction', params: timing,
 				}]);
 				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
 			} else {
