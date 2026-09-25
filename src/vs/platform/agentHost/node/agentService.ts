@@ -6705,9 +6705,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<IPreparedChatWorkingDirectory> {
 		const prepared = await this._prepareChatWorkingDirectory(session, directory, options);
+		const createdWorktree = prepared.createdWorktree;
 		return {
 			directory: prepared.directory,
-			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, prepared.createdWorktree) : Promise.resolve(),
+			...(createdWorktree ? {
+				associateWithChat: chat => this._associateAdditionalWorktreeWithChat(session, createdWorktree.handle, chat),
+			} : {}),
+			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, createdWorktree) : Promise.resolve(),
 		};
 	}
 
@@ -6790,6 +6794,19 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		const added = !previousWorkingDirectories.some(candidate => isEqual(URI.parse(candidate), effective));
 		return { directory: effective, added, ...(added && createdWorktree ? { createdWorktree } : {}) };
+	}
+
+	private _associateAdditionalWorktreeWithChat(session: URI, handle: string, chat: URI): Promise<void> {
+		return this._additionalWorktreeSequencer.queue(session.toString(), async () => {
+			const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const index = records.findIndex(record => record.handle === handle);
+			if (index === -1) {
+				throw new Error(`Cannot associate unknown additional worktree '${handle}' with chat ${chat.toString()}.`);
+			}
+			const next = records.slice();
+			next[index] = { ...records[index], chat: chat.toString() };
+			await writeSessionAdditionalWorktrees(this._sessionDataService, session, next);
+		});
 	}
 
 	/**

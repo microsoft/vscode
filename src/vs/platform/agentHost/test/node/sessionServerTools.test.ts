@@ -63,8 +63,8 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
-	function prepared(directory: URI, release: () => Promise<void> = async () => { }): IPreparedChatWorkingDirectory {
-		return { directory, release };
+	function prepared(directory: URI, release: () => Promise<void> = async () => { }, associateWithChat?: (chat: URI) => Promise<void>): IPreparedChatWorkingDirectory {
+		return { directory, release, associateWithChat };
 	}
 
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
@@ -1572,7 +1572,7 @@ suite('SessionServerTools', () => {
 		const requestedWorkspace = URI.file('/workspace/other');
 		const preparedWorkspace = URI.file('/workspace/other.worktrees/task');
 		const operations: string[] = [];
-		let createdChat: { session: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
+		let createdChat: { session: URI; chat: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
 		let addOptions: Parameters<ISessionServerToolAccessor['prepareChatWorkingDirectory']>[2] | undefined;
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)],
@@ -1580,11 +1580,13 @@ suite('SessionServerTools', () => {
 			prepareChatWorkingDirectory: async (session, directory, options) => {
 				operations.push(`add:${session.toString()}:${directory.toString()}`);
 				addOptions = options;
-				return prepared(preparedWorkspace);
+				return prepared(preparedWorkspace, async () => { }, async chat => {
+					operations.push(`associate:${chat.toString()}`);
+				});
 			},
-			onCreateChat: (session, _chat, options) => {
+			onCreateChat: (session, chat, options) => {
 				operations.push('create');
-				createdChat = { session, options };
+				createdChat = { session, chat, options };
 			},
 			onRenameChat: () => operations.push('rename'),
 			onPrompt: () => operations.push('prompt'),
@@ -1607,7 +1609,7 @@ suite('SessionServerTools', () => {
 			// The chat gets the prepared checkout, not the requested folder.
 			workingDirectories: [preparedWorkspace.toString()],
 			addOptions: { isolation: 'worktree', prompt: 'do it there' },
-			operations: [`add:copilot:/s1:${requestedWorkspace.toString()}`, 'create', 'rename', 'prompt'],
+			operations: [`add:copilot:/s1:${requestedWorkspace.toString()}`, `associate:${createdChat?.chat.toString()}`, 'create', 'rename', 'prompt'],
 		});
 		store.dispose();
 	});

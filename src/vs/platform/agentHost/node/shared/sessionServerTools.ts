@@ -279,6 +279,8 @@ export type IAddSessionWorkingDirectoryOptions = {
 export interface IPreparedChatWorkingDirectory {
 	/** The effective checkout to assign to the chat. */
 	readonly directory: URI;
+	/** Associates a newly created worktree with the chat before that chat is created. */
+	readonly associateWithChat?: (chat: URI) => Promise<void>;
 	/**
 	 * Undoes the preparation when the chat could not be created: removes a
 	 * folder this preparation added, and a worktree it created, unless a chat
@@ -906,7 +908,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				title: args.title,
 				model: args.model,
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
-			}, source, sourceTurnId);
+			}, source, sourceTurnId, prepared?.associateWithChat);
 		} catch (error) {
 			await prepared?.release();
 			throw error;
@@ -1055,13 +1057,14 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
+async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
+	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
 		title: args.title,
 		model,
