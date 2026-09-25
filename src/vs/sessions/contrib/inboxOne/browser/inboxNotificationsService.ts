@@ -203,6 +203,36 @@ type InboxDetailSummaryGeneratedClassification = {
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
 };
 
+type InboxContentClassificationEvent = {
+	workType: string;
+	domain: string;
+	decisionType: string;
+	riskLevel: string;
+	confidence: string;
+	ontologyVersion: number;
+	inputScope: string;
+	provenance: string;
+	notificationKind: string;
+	agentSessionId: string;
+	providerId: string;
+};
+
+type InboxContentClassificationClassification = {
+	owner: 'meganrogge';
+	comment: 'Bounded, content-derived classification of an inbox item (work type, domain, decision type, risk) produced locally by the utility model from otherwise-PII content. Only these bounded labels are emitted (to a restricted table); the raw titles/transcript never leave the client. Generated on demand when the user views an item, so volume is user-paced.';
+	workType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-type category inferred from the task content (e.g. bugfix, feature, refactor, test, docs), or unknown.' };
+	domain: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-domain category inferred from the task content (e.g. frontend, backend, build, security), or unknown.' };
+	decisionType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded decision-type category for a pending request (e.g. approval, designChoice, clarification), none, or unknown.' };
+	riskLevel: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded inferred risk level of the work (low, med, high), or unknown. An inference, never an authoritative risk determination.' };
+	confidence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model confidence bucket for the classification: low, med, high, or unknown.' };
+	ontologyVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the classification ontology, so label meanings can be tracked over time.' };
+	inputScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded scope of the classified input: sessionTranscript.' };
+	provenance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the labels were produced: utilityModelInference.' };
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind the classification was produced for.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with the rest of the trajectory.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+};
+
 /**
  * System prompt for the completed-session evidence pack. It must produce STRICT JSON with a
  * short status, the key decisions, and evidence claims that are each grounded in one of the
@@ -316,6 +346,72 @@ export function parseDetailSummary(raw: string, artifacts: readonly IInboxEviden
 	return { status, decisions, evidence };
 }
 
+/** Version of the content-classification ontology; bump when the label sets below change. */
+const CLASSIFICATION_ONTOLOGY_VERSION = 1;
+
+const CLASSIFICATION_WORK_TYPES = ['bugfix', 'feature', 'refactor', 'test', 'docs', 'ci', 'review', 'config', 'infra', 'data', 'research', 'chore', 'other', 'unknown'] as const;
+const CLASSIFICATION_DOMAINS = ['frontend', 'backend', 'build', 'test', 'scm', 'data', 'ml', 'infra', 'security', 'docs', 'other', 'unknown'] as const;
+const CLASSIFICATION_DECISION_TYPES = ['approval', 'designChoice', 'clarification', 'codeReview', 'disambiguation', 'auth', 'scope', 'other', 'none', 'unknown'] as const;
+const CLASSIFICATION_RISK_LEVELS = ['low', 'med', 'high', 'unknown'] as const;
+const CLASSIFICATION_CONFIDENCE = ['low', 'med', 'high', 'unknown'] as const;
+
+/**
+ * Bounded, content-derived classification of an inbox item, produced by the utility model from
+ * otherwise-PII content (titles, transcript, the pending request). Only these bounded labels are
+ * emitted, to a restricted telemetry table; the raw content never leaves the client.
+ */
+export interface IInboxContentClassification {
+	readonly workType: string;
+	readonly domain: string;
+	readonly decisionType: string;
+	readonly riskLevel: string;
+	readonly confidence: string;
+}
+
+const CLASSIFICATION_SYSTEM_PROMPT = [
+	'You classify a background coding-agent task into a fixed, bounded ontology for research analytics.',
+	'Read the provided session context and respond with STRICT JSON only, no prose, using exactly these keys:',
+	'{ "workType": <one of ' + CLASSIFICATION_WORK_TYPES.join('|') + '>,',
+	'  "domain": <one of ' + CLASSIFICATION_DOMAINS.join('|') + '>,',
+	'  "decisionType": <one of ' + CLASSIFICATION_DECISION_TYPES.join('|') + '; the kind of decision the user is being asked for, or none when nothing is pending>,',
+	'  "riskLevel": <one of ' + CLASSIFICATION_RISK_LEVELS.join('|') + '; how risky/destructive the work is>,',
+	'  "confidence": <one of ' + CLASSIFICATION_CONFIDENCE.join('|') + '> }',
+	'Use "unknown" for any field you cannot determine. Do not invent categories outside the lists. Output only the JSON object.',
+].join('\n');
+
+function pickClassificationValue(value: unknown, allowed: readonly string[]): string {
+	return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? value : 'unknown';
+}
+
+export function parseContentClassification(raw: string): IInboxContentClassification | undefined {
+	const json = extractJsonObject(raw);
+	if (!json) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const record = parsed as Record<string, unknown>;
+	const classification: IInboxContentClassification = {
+		workType: pickClassificationValue(record.workType, CLASSIFICATION_WORK_TYPES),
+		domain: pickClassificationValue(record.domain, CLASSIFICATION_DOMAINS),
+		decisionType: pickClassificationValue(record.decisionType, CLASSIFICATION_DECISION_TYPES),
+		riskLevel: pickClassificationValue(record.riskLevel, CLASSIFICATION_RISK_LEVELS),
+		confidence: pickClassificationValue(record.confidence, CLASSIFICATION_CONFIDENCE),
+	};
+	// Only emit if the model produced at least one real (non-unknown) label.
+	if (classification.workType === 'unknown' && classification.domain === 'unknown' && classification.decisionType === 'unknown' && classification.riskLevel === 'unknown') {
+		return undefined;
+	}
+	return classification;
+}
+
 /** Defensively extracts a file URI from a chat response part (edits, code blocks, inline references). */
 function getResponsePartFileUri(part: unknown): URI | undefined {
 	if (!part || typeof part !== 'object') {
@@ -401,6 +497,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 	private readonly _detailSummaryCache = new LRUCache<string, IInboxDetailSummary>(DETAIL_CACHE_SIZE);
 	private readonly _detailSummaryInFlight = new Set<string>();
+	/** Item keys whose content classification has already been generated this session (bounds model calls). */
+	private readonly _classifiedKeys = new Set<string>();
 
 	/** Bounds concurrent utility-model calls (previews + evidence packs) to avoid bursts. */
 	private readonly _utilityLimiter = new Limiter<unknown>(3);
@@ -472,6 +570,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._previewInFlight.clear();
 			this._previewFallbackSignatures.clear();
 			this._detailSummaryInFlight.clear();
+			this._classifiedKeys.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -945,6 +1044,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				hadTranscript = true;
 				const artifacts = this.collectSessionArtifacts(item);
 				summary = await this._utilityLimiter.queue(() => this.invokeDetailModel(item, transcript, artifacts, cts.token)) as IInboxDetailSummary | undefined;
+				// Piggyback the restricted content classification on the same on-demand path so it
+				// reuses this transcript and adds no extra fan-out beyond what the user already viewed.
+				void this.classifyContent(key, item, transcript);
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -977,6 +1079,87 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			hadTranscript: hadTranscript ? 'yes' : 'no',
 			decisionCount: summary?.decisions.length ?? 0,
 			evidenceCount: summary?.evidence.length ?? 0,
+			agentSessionId: context.agentSessionId,
+			providerId: context.providerId,
+		});
+	}
+
+	/**
+	 * Generates a bounded content classification for an item (once per session) and emits it to the
+	 * restricted telemetry table. Bounded by the utility limiter and by the on-demand detail path
+	 * that calls it, and cached per key so it runs at most once per item.
+	 */
+	private async classifyContent(key: string, item: IInboxNotificationItem, transcript: string): Promise<void> {
+		if (this._classifiedKeys.has(key)) {
+			return;
+		}
+		this._classifiedKeys.add(key);
+		const cts = new CancellationTokenSource();
+		this._previewCancellationSources.add(cts);
+		try {
+			const classification = await this._utilityLimiter.queue(() => this.invokeClassificationModel(transcript, cts.token)) as IInboxContentClassification | undefined;
+			if (classification && !cts.token.isCancellationRequested) {
+				this.logContentClassification(item, classification);
+			} else {
+				// Nothing usable: allow a later view to retry.
+				this._classifiedKeys.delete(key);
+			}
+		} catch (error) {
+			this._classifiedKeys.delete(key);
+			onUnexpectedError(error);
+		} finally {
+			this._previewCancellationSources.delete(cts);
+			cts.dispose();
+		}
+	}
+
+	private async invokeClassificationModel(transcript: string, token: CancellationToken): Promise<IInboxContentClassification | undefined> {
+		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+		const input = transcript.length > DETAIL_MAX_INPUT_CHARS ? `${transcript.slice(0, DETAIL_MAX_INPUT_CHARS)}…[truncated]` : transcript;
+		const response = await this.languageModelsService.sendChatRequest(
+			models[0],
+			undefined,
+			[
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: CLASSIFICATION_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: input }] },
+			],
+			{},
+			token,
+		);
+		let text = '';
+		for await (const part of response.stream) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parts = Array.isArray(part) ? part : [part];
+			for (const chunk of parts) {
+				if (chunk.type === 'text') {
+					text += chunk.value;
+				}
+			}
+		}
+		await response.result;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return parseContentClassification(text);
+	}
+
+	private logContentClassification(item: IInboxNotificationItem, classification: IInboxContentClassification): void {
+		const context = this.getInteractionTelemetryContext(item);
+		this.telemetryService.publicLog2<InboxContentClassificationEvent, InboxContentClassificationClassification>('agents/inboxContentClassification', {
+			workType: classification.workType,
+			domain: classification.domain,
+			decisionType: classification.decisionType,
+			riskLevel: classification.riskLevel,
+			confidence: classification.confidence,
+			ontologyVersion: CLASSIFICATION_ONTOLOGY_VERSION,
+			inputScope: 'sessionTranscript',
+			provenance: 'utilityModelInference',
+			notificationKind: item.kind,
 			agentSessionId: context.agentSessionId,
 			providerId: context.providerId,
 		});

@@ -21,7 +21,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, InboxNotificationsService, parseContentClassification, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
@@ -1241,6 +1241,53 @@ suite('InboxNotificationsService', () => {
 		test('returns undefined for malformed or empty output', () => {
 			assert.strictEqual(parseDetailSummary('not json at all', artifacts), undefined);
 			assert.strictEqual(parseDetailSummary(JSON.stringify({ status: '', decisions: [], evidence: [] }), artifacts), undefined);
+		});
+	});
+
+	suite('parseContentClassification', () => {
+		test('parses bounded labels from strict JSON', () => {
+			const raw = JSON.stringify({
+				workType: 'bugfix',
+				domain: 'backend',
+				decisionType: 'approval',
+				riskLevel: 'high',
+				confidence: 'med',
+			});
+			const result = parseContentClassification(raw);
+			assert.ok(result);
+			assert.strictEqual(result!.workType, 'bugfix');
+			assert.strictEqual(result!.domain, 'backend');
+			assert.strictEqual(result!.decisionType, 'approval');
+			assert.strictEqual(result!.riskLevel, 'high');
+			assert.strictEqual(result!.confidence, 'med');
+		});
+
+		test('coerces out-of-ontology or missing labels to unknown', () => {
+			const raw = JSON.stringify({
+				workType: 'feature',
+				domain: 'not-a-real-domain',
+				riskLevel: 42,
+			});
+			const result = parseContentClassification(raw);
+			assert.ok(result);
+			assert.strictEqual(result!.workType, 'feature');
+			assert.strictEqual(result!.domain, 'unknown');
+			assert.strictEqual(result!.decisionType, 'unknown');
+			assert.strictEqual(result!.riskLevel, 'unknown');
+			assert.strictEqual(result!.confidence, 'unknown');
+		});
+
+		test('extracts JSON embedded in prose or code fences', () => {
+			const raw = 'Here you go: ```json\n{"workType":"docs","domain":"docs","decisionType":"none","riskLevel":"low","confidence":"high"}\n```';
+			const result = parseContentClassification(raw);
+			assert.ok(result);
+			assert.strictEqual(result!.workType, 'docs');
+			assert.strictEqual(result!.riskLevel, 'low');
+		});
+
+		test('returns undefined for malformed output or all-unknown labels', () => {
+			assert.strictEqual(parseContentClassification('not json at all'), undefined);
+			assert.strictEqual(parseContentClassification(JSON.stringify({ workType: 'nope', domain: 'nope', decisionType: 'nope', riskLevel: 'nope', confidence: 'nope' })), undefined);
 		});
 	});
 });
