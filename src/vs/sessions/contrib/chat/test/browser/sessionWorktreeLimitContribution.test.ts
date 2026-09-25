@@ -95,7 +95,7 @@ suite('SessionWorktreeLimitContribution', () => {
 function createService(sessions: readonly ISession[], dialogService: Pick<IDialogService, 'confirm'>): SessionWorktreeLimitContribution {
 	return new SessionWorktreeLimitContribution(
 		upcastPartial<ISessionsManagementService>({
-			getSessions: () => sessions,
+			getSessions: () => [...sessions],
 			onDidChangeSessions: Event.None,
 			archiveSession: async () => { },
 		}),
