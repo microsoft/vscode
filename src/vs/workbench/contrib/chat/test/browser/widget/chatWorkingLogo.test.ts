@@ -66,7 +66,7 @@ suite('ChatWorkingLogo', () => {
 		return { configuration, fireChange };
 	}
 
-	test('configured progress defaults to Draw and switches motions without replacing its faces', async () => {
+	test('configured progress defaults to Off and switches motions without replacing its faces', async () => {
 		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		store.add(toDisposable(() => parent.remove()));
 		const { configuration, fireChange } = createConfiguration();
@@ -96,7 +96,7 @@ suite('ChatWorkingLogo', () => {
 			sameAnimations,
 			motionAfterDisposal: logo.domNode.dataset.animation,
 		}, {
-			initial: { animation: 'draw', animated: true },
+			initial: { animation: 'off', animated: false },
 			snapshots: [
 				{ animation: 'off', duration: 1200, classApplied: true },
 				{ animation: 'weave', duration: 1200, classApplied: true },

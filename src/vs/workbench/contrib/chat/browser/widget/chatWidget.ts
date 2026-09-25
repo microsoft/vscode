@@ -13,7 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -69,6 +69,7 @@ import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
@@ -111,6 +112,7 @@ import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
+import { ChatUserInteraction } from '../chatUserInteractionTelemetry.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 
 const $ = dom.$;
@@ -3134,19 +3136,55 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
-
-		if (!options?.preserveInput) {
-			// preserveInput submissions (e.g. /compact or programmatic maintenance
-			// requests) leave the input draft untouched, so they must not stop an
-			// unrelated dictation and flush its final transcript into that draft.
-			await stopDictationForEditor(this.inputEditor);
-			validateSession?.();
+		const sessionResource = this.viewModel?.sessionResource;
+		const modeInfo = this.input.currentModeInfo;
+		const interaction = this.instantiationService.createInstance(ChatUserInteraction, {
+			window: dom.getWindow(this.container),
+			visible: this.visible,
+			getSessionResource: () => sessionResource,
+			context: {
+				...(sessionResource ? getChatSessionTelemetryContext(sessionResource) : {}),
+				location: this.location,
+				permissionLevel: modeInfo.kind === ChatModeKind.Ask ? undefined : modeInfo.permissionLevel,
+				chatMode: modeInfo.telemetryModeName ?? modeInfo.telemetryModeId,
+			},
+		});
+		if (interaction.isActive) {
+			this._store.add(interaction);
+			interaction.addDisposable(interaction.onDidFinish(() => this._store.delete(interaction)));
+			interaction.addDisposable(this.onDidHide(() => interaction.cancel('hidden')));
 		}
 
-		if (this.viewModel) {
-			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+		try {
+			if (!options?.preserveInput) {
+				// preserveInput submissions (e.g. /compact or programmatic maintenance
+				// requests) leave the input draft untouched, so they must not stop an
+				// unrelated dictation and flush its final transcript into that draft.
+				await stopDictationForEditor(this.inputEditor);
+				validateSession?.();
+			}
+
+			if (this.viewModel) {
+				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+			}
+			const response = await this._acceptInput(query ? { query } : undefined, options, validateSession, (_response, kind) => {
+				if (kind === 'queued') {
+					interaction.cancel('queued');
+				}
+			});
+			if (!response) {
+				interaction.cancel('notDispatched');
+				return undefined;
+			}
+			interaction.observeResponse(response, () => this);
+			if (interaction.isActive) {
+				interaction.addDisposable(this.onDidChangeViewModel(() => interaction.checkResponse()));
+			}
+			return response;
+		} catch (error) {
+			interaction.cancel(isCancellationError(error) ? 'cancelled' : 'error');
+			throw error;
 		}
-		return this._acceptInput(query ? { query } : undefined, options, validateSession);
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -3304,7 +3342,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive) {
 			return undefined;
 		}
@@ -3560,6 +3598,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		let result: ChatSendResult;
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
+				onDidCreateResponse,
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),

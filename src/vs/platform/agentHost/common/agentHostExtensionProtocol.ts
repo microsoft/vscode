@@ -10,8 +10,9 @@ import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
-import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
+import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
@@ -49,6 +50,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
+export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -61,6 +63,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
+	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
@@ -79,6 +82,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
+		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 	};
 }
 
@@ -91,7 +95,6 @@ export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionIn
 	const meta = result?._meta;
 	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
 }
-
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
@@ -111,6 +114,7 @@ export const importSessionParamsValidator = vObj({ session: vString() });
 export interface IAgentHostExtensionCommandMap {
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
+	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };

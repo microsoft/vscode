@@ -46,6 +46,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -4717,6 +4718,65 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
+		test('remote session origin and cumulative depth survive creation, listing and host restoration', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const agent = disposables.add(new MockAgent('copilot'));
+			const creating = createService();
+			registerTestAgentProvider(creating, agent);
+			const origin = { session: 'remote-source-copilot:/parent', chat: 'remote-source-copilot:/parent#peer', depth: 2 };
+			const session = await creating.createSession({ provider: 'copilot', _meta: withRemoteSessionOrigin(undefined, origin) });
+			const created = getStateManager(creating).getSessionState(session.toString());
+			const persisted = await perSession.database(session).getMetadata(REMOTE_SESSION_ORIGIN_METADATA_KEY);
+
+			agent.sessionMetadataOverrides = { _meta: {} };
+			const restoredService = createService();
+			registerTestAgentProvider(restoredService, agent);
+			const listed = (await restoredService.listSessions()).find(candidate => isEqual(candidate.session, session));
+			assert.ok(listed);
+			await restoredService.restoreSession(session);
+			const restored = getStateManager(restoredService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				createdOrigin: readRemoteSessionOrigin(created),
+				createdDepth: readRemoteSessionDepth(created),
+				persisted,
+				listedOrigin: readRemoteSessionOrigin(listed),
+				listedDepth: readRemoteSessionDepth(listed),
+				restoredOrigin: readRemoteSessionOrigin(restored),
+				restoredDepth: readRemoteSessionDepth(restored),
+			}, {
+				createdOrigin: origin,
+				createdDepth: 2,
+				persisted: JSON.stringify(origin),
+				listedOrigin: origin,
+				listedDepth: 2,
+				restoredOrigin: origin,
+				restoredDepth: 2,
+			});
+		});
+
+		test('remote session origin persistence failure rolls back creation', async () => {
+			const db = new class extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[REMOTE_SESSION_ORIGIN_METADATA_KEY]) {
+						throw new Error('Remote origin persistence failed');
+					}
+					return super.setMetadataValues(values);
+				}
+			}();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(creating, agent);
+			const origin = { session: 'agent-host-copilot:/parent', chat: 'agent-host-copilot:/parent', depth: 1 };
+			await assert.rejects(creating.createSession({ provider: 'copilot', _meta: withRemoteSessionOrigin(undefined, origin) }), /Remote origin persistence failed/);
+			assert.deepStrictEqual(await agent.listSessions(), []);
+		});
+
 
 		test('creates session via specified provider', async () => {
 			registerTestAgentProvider(service, copilotAgent);

@@ -17,6 +17,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../../platfor
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 
@@ -38,6 +39,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
 		const create = sinon.spy(instantiationService, 'createInstance');
 		store.add(toDisposable(() => create.restore()));
@@ -54,13 +56,15 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		const pages = [
 			await service.query({}, CancellationToken.None),
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: ['agentFinder'] }, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,

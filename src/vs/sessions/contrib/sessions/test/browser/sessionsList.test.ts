@@ -412,6 +412,8 @@ suite('Sessions - SessionsList', () => {
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
+			const customizationsCount = observableValue(disposables, 7);
+			const customizationMigrationsAvailable = observableValue(disposables, true);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
@@ -441,6 +443,8 @@ suite('Sessions - SessionsList', () => {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => showNavigationShortcuts,
+				customizationsCount,
+				customizationMigrationsAvailable,
 				findWidgetContainer,
 				sessionsHeader,
 				sessionsHeaderContainer,
@@ -464,6 +468,14 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = sessionsHeader.closest('.sessions-list-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
+			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
+			const customizationsPresentation = {
+				count: customizationsSection?.querySelector('.session-section-count')?.textContent,
+				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
+				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
+				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
@@ -485,6 +497,7 @@ suite('Sessions - SessionsList', () => {
 				shortcutActionTargets,
 				shortcutCollapseStates,
 				headerInTreatment,
+				customizationsPresentation,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				headerRestoredToControl: sessionsHeader.parentElement === sessionsHeaderContainer,
@@ -494,13 +507,19 @@ suite('Sessions - SessionsList', () => {
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
 				treatmentNavigationLabels: ['Automations', 'Customizations'],
-				treatmentAriaLabels: ['Automations', 'Customizations', 'Sessions'],
+				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
 				shortcutActionTargets: [0, 0],
 				shortcutCollapseStates: [
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
 				headerInTreatment: true,
+				customizationsPresentation: {
+					count: '7',
+					migrationIndicatorVisible: true,
+					migrationIndicatorOutsideLabel: true,
+					hasExtensionsIcon: true,
+				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
 				headerRestoredToControl: true,
@@ -3512,7 +3531,7 @@ suite('Sessions - SessionsList', () => {
 					title: 'Session',
 					location: 'Workspace · /workspace/mainBranch · main-work2 files changed+5-1',
 					pullRequest: 'Main pull request',
-					sessionSummary: 'Session summarymain · /workspacepeer · /workspace4 files changed+20-8Main pull requestPeer pull request',
+					sessionSummary: 'Session summarymain · /workspacepeer · /workspace4 files changed+20-8Peer pull request',
 					changes: ['+5', '-1'],
 				},
 				peer: {
@@ -3582,6 +3601,89 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				worktreePending: false,
 				branch: 'peer-work',
+			});
+		});
+
+		suite('session hover pull requests', () => {
+
+			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {
+				const root = URI.file(`/workspace/${name}`);
+				return {
+					root,
+					workingDirectory: root,
+					name,
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: undefined,
+						baseBranchName: 'main',
+						branchName: `${name}-work`,
+						gitHubInfo: constObservable({
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequests: pullRequestNumbers.map(number => ({
+								owner: 'microsoft',
+								repo: 'vscode',
+								number,
+								uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+								title: `PR ${number}`,
+								createdByThisSession: true,
+							})),
+						}),
+					},
+				};
+			}
+
+			function summarizePullRequests(session: ISession) {
+				const data = getSessionSummaryHoverData(
+					session,
+					upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+					upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+					upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+					upcastPartial<IPreferencesService>({}),
+				);
+				return {
+					pullRequests: data.pullRequests?.map(pullRequest => pullRequest.title),
+					sessionSummary: data.sessionSummary && {
+						workspaces: data.sessionSummary.workspaces.map(workspace => workspace.name),
+						pullRequests: data.sessionSummary.pullRequests?.map(pullRequest => pullRequest.title),
+					},
+				};
+			}
+
+			test('multi-folder session summary lists only pull requests the main chat section does not show', () => {
+				const main = createPullRequestFolder('main', [1, 2]);
+				const peer = createPullRequestFolder('peer', [2, 3]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([main, peer], [[main], [peer]])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: {
+						workspaces: ['main', 'peer'],
+						pullRequests: ['PR 3'],
+					},
+				});
+			});
+
+			test('multi-folder session summary omits its pull request list when the main chat section shows them all', () => {
+				const main = createPullRequestFolder('main', [1, 2]);
+				const peer = createPullRequestFolder('peer', [2]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([main, peer], [[main], [peer]])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: {
+						workspaces: ['main', 'peer'],
+						pullRequests: undefined,
+					},
+				});
+			});
+
+			test('single-folder session lists its pull requests without a session summary', () => {
+				const folder = createPullRequestFolder('main', [1, 2]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([folder], [undefined])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: undefined,
+				});
 			});
 		});
 

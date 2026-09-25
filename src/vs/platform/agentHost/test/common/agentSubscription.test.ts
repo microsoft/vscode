@@ -10,11 +10,12 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, ChatInteractivity, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
+import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -772,6 +773,107 @@ suite('ChatStateSubscription', () => {
 			error,
 			responseParts: [{ kind: ResponsePartKind.Error, error }],
 			legacyField: undefined,
+		});
+	});
+
+	for (const bufferedAcknowledgement of [false, true]) {
+		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
+			const sub = createSub();
+			const start: ChatTurnStartedAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			};
+			const clientSeq = sub.applyOptimistic(start);
+			if (bufferedAcknowledgement) {
+				sub.receiveEnvelope(makeEnvelope(start, 1, { clientId: 'c1', clientSeq }));
+			}
+			const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+			sub.handleSnapshot(snapshot, 1);
+			const progress = {
+				type: ActionType.ChatToolCallStart,
+				turnId: start.turnId,
+				toolCallId: 'tool-1',
+				toolName: 'reply',
+				displayName: 'Reply',
+			} as const;
+			sub.receiveEnvelope(makeEnvelope(progress, 2));
+
+			assert.deepStrictEqual({
+				value: sub.value,
+				pending: sub.getPendingActions(),
+			}, {
+				value: chatReducer(snapshot, progress, noop),
+				pending: [],
+			});
+		});
+	}
+
+	test('snapshot confirms a completed optimistic turn without restarting it', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const snapshot = chatReducer(chatReducer(makeChatState(chatUri), start, noop), {
+			type: ActionType.ChatTurnComplete,
+			turnId: start.turnId,
+			duration: 1000,
+		}, noop);
+		sub.handleSnapshot(snapshot, 2);
+
+		assert.deepStrictEqual({ value: sub.value, pending: sub.getPendingActions() }, { value: snapshot, pending: [] });
+	});
+
+	test('snapshot confirming a turn start preserves its pending cancellation', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const cancellation = {
+			type: ActionType.ChatTurnCancelled,
+			turnId: start.turnId,
+			duration: 1000,
+		} as const;
+		const clientSeq = sub.applyOptimistic(cancellation);
+		const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+		sub.handleSnapshot(snapshot, 1);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, cancellation, noop),
+			pending: [{ channel: chatUri, clientSeq, action: cancellation }],
+		});
+	});
+
+	test('snapshot without the optimistic turn preserves its pending start', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		const clientSeq = sub.applyOptimistic(start);
+		const snapshot = makeChatState(chatUri);
+		sub.handleSnapshot(snapshot, 0);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, start, noop),
+			pending: [{ channel: chatUri, clientSeq, action: start }],
 		});
 	});
 

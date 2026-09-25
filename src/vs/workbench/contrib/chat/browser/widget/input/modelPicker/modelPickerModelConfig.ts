@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from '../../../../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../../nls.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
@@ -22,6 +24,49 @@ export interface IModelConfigProperty {
 	readonly key: string;
 	readonly value: unknown;
 	readonly schema: IModelConfigPropertySchema;
+}
+
+const configurationEdits = new WeakMap<IModelConfigurationAccess, SequencerByKey<string>>();
+
+/** Serializes effective-value reads, writes, and change reporting per model and configuration scope. */
+export function setModelConfigValues(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	configurationAccess: IModelConfigurationAccess,
+	values: IStringDictionary<unknown>,
+	onDidChange?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void,
+): Promise<void> {
+	let edits = configurationEdits.get(configurationAccess);
+	if (!edits) {
+		configurationEdits.set(configurationAccess, edits = new SequencerByKey<string>());
+	}
+	return edits.queue(model.identifier, async () => {
+		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
+			const property = getModelConfigProperty(model, configurationAccess, group);
+			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
+				? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
+				: [];
+		});
+		await configurationAccess.setModelConfiguration(model.identifier, values);
+		for (const change of changes) {
+			onDidChange?.(change.group, change.key, change.fromValue, change.toValue);
+		}
+	});
+}
+
+/** Choice metadata shared by the inline picker, Details, and legacy configuration menu. */
+export function getModelConfigChoices(
+	property: IModelConfigProperty,
+	formatLabel?: (value: unknown, enumLabel: string | undefined) => string,
+) {
+	return (property.schema.enum ?? []).map((value, index) => ({
+		index,
+		value,
+		label: formatLabel ? formatLabel(value, property.schema.enumItemLabels?.[index]) : getModelConfigValueLabel(property.schema, value),
+		description: property.schema.enumDescriptions?.[index],
+		checked: value === property.value,
+		isDefault: value === property.schema.default,
+		readOnly: !!property.schema.readOnly,
+	}));
 }
 
 /**

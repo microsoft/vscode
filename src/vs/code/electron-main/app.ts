@@ -699,13 +699,12 @@ export class CodeApplication extends Disposable {
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
+		// Associate the program with the app user model id so that Windows
+		// matches it with pinned taskbar shortcuts. Use a distinct id in
+		// portable mode to not interfere with a regularly installed version.
 		const win32AppUserModelId = this.productService.win32AppUserModelId;
 		if (isWindows && win32AppUserModelId) {
-			app.setAppUserModelId(win32AppUserModelId);
+			app.setAppUserModelId(this.environmentMainService.isPortable ? `${win32AppUserModelId}.Portable` : win32AppUserModelId);
 		}
 
 		// Fix native tabs on macOS 10.13
@@ -1329,7 +1328,10 @@ export class CodeApplication extends Disposable {
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
 		// MCP
-		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService, [
+			process.env,
+			() => this.resolveShellEnvironment(this.environmentMainService.args, process.env, false),
+		]));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 		// Dev Only: CSS service (for ESM)
