@@ -185,6 +185,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				uri: peer,
 				kind: 'peer',
 				origin: { kind: ChatOriginKind.User },
+				archived: true,
 				inheritedTurnId: 'inherited-turn',
 			}],
 		}, {}, true, undefined);
@@ -196,6 +197,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: undefined,
 			titleSource: 'auto',
 			origin: { kind: ChatOriginKind.User },
+			archived: true,
 			inheritedTurnId: 'inherited-turn',
 		}]);
 	});

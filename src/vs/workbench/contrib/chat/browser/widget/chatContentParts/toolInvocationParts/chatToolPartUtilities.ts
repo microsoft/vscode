@@ -23,6 +23,14 @@ export function hasToolInvocationError(toolInvocation: IChatToolInvocation | ICh
 	return false;
 }
 
+export function isActiveBackgroundTerminalToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	const terminal = toolInvocation.toolSpecificData;
+	return terminal?.kind === 'terminal'
+		&& !isLegacyChatTerminalToolInvocationData(terminal)
+		&& terminal.terminalCommandState?.exitCode === undefined
+		&& (terminal.isBackground === true || terminal.didContinueInBackground === true);
+}
+
 export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
 }

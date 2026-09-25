@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -20,11 +22,13 @@ import { ContextKeyValue } from '../../../../../platform/contextkey/common/conte
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -33,6 +37,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { ActiveEditorContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbencMcpServerInstallOptions, LocalMcpServerScope, WorkspaceMcpConfigKind } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -44,6 +49,8 @@ import { AddConfigurationAction, OpenWorkspaceFolderMcpResourceCommand } from '.
 import { McpConfigurationDestination } from '../../browser/mcpConfigurationDestination.js';
 import { getContextMenuActions, InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
 import { mcpWorkspaceRootConfig } from '../../common/mcpConfiguration.js';
+import { getMcpGenerationSchema, McpGeneratedConfiguration } from '../../common/mcpConfigurationGeneration.js';
+import { IMcpCopilotGlobalConfigurationService } from '../../common/mcpCopilotGlobalConfigurationService.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerInstallState } from '../../common/mcpTypes.js';
 import { startServerByFilter } from '../../common/mcpTypesUtils.js';
@@ -52,6 +59,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	readonly selections: (string | undefined)[] = [];
 	readonly inputs: (string | undefined)[] = [];
 	readonly pickLabels: string[][] = [];
+	readonly questionOrder: string[] = [];
 	readonly prompts: (string | undefined)[] = [];
 	readonly pickOptions: { placeholder?: string; descriptions: (string | undefined)[]; details: (string | undefined)[] }[] = [];
 
@@ -59,6 +67,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T | undefined>;
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined>;
 	override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+		this.questionOrder.push('pick');
 		const items = (await picks).filter((item): item is T => item.type !== 'separator');
 		this.prompts.push(options?.placeHolder);
 		this.pickLabels.push(items.map(item => item.label));
@@ -75,6 +84,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 
 	override async input(options?: IInputOptions): Promise<string | undefined> {
 		this.prompts.push(options?.title);
+		this.questionOrder.push('input');
 		assert.ok(this.inputs.length, 'Unexpected input');
 		return this.inputs.shift();
 	}
@@ -145,6 +155,10 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		instantiation.stub(IMcpService, { servers });
 		instantiation.stub(IMcpRegistry, { collections });
+		instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
+		instantiation.stub(IMcpResourceScannerService, {});
+		instantiation.stub(IAllowedMcpServersService, { isAllowed: () => true });
+		instantiation.stub(IUserDataProfileService, upcastDeepPartial<IUserDataProfileService>({ currentProfile: { mcpResource: URI.file('/user/mcp.json') } }));
 
 		const runtimeServer = (id: string, resource: URI) => {
 			const definition = upcastPartial<McpServerDefinition>({ id, label: installable.name, presentation: { origin: { uri: resource, range: new Range(3, 1, 3, 5) } } });
@@ -623,6 +637,314 @@ suite('MCP configuration entry points', () => {
 			});
 		});
 	}
+
+	suite('manual Copilot Global', () => {
+		function setupGlobal(resource: URI | undefined = URI.file('/home/me/.copilot/mcp-config.json')) {
+			const fixture = setup(true);
+			const writes: { servers: IInstallableMcpServer[]; resource: URI; format: McpResourceFormat | undefined }[] = [];
+			const notifications: Parameters<INotificationService['info']>[0][] = [];
+			let lookups = 0;
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, {
+				getConfigurationResource: async () => { lookups++; return resource; },
+			});
+			fixture.instantiation.stub(IMcpResourceScannerService, {
+				addMcpServers: async (servers, resource, _target, format) => { writes.push({ servers, resource, format }); },
+			});
+			fixture.instantiation.stub(ILabelService, { getUriLabel: uri => uri.toString(true), getHostLabel: () => 'test-host' });
+			fixture.instantiation.stub(INotificationService, 'info', (message: Parameters<INotificationService['info']>[0]) => { notifications.push(message); });
+			return { ...fixture, writes, notifications, get lookups() { return lookups; } };
+		}
+
+		for (const remote of [false, true]) {
+			for (const http of [false, true]) {
+				test(`writes manual ${http ? 'HTTP' : 'stdio'} to ${remote ? 'remote' : 'local'} Copilot Global`, async () => {
+					const resource = remote ? URI.parse('vscode-remote://ssh-remote+test/home/me/custom/mcp-config.json') : URI.file('/home/me/.copilot/mcp-config.json');
+					const fixture = setupGlobal(resource);
+					if (remote) {
+						fixture.instantiation.stub(IWorkbenchEnvironmentService, { remoteAuthority: 'ssh-remote+test' });
+					}
+					fixture.quickInput.selections.push(http ? 'HTTP (HTTP or Server-Sent Events)' : 'Command (stdio)', 'Global', 'Copilot Global');
+					fixture.quickInput.inputs.push(http ? 'https://example.com/mcp' : 'node server.js', installable.name);
+					await new AddConfigurationAction().run(fixture.instantiation);
+					assert.deepStrictEqual({
+						writes: fixture.writes,
+						opened: fixture.opened,
+						installs: fixture.installs,
+						started: fixture.started,
+						pickers: fixture.quickInput.pickLabels.slice(1),
+						globalDescriptions: fixture.quickInput.pickOptions.at(-1)?.descriptions,
+						globalDetails: fixture.quickInput.pickOptions.at(-1)?.details,
+						questions: fixture.quickInput.questionOrder,
+						notified: fixture.notifications.length === 1 && String(fixture.notifications[0]).includes('environment variables on the agent-host machine'),
+					}, {
+						writes: [{ servers: [{ ...(http ? { name: installable.name, config: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } } : installable), inputs: undefined }], resource, format: McpResourceFormat.CopilotGlobal }],
+						opened: [resource],
+						installs: [], started: [],
+						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'User Configuration (deprecated)']],
+						globalDescriptions: [resource.toString(true), URI.file('/user/mcp.json').toString(true)],
+						globalDetails: [undefined, undefined],
+						questions: ['pick', 'input', 'input', 'pick', 'pick'],
+						notified: true,
+					});
+				});
+			}
+		}
+
+		for (const choice of ['User Configuration (deprecated)', undefined]) {
+			test(`global choice ${choice ?? 'cancellation'} preserves legacy behavior`, async () => {
+				const fixture = setupGlobal();
+				fixture.quickInput.selections.push('Command (stdio)', 'Global', choice);
+				fixture.quickInput.inputs.push('node server.js', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({ writes: fixture.writes, targets: fixture.installs.map(install => install.options?.target), notifications: fixture.notifications },
+					{ writes: [], targets: choice ? [ConfigurationTarget.USER_LOCAL] : [], notifications: [] });
+			});
+		}
+
+		test('shows the active VS Code profile destination rather than the default profile', async () => {
+			const fixture = setupGlobal();
+			const profileResource = URI.file('/user/profiles/custom/mcp.json');
+			fixture.instantiation.stub(IUserDataProfileService, upcastDeepPartial<IUserDataProfileService>({ currentProfile: { mcpResource: profileResource } }));
+			fixture.quickInput.selections.push('Command (stdio)', 'Global', undefined);
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual(fixture.quickInput.pickOptions.at(-1)?.descriptions, [
+				URI.file('/home/me/.copilot/mcp-config.json').toString(true),
+				profileResource.toString(true),
+			]);
+		});
+
+		test('unavailable host falls back to VS Code user configuration', async () => {
+			const fixture = setupGlobal();
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
+			fixture.quickInput.selections.push('Command (stdio)', 'Global');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ targets: fixture.installs.map(install => install.options?.target), writes: fixture.writes, pickers: fixture.quickInput.pickLabels.length },
+				{ targets: [ConfigurationTarget.USER_LOCAL], writes: [], pickers: 2 });
+		});
+
+		for (const failure of ['policy', 'write']) {
+			test(`${failure} failure is surfaced without opening a file or reporting success`, async () => {
+				const fixture = setupGlobal();
+				if (failure === 'policy') {
+					fixture.instantiation.stub(IAllowedMcpServersService, { isAllowed: () => new MarkdownString('Blocked by policy') });
+				} else {
+					fixture.instantiation.stub(IMcpResourceScannerService, { addMcpServers: async () => { throw new Error('Concurrent edit'); } });
+				}
+				fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
+				fixture.quickInput.inputs.push('node server.js', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({ errors: fixture.errors.map(String), writes: fixture.writes, opened: fixture.opened, notifications: fixture.notifications },
+					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Concurrent edit'], writes: [], opened: [], notifications: [] });
+			});
+		}
+
+		test('explicit file additions never resolve or offer Copilot Global', async () => {
+			const fixture = setupGlobal();
+			fixture.quickInput.selections.push('Command (stdio)');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(legacyFile));
+			assert.deepStrictEqual({ lookups: fixture.lookups, writes: fixture.writes, pickers: fixture.quickInput.pickLabels.length, installs: fixture.installs.length },
+				{ lookups: 0, writes: [], pickers: 1, installs: 1 });
+		});
+
+		function setupPackage(fixture: ReturnType<typeof setup>, result: McpGeneratedConfiguration) {
+			const requests: { targetFormat: McpResourceFormat; targetConfig: object }[] = [];
+			const savedInputs: { key: string; value: string }[] = [];
+			fixture.instantiation.stub(IMcpRegistry, 'setSavedInput', async (key: string, _target: ConfigurationTarget, value: string) => { savedInputs.push({ key, value }); });
+			fixture.instantiation.stub(ICommandService, 'executeCommand', async (command: string, args: { targetFormat: McpResourceFormat; targetConfig: object }) => {
+				switch (command) {
+					case 'github.copilot.chat.mcp.setup.check': return true;
+					case 'github.copilot.chat.mcp.setup.validatePackage':
+						fixture.quickInput.questionOrder.push('validate');
+						requests.push(args);
+						return { state: 'ok', publisher: 'test' };
+					case 'github.copilot.chat.mcp.setup.flow':
+						fixture.quickInput.questionOrder.push('generate');
+						return result;
+				}
+				throw new Error(`Unexpected command: ${command}`);
+			});
+			fixture.instantiation.stub(IQuickInputService, 'createQuickPick', <T extends IQuickPickItem>() => {
+				const accepted = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+				let items: readonly T[] = [];
+				return upcastPartial<IQuickPick<T>>({
+					set items(value: readonly T[]) { items = value; queueMicrotask(() => accepted.fire({ inBackground: false })); },
+					get selectedItems() { return items.slice(0, 1); },
+					onDidAccept: accepted.event,
+					onDidHide: Event.None,
+					show: () => { },
+					dispose: () => accepted.dispose(),
+				});
+			});
+			return { requests, savedInputs };
+		}
+
+		for (const packageLabel of ['NPM Package', 'Pip Package', 'NuGet Package', 'Docker Image']) {
+			test(`${packageLabel} selects Copilot Global before generation and preserves remote transport`, async () => {
+				const fixture = setupGlobal();
+				fixture.instantiation.stub(IConfigurationService, new TestConfigurationService({ [mcpWorkspaceRootConfig]: true, 'chat.mcp.assisted.nuget.enabled': true }));
+				const { requests } = setupPackage(fixture, { type: 'assisted', format: McpResourceFormat.CopilotGlobal, name: 'test', server: { type: 'sse', url: 'https://example.com', oauthClientId: 'client', headers: { Authorization: 'Bearer ${TOKEN}' } } });
+				fixture.quickInput.selections.push(packageLabel, 'Global', 'Copilot Global');
+				fixture.quickInput.inputs.push('test-package', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({
+					format: requests[0].targetFormat,
+					schema: requests[0].targetConfig,
+					config: fixture.writes[0]?.servers[0].config,
+					questions: fixture.quickInput.questionOrder,
+					errors: fixture.errors,
+				}, {
+					format: McpResourceFormat.CopilotGlobal,
+					schema: getMcpGenerationSchema(McpResourceFormat.CopilotGlobal),
+					config: { type: 'http', transport: 'sse', url: 'https://example.com', headers: { Authorization: 'Bearer ${TOKEN}' }, oauth: { clientId: 'client' }, dev: undefined },
+					questions: ['pick', 'pick', 'pick', 'input', 'validate', 'generate', 'input'],
+					errors: [],
+				});
+			});
+		}
+
+		test('package-assisted additions can still select VS Code user configuration', async () => {
+			const fixture = setupGlobal();
+			setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+			fixture.quickInput.selections.push('NPM Package', 'Global', 'User Configuration (deprecated)');
+			fixture.quickInput.inputs.push('test-package', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ lookups: fixture.lookups, writes: fixture.writes, pickers: fixture.quickInput.pickLabels.slice(1), targets: fixture.installs.map(install => install.options?.target), errors: fixture.errors },
+				{ lookups: 1, writes: [], pickers: [['Global', 'Workspace'], ['Copilot Global', 'User Configuration (deprecated)']], targets: [ConfigurationTarget.USER_LOCAL], errors: [] });
+		});
+
+		for (const choice of [legacyFile, undefined]) {
+			test(`generated workspace inputs require explicit fallback: ${choice}`, async () => {
+				const fixture = setupGlobal();
+				const result: McpGeneratedConfiguration = { type: 'assisted', format: McpResourceFormat.WorkspaceRoot, name: 'test', server: { command: 'node', args: ['--token=${input:token}'] }, inputs: [{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Token', password: true }], inputValues: { '${input:token}': 'secret' } };
+				const { requests, savedInputs } = setupPackage(fixture, result);
+				fixture.quickInput.selections.push('NPM Package', 'Workspace', choice);
+				fixture.quickInput.inputs.push('test-package', 'test');
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({
+					format: requests[0].targetFormat,
+					configs: fixture.installs.map(i => i.options?.workspaceConfig),
+					savedInputs, writes: fixture.writes, errors: fixture.errors,
+				}, {
+					format: McpResourceFormat.WorkspaceRoot,
+					configs: choice ? [WorkspaceMcpConfigKind.LegacyVscode] : [],
+					savedInputs: choice ? [{ key: '${input:token}', value: 'secret' }] : [], writes: [], errors: [],
+				});
+			});
+		}
+
+		test('explicit root file does not silently redirect generated inputs', async () => {
+			const fixture = setupGlobal();
+			setupPackage(fixture, { type: 'mapped', name: 'test', server: { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] } });
+			fixture.quickInput.selections.push('NPM Package');
+			fixture.quickInput.inputs.push('test-package', 'test');
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile));
+			assert.deepStrictEqual({ installs: fixture.installs, writes: fixture.writes, lookups: fixture.lookups, errors: fixture.errors.map(String) },
+				{ installs: [], writes: [], lookups: 0, errors: ['Error: \'${...}\' is not supported in .mcp.json. Use .vscode/mcp.json.'] });
+		});
+
+		test('package destination cancellation prevents validation and generation', async () => {
+			const fixture = setupGlobal();
+			const { requests } = setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+			fixture.quickInput.selections.push('NPM Package', 'Global', undefined);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ requests, writes: fixture.writes, installs: fixture.installs, errors: fixture.errors },
+				{ requests: [], writes: [], installs: [], errors: [] });
+		});
+
+		test('package Copilot Global policy rejection occurs before any write', async () => {
+			const fixture = setupGlobal();
+			setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+			fixture.instantiation.stub(IAllowedMcpServersService, { isAllowed: () => new MarkdownString('Blocked by policy') });
+			fixture.quickInput.selections.push('NPM Package', 'Global', 'Copilot Global');
+			fixture.quickInput.inputs.push('test-package', 'test');
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ writes: fixture.writes, opened: fixture.opened, errors: fixture.errors.map(String) },
+				{ writes: [], opened: [], errors: ['Error: Blocked by policy'] });
+		});
+
+		test('workspace generation preserves SSE and offers a legacy file instead of changing transport', async () => {
+			const fixture = setupGlobal();
+			setupPackage(fixture, { type: 'assisted', format: McpResourceFormat.WorkspaceRoot, name: 'test', server: { type: 'sse', url: 'https://example.com' } });
+			fixture.quickInput.selections.push('Pip Package', 'Workspace', legacyFile);
+			fixture.quickInput.inputs.push('test-package', 'test');
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({
+				config: fixture.installs[0]?.server.config,
+				destination: fixture.installs[0]?.options?.workspaceConfig,
+				errors: fixture.errors,
+			}, { config: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com', headers: undefined, dev: undefined }, destination: WorkspaceMcpConfigKind.LegacyVscode, errors: [] });
+		});
+
+		for (const choice of ['User Configuration (deprecated)', undefined]) {
+			test(`Copilot manifest inputs require explicit VS Code fallback: ${choice}`, async () => {
+				const fixture = setupGlobal();
+				const inputs = [{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Token', password: true }];
+				const config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] };
+				setupPackage(fixture, { type: 'mapped', name: 'test', server: config, inputs });
+				fixture.quickInput.selections.push('NPM Package', 'Global', 'Copilot Global', choice);
+				fixture.quickInput.inputs.push('test-package', 'test');
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({ installed: fixture.installs.map(i => i.server), writes: fixture.writes, errors: fixture.errors },
+					{ installed: choice ? [{ name: 'test', config, inputs }] : [], writes: [], errors: [] });
+			});
+		}
+
+		test('explicit legacy file is selected before generation without scope pickers', async () => {
+			const fixture = setupGlobal();
+			const { requests } = setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+			fixture.quickInput.selections.push('NPM Package');
+			fixture.quickInput.inputs.push('test-package', 'test');
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(legacyFile));
+			assert.deepStrictEqual({ format: requests[0].targetFormat, lookups: fixture.lookups, pickers: fixture.quickInput.pickLabels.length, kind: fixture.installs[0]?.options?.workspaceConfig, errors: fixture.errors },
+				{ format: McpResourceFormat.Vscode, lookups: 0, pickers: 1, kind: WorkspaceMcpConfigKind.LegacyVscode, errors: [] });
+		});
+
+		for (const file of [rootFile, legacyFile, undefined]) {
+			test(`workspace file is chosen before generation: ${file}`, async () => {
+				const fixture = setup(true, [legacyFile]);
+				const { requests } = setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+				fixture.quickInput.selections.push('NPM Package', 'Workspace', file);
+				if (file) {
+					fixture.quickInput.inputs.push('test-package', 'test');
+				}
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({
+					formats: requests.map(r => r.targetFormat),
+					questions: fixture.quickInput.questionOrder,
+					kinds: fixture.installs.map(i => i.options?.workspaceConfig),
+					errors: fixture.errors,
+				}, {
+					formats: file ? [file === rootFile ? McpResourceFormat.WorkspaceRoot : McpResourceFormat.Vscode] : [],
+					questions: file ? ['pick', 'pick', 'pick', 'input', 'validate', 'generate', 'input'] : ['pick', 'pick', 'pick'],
+					kinds: file ? [file === rootFile ? WorkspaceMcpConfigKind.Root : WorkspaceMcpConfigKind.LegacyVscode] : [],
+					errors: [],
+				});
+			});
+		}
+
+		test('current agent session rejects unresolved inputs rather than losing collected values', async () => {
+			const fixture = setup(true, [], false, true);
+			setupPackage(fixture, { type: 'mapped', name: 'test', server: { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] } });
+			fixture.quickInput.selections.push('NPM Package', 'Add to Current Agent Session');
+			fixture.quickInput.inputs.push('test-package', 'test');
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ adds: fixture.agentHostAdds, installs: fixture.installs, errors: fixture.errors.map(String) },
+				{ adds: [], installs: [], errors: ['Error: This server requires VS Code input variables. Add it to a VS Code configuration file instead of the current agent session.'] });
+		});
+
+		test('server-name cancellation has no writes or saved inputs', async () => {
+			const fixture = setupGlobal();
+			const { savedInputs } = setupPackage(fixture, { type: 'mapped', name: 'test', server: installable.config });
+			fixture.quickInput.selections.push('NPM Package', 'Global', 'Copilot Global');
+			fixture.quickInput.inputs.push('test-package', undefined);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ savedInputs, installs: fixture.installs, writes: fixture.writes, errors: fixture.errors },
+				{ savedInputs: [], installs: [], writes: [], errors: [] });
+		});
+	});
 
 	test('editor menu retains AI gates and only offers root additions when enabled', () => {
 		const menu = new AddConfigurationAction().desc.menu;

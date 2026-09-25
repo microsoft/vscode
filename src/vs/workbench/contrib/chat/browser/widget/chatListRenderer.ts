@@ -107,7 +107,7 @@ import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuth
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
-import { ChatProgressContentPart, ChatWorkingProgressContentPart, pickWorkingLabel } from './chatContentParts/chatProgressContentPart.js';
+import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
@@ -134,7 +134,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { isAskQuestionsToolInvocation, isCarouselToolConfirmation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { isActiveBackgroundTerminalToolInvocation, isAskQuestionsToolInvocation, isCarouselToolConfirmation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
@@ -705,6 +705,134 @@ export function isAnchorTarget(target: EventTarget | null): boolean {
 	return dom.isHTMLElement(target) && !!target.closest('a');
 }
 
+type PersistentBackgroundToolInvocation = IChatToolInvocation | IChatToolInvocationSerialized;
+
+interface IPersistentBackgroundToolCacheEntry {
+	processedPartCount: number;
+	lastProcessedPart: IChatProgressResponseContent | undefined;
+	readonly toolInvocations: PersistentBackgroundToolInvocation[];
+}
+
+class PersistentBackgroundResponseActivity extends Disposable {
+	private readonly cache: IPersistentBackgroundToolCacheEntry = {
+		processedPartCount: 0,
+		lastProcessedPart: undefined,
+		toolInvocations: [],
+	};
+	private readonly toolObservers = this._register(new DisposableMap<IChatToolInvocation>());
+	activity: IPersistentBackgroundActivity = { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
+
+	constructor(
+		private readonly response: IChatResponseViewModel,
+		private readonly onDidChange: (previous: IPersistentBackgroundActivity, current: IPersistentBackgroundActivity) => void,
+	) {
+		super();
+		this.refresh(false);
+		this._register(response.model.onDidChange(() => this.refresh(true)));
+	}
+
+	private refresh(notify: boolean): void {
+		const parts = this.response.response.value;
+		const retainedPrefix = this.cache.processedPartCount <= parts.length
+			&& (this.cache.processedPartCount === 0 || this.cache.lastProcessedPart === parts[this.cache.processedPartCount - 1]);
+		if (!retainedPrefix) {
+			this.cache.processedPartCount = 0;
+			this.cache.lastProcessedPart = undefined;
+			this.cache.toolInvocations.length = 0;
+			this.toolObservers.clearAndDisposeAll();
+		}
+		for (let index = this.cache.processedPartCount; index < parts.length; index++) {
+			const part = parts[index];
+			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+				this.cache.toolInvocations.push(part);
+				if (part.kind === 'toolInvocation') {
+					let initialized = false;
+					this.toolObservers.set(part, autorun(reader => {
+						part.state.read(reader);
+						part.toolSpecificDataKind.read(reader);
+						if (initialized) {
+							this.refresh(true);
+						}
+						initialized = true;
+					}));
+				}
+			}
+		}
+		this.cache.processedPartCount = parts.length;
+		this.cache.lastProcessedPart = parts.at(-1);
+		const previous = this.activity;
+		const current = getPersistentBackgroundActivity(this.cache.toolInvocations);
+		if (previous.activeSubagentCount === current.activeSubagentCount
+			&& previous.activeBackgroundTerminalCount === current.activeBackgroundTerminalCount) {
+			return;
+		}
+		this.activity = current;
+		if (notify) {
+			this.onDidChange(previous, current);
+		}
+	}
+}
+
+class PersistentBackgroundActivityTracker extends Disposable {
+	private readonly responses = this._register(new DisposableMap<IChatResponseViewModel, PersistentBackgroundResponseActivity>());
+	private activeSubagentCount = 0;
+	private activeBackgroundTerminalCount = 0;
+
+	constructor(private readonly viewModel: IChatViewModel) {
+		super();
+		this.reconcileResponses();
+		this._register(viewModel.model.onDidChange(event => {
+			if (event.kind === 'addRequest'
+				|| event.kind === 'addResponse'
+				|| event.kind === 'removeRequest'
+				|| event.kind === 'initialize'
+				|| event.kind === 'setHidden') {
+				this.reconcileResponses();
+			}
+		}));
+	}
+
+	getActivity(response: IChatResponseViewModel): IPersistentBackgroundActivity {
+		return this.ensureResponse(response).activity;
+	}
+
+	getInheritedActivity(response: IChatResponseViewModel): IPersistentBackgroundActivity {
+		const current = this.ensureResponse(response).activity;
+		return {
+			activeSubagentCount: this.activeSubagentCount - current.activeSubagentCount,
+			activeBackgroundTerminalCount: this.activeBackgroundTerminalCount - current.activeBackgroundTerminalCount,
+		};
+	}
+
+	private reconcileResponses(): void {
+		const currentResponses = new Set(this.viewModel.getItems().filter(isResponseVM));
+		for (const [response, entry] of this.responses) {
+			if (!currentResponses.has(response)) {
+				this.updateTotals(entry.activity, { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 });
+				this.responses.deleteAndDispose(response);
+			}
+		}
+		for (const response of currentResponses) {
+			this.ensureResponse(response);
+		}
+	}
+
+	private ensureResponse(response: IChatResponseViewModel): PersistentBackgroundResponseActivity {
+		let entry = this.responses.get(response);
+		if (!entry) {
+			entry = new PersistentBackgroundResponseActivity(response, (previous, current) => this.updateTotals(previous, current));
+			this.responses.set(response, entry);
+			this.updateTotals({ activeSubagentCount: 0, activeBackgroundTerminalCount: 0 }, entry.activity);
+		}
+		return entry;
+	}
+
+	private updateTotals(previous: IPersistentBackgroundActivity, current: IPersistentBackgroundActivity): void {
+		this.activeSubagentCount += current.activeSubagentCount - previous.activeSubagentCount;
+		this.activeBackgroundTerminalCount += current.activeBackgroundTerminalCount - previous.activeBackgroundTerminalCount;
+	}
+}
+
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
@@ -786,6 +914,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * by screen readers
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
+	private readonly persistentBackgroundActivityTracker = this._register(new MutableDisposable<PersistentBackgroundActivityTracker>());
 
 	constructor(
 		editorOptions: ChatEditorOptions,
@@ -809,6 +938,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel) : undefined;
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 		this.markdownDecorationsRenderer = this._register(this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
@@ -1004,6 +1134,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.toolConfirmationObservation.clear();
 		this.viewModel = viewModel;
+		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel) : undefined;
 		this._announcedToolProgressKeys.clear();
 		this._notifiedQuestionCarousels.clear();
 		this.codeBlocksByEditorUri.clear();
@@ -1286,7 +1417,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof MenuItemAction && action.item.id === MarkHelpfulActionId) {
 					const animation = upvoteAnimationSettingToEnum(this.configService.getValue<string>('chat.upvoteAnimation'));
-					return scopedInstantiationService.createInstance(MenuEntryActionViewItem, action, { ...options, onClickAnimation: animation });
+					return scopedInstantiationService.createInstance(MenuEntryActionViewItem, action, {
+						...options,
+						onClickAnimation: animation,
+						onDidTriggerClickAnimation: animation === ClickAnimation.Confetti
+							? () => this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti)
+							: undefined
+					});
 				}
 				return createActionViewItem(scopedInstantiationService, action, options);
 			}
@@ -2130,11 +2267,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					announce: true,
 				};
 			case 'active': {
-				const progressLabel = getTrailingProgressLabel(partsToRender) ?? getPersistentWaitingLabel(partsToRender);
+				const currentBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getActivity(element) ?? getPersistentBackgroundActivity(partsToRender);
+				const inheritedBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getInheritedActivity(element)
+					?? { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
+				const waitingLabel = getPersistentWaitingLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity);
+				const progressLabel = getTrailingProgressLabel(partsToRender) ?? waitingLabel;
+				const hasKnownBackgroundActivity = currentBackgroundActivity.activeSubagentCount + currentBackgroundActivity.activeBackgroundTerminalCount
+					+ inheritedBackgroundActivity.activeSubagentCount + inheritedBackgroundActivity.activeBackgroundTerminalCount > 0;
 				return {
 					kind: 'working',
-					content: progressLabel ?? new MarkdownString().appendText(pickWorkingLabel(element, this.configService, element.response.value.length)),
+					content: progressLabel,
 					isActive: true,
+					progressStep: element.response.value.length,
+					showDelayedProgressMessage: !waitingLabel && !hasKnownBackgroundActivity,
 				};
 			}
 		}
@@ -2195,7 +2340,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 			const progress = this.getPersistentWorkingProgress(element, annotateSpecialMarkdownContent(element.response.value));
-			workingProgressPart?.updateWorkingContent(progress.content, progress.isActive, progress.announce);
+			workingProgressPart?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage);
 			this.fireItemHeightChange(templateData);
 			return;
 		}
@@ -3144,7 +3289,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.isPersistentProgressEnabled() && partToRender.kind === 'working') {
 				const workingPart = displacedWorkingPart ?? (alreadyRenderedPart instanceof ChatWorkingProgressContentPart ? alreadyRenderedPart : undefined);
 				if (workingPart) {
-					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce);
+					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage);
 					renderedParts[contentIndex] = workingPart;
 					displacedWorkingPart = undefined;
 					return;
@@ -5718,6 +5863,31 @@ export function getTrailingProgressLabel(parts: readonly IChatRendererContent[])
 /** Copilot CLI shell tools that read from a background shell session, matched like {@link isReadAgentToolInvocation}. */
 const BACKGROUND_TERMINAL_READ_TOOL_NAMES: readonly string[] = [TerminalToolId.GetTerminalOutput, 'read_bash', 'read_powershell'];
 
+export interface IPersistentBackgroundActivity {
+	readonly activeSubagentCount: number;
+	readonly activeBackgroundTerminalCount: number;
+}
+
+export function getPersistentBackgroundActivity(parts: readonly IChatRendererContent[]): IPersistentBackgroundActivity {
+	const activeSubagents = new Set<string>();
+	const activeBackgroundTerminals = new Set<string>();
+	for (const part of parts) {
+		if (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') {
+			continue;
+		}
+		if (!part.subAgentInvocationId && isActiveSubagentToolInvocation(part)) {
+			activeSubagents.add(part.toolCallId);
+		}
+		if (isActiveBackgroundTerminalToolInvocation(part)) {
+			activeBackgroundTerminals.add(part.toolCallId);
+		}
+	}
+	return {
+		activeSubagentCount: activeSubagents.size,
+		activeBackgroundTerminalCount: activeBackgroundTerminals.size,
+	};
+}
+
 function matchesToolName(invocation: IChatToolInvocation | IChatToolInvocationSerialized, name: string): boolean {
 	return invocation.toolId === name || invocation.toolId.endsWith(`__${name}`);
 }
@@ -5763,30 +5933,59 @@ function isParentFlowContent(part: IChatRendererContent): boolean {
  * active, or with a read that blocks on a background terminal. Reasoning, tools, or text arriving
  * after those mean the parent is working alongside them, so the regular working phrases apply instead.
  */
-export function getPersistentWaitingLabel(parts: readonly IChatRendererContent[]): IMarkdownString | undefined {
+export function getPersistentWaitingLabel(
+	parts: readonly IChatRendererContent[],
+	inheritedActivity: IPersistentBackgroundActivity = { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 },
+	currentActivity = getPersistentBackgroundActivity(parts),
+): IMarkdownString | undefined {
 	const lastPart = findLast(parts, isParentFlowContent);
 	if (!lastPart) {
-		return undefined;
+		return formatPersistentBackgroundActivityLabel(inheritedActivity);
 	}
-	const activeAgentCount = parts.filter(part =>
-		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && !part.subAgentInvocationId && isActiveSubagentToolInvocation(part)).length;
 	const pendingTool = (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && !IChatToolInvocation.isComplete(lastPart) ? lastPart : undefined;
 	if (pendingTool && isReadTerminalToolInvocation(pendingTool)) {
 		return new MarkdownString().appendText(localize('persistentProgress.waitingForTerminal', "Waiting for terminal output"));
 	}
 	// A trailing launch counts even once it has finished: agents can complete out of launch order,
 	// and the count already excludes the completed ones.
-	const isWaitingForAgents = ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isParentSubagentTool(lastPart) && activeAgentCount > 0)
+	const isWaitingForAgents = ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isParentSubagentTool(lastPart) && currentActivity.activeSubagentCount > 0)
 		|| (!!pendingTool && isReadAgentToolInvocation(pendingTool))
-		|| (isEmptyThinkingPart(lastPart) && activeAgentCount > 0);
-	if (!isWaitingForAgents) {
-		return undefined;
+		|| (isEmptyThinkingPart(lastPart) && currentActivity.activeSubagentCount > 0);
+	const isWaitingForBackgroundTerminals = currentActivity.activeBackgroundTerminalCount > 0
+		&& (isEmptyThinkingPart(lastPart)
+			|| ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isActiveBackgroundTerminalToolInvocation(lastPart)));
+	return formatPersistentBackgroundActivityLabel({
+		// A read targets one agent even when none of the launches is visible to this response.
+		activeSubagentCount: inheritedActivity.activeSubagentCount + (isWaitingForAgents ? Math.max(1, currentActivity.activeSubagentCount) : 0),
+		activeBackgroundTerminalCount: inheritedActivity.activeBackgroundTerminalCount + (isWaitingForBackgroundTerminals ? currentActivity.activeBackgroundTerminalCount : 0),
+	});
+}
+
+function formatPersistentBackgroundActivityLabel(activity: IPersistentBackgroundActivity): IMarkdownString | undefined {
+	const subagentDescription = activity.activeSubagentCount === 1
+		? localize('persistentProgress.oneSubagent', "1 subagent")
+		: activity.activeSubagentCount > 1
+			? localize('persistentProgress.subagents', "{0} subagents", activity.activeSubagentCount)
+			: undefined;
+	const backgroundCommandDescription = activity.activeBackgroundTerminalCount === 1
+		? localize('persistentProgress.oneBackgroundCommand', "1 background command")
+		: activity.activeBackgroundTerminalCount > 1
+			? localize('persistentProgress.backgroundCommands', "{0} background commands", activity.activeBackgroundTerminalCount)
+			: undefined;
+	if (subagentDescription && backgroundCommandDescription) {
+		return new MarkdownString().appendText(localize('persistentProgress.waitingForBackgroundWork', "Waiting for {0} and {1}", subagentDescription, backgroundCommandDescription));
 	}
-	// A read targets one agent even when none of the launches is visible to this response.
-	const count = Math.max(1, activeAgentCount);
-	return new MarkdownString().appendText(count === 1
-		? localize('persistentProgress.waitingForSubagent', "Waiting for 1 subagent")
-		: localize('persistentProgress.waitingForSubagents', "Waiting for {0} subagents", count));
+	if (subagentDescription) {
+		return new MarkdownString().appendText(activity.activeSubagentCount === 1
+			? localize('persistentProgress.waitingForSubagent', "Waiting for 1 subagent")
+			: localize('persistentProgress.waitingForSubagents', "Waiting for {0} subagents", activity.activeSubagentCount));
+	}
+	if (backgroundCommandDescription) {
+		return new MarkdownString().appendText(activity.activeBackgroundTerminalCount === 1
+			? localize('persistentProgress.waitingForBackgroundCommand', "Waiting for 1 background command")
+			: localize('persistentProgress.waitingForBackgroundCommands', "Waiting for {0} background commands", activity.activeBackgroundTerminalCount));
+	}
+	return undefined;
 }
 
 function isEmptyThinkingPart(part: IChatRendererContent | undefined): boolean {

@@ -382,7 +382,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	padding: var(--vscode-spacing-size160) 0 0;
+	padding: var(--vscode-spacing-size80) 0 0;
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
@@ -988,6 +988,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item .item-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1731,7 +1732,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: 8px;
 	flex: none;
-	margin-block: var(--vscode-spacing-size160);
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
 }
 
 .ai-customization-management-editor .tools-list-search-container {
@@ -2035,14 +2036,11 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .tools-list-row-label {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.ai-customization-management-editor .tools-list-setrow .tools-list-row-label {
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /* Search match highlighting in tool set / tool names */
@@ -3008,6 +3006,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;

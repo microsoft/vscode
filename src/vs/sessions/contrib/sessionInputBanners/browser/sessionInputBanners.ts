@@ -142,11 +142,14 @@ export class SessionInputBanners extends Disposable {
 				continue;
 			}
 
-			const comments = legacyCommentsDismissed || (agentMerge?.enabled && agentMerge.actions.addressReviews)
-				? []
-				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 			const livePullRequest = prModelRef.object.pullRequest.read(reader);
+			const pullRequestState = livePullRequest?.state ?? pullRequest.liveState ?? pullRequest.state;
+			const comments = pullRequestState === GitHubPullRequestState.Merged
+				|| legacyCommentsDismissed
+				|| (agentMerge?.enabled && agentMerge.actions.addressReviews)
+				? []
+				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			let failed = 0;
 			let completed = 0;
 			let pending = 0;

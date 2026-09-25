@@ -95,6 +95,12 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+Shared UI first-progress observations use the capability-gated VS Code-only
+`vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
+handler validates a content-free payload and drains the existing OTel exporter
+before acknowledging. The renderer clock and visibility semantics remain owned
+by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
+
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
@@ -237,7 +243,9 @@ Sessions created by the `create_session` server tool record only the creating se
 
 An independent session inherits the creating session's host-owned isolation selection independently of provider-owned configuration; otherwise it uses worktree isolation. The optional `worktree` argument overrides that selection. Agents set it to `true` when the work needs an isolated Git worktree (not for read-only work); `false` is still accepted to work without one. With `false`, an exact linked-worktree root reported by Git resolves to its primary checkout before session creation. Nested and ordinary additional workspace folders are preserved. The target workspace still constrains the effective selection, so a folder that cannot support Git worktrees resolves to folder isolation.
 
-A `currentSession` chat without `workspace` shares the current session's complete workspace. With `workspace`, the host first adds that folder to the session (`addSessionWorkingDirectoryForChat`) and assigns the resulting checkout only to the new chat; existing chats keep their folders. The folder is prepared with the explicit `worktree` choice, otherwise the creating session's isolation, otherwise directly. An omitted `worktree` reuses a checkout of that repository already in the session; `worktree: true` always creates a fresh detached worktree. This requires a provider that supports multiple working directories and a ready session with a workspace; otherwise the tool fails before creating the chat. `worktree` requires `workspace` for both relationships.
+A `currentSession` chat without `workspace` shares the current session's complete workspace. With `workspace`, the host first adds that folder to the session (`addSessionWorkingDirectoryForChat`) and assigns the resulting checkout only to the new chat; existing chats keep their folders. The folder is prepared with the explicit `worktree` choice, otherwise the creating session's isolation, otherwise directly. An omitted `worktree` reuses a checkout of that repository already in the session; `worktree: true` always creates a fresh detached worktree. This requires a ready session with a workspace; otherwise the tool fails before creating the chat. `worktree` requires `workspace` for both relationships.
+
+All of the above applies only when the session's provider advertises the `multipleWorkingDirectories` capability, which follows that provider's own multi-root setting (`chat.agentHost.copilotAgent.multiRootEnabled`, `chat.agentHost.claudeAgent.multiRootEnabled`, `chat.agentHost.codexAgent.multiRootEnabled`). Without it, the session is offered the shared-workspace variant of `create_session`: `relationship` is required, every `currentSession` chat shares the session's workspace, and `workspace` and `worktree` are rejected for `currentSession` and remain valid only for `independent` sessions.
 
 ---
 

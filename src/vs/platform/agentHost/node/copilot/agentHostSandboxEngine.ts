@@ -16,8 +16,8 @@ import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcP
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
-import { getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
@@ -132,10 +132,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = {
-			...this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(this._agentConfigurationService, this._sessionId),
-		};
+		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._sessionId);
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }

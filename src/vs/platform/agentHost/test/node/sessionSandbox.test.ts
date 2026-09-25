@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -16,19 +16,12 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
-import { getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
+import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
 suite('Session sandbox configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function getSessionSandboxConfig(configuration: AgentConfigurationService, session: string) {
-		return {
-			...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(configuration, session),
-		};
-	}
 
 	function setupSession() {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -172,6 +165,68 @@ suite('Session sandbox configuration', () => {
 			network: sdk?.userPolicy?.network?.allowOutbound,
 		}, { host: 'on', windows: 'on', sdk: true, denied: ['/private'], network: false });
 	});
+
+	test('normalizes Windows filesystem settings on the host without mutating stored configuration', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('windows', { sandboxEnabled: 'on' });
+		const fileSystem = {
+			denyRead: ['C:/src3/', 'C:\\already\\native', '//server/share/private'],
+			denyWrite: ['C:/read\\only'],
+			allowRead: ['./relative/path', 'C:/directory with spaces/'],
+			allowWrite: ['C:/work/../output'],
+		};
+		const sandbox = { [AgentHostSandboxKey.WindowsFileSystem]: fileSystem };
+		configuration.updateRootConfig({ sandbox });
+		const stored = JSON.stringify(configuration.getRootConfigValues());
+		const first = getSessionSandboxConfig(configuration, owner, 'win32');
+		const storedAfterRead = JSON.stringify(configuration.getRootConfigValues());
+		configuration.updateRootConfig({ sandbox: first });
+		const second = getSessionSandboxConfig(configuration, owner, 'win32');
+		assert.deepStrictEqual({
+			fileSystem: first[AgentHostSandboxKey.WindowsFileSystem],
+			idempotent: second,
+			storedAfterRead,
+		}, {
+			fileSystem: {
+				denyRead: ['C:\\src3\\', 'C:\\already\\native', '\\\\server\\share\\private'],
+				denyWrite: ['C:\\read\\only'],
+				allowRead: ['.\\relative\\path', 'C:\\directory with spaces\\'],
+				allowWrite: ['C:\\work\\..\\output'],
+			},
+			idempotent: first,
+			storedAfterRead: stored,
+		});
+	});
+
+	for (const platform of ['win32', 'linux', 'darwin'] as const) {
+		test(`selects and normalizes paths for the ${platform} host after a client configuration action`, () => {
+			const { manager, configuration, create } = setupSession();
+			const owner = create(platform, { sandboxEnabled: 'on' });
+			const sandbox = {
+				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:/private/'], allowRead: ['C:\\private\\'] },
+				[AgentHostSandboxKey.LinuxFileSystem]: { denyRead: ['/home/user/back\\slash', '~/private', './src/**/*.ts'] },
+				[AgentHostSandboxKey.MacFileSystem]: { denyRead: ['/Users/user/back\\slash', '~/private', './src/**/*.ts'] },
+			};
+			manager.dispatchServerAction('ahp-root://', {
+				type: ActionType.RootConfigChanged,
+				config: JSON.parse(JSON.stringify({ sandbox })),
+			});
+			const effective = getSessionSandboxConfig(configuration, owner, platform);
+			const sdk = buildSandboxConfigForSdk(platform, effective);
+			const deniedPaths = platform === 'win32' ? ['C:\\private\\']
+				: platform === 'linux' ? sandbox[AgentHostSandboxKey.LinuxFileSystem].denyRead
+					: sandbox[AgentHostSandboxKey.MacFileSystem].denyRead;
+			assert.deepStrictEqual({
+				filesystem: sdk?.userPolicy?.filesystem,
+				stored: configuration.getRootConfigValues()?.sandbox,
+				windows: effective[AgentHostSandboxKey.WindowsFileSystem],
+			}, {
+				filesystem: { deniedPaths, clearPolicyOnExit: true },
+				stored: sandbox,
+				windows: platform === 'win32' ? { denyRead: ['C:\\private\\'], allowRead: ['C:\\private\\'] } : sandbox[AgentHostSandboxKey.WindowsFileSystem],
+			});
+		});
+	}
 
 	test('projects resolved org policy and undetermined-policy restrictions, not device discovery', () => {
 		const snapshot = {

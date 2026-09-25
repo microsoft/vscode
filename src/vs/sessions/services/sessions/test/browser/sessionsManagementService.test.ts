@@ -697,6 +697,29 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
 	});
 
+	test('routes chat archive changes to the owning provider', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const chat = { ...stubChat, resource: URI.parse('test-chat:/peer') };
+		const calls: { sessionId: string; chat: string; archived: boolean }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: true });
+			}
+			override async unarchiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: false });
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.archiveChat(session, chat);
+		await service.unarchiveChat(session, chat);
+
+		assert.deepStrictEqual(calls, [
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: true },
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: false },
+		]);
+	});
+
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
@@ -1081,6 +1104,32 @@ suite('SessionsManagementService', () => {
 			result: undefined,
 		});
 	});
+
+	for (const preserveNavigation of [false, true]) {
+		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+			const quickChat = stubSession({
+				sessionId: 'quick-chat',
+				providerId: 'test',
+				isQuickChat: constObservable(true),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return quickChat; }
+			}(quickChat);
+			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const navigation = view.navigationRequest.get();
+
+			view.openQuickChat(undefined, preserveNavigation);
+
+			assert.deepStrictEqual({
+				activeSession: view.activeSession.get()?.sessionId,
+				preservedNavigation: view.navigationRequest.get() === navigation,
+			}, {
+				activeSession: 'quick-chat',
+				preservedNavigation: preserveNavigation,
+			});
+		});
+	}
 
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });

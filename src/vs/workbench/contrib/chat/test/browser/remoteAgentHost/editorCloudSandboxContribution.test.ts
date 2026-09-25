@@ -129,6 +129,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
+	readonly scmRepositories?: readonly IGitRepository[];
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
@@ -169,6 +170,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			workingDirectories: [URI.file('/remote/project')],
 		}] as IAgentSessionMetadata[],
 	};
+	const scmRepositories = new Map<IGitRepository, ISCMRepository>((options?.scmRepositories ?? state.repositories).map(repository => [repository, scmRepository(repository)]));
 	const rootState: RootState = { agents: [{ provider: CLOUD_SANDBOX_AGENT_PROVIDER, displayName: 'Copilot', description: '', models: [] }] };
 	const connection = new class extends mock<IAgentConnection>() {
 		override readonly clientId = 'editor-client';
@@ -290,7 +292,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
 		override readonly onDidAddRepository = repositoryAdded.event;
 		override readonly onDidRemoveRepository = repositoryRemoved.event;
-		override get repositories() { return state.repositories.map(scmRepository); }
+		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidDisposeSession = Event.None;
@@ -312,12 +314,20 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			workspaceFoldersChanged.fire({ added: state.workspaceFolders, removed, changed: [] });
 		},
 		addRepository: (repository: IGitRepository) => {
-			state.repositories.push(repository);
-			repositoryAdded.fire(scmRepository(repository));
+			if (!state.repositories.includes(repository)) {
+				state.repositories.push(repository);
+			}
+			const scm = scmRepository(repository);
+			scmRepositories.set(repository, scm);
+			repositoryAdded.fire(scm);
 		},
 		removeRepository: (repository: IGitRepository) => {
 			state.repositories = state.repositories.filter(candidate => candidate !== repository);
-			repositoryRemoved.fire(scmRepository(repository));
+			const scm = scmRepositories.get(repository);
+			scmRepositories.delete(repository);
+			if (scm) {
+				repositoryRemoved.fire(scm);
+			}
 		},
 		setEnabled: async (key: string, enabled: boolean) => {
 			await configuration.setUserConfiguration(key, enabled);
@@ -344,6 +354,26 @@ suite('Editor cloud sandbox discovery', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
+	});
+
+	test('keeps sandbox history registered without offering creation targets', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		assert.deepStrictEqual({
+			providers: [...h.contributions].map(([type, contribution]) => ({
+				type,
+				hiddenFromPicker: contribution.hideFromSessionTypePicker,
+				canDelegate: contribution.canDelegate,
+				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
+			})),
+			created: h.calls.created,
+		}, {
+			providers: [
+				{ type: 'cloud-sandbox', hiddenFromPicker: true, canDelegate: false, canCreate: false },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
+			],
+			created: 0,
+		});
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
@@ -423,6 +453,61 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store, { workspaceFolders: [URI.joinPath(workspaceFolder, 'src')] });
 		await h.refresh();
 		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session']);
+	});
+
+	for (const folder of [workspaceFolder, URI.joinPath(workspaceFolder, 'src')]) {
+		test(`resolves the workspace repository before SCM registration for ${folder.path}`, async () => {
+			const opened: string[] = [];
+			const h = createHarness(store, {
+				workspaceFolders: [folder],
+				scmRepositories: [],
+				openRepository: async root => {
+					opened.push(root.toString());
+					return repository(['https://github.com/example/project.git']);
+				},
+			});
+			await h.refresh();
+			assert.deepStrictEqual({
+				opened,
+				items: h.items().map(item => item.resource.path),
+				created: h.calls.created,
+				connected: h.calls.connected,
+			}, { opened: [folder.toString()], items: ['/original-session'], created: 0, connected: [] });
+		});
+	}
+
+	test('rejects a repository outside the workspace returned by Git', async () => {
+		const h = createHarness(store, {
+			scmRepositories: [],
+			openRepository: async () => repository(['https://github.com/example/project.git'], URI.file('/unrelated')),
+		});
+		await h.refresh();
+		assert.deepStrictEqual({ items: h.items(), warnings: h.calls.repositoryErrors }, {
+			items: [],
+			warnings: ['[CloudSandbox] Ignoring repository outside the requested workspace folder'],
+		});
+	});
+
+	test('retries repository resolution when SCM registers after an unresolved workspace lookup', async () => {
+		const available = repository(['https://github.com/example/project.git']);
+		let resolved = false;
+		let lookups = 0;
+		const h = createHarness(store, {
+			repositories: [],
+			openRepository: async () => {
+				lookups++;
+				return resolved ? available : undefined;
+			},
+		});
+		await h.refresh();
+		const before = h.items().map(item => item.resource.path);
+		const added = Event.toPromise(Event.filter(h.controllers.get(sessionType)!.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.length));
+		resolved = true;
+		h.addRepository(available);
+		await added;
+		assert.deepStrictEqual({ before, after: h.items().map(item => item.resource.path), lookups, scans: h.calls.discovered }, {
+			before: [], after: ['/original-session'], lookups: 2, scans: 1,
+		});
 	});
 
 	test('does not use repositories outside the workspace', async () => {

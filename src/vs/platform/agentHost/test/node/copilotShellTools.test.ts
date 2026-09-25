@@ -28,8 +28,10 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
 import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 /** Chat that owns the terminals created by the shells under test. */
 const TEST_CHAT_URI = URI.parse(buildDefaultChatUri('copilot:/session-1'));
@@ -205,6 +207,7 @@ suite('CopilotShellTools', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
+		services.set(ISessionDataService, createNullSessionDataService());
 		services.set(IFileService, {
 			createFile: async (uri: URI, content: VSBuffer) => {
 				if (options?.createdFiles) {

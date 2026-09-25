@@ -26,6 +26,7 @@ suite('CustomizationMarketplaceIpc', () => {
 			id: 'agentFinder',
 			displayName: 'GitHub Feed',
 			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
+			requiresMarketplaceVisibility: true,
 		});
 	});
 
@@ -309,6 +310,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'configuredPlugin' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
 		];
 		const page: ICustomizationMarketplacePage = {
