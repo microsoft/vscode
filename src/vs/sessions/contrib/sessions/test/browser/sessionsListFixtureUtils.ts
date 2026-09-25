@@ -73,6 +73,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
@@ -654,6 +655,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
+			}());
+			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+				override readonly notifications = constObservable([]);
+				override readonly isLoading = constObservable(false);
+				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+				override setSortMode(): void { }
 			}());
 		},
 	});

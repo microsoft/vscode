@@ -797,7 +797,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setSearchQuery('@type:plugin review');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
-			items: [resource('old-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			items: Array.from({ length: 24 }, (_, index) => resource(index === 0 ? 'old-review' : `old-review-${index}`, {
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			})),
 			nextCursor: { token: 'old-cursor' },
 		});
 		await timeout(0);
