@@ -826,13 +826,13 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	if (entry.type === 'server-item') {
 		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
 	}
-	if (entry.type === 'builtin-item' && entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
-		return 'plugins';
-	}
-	if (entry.type === 'builtin-item' && entry.extensionId) {
-		return 'extensions';
-	}
 	if (entry.type === 'builtin-item') {
+		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+			return 'plugins';
+		}
+		if (entry.extensionId) {
+			return 'extensions';
+		}
 		const collection = entry.localServer?.readDefinitions().get().collection;
 		if (collection?.provenance === McpCollectionProvenance.ExternalConfiguration) {
 			return McpCollectionDefinition.isWorkspaceDiscovered(collection) ? 'workspace' : 'user';

@@ -7,7 +7,12 @@ import type { McpServerCustomization } from '../state/protocol/state.js';
 
 const sourceKey = 'agentHost.mcpServerSource';
 
-export type McpServerSource = 'user' | 'workspace' | 'plugin' | 'builtin' | 'managed';
+export type McpServerSource =
+	| 'user' // Defined in user-level configuration.
+	| 'workspace' // Defined in workspace-level configuration.
+	| 'plugin' // Contributed by a plugin.
+	| 'builtin' // Bundled with the provider.
+	| 'managed'; // Supplied by a trusted host-managed catalog.
 
 /** Reads the runtime-reported configuration source, independently of the server's lifecycle state. */
 export function readMcpServerSource(customization: McpServerCustomization | undefined): McpServerSource | undefined {
