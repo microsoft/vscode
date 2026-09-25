@@ -59,24 +59,36 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 }
 
 /**
- * Resolves recorded GitHub links independently of a workspace, retaining repository-discovered associations.
+ * Resolves recorded GitHub artifacts independently of a workspace, retaining repository-discovered associations.
+ * Recorded references stay out of these dedicated surfaces.
  * Pass `chat` to use the repository associations of every folder of the chat's workspace instead of the
  * session's primary folder; recorded pull requests from other repositories are then left out once the
  * chat's repositories are known.
  */
 export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat): ISessionGitHubReferences {
 	const chatWorkspace = chat?.workspace?.read(reader);
+	const sessionArtifacts = session?.artifacts?.read(reader) ?? [];
+	const recordedReferenceIds = new Set(sessionArtifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
 	// A chat reports the repository associations of each of its folders.
 	const folderGitHubInfos = chatWorkspace
 		? chatWorkspace.folders.map(folder => folder.gitRepository?.gitHubInfo.read(reader)).filter(isDefined)
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
-	const associatedPullRequests = chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo);
-	const associatedIssues = chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? [];
+	const associatedPullRequests = (chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo)).flatMap(ref => {
+		if (!ref.recordedReferenceId || !recordedReferenceIds.has(ref.recordedReferenceId)) {
+			return [ref];
+		}
+		return ref.createdByThisSession ? [{ ...ref, recordedReferenceId: undefined, title: undefined }] : [];
+	});
+	const associatedIssues = (chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? [])
+		.filter(ref => !ref.recordedReferenceId || !recordedReferenceIds.has(ref.recordedReferenceId));
 	const pullRequests: IGitHubPullRequestRef[] = [];
 	const issues: IGitHubIssueRef[] = [];
-	for (const artifact of session?.artifacts?.read(reader) ?? []) {
+	for (const artifact of sessionArtifacts) {
+		if (!artifact.isArtifact) {
+			continue;
+		}
 		const parsed = parseGitHubArtifactLink(artifact);
 		if (!parsed || !artifact.link) {
 			continue;

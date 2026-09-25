@@ -217,7 +217,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('omits recorded GitHub links from every repository surfaced in pull request and issue pills', () => {
+	test('keeps recorded GitHub references in the references pill while omitting dedicated artifacts', () => {
 		const { presentation } = createPresentation([
 			{ id: 'created-pr', kind: SessionArtifactKind.PullRequest, label: 'Created', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/50/') },
 			{ id: 'referenced-pr', kind: SessionArtifactKind.PullRequest, label: 'Referenced', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/60') },
@@ -240,7 +240,7 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
-			references: [],
+			references: ['referenced-pr', 'referenced-promoted-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue', 'referenced-promoted-issue'],
 		});
 	});
 
@@ -288,7 +288,7 @@ suite('Session Artifacts', () => {
 		}), entries.map(artifact => [artifact.id, [artifact.id]]));
 	});
 
-	test('keeps GitHub entries out of generic pills before, during and after workspace hydration', () => {
+	test('keeps GitHub references in the references pill before, during and after workspace hydration', () => {
 		const pullRequest = URI.parse('https://github.com/owner/repo/pull/50');
 		const reference = URI.parse('https://github.com/owner/repo/pull/60');
 		const issue = URI.parse('https://github.com/owner/repo/issues/7');
@@ -332,12 +332,12 @@ suite('Session Artifacts', () => {
 		const noSession = visible;
 
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
-			withoutWorkspace: { artifacts: [], references: [] },
-			withoutGitHubInfo: { artifacts: [], references: [] },
-			hydrated: { artifacts: [], references: [] },
-			changedGitHubInfo: { artifacts: [], references: [] },
-			recordedFile: { artifacts: ['file'], references: [] },
-			unmounted: { artifacts: ['file'], references: [] },
+			withoutWorkspace: { artifacts: [], references: ['duplicate-reference', 'reference'] },
+			withoutGitHubInfo: { artifacts: [], references: ['duplicate-reference', 'reference'] },
+			hydrated: { artifacts: [], references: ['duplicate-reference', 'reference'] },
+			changedGitHubInfo: { artifacts: [], references: ['duplicate-reference', 'reference'] },
+			recordedFile: { artifacts: ['file'], references: ['duplicate-reference', 'reference'] },
+			unmounted: { artifacts: ['file'], references: ['duplicate-reference', 'reference'] },
 			noSession: { artifacts: [], references: [] },
 		});
 	});

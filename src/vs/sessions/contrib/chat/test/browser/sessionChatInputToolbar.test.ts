@@ -1036,7 +1036,7 @@ suite('SessionChatInputToolbar', () => {
 
 	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue]) {
 		for (const isArtifact of [true, false]) {
-			test(`shows and removes a dedicated ${kind} pill for a workspace-less ${isArtifact ? 'artifact' : 'reference'}`, async () => {
+			test(`shows and removes a workspace-less ${kind} ${isArtifact ? 'artifact in its dedicated pill' : 'reference in the references pill'}`, async () => {
 				const { instantiationService } = createServices();
 				const isPullRequest = kind === SessionArtifactKind.PullRequest;
 				const link = URI.parse(`https://github.com/microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`);
@@ -1099,7 +1099,9 @@ suite('SessionChatInputToolbar', () => {
 				};
 				pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-				const remove = menu.find(action => action.id === `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded`);
+				const remove = menu.find(action => action.id === (isArtifact
+					? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded`
+					: 'sessions.artifacts.remove.recorded'));
 				assert.ok(remove);
 				await remove.run();
 				const ref = {
@@ -1110,10 +1112,10 @@ suite('SessionChatInputToolbar', () => {
 					initial, opened, removed, modelRequests: [...modelRequests], unrelatedArtifactModelRequests,
 					remainingPills: toolbar.element.querySelectorAll('.chat-dropdown-pill-button, .chat-resource-pill-button').length,
 				}, {
-					initial: { label: `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title`, genericPills: 0 },
-					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: isArtifact } } : { issue: ref }],
+					initial: { label: isArtifact ? `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title` : 'Show 1 reference', genericPills: 0 },
+					opened: isArtifact ? [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: true } } : { issue: ref }] : [],
 					removed: [{ owningSession: true, id: 'recorded' }],
-					modelRequests: [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`],
+					modelRequests: isArtifact ? [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`] : [],
 					unrelatedArtifactModelRequests: 0,
 					remainingPills: 0,
 				});
@@ -1177,7 +1179,7 @@ suite('SessionChatInputToolbar', () => {
 				return undefined;
 			}
 			target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-			return menu.find(action => action.id.startsWith('sessionChatPills.removePullRequest.'));
+			return menu.find(action => action.id === 'sessions.artifacts.remove.pr-reference');
 		};
 		const unavailable = !!removal();
 		capabilities.set({ supportsMultipleChats: false, supportsRemoveArtifacts: true }, undefined);
@@ -1201,7 +1203,7 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			unavailable: false,
 			afterFailure: { removable: true, artifacts: ['pr-reference', 'durable-artifact'] },
-			errors: ['Could not remove Pull Request #1: PR from this session: offline'],
+			errors: ['Could not remove PR from this session: offline'],
 			calls: [{ owningSession: true, artifactId: 'pr-reference' }, { owningSession: true, artifactId: 'pr-reference' }],
 			afterSuccess: { removable: false, artifactRemovable: true, artifacts: ['durable-artifact'], label: undefined },
 		});
