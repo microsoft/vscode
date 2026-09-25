@@ -96,6 +96,7 @@ export class AccessibleView extends Disposable {
 	/** Listeners tied to the most recent {@link _render} call. */
 	private readonly _renderDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lastProviderListener = this._register(new MutableDisposable());
+	private readonly _helpClearListener = this._register(new MutableDisposable());
 	private readonly _codeBlockContextProviderRegistration = this._register(new MutableDisposable());
 	private readonly _configureKeybindingsDisposables = this._register(new MutableDisposable<DisposableStore>());
 
@@ -848,17 +849,30 @@ export class AccessibleView extends Disposable {
 		if (!lastProvider) {
 			return;
 		}
+		// The provider can request to be cleared (e.g. its terminal was killed) while help is open
+		let clearRequested = false;
+		this._helpClearListener.value = isIAccessibleViewContentProvider(lastProvider) ? lastProvider.onDidRequestClearLastProvider?.(id => {
+			if (lastProvider.options.id === id) {
+				clearRequested = true;
+			}
+		}) : undefined;
+		const restoreLastProvider = () => {
+			this._helpClearListener.clear();
+			this._contextViewService.hideContextView();
+			if (clearRequested) {
+				lastProvider.dispose();
+				return;
+			}
+			// HACK: Delay to allow the context view to hide #207638
+			queueMicrotask(() => this.show(lastProvider));
+		};
 		let accessibleViewHelpProvider;
 		if (lastProvider instanceof AccessibleContentProvider) {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 				lastProvider.verbositySettingKey
 			);
 		} else {
@@ -866,11 +880,7 @@ export class AccessibleView extends Disposable {
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 			);
 		}
 		this._contextViewService.hideContextView();

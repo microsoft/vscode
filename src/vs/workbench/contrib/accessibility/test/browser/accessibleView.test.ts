@@ -254,6 +254,40 @@ suite('AccessibleView', () => {
 
 		assert.deepStrictEqual({ showsBeforeClear, showsAfterClear: contextViewService.showCount }, { showsBeforeClear: 2, showsAfterClear: 2 });
 	});
+
+	test('does not restore a provider that requested to be cleared while accessibility help was open', async () => {
+		const contextViewService = new RenderingContextViewService();
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
+		const onDidRequestClearLastProvider = disposables.add(new Emitter<AccessibleViewProviderId>());
+		const provider: IAccessibleViewContentProvider = {
+			id: AccessibleViewProviderId.Terminal,
+			options: { type: AccessibleViewType.View, id: AccessibleViewProviderId.Terminal },
+			verbositySettingKey: 'test.verbosity',
+			provideContent: () => 'content',
+			onClose: () => { },
+			onDidRequestClearLastProvider: onDidRequestClearLastProvider.event,
+			dispose: () => { },
+		};
+
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const modelService = instantiationService.get(IModelService);
+		disposables.add(toDisposable(() => modelService.getModels().forEach(model => model.dispose())));
+		accessibleView.show(provider as AccesibleViewContentProvider, undefined, true);
+		accessibleView.showAccessibleViewHelp();
+		await timeout(0);
+		const helpProvider = disposables.add((accessibleView as unknown as { _currentProvider: AccesibleViewContentProvider })._currentProvider);
+		const showsWithHelp = contextViewService.showCount;
+
+		onDidRequestClearLastProvider.fire(AccessibleViewProviderId.Terminal);
+		helpProvider.onClose();
+		await timeout(0);
+		accessibleView.showLastProvider(AccessibleViewProviderId.Terminal);
+
+		assert.deepStrictEqual({ showsWithHelp, showsAfterHelpClosed: contextViewService.showCount }, { showsWithHelp: 2, showsAfterHelpClosed: 2 });
+	});
 });
 
 /**
