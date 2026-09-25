@@ -11,20 +11,25 @@ import { INativeMcpDiscoveryData, INativeMcpDiscoveryHelperService } from '../co
 export class NativeMcpDiscoveryHelperService implements INativeMcpDiscoveryHelperService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly environment: IProcessEnvironment = process.env) { }
+	constructor(
+		private readonly environment: IProcessEnvironment = process.env,
+		private readonly resolveShellEnvironment?: () => Promise<IProcessEnvironment>,
+	) { }
 
-	load(): Promise<INativeMcpDiscoveryData> {
-		return Promise.resolve({
+	async load(): Promise<INativeMcpDiscoveryData> {
+		// Match the desktop Agent Host's shell overlay without changing other applications' discovery roots.
+		const copilotEnvironment = this.resolveShellEnvironment ? { ...this.environment, ...await this.resolveShellEnvironment() } : this.environment;
+		return {
 			platform,
 			homedir: URI.file(homedir()),
-			copilotHome: this.uriFromEnvVariable('COPILOT_HOME'),
+			copilotHome: this.uriFromEnvVariable('COPILOT_HOME', copilotEnvironment),
 			winAppData: this.uriFromEnvVariable('APPDATA'),
 			xdgHome: this.uriFromEnvVariable('XDG_CONFIG_HOME'),
-		});
+		};
 	}
 
-	private uriFromEnvVariable(varName: string) {
-		const envVar = this.environment[varName];
+	private uriFromEnvVariable(varName: string, environment = this.environment) {
+		const envVar = environment[varName];
 		if (!envVar) {
 			return undefined;
 		}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
@@ -103,6 +104,23 @@ function encode(data: AgentHostCatalogData = createData()) {
 
 suite('AgentHostCatalogProjection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round trips validated remote-session origin metadata', () => {
+		const origin = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
+		const data = createData();
+		const encoded = encode({ ...data, _meta: { ...data._meta, [REMOTE_SESSION_ORIGIN_METADATA_KEY]: origin } });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+		assert.ok(decoded.ok);
+		assert.deepStrictEqual(readRemoteSessionOrigin(decoded.value.data), origin);
+	});
+
+	test('rejects mismatched remote origin session and chat identities', () => {
+		const result = encodeAgentHostCatalogPayload({
+			...createData(),
+			_meta: { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/other#peer', depth: 1 } },
+		});
+		assert.strictEqual(result.ok, false);
+	});
 
 	test('round-trips session origin independently of chat origin', () => {
 		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };

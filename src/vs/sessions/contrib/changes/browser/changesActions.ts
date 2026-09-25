@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -30,7 +30,7 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
+import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SinglePaneChangesEditorTransitionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -336,25 +336,31 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
 		}));
 
+		// Publish the Agent Merge title-menu inputs together after the incoming changes state resolves.
+		const primaryPullRequestOperationKey = SessionPrimaryPullRequestOperationContext.bindTo(contextKeyService);
+		const hasOpenPullRequestKey = SessionHasOpenPullRequestContext.bindTo(contextKeyService);
+		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastPullRequestOperation: string | undefined;
-		this._register(bindContextKey<string>(SessionPrimaryPullRequestOperationContext, contextKeyService, reader => {
+		this._register(autorun(reader => {
+			if (changesEditorTransitionObs.read(reader)
+				|| changesViewService.activeSessionChangesetsLoadingObs.read(reader)
+				|| changesViewService.activeSessionLoadingObs.read(reader)) {
+				return;
+			}
 			const operations = changesViewService.activeSessionChangesetObs.read(reader)?.operations.read(reader) ?? [];
 			const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
+			const hasOpenPullRequest = changesViewService.activeSessionStateObs.read(reader)?.hasOpenPullRequest === true;
+			contextKeyService.bufferChangeEvents(() => {
+				primaryPullRequestOperationKey.set(primary);
+				hasOpenPullRequestKey.set(hasOpenPullRequest);
+			});
 			if (lastPullRequestOperation !== primary) {
 				lastPullRequestOperation = primary;
 				// Gates which Agent Merge entries the dropdown offers, so it is
 				// logged alongside the button bar itself.
 				logService.info(`[ChangesetOperationsActionController] Primary pull request operation: ${primary || 'none'}`);
 			}
-			return primary;
-		}));
-
-		// Bound globally, unlike the Changes view's scoped copy, so title bar
-		// menus can tell "has an open pull request" apart from "has a pull
-		// request operation to offer" — the two differ for a blocked pull
-		// request in a repository that does not allow auto-merge.
-		this._register(bindContextKey<boolean>(SessionHasOpenPullRequestContext, contextKeyService, reader => {
-			return changesViewService.activeSessionStateObs.read(reader)?.hasOpenPullRequest === true;
 		}));
 
 		this._register(autorun(reader => {

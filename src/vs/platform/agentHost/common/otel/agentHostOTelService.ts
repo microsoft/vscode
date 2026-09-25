@@ -38,7 +38,7 @@ export interface IAgentHostTraceContext {
 }
 
 export interface IAgentHostNativeOTelConfig {
-	/** Trace destination. In DB mode this is the Agent Host HTTP/JSON loopback. */
+	/** Signal-specific trace destination. In DB mode this is the Agent Host HTTP/JSON loopback. */
 	readonly traces?: { readonly endpoint: string; readonly protocol: 'http/json' | 'http/protobuf' | 'grpc' };
 	/** User-owned OTLP destination used directly by native SDK logs and metrics. */
 	readonly external?: {

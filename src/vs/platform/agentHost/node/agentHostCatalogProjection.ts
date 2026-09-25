@@ -9,6 +9,7 @@ import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { SessionOriginKind, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
@@ -325,6 +326,14 @@ const creationReferenceValidator = plainObject(vObj({
 	turnId: vOptionalProp(boundedString()),
 }));
 
+const remoteSessionOriginValidator = new RefinedValidator(plainObject(vObj({
+	session: uriString(),
+	chat: uriString(),
+	depth: safeInteger(),
+})), value => readRemoteSessionOrigin({ _meta: { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: value } })
+	? value
+	: { message: 'Expected a host-qualified remote session origin.' });
+
 const devContainerWorktreeValidator = new RefinedValidator(plainObject(vObj({
 	version: safeInteger(),
 	handle: boundedString(),
@@ -348,6 +357,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
+	[REMOTE_SESSION_ORIGIN_METADATA_KEY]: vOptionalProp(remoteSessionOriginValidator),
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),
