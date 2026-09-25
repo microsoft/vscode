@@ -744,7 +744,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			introduction: {
 				count: 1,
 				title: 'You\'re using a new Copilot experience',
-				actions: ['Learn More', '$(thumbsup)', '$(thumbsdown)'],
+				actions: ['Learn More', '$(thumbsup) Got it!', '$(thumbsdown)'],
 			},
 			parallel: {
 				count: 1,
@@ -789,7 +789,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			autoDismissOnMessage: false,
 			actions: [
 				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
-				{ label: '$(thumbsup)', ariaLabel: 'Helpful', iconOnly: true, tooltip: 'Helpful', primary: false, keepOpen: true, actionId: 'thumbsUp' },
+				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
 				{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
 			],
 			posts: 1,
@@ -851,7 +851,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Thumbs Up dismisses the current education banner without suppressing future education', async () => {
+	test('Got it! dismisses the current education banner without suppressing future education', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
 		await h.click(1);

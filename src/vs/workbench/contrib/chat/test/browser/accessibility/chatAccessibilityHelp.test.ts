@@ -30,7 +30,7 @@ suite('Chat Accessibility Help', () => {
 			assert.deepStrictEqual({
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
 				introductionPersists: help.includes('sending messages does not dismiss it'),
-				introductionActions: help.includes('let us know, Learn More, Helpful, Not Helpful, or Dismiss notification'),
+				introductionActions: help.includes('let us know, Learn More, Got it!, Not Helpful, or Dismiss notification'),
 				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
 				introductionDismissal: help.includes('Not Helpful and Dismiss notification turn off future introductions'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),

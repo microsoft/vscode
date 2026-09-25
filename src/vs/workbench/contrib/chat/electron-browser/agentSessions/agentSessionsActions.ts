@@ -1127,14 +1127,12 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			keepOpen: true,
 		}, {
 			kind: ChatInputNotificationActionKind.Command,
-			label: `$(${Codicon.thumbsup.id})`,
-			ariaLabel: localize('agentsParallelWork.helpful', "Helpful"),
-			iconOnly: true,
-			tooltip: localize('agentsParallelWork.helpfulTooltip', "Helpful"),
+			label: localize('agentsParallelWork.gotIt', "{0} Got it!", `$(${Codicon.thumbsup.id})`),
+			ariaLabel: localize('agentsParallelWork.gotItAriaLabel', "Got it!"),
 			telemetryActionId: 'thumbsUp',
 			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
 			commandArgs: [posted.inputUri, resource, true],
-			primary: false,
+			primary: true,
 			keepOpen: true,
 		}, {
 			kind: ChatInputNotificationActionKind.Command,
