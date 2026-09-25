@@ -113,6 +113,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
+	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
@@ -152,6 +153,19 @@ export enum ChatConfiguration {
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
+}
+
+export const enum CopilotHarnessIntroductionMode {
+	Off = 'off',
+	NewSession = 'newSession',
+	AfterRequest = 'afterRequest',
+}
+
+export function getCopilotHarnessIntroductionMode(configurationService: IConfigurationService): CopilotHarnessIntroductionMode {
+	const mode = configurationService.getValue<CopilotHarnessIntroductionMode>(ChatConfiguration.CopilotHarnessIntroductionMode);
+	return mode === CopilotHarnessIntroductionMode.NewSession || mode === CopilotHarnessIntroductionMode.AfterRequest
+		? mode
+		: CopilotHarnessIntroductionMode.Off;
 }
 
 export const enum ChatClosedPromoNotification {

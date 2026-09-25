@@ -3688,6 +3688,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
@@ -3895,6 +3896,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
