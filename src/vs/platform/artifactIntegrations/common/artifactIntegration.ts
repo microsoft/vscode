@@ -41,6 +41,8 @@ export interface ArtifactIcon {
 export interface ArtifactPartPresentation {
 	readonly icon: ArtifactIcon;
 	readonly label: string;
+	/** A plain-text explanation of a compact label, including its status. */
+	readonly description?: string;
 	readonly detailsId: string;
 }
 

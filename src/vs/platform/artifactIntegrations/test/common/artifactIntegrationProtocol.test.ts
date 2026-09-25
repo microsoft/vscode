@@ -121,6 +121,38 @@ suite('Artifact Integration Protocol', () => {
 		], [false, false, false, false, true, true, false, true]);
 	});
 
+	test('compact part descriptions are optional plain text across the transport', () => {
+		const part = { label: '3/6', description: '3 of 6 checks passed', icon: { id: 'pass' }, detailsId: 'checks' };
+		const contribution = {
+			integrationId: 'test', label: 'Test', actions: [], options: [],
+			configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+			view: {
+				availability: { kind: 'available' }, main: part, sections: [{ ...part, id: 'checks' }],
+				stateActions: [], generalActions: [], automationAvailability: [],
+			},
+		};
+		const response = {
+			kind: 'artifact', subscription: 'subscription', revision: 0,
+			snapshot: { ...model().snapshot.get(), mainIntegrationId: 'test', contributions: [contribution] },
+		};
+		const withParts = (mainDescription: string | number | undefined, sectionDescription: string | number | undefined) => ({
+			...response,
+			snapshot: {
+				...response.snapshot,
+				contributions: [{
+					...contribution,
+					view: { ...contribution.view, main: { ...part, description: mainDescription }, sections: [{ ...part, id: 'checks', description: sectionDescription }] },
+				}],
+			},
+		});
+		assert.deepStrictEqual([
+			isArtifactIntegrationResponse(response),
+			isArtifactIntegrationResponse(withParts(undefined, undefined)),
+			isArtifactIntegrationResponse(withParts(42, part.description)),
+			isArtifactIntegrationResponse(withParts(part.description, 42)),
+		], [true, true, false, false]);
+	});
+
 	test('detail pages have an explicit bounded shape', () => {
 		const details = { title: 'Details', availability: { kind: 'available' }, completeness: 'partial', links: [], items: Array.from({ length: 200 }, (_, index) => ({ id: String(index), label: 'Item', icon: { id: 'link' }, resource: 'https://example.test' })) };
 		assert.deepStrictEqual([

@@ -77,7 +77,8 @@ function isIcon(value: unknown): boolean {
 }
 
 function isPart(value: unknown): boolean {
-	return isRecord(value) && isIcon(value.icon) && strings(value, 'label', 'detailsId');
+	return isRecord(value) && isIcon(value.icon) && strings(value, 'label', 'detailsId')
+		&& (value.description === undefined || typeof value.description === 'string');
 }
 
 export function isArtifactDetails(value: unknown): value is ArtifactDetails {
@@ -399,28 +400,28 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 		} else {
 			this.referenceCounts.set(subscription, references - 1);
 		}
+	}
 
-		private async request(request: ArtifactIntegrationRequest): Promise<ArtifactIntegrationResponse> {
-			if (this._store.isDisposed || this.transport.available?.get() === false) {
-				throw new Error('The artifact coordinator is unavailable; the request was not sent');
-			}
-			const response = await this.transport.request(request);
-			if (!isArtifactIntegrationResponse(response)) {
-				throw new Error('Invalid artifact integration response');
-			}
-			return response;
+	private async request(request: ArtifactIntegrationRequest): Promise<ArtifactIntegrationResponse> {
+		if (this._store.isDisposed || this.transport.available?.get() === false) {
+			throw new Error('The artifact coordinator is unavailable; the request was not sent');
 		}
+		const response = await this.transport.request(request);
+		if (!isArtifactIntegrationResponse(response)) {
+			throw new Error('Invalid artifact integration response');
+		}
+		return response;
+	}
 
-		private async requestAcknowledgement(request: ArtifactIntegrationRequest): Promise<void> {
-			const response = await this.request(request);
-			if (response.kind !== 'ok') {
-				throw new Error('The artifact coordinator did not acknowledge the operation');
-			}
+	private async requestAcknowledgement(request: ArtifactIntegrationRequest): Promise<void> {
+		const response = await this.request(request);
+		if (response.kind !== 'ok') {
+			throw new Error('The artifact coordinator did not acknowledge the operation');
 		}
+	}
 
-		override dispose(): void {
-			this.disposed.set(true, undefined);
-			super.dispose();
-		}
+	override dispose(): void {
+		this.disposed.set(true, undefined);
+		super.dispose();
 	}
 }

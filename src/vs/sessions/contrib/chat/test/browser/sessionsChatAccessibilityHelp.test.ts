@@ -261,6 +261,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
+	test('describes artifact details, run-once actions, standing automation, and list navigation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+			.split('\n').find(line => line.startsWith('When an artifact has an integration'));
+
+		assert.deepStrictEqual({
+			mainDetails: content?.includes('<keybinding:workbench.action.showHover>'),
+			runOnce: content?.includes('runs that action once'),
+			standingPermission: content?.includes('standing permission'),
+			turningOff: content?.includes('work that already started might continue'),
+			sharedAutomation: content?.includes('appears once, labeled with those actions'),
+			enabledAutomation: content?.includes('you can always turn it off there'),
+			switchKeyboard: content?.includes('Space to change a switch'),
+			listKeyboard: content?.includes('arrow keys to navigate the list'),
+			oldActionsSegment: content?.includes('Actions button'),
+		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();

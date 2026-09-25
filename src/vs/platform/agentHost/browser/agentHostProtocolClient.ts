@@ -35,7 +35,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type JsonRpcNotification, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -1966,9 +1966,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
-			if (msg.method === ArtifactIntegrationUpdateNotification) {
-				if (isArtifactIntegrationUpdate(msg.params)) {
-					this._artifactIntegrationUpdates.fire(msg.params);
+			const notification: JsonRpcNotification = msg;
+			if (notification.method === ArtifactIntegrationUpdateNotification) {
+				if (isArtifactIntegrationUpdate(notification.params)) {
+					this._artifactIntegrationUpdates.fire(notification.params);
 				} else {
 					this._logService.error('[ArtifactIntegrations] Invalid update from the agent host');
 				}
