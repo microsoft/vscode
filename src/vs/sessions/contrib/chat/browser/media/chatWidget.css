@@ -113,7 +113,7 @@
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
 	width: fit-content;
 	max-width: 100%;
-	margin: 0 auto;
+	margin: 0;
 	flex-wrap: nowrap;
 	gap: 0;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
