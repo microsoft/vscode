@@ -56,7 +56,7 @@ suite('ExtHostSCM', () => {
 		assert.strictEqual(extHostSCM.getLastInputBox(extension), undefined);
 	});
 
-	test('active repository name is forwarded to the main thread', () => {
+	test('active repository name is forwarded to the main thread', async () => {
 		const registrations: number[] = [];
 		const updates: { handle: number; features: SCMProviderFeatures }[] = [];
 		const rpcProtocol = new TestRPCProtocol();
@@ -97,6 +97,7 @@ suite('ExtHostSCM', () => {
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = undefined;
+		await rpcProtocol.sync();
 
 		assert.deepStrictEqual({
 			activeRepositoryName: sourceControl.activeRepositoryName,
@@ -113,5 +114,6 @@ suite('ExtHostSCM', () => {
 		});
 
 		sourceControl.dispose();
+		await rpcProtocol.sync();
 	});
 });
