@@ -20,6 +20,7 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 	protected readonly _disposables: DisposableStore = new DisposableStore();
 	private _standardTelemetryLogger: TelemetryLogger;
 	private _enhancedTelemetryLogger?: TelemetryLogger;
+	private _isInternalUser: boolean = false;
 
 	constructor(
 		private readonly _tokenStore: ICopilotTokenStore,
@@ -48,6 +49,8 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 	}
 
 	private _processToken(token: CopilotToken | undefined) {
+		// Microsoft, GitHub, and VS Code organization members are all considered internal.
+		this._isInternalUser = !!token && (token.isInternal || token.isVscodeTeamMember);
 		if (!token) {
 			if (this._enhancedTelemetryLogger) {
 				this._enhancedTelemetryLogger.dispose();
@@ -55,7 +58,7 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 			}
 		}
 		// Restricted telemetry is only available to opted-in external users.
-		if (token?.getTokenValue('rt') === '1' && !token.isInternal) {
+		if (token?.getTokenValue('rt') === '1' && !this._isInternalUser) {
 			this._enhancedTelemetryLogger = this._createTelemetryLogger(true);
 		} else {
 			if (this._enhancedTelemetryLogger) {
@@ -90,7 +93,7 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 
 		const definedTelemetryDataStub = TelemetryData.createAndMarkAsIssued({
 			origin: redactPaths(origin),
-			reason: this._enhancedTelemetryLogger ? 'Exception logged to enhanced telemetry' : 'Exception, not logged due to opt-out',
+			reason: this._exceptionReason(),
 		});
 
 		definedTelemetryDataStub.makeReadyForSending(this._configService, this._envService, this._telemetryConfig);
@@ -108,6 +111,13 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 
 		// and the real error, which might contain arbitrary data, to enhanced telemetry.
 		this._enhancedTelemetryLogger.logError(error, definedTelemetryDataSecure);
+	}
+
+	private _exceptionReason(): string {
+		if (this._enhancedTelemetryLogger) {
+			return 'Exception logged to enhanced telemetry';
+		}
+		return this._isInternalUser ? 'Exception, not logged for internal user' : 'Exception, not logged due to opt-out';
 	}
 
 	private markAsIssuedAndMakeReadyForSending(properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): { properties: TelemetryEventProperties; measurements: TelemetryEventMeasurements } {

@@ -47,6 +47,7 @@ const internalOrganizations = [
 	{ name: 'Microsoft 2', organization: '7184f66dfcee98cb5f08a1cb936d5225' },
 	{ name: 'Microsoft 3', organization: '1cb18ac6eedd49b43d74a1c5beb0b955' },
 	{ name: 'Microsoft 4', organization: 'ea9395b9a9248c05ee6847cbd24355ed' },
+	{ name: 'VS Code', organization: '551cca60ce19654d894e786220822482' },
 ];
 
 function createInternalToken(organization: string): CopilotToken {
@@ -424,6 +425,38 @@ suite('GitHub Telemetry Sender', function () {
 		expect(mockEnhancedLogger.logUsage).not.toHaveBeenCalled();
 		expect(mockEnhancedLogger.logError).not.toHaveBeenCalled();
 		expect(mockLogger.logUsage).toHaveBeenCalledOnce();
+	});
+
+	test('should not send restricted telemetry for VS Code team members', () => {
+		mockTokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'rt=1;tid=vscodeTeam', organization_list: [], isVscodeTeamMember: true }));
+		sender.sendEnhancedTelemetryEvent('restrictedEvent', { prompt: 'user code' });
+		sender.sendEnhancedTelemetryErrorEvent('restrictedError', { prompt: 'user code' });
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+
+		expect(mockEnhancedLogger.dispose).toHaveBeenCalledOnce();
+		expect(mockEnhancedLogger.logUsage).not.toHaveBeenCalled();
+		expect(mockEnhancedLogger.logError).not.toHaveBeenCalled();
+	});
+
+	test('should explain in the exception placeholder why the real error was not sent', () => {
+		const lastExceptionReason = () => vi.mocked(mockLogger.logUsage).mock.lastCall![1]!.properties.reason.value;
+
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const optedIn = lastExceptionReason();
+
+		mockTokenStore.copilotToken = createInternalToken('4535c7beffc844b46bb1ed4aa04d759a');
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const internal = lastExceptionReason();
+
+		mockTokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'rt=0;tid=external', organization_list: [] }));
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const optedOut = lastExceptionReason();
+
+		expect({ optedIn, internal, optedOut }).toEqual({
+			optedIn: 'Exception logged to enhanced telemetry',
+			internal: 'Exception, not logged for internal user',
+			optedOut: 'Exception, not logged due to opt-out',
+		});
 	});
 
 	test('should dispose loggers and disposables', () => {
