@@ -38,12 +38,13 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -812,6 +813,24 @@ const enum AgentsParallelWorkNotificationKind {
 	ParallelWork = 'parallelWork',
 }
 
+type CopilotHarnessIntroductionLifecycleEvent = {
+	stage: 'opportunity' | 'shown';
+	mode: CopilotHarnessIntroductionMode;
+	chatSessionId: string;
+	sessionType: string;
+	harness: string | undefined;
+};
+
+type CopilotHarnessIntroductionLifecycleClassification = {
+	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an eligible Copilot harness introduction opportunity was observed or the introduction was actually shown.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective Copilot harness introduction experiment mode.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The random identifier of the eligible chat session.' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat session type.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The underlying Agent Host harness, when applicable.' };
+	owner: 'justschen';
+	comment: 'Tracks eligible opportunities and actual exposure for the Copilot harness introduction experiment.';
+};
+
 export class AgentsParallelWorkContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
 	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/concepts/agent-host';
@@ -829,6 +848,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	private readonly _seen = new ResourceSet();
 	private readonly _eligible = new ResourceSet();
 	private readonly _introductionEligibleWidgets = new Set<IChatWidget>();
+	private readonly _introductionShownModes = new Map<IChatWidget, Set<CopilotHarnessIntroductionMode>>();
 	/** Dismissals last only until this window reloads. */
 	private readonly _dismissed = new ResourceSet();
 	private readonly _recentWidgets = new Set<IChatWidget>();
@@ -847,6 +867,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@ILogService logService: ILogService,
 	) {
@@ -895,6 +916,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._register(this._chatWidgetService.onDidRemoveWidget(widget => {
 			this._recentWidgets.delete(widget);
 			this._introductionEligibleWidgets.delete(widget);
+			this._introductionShownModes.delete(widget);
 			this._update();
 		}));
 		this._register(this._agentSessionsService.model.onDidChangeSessions(() => this._update()));
@@ -974,16 +996,37 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			}
 		}
 		if (resource && isCopilotHarnessSessionType(this._chatSessionsService, getChatSessionType(resource))) {
-			this._introductionEligibleWidgets.add(widget);
+			if (!this._introductionEligibleWidgets.has(widget)) {
+				this._introductionEligibleWidgets.add(widget);
+				if (!this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+					this._logIntroductionLifecycle('opportunity', widget, resource, getCopilotHarnessIntroductionMode(this._configurationService));
+				}
+			}
 		}
 		this._update();
 	}
 
-	private _getIntroductionMode(): CopilotHarnessIntroductionMode {
-		const mode = this._configurationService.getValue<CopilotHarnessIntroductionMode>(ChatConfiguration.CopilotHarnessIntroductionMode);
-		return mode === CopilotHarnessIntroductionMode.NewSession || mode === CopilotHarnessIntroductionMode.AfterRequest
-			? mode
-			: CopilotHarnessIntroductionMode.Off;
+	private _logIntroductionLifecycle(stage: CopilotHarnessIntroductionLifecycleEvent['stage'], widget: IChatWidget, resource: URI, mode: CopilotHarnessIntroductionMode): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (stage === 'shown') {
+			let shownModes = this._introductionShownModes.get(widget);
+			if (!shownModes) {
+				shownModes = new Set();
+				this._introductionShownModes.set(widget, shownModes);
+			}
+			if (shownModes.has(mode)) {
+				return;
+			}
+			shownModes.add(mode);
+		}
+		const session = getChatSessionTelemetryContext(resource);
+		this._telemetryService.publicLog2<CopilotHarnessIntroductionLifecycleEvent, CopilotHarnessIntroductionLifecycleClassification>('copilotHarnessIntroductionLifecycle', {
+			stage,
+			mode,
+			...session,
+		});
 	}
 
 	private _getNotificationKind(widget: IChatWidget): AgentsParallelWorkNotificationKind | undefined {
@@ -1001,7 +1044,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 		}
 
-		const introductionMode = this._getIntroductionMode();
+		const introductionMode = getCopilotHarnessIntroductionMode(this._configurationService);
 		const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
 		const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
 			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
@@ -1061,7 +1104,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		const title = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using a new Copilot experience")
 			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
-		const introductionMode = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? this._getIntroductionMode() : undefined;
+		const introductionMode = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? getCopilotHarnessIntroductionMode(this._configurationService) : undefined;
 		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", AgentsParallelWorkContribution.COPILOT_HARNESS_FEEDBACK_URL)
 			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
@@ -1124,7 +1167,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			id: AgentsParallelWorkContribution.NOTIFICATION_ID,
 			inputUri: posted.inputUri,
 			telemetryId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-				? AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID
+				? `${AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID}.${introductionMode}`
 				: undefined,
 			severity: ChatInputNotificationSeverity.Info,
 			message: title,
@@ -1141,6 +1184,9 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			onDismiss: () => kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 				? this._ignoreCopilotHarnessIntroduction(resource)
 				: this._dismissChat(resource),
+			onDidShow: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction && introductionMode
+				? () => this._logIntroductionLifecycle('shown', widget, resource, introductionMode)
+				: undefined,
 			autoDismissOnMessage: kind !== AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction,
 			actions,
 		});
@@ -1151,6 +1197,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._posted = undefined;
 		this._recentWidgets.clear();
 		this._introductionEligibleWidgets.clear();
+		this._introductionShownModes.clear();
 		this._seen.clear();
 		this._eligible.clear();
 		this._dismissed.clear();

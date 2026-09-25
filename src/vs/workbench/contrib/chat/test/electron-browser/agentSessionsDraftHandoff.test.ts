@@ -123,6 +123,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const treatmentWarnings: string[] = [];
 		const treatmentNames: string[] = [];
 		const openedResources: Array<URI | string> = [];
+		const telemetryEvents: { readonly name: string; readonly data: unknown }[] = [];
 		let readTreatment: (name: string) => Promise<string | undefined> = async () => undefined;
 		instantiation.stub(IWorkbenchAssignmentService, new class extends NullWorkbenchAssignmentService {
 			override readonly onDidRefetchAssignments = assignmentsRefetched.event;
@@ -205,7 +206,14 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				return true;
 			},
 		}));
-		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2: (name?: string, data?: unknown) => {
+				if (name) {
+					telemetryEvents.push({ name, data });
+				}
+			},
+		});
 		instantiation.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				if (id === OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID) {
@@ -221,7 +229,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			},
 		}));
 		return {
-			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, openedResources, widget, inputUri,
+			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, openedResources, telemetryEvents, widget, inputUri,
 			focusWidget: (value: IChatWidget | undefined) => { lastFocusedWidget = value; focused.fire(); },
 			sendMessage: (timestamp = Date.now(), isSystemInitiated = false) => {
 				const request = upcastPartial<IChatRequestModel>({ timestamp, isSystemInitiated });
@@ -275,6 +283,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			},
 			showBanner: () => disposables.add(instantiation.createInstance(AgentsParallelWorkContribution)),
 			showGenericTip: () => disposables.add(instantiation.createInstance(AgentsHandoffInputTipContribution)),
+			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(),
 			dismiss: () => {
 				const notification = [...notifications.values()].at(-1);
 				assert.ok(notification);
@@ -638,13 +647,43 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			afterRequest,
 			offAgain: h.notification,
 			parallelWorkEnabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
+			lifecycle: h.telemetryEvents.filter(event => event.name === 'copilotHarnessIntroductionLifecycle').map(event => event.data),
 		}, {
 			off: undefined,
 			newSession: { beforeRequest: true, afterRequest: true },
 			afterRequest: { beforeRequest: false, afterRequest: true },
 			offAgain: undefined,
 			parallelWorkEnabled: false,
+			lifecycle: [{
+				stage: 'opportunity',
+				mode: CopilotHarnessIntroductionMode.Off,
+				chatSessionId: 'agent-host-copilotcli:/untitled-draft',
+				sessionType: SessionType.AgentHostCopilot,
+				harness: undefined,
+			}],
 		});
+	});
+
+	test('logs actual introduction exposure once with session context', () => {
+		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
+		h.showBanner();
+		h.sendMessage();
+		h.showCurrentNotification();
+		h.showCurrentNotification();
+
+		assert.deepStrictEqual(h.telemetryEvents.filter(event => event.name === 'copilotHarnessIntroductionLifecycle').map(event => event.data), [{
+			stage: 'opportunity',
+			mode: CopilotHarnessIntroductionMode.AfterRequest,
+			chatSessionId: 'agent-host-copilotcli:/untitled-draft',
+			sessionType: SessionType.AgentHostCopilot,
+			harness: undefined,
+		}, {
+			stage: 'shown',
+			mode: CopilotHarnessIntroductionMode.AfterRequest,
+			chatSessionId: 'agent-host-copilotcli:/untitled-draft',
+			sessionType: SessionType.AgentHostCopilot,
+			harness: undefined,
+		}]);
 	});
 
 	test('keeps a new-session introduction visible after a request is sent', () => {
@@ -741,7 +780,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			posts: h.posts,
 		}, {
 			id: 'chat.agentsParallelWork',
-			telemetryId: 'copilotHarnessIntroduction',
+			telemetryId: 'copilotHarnessIntroduction.newSession',
 			title: 'You\'re using a new Copilot experience',
 			description: {
 				value: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
