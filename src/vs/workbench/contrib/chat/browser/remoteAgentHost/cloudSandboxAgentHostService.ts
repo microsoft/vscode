@@ -5,7 +5,7 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -157,47 +157,48 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new Error(`No cloud sandbox connection is staged for ${address}.`);
 		}
 
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const telemetry = this._connectionTelemetry.get(address);
-		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
-			url: buildWpsUrl(staged.creds.token),
-			toHostGroup: staged.creds.token.groups.to_host,
-			joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
-			groupValidation: { expected: { cid: staged.creds.token.client_id } },
-			onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
-			ahpLogger: ahpLoggingEnabled
-				? this._instantiationService.createInstance(AhpJsonlLogger, {
-					logsHome: this._environmentService.logsHome,
-					logId: address,
-					connectionId: staged.clientId,
-					transport: 'webpubsub',
-				})
-				: undefined,
-		});
-		const client = this._instantiationService.createInstance(
-			AgentHostProtocolClient,
-			address,
-			transportFactory,
-			{
-				clientId: staged.clientId,
-				clientInfo: editorWindowAgentHostClientInfo,
-				resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
-			},
-		);
 		const store = new DisposableStore();
-		const refresher = store.add(new MutableDisposable<CloudSandboxCredentialRefresher>());
-		store.add(client.onDidChangeConnectionState(state => {
-			if (state === 'connected' && !refresher.value) {
-				refresher.value = this._instantiationService.createInstance(
-					CloudSandboxCredentialRefresher,
-					address,
-					{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
-					staged.clientId,
-					staged.creds,
-				);
-			}
-		}));
-		return { connection: client, transportDisposable: store };
+		try {
+			const refresher = store.add(this._instantiationService.createInstance(
+				CloudSandboxCredentialRefresher,
+				address,
+				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
+				staged.clientId,
+				staged.creds,
+			));
+			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const telemetry = this._connectionTelemetry.get(address);
+			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
+				url: buildWpsUrl(staged.creds.token),
+				toHostGroup: staged.creds.token.groups.to_host,
+				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
+				groupValidation: { expected: { cid: staged.creds.token.client_id } },
+				onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
+				ahpLogger: ahpLoggingEnabled
+					? this._instantiationService.createInstance(AhpJsonlLogger, {
+						logsHome: this._environmentService.logsHome,
+						logId: address,
+						connectionId: staged.clientId,
+						transport: 'webpubsub',
+					})
+					: undefined,
+			});
+			const client = this._instantiationService.createInstance(
+				AgentHostProtocolClient,
+				address,
+				transportFactory,
+				{
+					clientId: staged.clientId,
+					clientInfo: editorWindowAgentHostClientInfo,
+					prepareReconnect: () => refresher.ensureUnexpiredCredentials(),
+					resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
+				},
+			);
+			return { connection: client, transportDisposable: store };
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
 	}
 
 	private async _resolveInitialAuthentication(address: string): Promise<{ readonly resource: string; readonly token: string } | undefined> {

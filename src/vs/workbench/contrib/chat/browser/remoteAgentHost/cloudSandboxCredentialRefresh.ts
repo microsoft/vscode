@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -80,9 +80,8 @@ export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Da
 }
 
 /**
- * Re-mints Web PubSub credentials shortly before they expire and writes them into the credentials
- * holder it was given. The open socket is untouched; the new token is used the next time the
- * transport is rebuilt.
+ * Refreshes credentials before expiry and on demand during recovery, sharing in-flight requests.
+ * The open socket is untouched; replacement transports use the refreshed credentials.
  *
  * The loop is bounded in three ways, because it runs unattended for the life of the window and every
  * cycle costs Mission Control a sandbox resume: a permanent rejection stops it outright,
@@ -105,6 +104,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 
 	/** Consecutive cycles that did not yield a healthy, long-lived token. */
 	private _unhealthyCycles = 0;
+	private _refreshInFlight: Promise<void> | undefined;
+	private _hasRefreshed = false;
+	private _nextRefreshAt = 0;
+	private _stopped = false;
 
 	constructor(
 		private readonly _address: string,
@@ -126,7 +129,30 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		this._arm(initialDelayMs);
 	}
 
+	/** Share an in-flight refresh or refresh expired credentials before opening a replacement transport. */
+	async ensureUnexpiredCredentials(): Promise<void> {
+		if (this._cts.token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this._hasUnexpiredCredentials()) {
+			return;
+		}
+		const awaitingRetry = this._hasRefreshed && this._unhealthyCycles > 0 && Date.now() < this._nextRefreshAt;
+		if (!this._refreshInFlight && (this._stopped || awaitingRetry)) {
+			throw new Error('No unexpired sandbox credentials are available; credential refresh is stopped or waiting to retry.');
+		}
+		await raceCancellationError(this._refresh(), this._cts.token);
+		if (!this._hasUnexpiredCredentials()) {
+			throw new Error('Sandbox credential refresh did not provide credentials with a usable future expiry.');
+		}
+	}
+
+	private _hasUnexpiredCredentials(): boolean {
+		return Date.parse(this._creds.token.expires_at) > Date.now();
+	}
+
 	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown): void {
+		this._stopped = true;
 		this._timer.clear();
 		this._telemetry.reportCredentialRefreshStopped(reason, this._unhealthyCycles, error);
 		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. The connection will drop when the current token expires.`);
@@ -136,7 +162,9 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		if (this._cts.token.isCancellationRequested) {
 			return;
 		}
-		this._timer.value = disposableTimeout(() => void this._refresh(), Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
+		const delay = Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs);
+		this._nextRefreshAt = Date.now() + delay;
+		this._timer.value = disposableTimeout(() => void this._refresh(), delay);
 	}
 
 	/** Re-arm after a cycle that produced no usable token, giving up once too many pile up. */
@@ -149,6 +177,21 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	}
 
 	private async _refresh(): Promise<void> {
+		if (this._refreshInFlight) {
+			return this._refreshInFlight;
+		}
+		this._timer.clear();
+		this._hasRefreshed = true;
+		const pending = this._doRefresh();
+		this._refreshInFlight = pending;
+		try {
+			await pending;
+		} finally {
+			this._refreshInFlight = undefined;
+		}
+	}
+
+	private async _doRefresh(): Promise<void> {
 		let result: CloudSandboxConnectResult;
 		try {
 			result = await this._apiService.reconnect(this._request, this._clientId, this._cts.token);
