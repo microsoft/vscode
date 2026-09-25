@@ -55,7 +55,7 @@ import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginAutomation, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -932,6 +932,44 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
+		const getPluginAgentPreToolUseHooks = async (pluginUri: URI, format: PluginFormat, hookProperties: readonly string[]) => {
+			const workspaceUri = URI.file('/workspace');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.md');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: reviewer',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					...hookProperties.map(property => `      ${property}`),
+					'      env:',
+					'        EXISTING: "value"',
+					'---',
+				],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format,
+				label: 'test-plugin',
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServers', []),
+				automations: observableValue('testPluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			return { hooks: agents[0]?.hooks?.[HookType.PreToolUse], workspaceUri };
+		};
 
 		test('reads agent files with bounded concurrency', async () => {
 			const rootFolder = '/custom-agents-concurrency';
@@ -997,6 +1035,99 @@ suite('PromptsService', () => {
 				maxInFlight <= singlePassPeak,
 				`Overlapping discovery passes must share one quota, but read ${maxInFlight} concurrently versus ${singlePassPeak} for a single pass.`,
 			);
+		});
+
+		test('does not cache partially completed canceled agent discovery', async () => {
+			const rootFolder = '/custom-agents-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+			const firstAgent = URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md');
+			const secondAgent = URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md');
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: firstAgent.path, contents: ['---', 'description: First agent.', '---'] },
+				{ path: secondAgent.path, contents: ['---', 'description: Second agent.', '---'] },
+			]);
+
+			const firstReadCompleted = new DeferredPromise<void>();
+			const secondReadStarted = new DeferredPromise<void>();
+			const releaseSecondRead = new DeferredPromise<void>();
+			const readFile = fileService.readFile.bind(fileService);
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				if (resource.toString() === firstAgent.toString()) {
+					const result = await readFile(resource, options, token);
+					firstReadCompleted.complete();
+					return result;
+				}
+				if (resource.toString() === secondAgent.toString()) {
+					secondReadStarted.complete();
+					await releaseSecondRead.p;
+				}
+				return readFile(resource, options, token);
+			});
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			const canceledDiscovery = service.getCustomAgents(cancellationTokenSource.token);
+			await Promise.all([firstReadCompleted.p, secondReadStarted.p]);
+			cancellationTokenSource.cancel();
+			await assert.rejects(canceledDiscovery, CancellationError);
+			releaseSecondRead.complete();
+			await timeout(0);
+			readFileStub.restore();
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.deepStrictEqual(
+				agents.map(agent => agent.name).sort(),
+				['agent1', 'agent2'],
+			);
+		});
+
+		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/claude-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Claude,
+				['command: "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.sh"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `${pluginUri.fsPath}/scripts/pre-tool.sh`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					CLAUDE_PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves and quotes PLUGIN_ROOT aliases in hooks from Open Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/open plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.OpenPlugin,
+				[
+					'bash: "${PLUGIN_ROOT}/scripts/pre-tool.sh"',
+					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
+				],
+			);
+			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				windows: quotedScript('pre-tool.ps1'),
+				linux: quotedScript('pre-tool.sh'),
+				osx: quotedScript('pre-tool.sh'),
+				windowsSource: 'powershell',
+				linuxSource: 'bash',
+				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
 		});
 
 
@@ -4810,6 +4941,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4856,6 +4988,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4909,6 +5042,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4989,6 +5123,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownPluginAgents', []),
 				instructions: observableValue('lockdownPluginInstructions', []),
 				mcpServerDefinitions: observableValue('lockdownPluginMcpServers', []),
+				automations: observableValue('lockdownPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -5024,6 +5159,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownInstructionPluginAgents', []),
 				instructions: observableValue<readonly IAgentPluginInstruction[]>('lockdownPluginInstructions', [{ uri: pluginInstructionUri, name: 'plugin' }]),
 				mcpServerDefinitions: observableValue('lockdownInstructionPluginMcpServers', []),
+				automations: observableValue('lockdownInstructionPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -5112,6 +5248,7 @@ suite('PromptsService', () => {
 				agents: observableValue<readonly IAgentPluginAgent[]>('managedPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
 				instructions: observableValue('managedPluginInstructions', []),
 				mcpServerDefinitions: observableValue('managedPluginMcpServers', []),
+				automations: observableValue('managedPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, ChatConfiguration.EnabledPlugins);
@@ -5131,6 +5268,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -5145,6 +5283,7 @@ suite('PromptsService', () => {
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				hooks,
 			};
@@ -5404,6 +5543,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -5418,6 +5558,7 @@ suite('PromptsService', () => {
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				instructions,
 			};

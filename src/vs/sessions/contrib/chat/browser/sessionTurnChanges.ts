@@ -7,7 +7,7 @@ import { constObservable, derived, derivedObservableWithCache, IObservable, IRea
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -54,21 +54,23 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		const requestChanges = this.getChangesForRequest(sessionResource, requestId);
 
 		return derivedObservableWithCache<IChatResponseFileChangesStats>(this, (reader, lastValue) => {
+			const requestDiffs = requestChanges?.read(reader) ?? [];
 			const readRequestStats = (): IChatResponseFileChangesStats => {
-				const changes = requestChanges?.read(reader) ?? [];
 				let insertions = 0, deletions = 0;
-				for (const change of changes) {
+				for (const change of requestDiffs) {
 					insertions += change.added;
 					deletions += change.removed;
 				}
-				return { files: changes.length, insertions, deletions };
+				return { files: requestDiffs.length, insertions, deletions };
 			};
 			let stats: IChatResponseFileChangesStats;
-			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
+			if (requestDiffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES) {
+				stats = readRequestStats();
+			} else if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
 				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
 				stats = readRequestStats();
 			} else {
-				const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+				const changeset = owner.chat.changesets.read(reader)
 					?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 				if (!changeset) {
 					stats = readRequestStats();
@@ -97,7 +99,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		if (context.isLastTurn) {
 			if (requestId === undefined) {
 				if (isAgentHostProviderId(owner.session.providerId)) {
-					void this._openSessionTurnChanges(owner.session);
+					void this._openSessionTurnChanges(owner.session, undefined, owner.chat);
 				} else {
 					const changes = owner.chat.lastTurnChanges;
 					if (changes) {
@@ -107,15 +109,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				return;
 			}
 
-			if (this._isMostRecentChat(owner.session, owner.chat)) {
-				void this._openSessionTurnChanges(owner.session);
-				return;
-			}
-
-			const changes = this._getSessionFileChanges(owner.session, chatResource, requestId);
-			if (changes) {
-				this._openTransientLastTurnChanges(owner.session, requestId, changes);
-			}
+			void this._openSessionTurnChanges(owner.session, undefined, owner.chat);
 			return;
 		}
 
@@ -162,11 +156,6 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);
 	}
 
-	private _getSessionFileChanges(session: ISession, chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
-		const changes = this.getChangesForRequest(chatResource, requestId);
-		return changes ? this._toSessionFileChanges(session, changes) : undefined;
-	}
-
 	private _toSessionFileChanges(session: ISession, changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
 		return derived(reader => {
 			const workspace = session.workspace?.read(reader);
@@ -193,8 +182,11 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		});
 	}
 
-	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
-		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges, chat?: IChat): Promise<void> {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (chat && (!activeSession || !isEqual(activeSession.resource, session.resource) || !isEqual(activeSession.activeChat.get().resource, chat.resource))) {
+			await this._sessionsService.openChat(session, chat.resource, { preserveFocus: true });
+		} else if (!isEqual(activeSession?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
 		this._layoutService.revealEditorPartExplicitly();

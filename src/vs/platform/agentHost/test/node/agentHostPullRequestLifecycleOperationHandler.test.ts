@@ -13,7 +13,7 @@ import type { IGitHubService } from '../../../github/common/githubService.js';
 import type { PullRequestMergeOptions, PullRequestMergePreparation } from '../../../github/common/githubPullRequestMutationService.js';
 import type { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostPullRequestLifecycleOperationHandler, type PullRequestLifecycleAction } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -73,10 +73,13 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			readonly preparation?: PullRequestMergePreparation;
 			readonly prepareMergeError?: Error;
 			readonly mergeMethod?: string;
+			/** Status per owner key; takes precedence over `status`. */
+			readonly statusByOwner?: ReadonlyMap<string, IAgentHostPullRequestStatus>;
 		},
-	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[] } {
+	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[]; readonly merged: string[] } {
 		const recorded: IRecordedCalls = { calls: [] };
 		const refreshes: string[] = [];
+		const merged: string[] = [];
 		const currentStatus = options?.status === null ? undefined : options?.status ?? status();
 
 		const mutations = new class extends mock<IPullRequestMutations>() {
@@ -115,8 +118,10 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 		const statusService: IAgentHostPullRequestStatusService = {
 			_serviceBrand: undefined,
 			onDidChangePullRequestStatus: Event.None,
-			getPullRequestStatus: () => currentStatus,
+			getPullRequestStatus: key => options?.statusByOwner ? options.statusByOwner.get(key) : currentStatus,
+			markPullRequestMerged: (sessionKey, url) => { merged.push(`${sessionKey}|${url}`); },
 			refresh: async (sessionKey: string) => { refreshes.push(sessionKey); },
+			resolveForLifecycle: async () => currentStatus,
 			dispose: () => { },
 		};
 
@@ -133,7 +138,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			gitHubService,
 			new NullLogService(),
 		);
-		return { handler, recorded, refreshes };
+		return { handler, recorded, refreshes, merged };
 	}
 
 	function invoke(handler: AgentHostPullRequestLifecycleOperationHandler): Promise<unknown> {
@@ -141,24 +146,44 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 	}
 
 	test('merges directly with the repository-allowed method', async () => {
-		const { handler, recorded, refreshes } = createHandler('merge');
+		const { handler, recorded, refreshes, merged } = createHandler('merge');
 		disposables.add({ dispose: () => { } });
 
 		await invoke(handler);
 
 		// The preparation gate runs before the merge, and the status is
 		// refreshed afterwards so the button bar re-derives.
-		assert.deepStrictEqual({ calls: recorded.calls, refreshed: refreshes.length }, { calls: ['prepareMerge', 'merge:SQUASH'], refreshed: 1 });
+		assert.deepStrictEqual({ calls: recorded.calls, refreshed: refreshes.length, merged }, {
+			calls: ['prepareMerge', 'merge:SQUASH'],
+			refreshed: 1,
+			merged: [`${sessionUri}|${pullRequestUrl}`],
+		});
+	});
+
+	test('acts on the pull request of the folder whose changes the action was invoked on', async () => {
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'other-folder');
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const { handler, recorded, refreshes, merged } = createHandler('merge', {
+			statusByOwner: new Map([[folderOwner, status({ url: otherPullRequestUrl, number: 9 })]]),
+		});
+
+		await handler.invoke({ channel: buildBranchChangesetUri(folderOwner), operationId: 'pr-merge' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls: recorded.calls, refreshes, merged }, {
+			calls: ['prepareMerge', 'merge:SQUASH'],
+			refreshes: [folderOwner],
+			merged: [`${folderOwner}|${otherPullRequestUrl}`],
+		});
 	});
 
 	test('enqueues instead of merging when the repository requires a merge queue', async () => {
-		const { handler, recorded } = createHandler('merge', {
+		const { handler, recorded, merged } = createHandler('merge', {
 			preparation: preparation({ mergeQueueRequired: true }),
 		});
 
 		await invoke(handler);
 
-		assert.deepStrictEqual(recorded.calls, ['prepareMerge', 'enqueue']);
+		assert.deepStrictEqual({ calls: recorded.calls, merged }, { calls: ['prepareMerge', 'enqueue'], merged: [] });
 	});
 
 	test('honours the configured merge method and rejects one the repository forbids', async () => {

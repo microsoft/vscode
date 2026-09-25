@@ -203,8 +203,9 @@ fn draw_page(term: &Term, lines: &[&str], offset: usize, page: usize) {
 fn draw_status_bar(term: &Term, offset: usize, total: usize, page: usize) {
 	let end = (offset + page).min(total);
 	let pct = (end * 100).checked_div(total).unwrap_or(100);
+	let scroll_hint = utf8_or_ascii("↑↓", "^v");
 	let bar = format!(
-		" lines {}-{} of {} ({pct}%)  ↑↓ scroll  PgUp/PgDn page  q quit ",
+		" lines {}-{} of {} ({pct}%)  {scroll_hint} scroll  PgUp/PgDn page  q quit ",
 		offset + 1,
 		end,
 		total,
@@ -345,11 +346,61 @@ pub fn print_banner_header(title: &str, elapsed: Duration) {
 /// Minimum label width so values align across banner lines.
 const BANNER_LABEL_WIDTH: usize = 9;
 
-/// Prints a single `➜  Label:   value` line inside a banner.
+const ASCII_BANNER_MARKER: &str = ">";
+const UTF8_BANNER_MARKER: &str = "➜";
+
+#[cfg(windows)]
+pub(crate) const PARENT_STDOUT_SUPPORTS_UTF8_ENV: &str = "VSCODE_CLI_PARENT_STDOUT_SUPPORTS_UTF8";
+
+pub(crate) fn banner_marker() -> &'static str {
+	utf8_or_ascii(UTF8_BANNER_MARKER, ASCII_BANNER_MARKER)
+}
+
+pub(crate) fn utf8_or_ascii<'a>(utf8: &'a str, ascii: &'a str) -> &'a str {
+	#[cfg(windows)]
+	let supports_utf8 = match std::env::var(PARENT_STDOUT_SUPPORTS_UTF8_ENV).as_deref() {
+		Ok("1") => true,
+		Ok("0") => false,
+		_ => stdout_supports_utf8(),
+	};
+	#[cfg(not(windows))]
+	let supports_utf8 = true;
+
+	if supports_utf8 {
+		utf8
+	} else {
+		ascii
+	}
+}
+
+#[cfg(windows)]
+pub(crate) fn stdout_supports_utf8() -> bool {
+	use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+	use windows_sys::Win32::System::Console::{
+		GetConsoleMode, GetConsoleOutputCP, GetStdHandle, STD_OUTPUT_HANDLE,
+	};
+
+	const UTF8_CODE_PAGE: u32 = 65001;
+
+	let stdout = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
+	if stdout.is_null() || stdout == INVALID_HANDLE_VALUE {
+		return false;
+	}
+
+	let mut mode = 0;
+	if unsafe { GetConsoleMode(stdout, &mut mode) } == 0 {
+		// Files and pipes carry UTF-8 bytes without console code-page decoding.
+		return true;
+	}
+
+	unsafe { GetConsoleOutputCP() == UTF8_CODE_PAGE }
+}
+
+/// Prints a single marker-prefixed `Label:   value` line inside a banner.
 pub fn print_banner_line(label: &str, value: &str) {
 	println!(
 		"  {}  {} {}",
-		style("➜").green().bold(),
+		style(banner_marker()).green().bold(),
 		style(format!(
 			"{label}:{:>pad$}",
 			"",
@@ -360,11 +411,11 @@ pub fn print_banner_line(label: &str, value: &str) {
 	);
 }
 
-/// Prints a dimmed `➜  Label:   hint` line inside a banner.
+/// Prints a dimmed marker-prefixed `Label:   hint` line inside a banner.
 pub fn print_banner_line_dim(label: &str, hint: &str) {
 	println!(
 		"  {}  {} {}",
-		style("➜").green().bold(),
+		style(banner_marker()).green().bold(),
 		style(format!(
 			"{label}:{:>pad$}",
 			"",

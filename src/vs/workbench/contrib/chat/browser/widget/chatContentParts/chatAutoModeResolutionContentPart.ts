@@ -5,6 +5,7 @@
 
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -20,13 +21,18 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 
 	private readonly isRouting: boolean;
 
+	protected override get collapsibleKind(): string {
+		return 'autoModeResolution';
+	}
+
 	constructor(
 		private readonly content: IChatAutoModeResolutionPart,
 		context: IChatContentPartRenderContext,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService);
+		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isRouting = !content.resolved;
 		this.setThinkingActive(this.isRouting);

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Keychain } from './common/keychain';
-import { GitHubServer, IGitHubServer } from './githubServer';
+import { GitHubServer, IGitHubServer, IGitHubToken } from './githubServer';
 import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraRenewedToken } from './entraTokenExchange';
 import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
@@ -33,6 +33,7 @@ interface SessionData {
 	};
 	scopes: string[];
 	accessToken: string;
+	authorizationServer?: UriComponents;
 }
 
 /** A session held only for the life of this process, and how long its token lasts. */
@@ -41,6 +42,8 @@ interface ITransientSession {
 	/** Absolute time, in ms since the epoch, after which the token stops working. */
 	readonly expiresAt: number;
 }
+
+const TOKEN_RENEWAL_WINDOW_MS = 60 * 60 * 1000;
 
 export enum AuthProviderType {
 	github = 'github',
@@ -267,7 +270,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	/** Every session held only by this process, whether or not its token is still any good. */
 	private get transientSessions(): vscode.AuthenticationSession[] {
-		return [...this._transientSessions.values()].map(held => held.session);
+		const now = Date.now();
+		return [...this._transientSessions.values()].map(held => ({
+			...held.session,
+			expiresAfter: held.expiresAt > now ? held.expiresAt - now : undefined
+		}));
 	}
 
 	get onDidChangeSessions() {
@@ -360,7 +367,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		let renewed: IEntraRenewedToken;
+		let renewed: IEntraRenewedToken & IGitHubToken;
 		try {
 			renewed = await this._githubServer.renewWithMicrosoft({
 				// No scopes means the caller did not care which, so neither do we.
@@ -397,8 +404,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		const session = this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]);
-		this._transientSessions.set(session.id, { session, expiresAt: Date.now() + renewed.expiresIn * 1000 });
+		const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed, [...renewed.scopes]), renewed.expiresAfter);
 		this.afterSessionLoad(session);
 		return session;
 	}
@@ -422,7 +428,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		for (const session of wanted) {
 			// No transient entry means a persisted session, and nothing persisted carries an expiry.
 			const held = this._transientSessions.get(session.id);
-			if (!held || held.expiresAt > now) {
+			if (!held || held.expiresAt > now + TOKEN_RENEWAL_WINDOW_MS) {
 				usable.push(session);
 			} else {
 				stale.push(session);
@@ -437,8 +443,26 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		const renewed = await Promise.all(stale.map(session => this.renew(session)));
-		this.evict(stale.filter((_, index) => !renewed[index]), 'their token ran out and could not be renewed');
-		return [...usable, ...renewed.filter(<T>(session?: T): session is T => Boolean(session))];
+		const expired: vscode.AuthenticationSession[] = [];
+		const retained: vscode.AuthenticationSession[] = [];
+		for (let index = 0; index < stale.length; index++) {
+			if (renewed[index]) {
+				continue;
+			}
+
+			const held = this._transientSessions.get(stale[index].id);
+			const remainingLifetime = held ? held.expiresAt - Date.now() : 0;
+			if (held && remainingLifetime > 0) {
+				retained.push({
+					...held.session,
+					expiresAfter: remainingLifetime
+				});
+			} else {
+				expired.push(stale[index]);
+			}
+		}
+		this.evict(expired, 'their token ran out and could not be renewed');
+		return [...usable, ...retained, ...renewed.filter(<T>(session?: T): session is T => Boolean(session))];
 	}
 
 	/**
@@ -513,7 +537,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		let renewed: IEntraRenewedToken;
+		let renewed: IEntraRenewedToken & IGitHubToken;
 		try {
 			renewed = await this._githubServer.renewWithMicrosoft({
 				scopes: session.scopes,
@@ -531,8 +555,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		// The same session with a new token, so it keeps its id and is reported as changed rather
 		// than as one session going away and another arriving.
-		const next: vscode.AuthenticationSession = { ...session, accessToken: renewed.token };
-		this._transientSessions.set(next.id, { session: next, expiresAt: Date.now() + renewed.expiresIn * 1000 });
+		const next = this.storeTransientSession({ ...session, accessToken: renewed.token, authorizationServer: renewed.authorizationServer }, renewed.expiresAfter);
 		this._logger.info(`Renewed session ${session.id}.`);
 		this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [next] });
 		return next;
@@ -572,6 +595,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 	}
 
+	private logSessionChange(source: 'secret-storage' | 'interactive-login', added: number, removed: number, changed: number): void {
+		const kind = added > 0 && removed > 0 ? 'replacement' : added > 0 ? 'addition' : removed > 0 ? 'removal' : 'change';
+		const message = `Session change: source=${source}, kind=${kind}, added=${added}, removed=${removed}, changed=${changed}.`;
+		if (kind === 'replacement') {
+			this._logger.info(message);
+		} else {
+			this._logger.trace(message);
+		}
+	}
+
 	private async checkForUpdates() {
 		// Only the persisted sessions are reconciled against the Keychain: transient sessions do not
 		// exist there, so they must never be diffed against it and reported as removed.
@@ -601,6 +634,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		});
 
 		if (added.length || removed.length) {
+			this.logSessionChange('secret-storage', added.length, removed.length, 0);
 			this._sessionChangeEmitter.fire({ added, removed, changed: [] });
 		}
 	}
@@ -675,7 +709,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
 				scopes: session.scopes,
-				accessToken: session.accessToken
+				accessToken: session.accessToken,
+				authorizationServer: session.authorizationServer
+					? vscode.Uri.from(session.authorizationServer)
+					: vscode.Uri.joinPath(this._githubServer.getFallbackBaseUri(), '/login/oauth')
 			};
 		});
 
@@ -748,6 +785,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 			await this.storeSessions(sessions);
 
+			this.logSessionChange('interactive-login', 1, removed.length, 0);
 			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
@@ -782,18 +820,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const exchanged = await this._githubServer.loginWithMicrosoft(scopes, {
 			microsoftAccount: await this.rememberedMicrosoftAccount(gitHubAccountLabel)
 		});
-		const session = this.sessionFor(exchanged.account, exchanged.token, scopes);
+		const session = this.storeTransientSession(this.sessionFor(exchanged.account, exchanged, scopes), exchanged.expiresAfter);
 		this.afterSessionLoad(session);
-
-		this._transientSessions.set(session.id, {
-			session,
-			// The exchange reports what GitHub said the token is good for; when that runs out is
-			// this side's question, since it is the side that has to hold the session until then.
-			expiresAt: Date.now() + exchanged.expiresIn * 1000
-		});
 
 		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 		return session;
+	}
+
+	private storeTransientSession(session: vscode.AuthenticationSession, expiresAfter: number): vscode.AuthenticationSession {
+		const result = { ...session, expiresAfter };
+		this._transientSessions.set(result.id, { session: result, expiresAt: Date.now() + expiresAfter });
+		return result;
 	}
 
 	/**
@@ -805,16 +842,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	 * findable by the wrong lookup or by none. The Entra token, and the fact that a session came
 	 * from Microsoft at all, are never encoded here.
 	 */
-	private sessionFor(account: IGitHubUserInfo, accessToken: string, scopes: string[]): vscode.AuthenticationSession {
+	private sessionFor(account: IGitHubUserInfo, token: IGitHubToken, scopes: string[]): vscode.AuthenticationSession {
 		return {
 			id: generateSessionId(),
-			accessToken,
+			accessToken: token.token,
 			account: {
 				label: account.accountName,
 				id: account.id,
 				icon: account.avatarUrl ? vscode.Uri.parse(account.avatarUrl) : undefined
 			},
-			scopes
+			scopes,
+			authorizationServer: token.authorizationServer
 		};
 	}
 
@@ -855,13 +893,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 	}
 
-	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
-		const userInfo = await this._githubServer.getUserInfo(token);
+	private async tokenToSession(token: IGitHubToken, scopes: string[]): Promise<vscode.AuthenticationSession> {
+		const userInfo = await this._githubServer.getUserInfo(token.token);
 		return {
 			id: generateSessionId(),
-			accessToken: token,
+			accessToken: token.token,
 			account: { label: userInfo.accountName, id: userInfo.id, icon: userInfo.avatarUrl ? vscode.Uri.parse(userInfo.avatarUrl) : undefined },
-			scopes
+			scopes,
+			authorizationServer: token.authorizationServer
 		};
 	}
 

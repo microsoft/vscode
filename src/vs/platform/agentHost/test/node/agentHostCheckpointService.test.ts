@@ -333,4 +333,106 @@ suite('AgentHostCheckpointService', () => {
 
 		assert.deepStrictEqual(commitCalls, []);
 	});
+
+	test('keeps alternating terminal checkpoint ancestry per repository', async () => {
+		class OrderedCheckpointDatabase extends TestSessionDatabase {
+			private readonly turnOrder: string[] = [];
+			private readonly checkpointRefs = new Map<string, string>();
+
+			override async createTurn(turnId: string): Promise<void> {
+				await super.createTurn(turnId);
+				if (!this.turnOrder.includes(turnId)) {
+					this.turnOrder.push(turnId);
+				}
+			}
+
+			override async setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
+				this.checkpointRefs.set(turnId, ref);
+			}
+
+			override async getTurnCheckpointRef(turnId: string): Promise<string | undefined> {
+				return this.checkpointRefs.get(turnId);
+			}
+
+			override async getPreviousCheckpointRef(turnId: string): Promise<string | undefined> {
+				const index = this.turnOrder.indexOf(turnId);
+				for (let i = index - 1; i >= 0; i--) {
+					const ref = this.checkpointRefs.get(this.turnOrder[i]);
+					if (ref) {
+						return ref;
+					}
+				}
+				return undefined;
+			}
+
+			override async getAllCheckpointRefs(): Promise<string[]> {
+				return this.turnOrder.map(turnId => this.checkpointRefs.get(turnId)).filter((ref): ref is string => ref !== undefined);
+			}
+		}
+
+		const session = AgentSession.uri('copilot', 'session');
+		const chatA = URI.parse('ahp-chat://default/session');
+		const chatB = URI.parse('ahp-chat://peer/session');
+		const repoA = URI.file('/repoA');
+		const repoB = URI.file('/repoB');
+		const baselineRef = buildCheckpointRefName(AgentSession.id(session), 0);
+		const refsByRepo = new Map<string, Map<string, string>>([
+			[repoA.toString(), new Map([[baselineRef, 'baseline-A']])],
+			[repoB.toString(), new Map([[baselineRef, 'baseline-B']])],
+		]);
+		const parentsByRepo = new Map<string, Map<string, string>>();
+		const treesByRepo = new Map<string, string[]>([
+			[repoA.toString(), ['a1-start', 'a1-terminal-end', 'a2-start', 'a2-terminal-end']],
+			[repoB.toString(), ['b1-start', 'b1-terminal-end']],
+		]);
+		const commitCalls: Array<{ repo: string; tree: string; parent: string | undefined }> = [];
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async workingDirectory => workingDirectory,
+			captureWorkingTreeAsTree: async repository => treesByRepo.get(repository.toString())?.shift(),
+			commitTree: async (repository, tree, parent) => {
+				const commit = `${repository.path}:${tree}`;
+				commitCalls.push({ repo: repository.path, tree, parent });
+				if (parent) {
+					let parents = parentsByRepo.get(repository.toString());
+					if (!parents) {
+						parents = new Map();
+						parentsByRepo.set(repository.toString(), parents);
+					}
+					parents.set(commit, parent);
+				}
+				return commit;
+			},
+			updateRef: async (repository, ref, oid) => { refsByRepo.get(repository.toString())?.set(ref, oid); },
+			revParse: async (repository, expression) => {
+				if (expression.endsWith('^')) {
+					const commit = refsByRepo.get(repository.toString())?.get(expression.slice(0, -1));
+					return commit ? parentsByRepo.get(repository.toString())?.get(commit) : undefined;
+				}
+				return refsByRepo.get(repository.toString())?.get(expression);
+			},
+		};
+		const service = store.add(new AgentHostCheckpointService(
+			createSessionDataService(new OrderedCheckpointDatabase()),
+			new CheckpointTestConfigurationService(repoA),
+			gitService,
+			new NullLogService(),
+		));
+
+		await service.captureTurnStartCheckpoint(session, chatA, 'turn-a1', [repoA]);
+		await service.captureTurnCheckpoint(session, chatA, 'turn-a1', [repoA]);
+		await service.captureTurnStartCheckpoint(session, chatB, 'turn-b1', [repoB]);
+		await service.captureTurnCheckpoint(session, chatB, 'turn-b1', [repoB]);
+		await service.captureTurnStartCheckpoint(session, chatA, 'turn-a2', [repoA]);
+		await service.captureTurnCheckpoint(session, chatA, 'turn-a2', [repoA]);
+
+		assert.deepStrictEqual(commitCalls, [
+			{ repo: '/repoA', tree: 'a1-start', parent: 'baseline-A' },
+			{ repo: '/repoA', tree: 'a1-terminal-end', parent: '/repoA:a1-start' },
+			{ repo: '/repoB', tree: 'b1-start', parent: 'baseline-B' },
+			{ repo: '/repoB', tree: 'b1-terminal-end', parent: '/repoB:b1-start' },
+			{ repo: '/repoA', tree: 'a2-start', parent: '/repoA:a1-terminal-end' },
+			{ repo: '/repoA', tree: 'a2-terminal-end', parent: '/repoA:a2-start' },
+		]);
+	});
 });

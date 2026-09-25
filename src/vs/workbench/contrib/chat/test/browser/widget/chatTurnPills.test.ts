@@ -76,7 +76,7 @@ suite('ChatTurnPills', () => {
 		const items: readonly [string, IActionViewItem][] = [
 			['icon+label', disposables.add(new ChatPillActionViewItem(undefined, action, {}))],
 			['changes', disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable(EMPTY_CHAT_CHANGES_STATS), instantiationService))],
-			['resource', disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels))],
+			['resource', disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels))],
 			['dropdown', disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions))],
 		];
 
@@ -107,23 +107,34 @@ suite('ChatTurnPills', () => {
 			label: 'plan.md',
 			resource: URI.file('/repo/plan.md'),
 			ariaLabel: 'Open plan.md',
+			ariaDescription: 'file:///repo/plan.md',
 			tooltip: 'file:///repo/plan.md',
 			open: () => { },
 		};
 		const items: readonly IActionViewItem[] = [
-			disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels)),
+			disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels)),
 			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
 		];
 
-		const ariaLabels = items.map(item => {
+		const accessibility = items.map(item => {
 			const container = document.createElement('div');
 			mainWindow.document.body.appendChild(container);
 			disposables.add(toDisposable(() => container.remove()));
 			item.render(container);
-			return container.querySelector('.monaco-button')?.getAttribute('aria-label');
+			const button = container.querySelector('.monaco-button');
+			return {
+				label: button?.getAttribute('aria-label'),
+				description: button?.getAttribute('aria-description'),
+			};
 		});
 
-		assert.deepStrictEqual(ariaLabels, ['Open plan.md', 'Open plan.md']);
+		assert.deepStrictEqual(accessibility, [{
+			label: 'Open plan.md',
+			description: 'file:///repo/plan.md',
+		}, {
+			label: 'Open plan.md',
+			description: 'file:///repo/plan.md',
+		}]);
 	});
 
 	test('focusing a pill restores its tab stop, so the row stays reachable by Tab', () => {
@@ -214,6 +225,7 @@ suite('ChatTurnPills', () => {
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
 				shownItems = items.map(item => ({ kind: item.kind, label: item.label, ariaDescription: item.ariaDescription, hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined }));
 			}
+			override hide(): void { }
 		});
 		const opened: string[] = [];
 		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {

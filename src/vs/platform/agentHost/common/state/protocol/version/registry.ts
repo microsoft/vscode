@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '0.9.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,7 +35,7 @@ export const PROTOCOL_VERSION = '1.0.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-	'1.0.0',
+	'0.9.0',
 	'0.8.0',
 	'0.7.0',
 	'0.6.0',
@@ -105,6 +105,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionMcpServerStateChanged]: '0.3.0',
 	[ActionType.SessionMcpServerStartRequested]: '0.5.2',
 	[ActionType.SessionMcpServerStopRequested]: '0.5.2',
+	[ActionType.SessionMcpServerBackgroundRequested]: '0.9.0',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',
 	[ActionType.SessionActivityChanged]: '0.1.0',
@@ -126,8 +127,9 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatTurnComplete]: '0.4.0',
 	[ActionType.ChatTurnCancelled]: '0.4.0',
 	[ActionType.ChatError]: '0.4.0',
-	[ActionType.ChatTurnResume]: '1.0.0',
+	[ActionType.ChatTurnResume]: '0.9.0',
 	[ActionType.ChatActivityChanged]: '0.5.0',
+	[ActionType.ChatChangesetsChanged]: '0.9.0',
 	[ActionType.ChatWorkingDirectorySet]: '0.7.0',
 	[ActionType.ChatWorkingDirectoryRemoved]: '0.7.0',
 	[ActionType.ChatUsage]: '0.4.0',
@@ -136,6 +138,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
 	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
 	[ActionType.ChatDraftChanged]: '0.5.0',
+	[ActionType.ChatIsArchivedChanged]: '0.9.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
 	[ActionType.ChatInputCompleted]: '0.4.0',

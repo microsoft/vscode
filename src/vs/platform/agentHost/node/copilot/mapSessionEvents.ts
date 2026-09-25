@@ -12,18 +12,21 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
-import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { FusionReplayState } from './copilotFusionReplay.js';
+import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -37,22 +40,6 @@ function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined)
 	return isAbsolute(path) || !workingDirectory || workingDirectory.scheme !== Schemas.file
 		? path
 		: join(workingDirectory.fsPath, path);
-}
-
-/**
- * Returns true if the event is a SDK-injected `user.message` that should not
- * be shown to the user (e.g. skill-content injection).
- *
- * The SDK marks these via a non-`'user'` `source` field. Older sessions
- * persisted before `source` existed will not be filtered; that is accepted
- * leakage rather than guessed-at content sniffing.
- */
-function isSyntheticUserMessage(event: SessionEvent): boolean {
-	if (event.type !== 'user.message') {
-		return false;
-	}
-	const source = event.data.source;
-	return !!source && source.toLowerCase() !== 'user';
 }
 
 /**
@@ -95,13 +82,14 @@ function stripPromptScaffolding(text: string): string {
 export interface ISdkShellExit {
 	readonly shellId: string;
 	readonly result: TerminalCommandResult;
+	readonly outputFilePath?: string;
 }
 
 type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
 	readonly outputPreview?: string | null;
 });
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
@@ -118,7 +106,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				};
-				shellExit = { shellId: sdkContent.shellId, result };
+				shellExit = {
+					shellId: sdkContent.shellId,
+					result,
+					...(sdkContent.outputFilePath ? { outputFilePath: sdkContent.outputFilePath } : {}),
+				};
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 				if (terminalIndex !== -1) {
 					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
@@ -126,7 +118,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 				} else if (terminal) {
 					content.push({
 						type: ToolResultContentType.Terminal,
-						resource: buildNonPtyShellTerminalUri(terminal.session, terminal.toolCallId),
+						resource: buildNonPtyShellTerminalUri(terminal.storage, terminal.session, terminal.chat, terminal.toolCallId),
 						title: terminal.title,
 						isPty: false,
 						result,
@@ -240,7 +232,7 @@ function readMcpUiResourceUri(source: unknown): string | undefined {
 	return readStringProperty(ui, 'resourceUri');
 }
 
-function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown): IToolStartInfo | undefined {
+function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown, resolveAgentName: ToolAgentNameResolver, toolTitle?: string): IToolStartInfo | undefined {
 	if (isHiddenTool(toolName)) {
 		return undefined;
 	}
@@ -256,11 +248,12 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	const toolArgs = cleaned ?? rawArgs;
 	const toolKind = getToolKind(toolName, parameters);
 	const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
-	const displayName = getToolDisplayName(toolName);
+	const mcpToolName = readStringProperty(source, 'mcpToolName');
+	const displayName = getToolDisplayName(toolName, { mcpToolName, toolTitle: toolTitle ?? readStringProperty(source, 'toolTitle') });
 	return {
 		toolName,
 		displayName,
-		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, workingDirectory)),
+		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName),
 		toolInput: getToolInputString(toolName, parameters, toolArgs),
 		toolKind,
 		language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
@@ -270,7 +263,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 		parameters,
 		parentToolCallId,
 		mcpServerName: readStringProperty(source, 'mcpServerName'),
-		mcpToolName: readStringProperty(source, 'mcpToolName'),
+		mcpToolName,
 		mcpUiResourceUri: readMcpUiResourceUri(source),
 	};
 }
@@ -342,8 +335,35 @@ export async function mapSessionEvents(
 		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
 		return mapped ?? deprecatedParentToolCallId;
 	};
+	// Coordination calls can be persisted before the events that identify their recipients.
+	const agentDisplayNamesById = getCopilotSubagentDisplayNames(events);
+	const toolTitlesByCallId = new Map<string, string>();
+	const resolveAgentName: ToolAgentNameResolver = agentId => agentDisplayNamesById.get(agentId);
+	// Durable phase outcomes identify the phase tiles that own the committed phase conversation.
+	const fusionPhaseToolCallIds = new Set<string>();
+	const resolveFusionPhaseToolCallId = (agentId: string | undefined, fusion: { readonly fusionId: string; readonly phaseId?: string } | null | undefined): string | undefined => {
+		const toolCallId = !agentId && fusion?.phaseId ? getFusionPhaseToolCallId(fusion.fusionId, fusion.phaseId) : undefined;
+		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
+	};
+	for (const event of events) {
+		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
+			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
+		}
+	}
+	for (const event of events) {
+		if (event.type === 'assistant.message') {
+			for (const request of event.data.toolRequests ?? []) {
+				if (request.toolTitle) {
+					toolTitlesByCallId.set(request.toolCallId, request.toolTitle);
+				}
+			}
+		}
+	}
 
 	for (const e of events) {
+		if (isProvisionalFusionConversationEvent(e)) {
+			continue;
+		}
 		if (e.type === 'subagent.started') {
 			subagentInfoByToolCallId.set(e.data.toolCallId, {
 				agentName: e.data.agentName,
@@ -359,8 +379,8 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
-			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
-			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d);
+			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
+			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d, resolveAgentName, toolTitlesByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
 			}
@@ -414,6 +434,19 @@ export async function mapSessionEvents(
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 	/** Same, per subagent tool call: applied when that subagent's turn is built. */
 	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
+	const subagentModels = new Map<string, string>();
+	const fusionReplay = new FusionReplayState(events);
+
+	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined): void => {
+		if (!parentToolCallId || !model) {
+			return;
+		}
+		subagentModels.set(parentToolCallId, model);
+		const builder = subagentBuilders.get(parentToolCallId);
+		if (builder) {
+			builder.message = { ...builder.message, model: { id: model } };
+		}
+	};
 
 	/** Envelope timestamp of the event currently being processed. */
 	let currentEventTimestamp: string | undefined;
@@ -456,16 +489,17 @@ export async function mapSessionEvents(
 	const ensureSubagentBuilder = (parentToolCallId: string): ITurnBuilder => {
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
-			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp });
+			const model = subagentModels.get(parentToolCallId);
+			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
 			}
-			const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
-			if (autoModeResolved) {
-				builder.usage = { model: autoModeResolved.chosenModel, _meta: { autoModeResolved } };
-				pendingSubagentAutoModeResolved.delete(parentToolCallId);
-			}
+		}
+		const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
+		if (autoModeResolved) {
+			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, autoModeResolved } };
+			pendingSubagentAutoModeResolved.delete(parentToolCallId);
 		}
 		touch(builder);
 		return builder;
@@ -480,10 +514,28 @@ export async function mapSessionEvents(
 	};
 
 	for (const e of events) {
+		if (isProvisionalFusionConversationEvent(e)) {
+			continue;
+		}
 		currentEventTimestamp = readEventTimestamp(e);
+		if (isCopilotFusionEvent(e)) {
+			fusionReplay.observe(e, { requestActive: rootRequestActive, hasTurn: !!parentBuilder });
+			if (parentBuilder && fusionReplay.drain(parentBuilder.responseParts)) {
+				touch(parentBuilder);
+			}
+			if (e.type === 'assistant.fusion_phase_completed' && !e.agentId && e.data.conversationScope === 'review') {
+				const content = formatFusionReviewContent(e.data.content);
+				if (content !== undefined) {
+					ensureSubagentBuilder(getFusionPhaseToolCallId(e.data.fusionId, e.data.phaseId)).responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
+				}
+			}
+			continue;
+		}
 		switch (e.type) {
 			case 'assistant.turn_start':
-				if (!e.agentId) {
+				if (e.agentId) {
+					recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
+				} else {
 					if (parentBuilder && parentTurnState === TurnState.Error) {
 						const waitingStartedAt = parentBuilder.waitingStartedAt === undefined ? undefined : Date.parse(parentBuilder.waitingStartedAt);
 						const resumedAt = currentEventTimestamp === undefined ? undefined : Date.parse(currentEventTimestamp);
@@ -522,7 +574,21 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.model_change': {
-				currentModel = { id: e.data.newModel };
+				if (e.agentId) {
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					recordSubagentModel(parentToolCallId, e.data.newModel);
+					if (parentToolCallId && e.data.previousModel !== e.data.newModel) {
+						pendingSubagentAutoModeResolved.delete(parentToolCallId);
+						const builder = subagentBuilders.get(parentToolCallId);
+						if (builder?.usage) {
+							const metadata = { ...builder.usage._meta };
+							delete metadata.autoModeResolved;
+							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
+						}
+					}
+				} else {
+					currentModel = { id: e.data.newModel };
+				}
 				break;
 			}
 			case 'session.auto_mode_resolved': {
@@ -572,7 +638,9 @@ export async function mapSessionEvents(
 					// fork / truncate RPCs operate on.
 					flushParent();
 					const turnId = e.id ?? messageId;
+					fusionReplay.beginTurn(turnId);
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
+					fusionReplay.drain(parentBuilder.responseParts);
 					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
@@ -590,7 +658,8 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				// A phase's final answer, the round without tool requests, is the response itself.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (hasToolRequests ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -679,10 +748,15 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'subagent.started': {
+				recordSubagentModel(e.data.toolCallId, e.data.model);
+				break;
+			}
+			case 'subagent.configured': {
+				recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
 				break;
 			}
 			case 'tool.execution_start': {
-				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
 				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
@@ -697,7 +771,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -726,7 +800,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory);
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName);
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -764,7 +838,11 @@ export async function mapSessionEvents(
 					if (!terminatedSubagentTurns.has(parentToolCallId)) {
 						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
 					}
-				} else {
+				} else if (!e.agentId) {
+					fusionReplay.interrupt(e.timestamp);
+					if (parentBuilder) {
+						fusionReplay.drain(parentBuilder.responseParts);
+					}
 					rootAssistantTurnActive = false;
 					rootRequestActive = false;
 					if (parentBuilder && !parentTurnTerminated) {
@@ -776,7 +854,9 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.idle':
-				rootRequestActive = false;
+				if (!e.agentId) {
+					rootRequestActive = false;
+				}
 				break;
 			default:
 				break;
@@ -792,7 +872,7 @@ export async function mapSessionEvents(
 		flushSubagent(parentToolCallId);
 	}
 
-	return { turns, subagentTurnsByToolCallId: subagentTurns };
+	return { turns: linkFusionPhaseChats(turns, subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
 
 	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {
@@ -801,7 +881,7 @@ export async function mapSessionEvents(
 				continue;
 			}
 			const info = toolInfoByCallId.get(request.toolCallId)
-				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory, request);
+				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory, request, resolveAgentName);
 			if (!info) {
 				continue;
 			}
@@ -830,6 +910,7 @@ export async function mapSessionEvents(
 				storedEdits,
 				subagentInfoByToolCallId.get(request.toolCallId),
 				workingDirectory,
+				resolveAgentName,
 			));
 		}
 	}
@@ -918,6 +999,32 @@ function sdkAttachmentToProtocol(
 	}
 }
 
+/** Marks restored phase tiles that own a conversation so their child chats are discovered like subagents. */
+function linkFusionPhaseChats(turns: Turn[], phaseTurns: ReadonlyMap<string, Turn[]>, sessionUriStr: string): Turn[] {
+	return turns.map(turn => ({
+		...turn,
+		responseParts: turn.responseParts.map(part => {
+			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed
+				|| readToolCallMeta(part.toolCall).toolKind !== 'fusionPhase' || !phaseTurns.has(part.toolCall.toolCallId)) {
+				return part;
+			}
+			const toolCall = part.toolCall;
+			return {
+				...part,
+				toolCall: {
+					...toolCall,
+					content: [...(toolCall.content ?? []), {
+						type: ToolResultContentType.Subagent,
+						resource: buildSubagentSessionUri(sessionUriStr, toolCall.toolCallId),
+						title: toolCall.displayName,
+						agentName: COPILOT_FUSION_PHASE_AGENT_NAME,
+					}],
+				},
+			};
+		}),
+	}));
+}
+
 /**
  * Builds a {@link ToolCallCompletedState}-shaped response part from an
  * SDK `tool.execution_complete` event. Restores file-edit content
@@ -934,6 +1041,7 @@ function makeCompletedToolCallPart(
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 	workingDirectory: URI | undefined,
+	resolveAgentName: ToolAgentNameResolver,
 ): ResponsePart {
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const content: ToolResultContent[] = [];
@@ -943,7 +1051,13 @@ function makeCompletedToolCallPart(
 	appendSdkToolResultContent(
 		content,
 		d.result?.contents,
-		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+		info.toolKind === 'terminal' ? {
+			storage: sessionUriStr,
+			session: AgentSession.uri(providerId, rawSessionId),
+			chat: chatURI,
+			toolCallId: d.toolCallId,
+			title: info.displayName,
+		} : undefined,
 	);
 
 	// Restore file edit content references from the database.
@@ -1003,7 +1117,7 @@ function makeCompletedToolCallPart(
 		invocationMessage: info.invocationMessage,
 		toolInput: info.toolInput,
 		success: d.success,
-		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory)),
+		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName),
 		content: content.length > 0 ? content : undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,

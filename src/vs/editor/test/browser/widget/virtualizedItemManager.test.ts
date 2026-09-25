@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
@@ -80,6 +81,44 @@ suite('VirtualizedItemManager', () => {
 
 		assert.deepStrictEqual(createdTemplateIds, ['text', 'image']);
 	});
+
+	test('isolates a failed binding without changing cached layout state', () => {
+		const itemA = new TestItem('a', 100);
+		const itemB = new TestItem('b', 200);
+		const bindingAttempts: string[] = [];
+		const errors: string[] = [];
+		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(constObservable([itemA, itemB]), createContext(), {
+			getId: item => item.id,
+			getTemplateId: () => 'test',
+			getUnboundSize: item => item.size,
+			createTemplate: () => new TestTemplate(bindingAttempts, 'a'),
+		}));
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error.message));
+		try {
+			const [virtualA, virtualB] = manager.virtualizedItems.get();
+			const range = new OffsetRange(0, 100);
+			virtualA.render(range, 0, 800, range);
+			virtualA.render(range, 0, 800, range);
+			virtualB.render(range, 0, 800, range);
+
+			assert.deepStrictEqual({
+				bindingAttempts,
+				errors,
+				virtualABinding: virtualA.binding.get(),
+				virtualASize: virtualA.size.get(),
+				virtualBBindingItem: virtualB.binding.get()?.item.id,
+			}, {
+				bindingAttempts: ['a', 'b'],
+				errors: ['Failed to bind a'],
+				virtualABinding: undefined,
+				virtualASize: 100,
+				virtualBBindingItem: 'b',
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
 });
 
 class TestItem {
@@ -122,7 +161,18 @@ class TestBinding extends VirtualizedItemBinding<TestItem> {
 }
 
 class TestTemplate extends VirtualizedItemTemplate<TestItem, TestBinding> {
+	constructor(
+		private readonly _bindingAttempts?: string[],
+		private readonly _itemToFail?: string,
+	) {
+		super();
+	}
+
 	protected createBinding(item: TestItem, _context: IVirtualizedItemBindingContext): TestBinding {
+		this._bindingAttempts?.push(item.id);
+		if (item.id === this._itemToFail) {
+			throw new Error(`Failed to bind ${item.id}`);
+		}
 		return new TestBinding(item, this);
 	}
 

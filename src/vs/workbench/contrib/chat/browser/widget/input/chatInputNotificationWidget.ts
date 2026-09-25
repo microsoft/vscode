@@ -26,7 +26,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languag
 import { filterConfigurationToSchema } from './chatModelConfigurationLogic.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -82,6 +82,8 @@ export interface IChatInputNotificationModelSelection {
 
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
+	readonly hostVisible?: IObservable<boolean>;
+	readonly inputUri?: URI;
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
@@ -125,6 +127,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _isTransientChat = false;
 	private _lastAnnouncementSignature: string | undefined;
 	private _visible = false;
+	private _hostVisible = true;
+	private _currentNotification: IChatInputNotification | undefined;
 	private _slot: HTMLElement | undefined;
 
 	constructor(
@@ -147,6 +151,12 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}));
 		this._notice.setVisible(false);
 
+		this._register(autorun(reader => {
+			this._hostVisible = this._delegate?.hostVisible?.read(reader) ?? true;
+			if (this._currentNotification) {
+				this._handleShown(this._currentNotification);
+			}
+		}));
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
@@ -178,6 +188,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return false;
 		});
 		const body = notification ? bodies.get(notification.id) : undefined;
+		this._currentNotification = body ? notification : undefined;
 		this._setVisible(!!notification && !!body);
 		const announcementSignature = notification && body ? getChatInputNotificationAnnouncementSignature(notification, body) : undefined;
 		if (announcementSignature !== this._lastAnnouncementSignature) {
@@ -195,7 +206,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
 		this._renderNotification(notification, body);
-		this._logShownTelemetry(notification);
+		this._handleShown(notification);
 		if (hadFocus) {
 			// The region is rebuilt on every render; keep focus inside it.
 			this.focus();
@@ -235,14 +246,12 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _resolveBody(notification: IChatInputNotification): IChatInputNotificationBody | undefined {
 		const context = this._getContext();
-		if (!isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
-			return undefined;
-		}
 		return resolveChatInputNotificationBody(notification, context, error => this._logError(error));
 	}
 
 	private _getContext(): IChatInputNotificationContext {
 		return {
+			inputUri: this._delegate?.inputUri,
 			sessionType: this._modelTargetChatSessionType,
 			sessionResource: this._sessionResource,
 			deferredNotificationsEnabled: this._deferredNotificationsEnabled,
@@ -313,7 +322,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				store: this._contentDisposables,
 				onActivate: () => queueMicrotask(() => {
 					this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(notification));
-					this._notificationService.dismissNotification(notification.id);
+					this._notificationService.dismissNotification(notification.id, notification);
 				}),
 			});
 		}
@@ -340,11 +349,11 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 				for (let i = 0; i < actions.length; i++) {
 					const action = actions[i];
-					const isLast = i === actions.length - 1;
+					const isPrimary = action.primary ?? i === actions.length - 1;
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(!isLast ? {
+						...(!isPrimary ? {
 							buttonBackground: undefined,
 							buttonHoverBackground: undefined,
 							buttonForeground: undefined,
@@ -354,11 +363,15 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 							buttonSecondaryBorder: undefined,
 						} : {}),
 						supportIcons: true,
-						secondary: !isLast,
+						secondary: !isPrimary,
 					}));
 					button.element.classList.add('chat-input-notification-action-button');
 					button.label = action.label;
 					button.element.ariaLabel = `${ariaTitle} ${action.label}`;
+					if (action.tooltip) {
+						this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, action.tooltip));
+						button.element.setAttribute('aria-description', action.tooltip);
+					}
 
 					this._contentDisposables.add(button.onDidClick(() => {
 						void this._executeAction(notification, action);
@@ -401,7 +414,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				break;
 		}
 		if (!action.keepOpen) {
-			this._notificationService.dismissNotification(notification.id);
+			this._notificationService.dismissNotification(notification.id, notification);
 		}
 	}
 
@@ -477,13 +490,21 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 	}
 
-	private _logShownTelemetry(notification: IChatInputNotification): void {
+	private _handleShown(notification: IChatInputNotification): void {
+		if (!this._hostVisible) {
+			return;
+		}
 		const data = this._getTelemetryData(notification);
 		if (this._lastShownTelemetryData?.id === data.id && this._lastShownTelemetryData.telemetryId === data.telemetryId) {
 			return;
 		}
 		this._lastShownTelemetryData = data;
 		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
+		try {
+			notification.onDidShow?.();
+		} catch (error) {
+			this._logError(error);
+		}
 	}
 
 	private _getTelemetryData(notification: IChatInputNotification): ChatInputNotificationTelemetryEvent {

@@ -113,6 +113,7 @@ export interface IProductConfiguration {
 	readonly win32VersionedUpdate?: boolean;
 	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
+	readonly linuxDesktopName?: string;
 	readonly embedderIdentifier?: string;
 	readonly agentsTelemetryAppName?: string;
 
@@ -131,6 +132,8 @@ export interface IProductConfiguration {
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 	readonly nlsCoreBaseUrl?: string;
+	/** Build-time hash of the commit and core NLS tables used to identify translated-message caches. */
+	readonly nlsMetadataHash?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -148,6 +151,7 @@ export interface IProductConfiguration {
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+		readonly accessScopes?: string[];
 	};
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };

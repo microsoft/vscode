@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 
 export interface ICopilotSystemNotification {
@@ -12,6 +13,33 @@ export interface ICopilotSystemNotification {
 	readonly messageText: string;
 	/** Whether the runtime notification wakes the agent loop when it arrives while idle. */
 	readonly startsTurn: boolean;
+}
+
+function getCopilotSubagentDisplayInfo(event: SessionEvent): { agentId: string; displayName: string } | undefined {
+	if (event.type === 'subagent.started' || event.type === 'subagent.completed' || event.type === 'subagent.failed') {
+		const displayName = event.data.agentDisplayName.trim();
+		return event.agentId && displayName ? { agentId: event.agentId, displayName } : undefined;
+	}
+	if (event.type === 'system.notification') {
+		const kind = event.data.kind;
+		if (kind.type === 'agent_completed' || kind.type === 'agent_idle') {
+			const displayName = kind.displayName?.trim() || kind.description?.trim() || kind.agentType.trim();
+			return displayName ? { agentId: kind.agentId, displayName } : undefined;
+		}
+	}
+	return undefined;
+}
+
+/** Collects agent labels without letting notification fallbacks replace canonical lifecycle names. */
+export function getCopilotSubagentDisplayNames(events: readonly SessionEvent[]): ReadonlyMap<string, string> {
+	const names = new Map<string, string>();
+	for (const event of events) {
+		const identity = getCopilotSubagentDisplayInfo(event);
+		if (identity && (event.type !== 'system.notification' || !names.has(identity.agentId))) {
+			names.set(identity.agentId, identity.displayName);
+		}
+	}
+	return names;
 }
 
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
@@ -34,17 +62,28 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			};
 		}
 		case 'agent_completed':
+		case 'agent_idle': {
+			const name = getCopilotSubagentDisplayInfo(event)?.displayName;
+			const formattedName = name ? appendEscapedMarkdownInlineCode(name) : undefined;
+			if (kind.type === 'agent_idle') {
+				return {
+					messageText: formattedName
+						? localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentIdle', "Background agent is complete"),
+					startsTurn: true,
+				};
+			}
 			return {
 				messageText: kind.status === 'failed'
-					? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", kind.agentId)
-					: localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", kind.agentId),
+					? formattedName
+						? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentFailed', "Background agent failed")
+					: formattedName
+						? localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentCompleted', "Background agent completed"),
 				startsTurn: true,
 			};
-		case 'agent_idle':
-			return {
-				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
-				startsTurn: true,
-			};
+		}
 		case 'factory_completed':
 			return {
 				messageText: kind.status === 'error'

@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
-import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -29,13 +29,17 @@ class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly calls: string[] = [];
+	readonly workingDirectories: string[] = [];
 	uncommitted = true;
+	currentBranchName: string | undefined = 'feature/test';
+	currentBranch: string | undefined = 'feature/test';
 	diffs: readonly ISessionFileDiff[] | undefined = [{
 		after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
+	async getCurrentBranchName(): Promise<string | undefined> { return this.currentBranchName; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
@@ -48,12 +52,16 @@ class TestGitService implements IAgentHostGitService {
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async createBranch(): Promise<void> { }
-	async hasUncommittedChanges(): Promise<boolean> {
+	async checkout(): Promise<void> { }
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
+		this.workingDirectories.push(workingDirectory.toString());
 		return this.uncommitted;
 	}
-	async commitAll(_workingDirectory: URI, message: string): Promise<void> {
+	async createStash(): Promise<void> { }
+	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
+		this.workingDirectories.push(workingDirectory.toString());
 		this.uncommitted = false;
 	}
 	async mergeBranch(): Promise<string> { return ''; }
@@ -62,8 +70,9 @@ class TestGitService implements IAgentHostGitService {
 	async pull(): Promise<void> { }
 	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
+	async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
+		this.workingDirectories.push(workingDirectory.toString());
 		return this.diffs;
 	}
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -148,7 +157,7 @@ function createAuthenticationService(token: string | undefined): IAgentHostAuthe
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; stateManager: AgentHostStateManager; committedSessions: string[] } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const committedSessions: string[] = [];
@@ -172,8 +181,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService(), stateManager),
 		session,
+		stateManager,
 		committedSessions,
 	};
 }
@@ -187,7 +197,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			message: result.message,
@@ -199,8 +209,47 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session'],
-			committedSessions: ['agent:/session'],
+			changesetCalls: [`onCommitted:${buildDefaultChatUri(session.toString())}`],
+			committedSessions: [buildDefaultChatUri(session.toString())],
+		});
+	});
+
+	test('runs and refreshes a peer-chat operation in the peer working directory', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session, stateManager, committedSessions } = setup(disposables, gitService, new TestCopilotApiService(), changesets);
+		const peer = buildChatUri(session.toString(), 'peer');
+		stateManager.addChat(session.toString(), peer, { workingDirectories: [URI.file('/peer-repo').toString()] });
+
+		await handler.invoke({ channel: buildUncommittedChangesetUri(peer), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			workingDirectories: gitService.workingDirectories,
+			committedSessions,
+		}, {
+			workingDirectories: ['file:///peer-repo', 'file:///peer-repo', 'file:///peer-repo'],
+			committedSessions: [peer],
+		});
+	});
+
+	test('commits changes from a detached HEAD', async () => {
+		const gitService = new TestGitService();
+		gitService.currentBranchName = undefined;
+		gitService.currentBranch = 'abc1234';
+		const copilotApiService = new TestCopilotApiService();
+		const changesets = new TestChangesetService();
+		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			prompt: copilotApiService.calls[0]?.request.messages[1]?.content,
+			gitCalls: gitService.calls,
+		}, {
+			message: { markdown: 'Committed changes with message: `Update session changes`' },
+			prompt: `Repository: repo\nBranch: abc1234\nChanged files:\n- Create: ${URI.file('/repo/file.ts').fsPath} (+1 -0)`,
+			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 		});
 	});
 

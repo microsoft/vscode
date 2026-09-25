@@ -109,6 +109,25 @@ suite('copilotToolDisplay — friendly tool names', () => {
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
 	});
+
+	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
+		const toolName = 'io-github-github-github-mcp-server-issue_read';
+		assert.deepStrictEqual({
+			title: getToolDisplayName(toolName, { toolTitle: 'Read issue', mcpToolName: 'issue_read' }),
+			shortName: getToolDisplayName(toolName, { mcpToolName: 'issue_read' }),
+			blankTitle: getToolDisplayName(toolName, { toolTitle: '  ', mcpToolName: 'issue_read' }),
+			trimmedTitle: getToolDisplayName(toolName, { toolTitle: ' Read issue ' }),
+			blankMetadata: getToolDisplayName(toolName, { toolTitle: '', mcpToolName: '  ' }),
+			builtIn: getToolDisplayName('bash', { toolTitle: 'SDK shell title' }),
+		}, {
+			title: 'Read issue',
+			shortName: 'issue_read',
+			blankTitle: 'issue_read',
+			trimmedTitle: 'Read issue',
+			blankMetadata: toolName,
+			builtIn: 'Run Shell Command',
+		});
+	});
 });
 
 suite('copilotToolDisplay — edit tool classification', () => {
@@ -165,6 +184,101 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
 		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
+suite('getPermissionDisplay — read confirmation title', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const wd = URI.file('/repo/project');
+
+	function readRequest(path: string, requestSandboxBypass?: boolean): PermissionRequest {
+		return { kind: 'read', intention: `Read file: ${path}`, path, ...(requestSandboxBypass ? { requestSandboxBypass } : {}) } as PermissionRequest;
+	}
+
+	/**
+	 * The runtime's unauthorized-path gate reuses the access kind and carries
+	 * `paths` rather than the per-kind `path`.
+	 */
+	function unauthorizedPathGateRequest(...paths: string[]): PermissionRequest {
+		return { kind: 'read', intention: 'Read files', paths } as unknown as PermissionRequest;
+	}
+
+	test('claims "outside of workspace" only when the path really is outside', () => {
+		assert.deepStrictEqual({
+			inside: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), wd).confirmationTitle,
+			insideDirectory: getPermissionDisplay(readRequest('/repo/project/src'), wd).confirmationTitle,
+			outside: getPermissionDisplay(readRequest('/etc/hosts'), wd).confirmationTitle,
+			secondRoot: getPermissionDisplay(readRequest('/repo/other/lib.ts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
+			outsideEveryRoot: getPermissionDisplay(readRequest('/etc/hosts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
+			pathGate: getPermissionDisplay(unauthorizedPathGateRequest('/etc/hosts'), wd).confirmationTitle,
+			relative: getPermissionDisplay(readRequest('README.md'), wd).confirmationTitle,
+			unknownWorkspace: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), undefined).confirmationTitle,
+			sandboxBypass: getPermissionDisplay(readRequest('/repo/project/src/app.ts', true), wd).confirmationTitle,
+		}, {
+			inside: 'Allow reading file?',
+			insideDirectory: 'Allow reading file?',
+			outside: 'Allow reading file outside of workspace?',
+			secondRoot: 'Allow reading file?',
+			outsideEveryRoot: 'Allow reading file outside of workspace?',
+			pathGate: 'Allow reading file outside of workspace?',
+			relative: 'Allow reading file?',
+			unknownWorkspace: 'Allow reading file?',
+			sandboxBypass: 'Read file outside the sandbox?',
+		});
+	});
+});
+
+suite('getPermissionDisplay — server tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the plain-language set_workspace confirmation without raw input', () => {
+		assert.deepStrictEqual(
+			getPermissionDisplay(customToolPermissionRequest('set_workspace', {
+				workspaceFolder: '/workspace/app',
+				isolation: false,
+			})),
+			{
+				confirmationTitle: 'Continue in app?',
+				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				toolInput: undefined,
+				permissionKind: 'custom-tool',
+				permissionPath: undefined,
+			},
+		);
+	});
+});
+
+suite('getPermissionDisplay — MCP tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the canonical tool title without changing the permission request', () => {
+		const request: PermissionRequest = {
+			kind: 'mcp',
+			serverName: 'GitHub',
+			toolName: 'issue_read',
+			toolTitle: 'Read issue',
+			readOnly: true,
+			args: { issue_number: 123 },
+		};
+		assert.deepStrictEqual({
+			display: getPermissionDisplay(request),
+			fallback: getPermissionDisplay({ ...request, toolTitle: '' }).invocationMessage,
+			toolName: request.toolName,
+		}, {
+			display: {
+				confirmationTitle: 'Allow tool from GitHub?',
+				invocationMessage: 'GitHub: Read issue',
+				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
+				permissionKind: 'mcp',
+				permissionPath: undefined,
+			},
+			fallback: 'GitHub: issue_read',
+			toolName: 'issue_read',
+		});
 	});
 });
 
@@ -373,6 +487,69 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
 		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
 		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
+	});
+
+	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+		test(`uses the canonical agent name in streaming, ready, and completed ${toolName} messages`, () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const parameters = { agent_id: agentId };
+			const resolveAgentName = (id: string) => id === agentId ? 'catalog-perf' : undefined;
+			const displayName = getToolDisplayName(toolName);
+			const messages = [
+				getStreamingInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getPastTenseMessage(toolName, displayName, parameters, true, undefined, undefined, resolveAgentName),
+			].map(message => typeof message === 'string' ? message : message.markdown);
+
+			assert.deepStrictEqual({ messages, parameters }, {
+				messages: Array(3).fill(`${verb} \`catalog-perf\``),
+				parameters: { agent_id: agentId },
+			});
+		});
+	}
+
+	test('keeps the execution id as the display fallback when the agent name is unknown or blank', () => {
+		const names: Record<string, string | undefined> = { 'blank-agent': '   ' };
+		assert.deepStrictEqual({
+			unknown: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'unknown-agent' }, undefined, id => names[id]),
+			blank: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'blank-agent' }, undefined, id => names[id]),
+		}, {
+			unknown: { markdown: 'Read agent `unknown-agent`' },
+			blank: { markdown: 'Read agent `blank-agent`' },
+		});
+	});
+
+	test('names each recipient of a multi-agent write without changing routing arguments', () => {
+		const names = new Map([['agent-1', 'Renderer reviewer'], ['agent-2', 'Review `permissions`']]);
+		const parameters = { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' };
+		const resolveAgentName = (id: string) => names.get(id);
+		const messages = [
+			getStreamingInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getPastTenseMessage('write_agent', 'Write to Agent', parameters, true, undefined, undefined, resolveAgentName),
+		];
+		assert.deepStrictEqual({ messages, parameters }, {
+			messages: Array(3).fill({ markdown: 'Write to agents `Renderer reviewer`, `` Review `permissions` ``, `unknown-agent`' }),
+			parameters: { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' },
+		});
+	});
+
+	test('describes scoped writes and tolerates incomplete streaming recipients', () => {
+		assert.deepStrictEqual([
+			invocation('write_agent', { scope: 'children' }),
+			pastTense('write_agent', { scope: 'siblings' }),
+			invocation('write_agent', { agent_ids: ['agent-1'] }),
+			invocation('write_agent', { agent_ids: ['', 123, null] }),
+			invocation('write_agent', { agent_ids: 'agent-1' }),
+			invocation('write_agent', { scope: 'invalid' }),
+		], [
+			'Write to child agents',
+			'Write to sibling agents',
+			'Write to agent `agent-1`',
+			'Write to agent',
+			'Write to agent',
+			'Write to agent',
+		]);
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {

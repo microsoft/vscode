@@ -14,7 +14,8 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
@@ -45,6 +46,18 @@ suite('copilotPluginConverters', () => {
 	// ---- toSdkMcpServers ------------------------------------------------
 
 	suite('toSdkMcpServers', () => {
+
+		test('matches persistent Copilot configuration conversion', () => {
+			const configurations: IMcpServerConfiguration[] = [
+				{ type: McpServerType.LOCAL, command: 'node', args: ['server.js'], cwd: '/workspace', env: { PORT: 3000, OMIT: null, TOKEN: '$TOKEN' } },
+				{ type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: { Authorization: '$TOKEN' }, oauth: { clientId: 'client' } },
+				{ type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' },
+			];
+			const defs = configurations.map((configuration, index): IMcpServerDefinition => ({
+				name: String(index), uri: URI.file('/plugin'), configuration, customization: stubMcpCustomization(String(index)),
+			}));
+			assert.deepStrictEqual(toSdkMcpServers(defs), Object.fromEntries(defs.map(def => [def.name, toCopilotMcpServerConfiguration(def.configuration)])));
+		});
 
 		test('converts local server definitions', () => {
 			const defs: IMcpServerDefinition[] = [{
@@ -114,6 +127,28 @@ suite('copilotPluginConverters', () => {
 					type: 'sse',
 					url: 'https://example.com/sse',
 					tools: ['*'],
+				},
+			});
+		});
+
+		test('converts remote OAuth client configuration', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'slack',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					url: 'https://mcp.slack.com/mcp',
+					oauth: { clientId: 'public-client-id' },
+				},
+				customization: stubMcpCustomization('slack'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				slack: {
+					type: 'http',
+					url: 'https://mcp.slack.com/mcp',
+					tools: ['*'],
+					oauthClientId: 'public-client-id',
 				},
 			});
 		});
@@ -695,6 +730,21 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different skill invocation metadata', () => {
+			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
+				uri: URI.file('/a/SKILL.md'),
+				name: 'a',
+				...flags,
+				customization: { ...stubSkillCustomization('a'), ...flags },
+			});
+			const defaults = makePlugin({ skills: [makeSkill({})] });
+
+			assert.deepStrictEqual([
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
+			], [false, false]);
 		});
 
 		test('returns false for different MCP default cwd URIs', () => {

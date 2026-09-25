@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { localize } from '../../../../nls.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { GitHubService, IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { IGitHubEndpointProvider, IGitHubTokenProvider } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -31,17 +33,21 @@ class WorkbenchGitHubEndpointProvider implements IGitHubEndpointProvider {
 	private _getEndpoints() {
 		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
 		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (authenticationProvider.enterprise && !enterpriseUri) {
+			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
+		}
 		return deriveGitHubEndpoints(enterpriseUri);
 	}
 }
 
-class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
+export class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
 
 	readonly onDidChangeToken: Event<void>;
 
 	constructor(
 		private readonly _authenticationService: IAuthenticationService,
 		private readonly _defaultAccountService: IDefaultAccountService,
+		private readonly _logService: ILogService,
 	) {
 		this.onDidChangeToken = Event.any(
 			Event.map(Event.filter(
@@ -60,17 +66,31 @@ class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
 			? sessions.find(session => session.id === defaultAccount.sessionId)
 			: undefined;
 		if (defaultAccount && !defaultSession) {
+			this._logService.warn(`[WorkbenchGitHubTokenProvider] Default account session was not found for provider '${provider.id}' among ${sessions.length} session(s)`);
 			return undefined;
 		}
-		if (defaultSession?.scopes.includes('repo')) {
-			return defaultSession.accessToken;
+		const repositorySession = sessions.find(session =>
+			session.scopes.includes('repo')
+			&& (!defaultSession || session.account.id === defaultSession.account.id)
+		);
+		if (repositorySession) {
+			this._logService.trace(`[WorkbenchGitHubTokenProvider] Reusing a repository-capable session for provider '${provider.id}' with scopes [${repositorySession.scopes.join(', ')}]`);
+			return repositorySession.accessToken;
 		}
 		const repositorySessions = await this._authenticationService.getSessions(provider.id, ['repo'], {
 			createIfNone: true,
 			...(defaultSession ? { account: defaultSession.account } : {}),
 		}, true);
-		return repositorySessions.find(session => !defaultSession || session.account.id === defaultSession.account.id)?.accessToken;
+		const resolvedSession = repositorySessions.find(session => !defaultSession || session.account.id === defaultSession.account.id);
+		if (!resolvedSession) {
+			this._logService.warn(`[WorkbenchGitHubTokenProvider] No repository-capable session resolved for provider '${provider.id}'; initial session scopes: ${formatSessionScopes(sessions)}; repository query scopes: ${formatSessionScopes(repositorySessions)}`);
+		}
+		return resolvedSession?.accessToken;
 	}
+}
+
+function formatSessionScopes(sessions: readonly { readonly scopes: readonly string[] }[]): string {
+	return sessions.length ? sessions.map(session => `[${session.scopes.join(', ')}]`).join(', ') : 'none';
 }
 
 export class WorkbenchGitHubService extends GitHubService {
@@ -82,7 +102,7 @@ export class WorkbenchGitHubService extends GitHubService {
 	) {
 		super({
 			endpoint: new WorkbenchGitHubEndpointProvider(defaultAccountService),
-			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService),
+			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService, logService),
 		}, logService);
 	}
 }

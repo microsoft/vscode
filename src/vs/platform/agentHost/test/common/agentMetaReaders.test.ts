@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -39,6 +40,13 @@ suite('Agent host _meta readers', () => {
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
+		});
+
+		test('validates the sandbox bypass flag', () => {
+			assert.deepStrictEqual(
+				[true, false, 'true', 1, undefined].map(value => readToolCallMeta(toolCall({ 'agentHost.sandboxBypass': value }))),
+				[{ 'agentHost.sandboxBypass': true }, { 'agentHost.sandboxBypass': false }, {}, {}, {}],
+			);
 		});
 
 		test('reads valid keys and drops wrong-typed / unknown keys', () => {
@@ -83,6 +91,48 @@ suite('Agent host _meta readers', () => {
 			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
 			assert.deepStrictEqual(wire, { toolKind: 'search' });
 			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
+		});
+
+		test('reads a progress message and drops a non-string one', () => {
+			const wire = toToolCallMeta({ progressMessage: 'Searching' });
+			assert.deepStrictEqual({ wire, read: readToolCallMeta(toolCall(wire)), dropped: readToolCallMeta(toolCall({ progressMessage: 42 })) }, {
+				wire: { progressMessage: 'Searching' },
+				read: { progressMessage: 'Searching' },
+				dropped: {},
+			});
+		});
+
+		test('validates Fusion phase metadata and presentation-only classification', () => {
+			const phase = { fusionId: 'fusion', phaseId: 'phase', model: 'model', startedAt: 123, duration: 10 };
+			const statuses: AgentFusionPhaseStatus[] = ['running', 'succeeded', 'failed', 'cancelled'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'completed', 'future', 1, true, {}, []];
+			assert.deepStrictEqual({
+				valid: statuses.map(status => readToolCallMeta(toolCall(toToolCallMeta({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })))),
+				invalid: invalid.map(status => readToolCallMeta(toolCall({ fusionPhase: { ...phase, status } })).fusionPhase),
+				presentation: ['fusionPhase', 'terminal', 'subagent', 'search', 'read', 'future', undefined, null, 1]
+					.map(toolKind => isPresentationOnlyToolCall(toolCall({ toolKind }))),
+				phaseWithoutKind: isPresentationOnlyToolCall(toolCall({ fusionPhase: { ...phase, status: 'running' } })),
+			}, {
+				valid: statuses.map(status => ({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })),
+				invalid: invalid.map(() => undefined),
+				presentation: [true, false, false, false, false, false, false, false, false],
+				phaseWithoutKind: false,
+			});
+		});
+	});
+
+	suite('readAgentSystemNotificationMeta', () => {
+		test('round trips Fusion statuses and drops malformed values', () => {
+			const statuses: AgentFusionProgressStatus[] = ['selected', 'completed', 'failed', 'cancelled', 'degraded'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'running', 'future', 1, true, {}, []];
+			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
+			assert.deepStrictEqual({
+				valid: statuses.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus }) })),
+				invalid: invalid.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: { fusionStatus } })),
+			}, {
+				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
+				invalid: invalid.map(() => empty),
+			});
 		});
 	});
 
@@ -190,6 +240,7 @@ suite('Agent host _meta readers', () => {
 					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 					'- Produce the edit directly rather than explaining it or writing a tutorial.',
@@ -202,6 +253,7 @@ suite('Agent host _meta readers', () => {
 					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 					'- Produce the edit directly rather than explaining it or writing a tutorial.',
@@ -248,9 +300,9 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmd, { command: 'rename' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
 
-			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', argumentHint: 'New name', description: undefined });
-			assert.deepStrictEqual(cmdWithHint, { command: 'rename', argumentHint: 'New name' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', argumentHint: 'New name' });
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
 
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });

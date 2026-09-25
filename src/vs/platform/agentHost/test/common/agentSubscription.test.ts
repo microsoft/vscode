@@ -9,11 +9,15 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationCatalogState, type AutomationRunState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
+import { chatReducer } from '../../common/state/sessionReducers.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 // Helpers
 
@@ -87,8 +91,28 @@ const changesetUri = `${sessionUri}/changeset/session`;
 const automationUri = 'ahp-automation:/test-automation';
 const automationRunUri = 'ahp-automation-run:/test-run';
 
-function makeAutomationCatalogState(): AutomationCatalogState {
-	return { automations: [] };
+suite('resolveAgentHostSession', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves peer chats and folder changeset owners to their containing session', () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
+		const terminal = buildNonPtyShellTerminalUri(sessionUri, sessionUri, peer, 'tool');
+
+		assert.deepStrictEqual({
+			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
+			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
+			terminal: resolveAgentHostSession(URI.parse(terminal)).toString(),
+		}, {
+			peer: sessionUri,
+			folder: sessionUri,
+			terminal: sessionUri,
+		});
+	});
+});
+
+function makeAutomationCatalogState(): AutomationState {
+	return { entries: [] };
 }
 
 function makeAutomationRunState(): AutomationRunState {
@@ -121,7 +145,7 @@ suite('Automation subscriptions', () => {
 			definition,
 		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, AUTOMATION_CATALOG_URI));
 
-		const requested = subscription.value as AutomationCatalogState;
+		const requested = subscription.value as AutomationState;
 		subscription.receiveEnvelope(makeEnvelope({
 			type: ActionType.AutomationSet,
 			automation: {
@@ -135,8 +159,8 @@ suite('Automation subscriptions', () => {
 		}, 2, undefined, undefined, AUTOMATION_CATALOG_URI));
 
 		assert.deepStrictEqual({
-			requested: requested.automations,
-			authoritative: (subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+			requested: requested.entries,
+			authoritative: (subscription.value as AutomationState).entries.map(automation => automation.resource),
 		}, {
 			requested: [],
 			authoritative: [automationUri],
@@ -178,7 +202,7 @@ suite('Automation subscriptions', () => {
 			triggers: [],
 		};
 		subscription.handleSnapshot({
-			automations: [{
+			entries: [{
 				resource: automationUri,
 				definition,
 				runs: [],
@@ -194,7 +218,7 @@ suite('Automation subscriptions', () => {
 		}, 1, { clientId: 'c1', clientSeq: 1 }, 'Automation has an active run.', AUTOMATION_CATALOG_URI));
 
 		assert.deepStrictEqual(
-			(subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+			(subscription.value as AutomationState).entries.map(automation => automation.resource),
 			[automationUri],
 		);
 	});
@@ -336,6 +360,43 @@ suite('RootStateSubscription', () => {
 		sub.handleSnapshot(makeRootState({ activeSessions: 0 }), 1);
 		// Envelope at seq 1 should not replay since fromSeq === 1
 		assert.strictEqual((sub.value as RootState).activeSessions, 0);
+	});
+
+	test('snapshot refresh buffers newer envelopes so a stale snapshot cannot drop them', () => {
+		const sub = disposables.add(new RootStateSubscription('c1', noop));
+		sub.handleSnapshot(makeRootState({ activeSessions: 1 }), 10);
+
+		// Re-subscribing an already-seated channel: the snapshot is computed at
+		// seq 23 but a newer action reaches the client first.
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 7 },
+			24,
+		));
+		assert.strictEqual((sub.value as RootState).activeSessions, 1, 'newer action is held back until the snapshot lands');
+
+		sub.handleSnapshot(makeRootState({ activeSessions: 3 }), 23);
+		assert.strictEqual((sub.value as RootState).activeSessions, 7, 'newer action wins over the older snapshot');
+	});
+
+	test('cancelling a snapshot refresh applies what it buffered', () => {
+		const sub = disposables.add(new RootStateSubscription('c1', noop));
+		sub.handleSnapshot(makeRootState({ activeSessions: 1 }), 10);
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 7 },
+			24,
+		));
+
+		sub.cancelSnapshotRefresh();
+		assert.strictEqual((sub.value as RootState).activeSessions, 7);
+
+		// Refresh mode is off again: later envelopes apply directly.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 9 },
+			25,
+		));
+		assert.strictEqual((sub.value as RootState).activeSessions, 9);
 	});
 
 	test('setError makes value return the error', () => {
@@ -703,6 +764,107 @@ suite('ChatStateSubscription', () => {
 		});
 	});
 
+	for (const bufferedAcknowledgement of [false, true]) {
+		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
+			const sub = createSub();
+			const start: ChatTurnStartedAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			};
+			const clientSeq = sub.applyOptimistic(start);
+			if (bufferedAcknowledgement) {
+				sub.receiveEnvelope(makeEnvelope(start, 1, { clientId: 'c1', clientSeq }));
+			}
+			const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+			sub.handleSnapshot(snapshot, 1);
+			const progress = {
+				type: ActionType.ChatToolCallStart,
+				turnId: start.turnId,
+				toolCallId: 'tool-1',
+				toolName: 'reply',
+				displayName: 'Reply',
+			} as const;
+			sub.receiveEnvelope(makeEnvelope(progress, 2));
+
+			assert.deepStrictEqual({
+				value: sub.value,
+				pending: sub.getPendingActions(),
+			}, {
+				value: chatReducer(snapshot, progress, noop),
+				pending: [],
+			});
+		});
+	}
+
+	test('snapshot confirms a completed optimistic turn without restarting it', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const snapshot = chatReducer(chatReducer(makeChatState(chatUri), start, noop), {
+			type: ActionType.ChatTurnComplete,
+			turnId: start.turnId,
+			duration: 1000,
+		}, noop);
+		sub.handleSnapshot(snapshot, 2);
+
+		assert.deepStrictEqual({ value: sub.value, pending: sub.getPendingActions() }, { value: snapshot, pending: [] });
+	});
+
+	test('snapshot confirming a turn start preserves its pending cancellation', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const cancellation = {
+			type: ActionType.ChatTurnCancelled,
+			turnId: start.turnId,
+			duration: 1000,
+		} as const;
+		const clientSeq = sub.applyOptimistic(cancellation);
+		const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+		sub.handleSnapshot(snapshot, 1);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, cancellation, noop),
+			pending: [{ channel: chatUri, clientSeq, action: cancellation }],
+		});
+	});
+
+	test('snapshot without the optimistic turn preserves its pending start', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		const clientSeq = sub.applyOptimistic(start);
+		const snapshot = makeChatState(chatUri);
+		sub.handleSnapshot(snapshot, 0);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, start, noop),
+			pending: [{ channel: chatUri, clientSeq, action: start }],
+		});
+	});
+
 	test('server terminal turn action drops stale optimistic turn start', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeChatState(chatUri), 0);
@@ -852,7 +1014,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationCatalogState; fromSeq: number }> = async resource => {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationState; fromSeq: number }> = async resource => {
 		const key = resource.toString();
 		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
@@ -972,10 +1134,15 @@ suite('AgentSubscriptionManager', () => {
 				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Yep' }, 3),
 				['ahp-root:', sessionUri],
 			),
+			automationVariant: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.AutomationRemoved, resource: automationUri }, 4, undefined, undefined, AUTOMATION_CATALOG_URI),
+				[URI.parse(AUTOMATION_CATALOG_URI).toString()],
+			),
 		}, {
 			rootVariant: true,
 			rootOnlyGetsSession: false,
 			exactSession: true,
+			automationVariant: true,
 		});
 	});
 
@@ -1003,12 +1170,13 @@ suite('AgentSubscriptionManager', () => {
 		ref.dispose();
 	});
 
-	test('uses the round-trippable automation catalogue URI', async () => {
+	test('uses the normalized automation catalogue URI internally', async () => {
+		const normalizedCatalogUri = URI.parse(AUTOMATION_CATALOG_URI).toString();
 		const mgr = createManager(async resource => {
 			subscribedResources.push(resource.toString());
-			return { resource: resource.toString(), state: { automations: [] }, fromSeq: 0 };
+			return { resource: resource.toString(), state: { entries: [] }, fromSeq: 0 };
 		});
-		const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'AutomationHolder');
+		const ref = mgr.getSubscription<AutomationState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'AutomationHolder');
 		await Event.toPromise(ref.object.onDidChange);
 
 		assert.deepStrictEqual({
@@ -1016,13 +1184,13 @@ suite('AgentSubscriptionManager', () => {
 			resources: mgr.currentSubscriptionUris().map(resource => resource.toString()),
 			activeResource: mgr.getActiveSubscriptions()[0].resource.toString(),
 		}, {
-			subscribedResources: [AUTOMATION_CATALOG_URI],
-			resources: [AUTOMATION_CATALOG_URI],
-			activeResource: AUTOMATION_CATALOG_URI,
+			subscribedResources: [normalizedCatalogUri],
+			resources: [normalizedCatalogUri],
+			activeResource: normalizedCatalogUri,
 		});
 
 		ref.dispose();
-		assert.deepStrictEqual(unsubscribedResources, [AUTOMATION_CATALOG_URI]);
+		assert.deepStrictEqual(unsubscribedResources, [normalizedCatalogUri]);
 	});
 
 	test('dispatchOptimistic applies to matching session subscription', async () => {
@@ -1272,10 +1440,10 @@ suite('AgentSubscriptionManager', () => {
 		test('markSubscriptionsMissing handles the Automation catalogue URI', async () => {
 			const mgr = createManager(async resource => ({
 				resource: resource.toString(),
-				state: { automations: [] },
+				state: { entries: [] },
 				fromSeq: 0,
 			}));
-			const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
+			const ref = mgr.getSubscription<AutomationState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
 			await Event.toPromise(ref.object.onDidChange);
 
 			mgr.markSubscriptionsMissing([URI.parse(AUTOMATION_CATALOG_URI)]);
@@ -1285,7 +1453,7 @@ suite('AgentSubscriptionManager', () => {
 				resource: mgr.getActiveSubscriptions()[0].resource.toString(),
 			}, {
 				valueIsError: true,
-				resource: AUTOMATION_CATALOG_URI,
+				resource: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			});
 			ref.dispose();
 		});
