@@ -32,7 +32,7 @@ function isPlainTextResult(result: CopilotSlashCommandResult): result is Extract
 }
 
 function escapeCustomizationMarkdownText(value: string): string {
-	return escapeMarkdownSyntaxTokens(value).replace(/[<>]/g, '\\$&');
+	return escapeMarkdownSyntaxTokens(value.replaceAll('<', '&lt;').replaceAll('>', '&gt;'));
 }
 
 function formatCopilotCustomizationError(command: string, input: string, error: Error): CopilotSlashCommandOutput | undefined {

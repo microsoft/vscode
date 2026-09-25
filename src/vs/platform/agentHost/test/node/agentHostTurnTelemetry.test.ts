@@ -2073,7 +2073,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			failureStage: 'sendMessage',
 			errorType: 'sendFailed',
 			errorName: 'Error',
-			msg: 'Error: boom',
+			msg: 'boom',
 			hasStack: true,
 		}]);
 		assert.deepStrictEqual(sentEvents().map(event => event.data?.turnId), ['turn-1']);
@@ -2095,7 +2095,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			sendMessageCalls: agent.sendMessageCalls.length,
 		}, {
 			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
-			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
+			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'unknown model' },
 			creationErrorType: 'modelSelectionFailed',
 			sendMessageCalls: 0,
 		});

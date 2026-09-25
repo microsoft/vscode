@@ -185,7 +185,7 @@ suite('Copilot slash command handlers', () => {
 					'Per-server rows show standalone token counts.',
 					'',
 					'- github \\(connected, builtin\\): 1.2k tokens',
-					'- unsafe \\[server\\]\\(command:unsafe\\) \\<https://example.invalid\\> \\(disabled, user\\): error: unavailable',
+					'- unsafe \\[server\\]\\(command:unsafe\\) &lt;https://example.invalid&gt; \\(disabled, user\\): error: unavailable',
 				].join('\n'),
 				markdown: true,
 			});
@@ -238,7 +238,7 @@ suite('Copilot slash command handlers', () => {
 				text: [
 					'# Installed plugins',
 					'',
-					'- `document-skills@marketplace` — v\\<https://example.invalid\\>',
+					'- `document-skills@marketplace` — v&lt;https://example.invalid&gt;',
 					'- `unsafe-[plugin](command:unsafe)` (disabled)',
 				].join('\n'),
 				markdown: true,
