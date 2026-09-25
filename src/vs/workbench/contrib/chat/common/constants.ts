@@ -32,6 +32,15 @@ export const enum CustomizationMigrationHintMode {
 	Always = 'always',
 }
 
+/**
+ * Values of {@link ChatConfiguration.OnboardingExperience}. The setting is expected to be
+ * driven by an ExP treatment, so new values must remain backwards compatible.
+ */
+export enum ChatOnboardingExperience {
+	None = 'none',
+	Spotlight = 'spotlight',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -113,6 +122,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
+	OnboardingExperience = 'chat.onboarding.experience',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsListLayout = 'chat.experimental.customizations.listLayout',

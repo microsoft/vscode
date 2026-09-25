@@ -1423,6 +1423,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modelWidget?.show();
 	}
 
+	/** The rendered mode picker control, if the input toolbar currently shows one. */
+	public get modePickerElement(): HTMLElement | undefined {
+		return this.modeWidget?.element;
+	}
+
+	/** The rendered model picker control, if the input toolbar currently shows one. */
+	public get modelPickerElement(): HTMLElement | undefined {
+		return this.modelWidget?.element;
+	}
+
 	public openModePicker(): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();
