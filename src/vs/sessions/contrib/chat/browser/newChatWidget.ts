@@ -12,7 +12,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -89,6 +89,7 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private readonly _noWorkspaceRestore = this._register(new MutableDisposable<IDisposable>());
 	private _pendingWorkspaceCreation: Promise<IOpenNewSessionResult> | undefined;
 	private _createdSessionId: string | undefined;
 	private _preferredDevContainerFolderUri: URI | undefined;
@@ -189,7 +190,7 @@ export class NewChatWidget extends Disposable {
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
-			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+			canRestoreWorkspace: () => !this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true,
 			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
 			whenSelectionAccepted: async () => {
 				const result = await this._pendingWorkspaceCreation;
@@ -677,19 +678,43 @@ export class NewChatWidget extends Disposable {
 		if (this._syncWorkspacePickerFromActiveSession()) {
 			return;
 		}
-		if (!this._restoreNoWorkspaceDraft() && restoredFolderUri) {
+		if (restoredFolderUri) {
 			void this._createNewSession(restoredFolderUri);
+		} else {
+			void this._restoreNoWorkspaceDraft();
 		}
 	}
 
-	private _restoreNoWorkspaceDraft(): boolean {
-		if (this._session.get() || !this._workspacePicker.isNoWorkspaceSelected()) {
-			return false;
+	private async _restoreNoWorkspaceDraft(): Promise<void> {
+		const cancellation = new CancellationTokenSource();
+		const lifetime = toDisposable(() => cancellation.dispose(true));
+		this._noWorkspaceRestore.value = lifetime;
+		try {
+			await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, cancellation.token);
+			if (!this._workspacePicker.isNoWorkspaceSelected()) {
+				await this._workspacePicker.whenWorkspaceRestored(cancellation.token);
+			}
+			if (cancellation.token.isCancellationRequested || this.sessionsService.activeSession.get()
+				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
+				return;
+			}
+			if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
+				if (this._workspacePicker.isNoWorkspaceSelected()) {
+					this.selectNoWorkspace();
+				} else {
+					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
+					this._createdSessionId = this.sessionsService.openQuickChat(undefined, true)?.sessionId;
+				}
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+		} finally {
+			if (this._noWorkspaceRestore.value === lifetime) {
+				this._noWorkspaceRestore.clear();
+			}
 		}
-		if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
-			this.selectNoWorkspace();
-		}
-		return true;
 	}
 
 	/**
@@ -1273,7 +1298,9 @@ export class NewChatWidget extends Disposable {
 			&& this._newChatInput.preparePromptOptionsRefresh();
 
 		if (!folderUri) {
+			this._newSessionCreation.clear();
 			this.sessionsService.unsetNewSession();
+			void this._restoreNoWorkspaceDraft();
 			return;
 		}
 
@@ -1374,7 +1401,7 @@ export class NewChatWidget extends Disposable {
 				return 'notReady';
 			}
 			const selection = this._workspacePicker.selectionSnapshot;
-			if (!this._newChatInput.canApplyWorkspaceDefault || this._isQuickChatComposer.get()
+			if (!this._newChatInput.canApplyWorkspaceDefault
 				|| selection.state === 'noWorkspace'
 				|| selection.origin === WorkspaceSelectionOrigin.User
 				|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
