@@ -3531,7 +3531,6 @@ export class AgentService extends Disposable implements IAgentService {
 							const ref = await this._sessionDataService.tryOpenDatabase(session);
 							try {
 								const origin = await this._resolveSessionOrigin(session, await ref?.object.getMetadata(SESSION_ORIGIN_KEY), central.catalog);
-								repairSessions.add(session.toString());
 								return { ...central.metadata, origin };
 							} finally {
 								ref?.dispose();

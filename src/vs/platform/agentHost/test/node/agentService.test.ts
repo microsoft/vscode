@@ -5094,6 +5094,25 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('does not dirty a clean catalogue row after backfilling its origin', async () => {
+			const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession();
+			const host = createHost(sessionData.service, database, storage);
+			const listing = await host.listSessions();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				listed: listing.find(metadata => metadata.session.toString() === session.toString())?.origin,
+				persisted: await sessionData.database(session).getMetadata(SESSION_ORIGIN_KEY),
+				catalog: catalogDataOf(await database.getSessionV2(session.toString()))?.origin,
+				dirty: await database.getSessionV2PayloadDirty(session.toString()),
+			}, {
+				listed: origin,
+				persisted: JSON.stringify(origin),
+				catalog: origin,
+				dirty: 0,
+			});
+		});
+
 		for (const operation of ['catalogue listing', 'legacy listing', 'restoration'] as const) {
 			test(`preserves sessions and metadata when origin backfill fails during ${operation}`, async () => {
 				let failOriginWrites = false;
