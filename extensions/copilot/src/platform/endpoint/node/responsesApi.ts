@@ -128,7 +128,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
-	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
+	const promptCacheBreakpointsEnabled = endpoint.promptCacheBreakpointsRequireOptIn
+		? configService.isConfigured(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled) && configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService)
+		: configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
 	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
