@@ -18,6 +18,8 @@ import type { IAgentHostStorageService } from './agentHostStorageService.js';
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
+/** Floor between event-driven passes, so user activity cannot chain them back to back. */
+const DEFAULT_MINIMUM_PASS_INTERVAL_MS = 30 * 1000;
 const DEFAULT_FULL_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_BACKGROUND_DELAY_MS = 1000;
 const RECONCILIATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.cursor';
@@ -49,12 +51,13 @@ function receiptsEqual(first: IAgentHostDatabaseSessionV2Receipt | undefined, se
 
 class CatalogReconciliationSupersededError extends Error { }
 class CatalogReconciliationProviderUnavailableError extends Error { }
+class CatalogReconciliationSourceUnresolvableError extends Error { }
 
 export type AgentHostCatalogReconciliationOutcome =
 	| { readonly session: string; readonly status: 'skipped'; readonly reason: 'synchronized' }
 	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed' | 'synchronized'; readonly sourceRevision: number }
 	| { readonly session: string; readonly status: 'pending'; readonly reason: AgentHostCatalogSyncPendingReason; readonly sourceRevision: number }
-	| { readonly session: string; readonly status: 'retry'; readonly reason: 'providerUnavailable' | 'missingCatalog' | 'staleIncarnation' | 'superseded' | 'tombstoned' | 'cancelled' }
+	| { readonly session: string; readonly status: 'retry'; readonly reason: 'providerUnavailable' | 'sourceUnresolvable' | 'missingCatalog' | 'staleIncarnation' | 'superseded' | 'tombstoned' | 'cancelled' }
 	| { readonly session: string; readonly status: 'failed'; readonly reason: 'malformedPayload' | 'payloadMismatch' | 'centralApplyFailed' | 'acknowledgementSuperseded' | 'unexpected'; readonly error?: string };
 
 export interface IAgentHostCatalogReconciliationReport {
@@ -64,13 +67,23 @@ export interface IAgentHostCatalogReconciliationReport {
 
 export type AgentHostCatalogReconciliationSourceResult =
 	| { readonly status: 'available'; readonly request: IAgentHostCatalogSyncRequest }
-	| { readonly status: 'providerUnavailable' };
+	| { readonly status: 'providerUnavailable' }
+	/**
+	 * The provider is registered but cannot vouch for this session, so there is
+	 * nothing authoritative to project. Unlike an unregistered provider this does
+	 * not clear on its own, so the session is parked rather than retried on the
+	 * regular cadence. A single failed lookup is not proof of absence — a
+	 * provider whose SDK is still downloading looks identical — so parking never
+	 * tombstones and always yields to a wake signal.
+	 */
+	| { readonly status: 'sourceUnresolvable' };
 
 export interface IAgentHostCatalogReconciliationOptions {
 	readonly batchSize?: number;
 	readonly concurrency?: number;
 	readonly cursorStorageKey?: string;
 	readonly intervalMs?: number;
+	readonly minimumPassIntervalMs?: number;
 	readonly fullVerificationIntervalMs?: number;
 	readonly backgroundDelayMs?: number;
 	readonly schedule?: (callback: () => void, delay: number) => IDisposable;
@@ -79,6 +92,8 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly canSchedule?: () => boolean;
 	/** Cheap pre-check so a session whose source cannot resolve never opens local storage. */
 	readonly isSourceAvailable?: (registered: IRegisteredSession) => boolean;
+	/** Mirrors retroactive provisional markers into the owner process. */
+	readonly onDidMarkSessionProvisional?: (session: string) => void;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -88,12 +103,14 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _concurrency: number;
 	private readonly _cursorStorageKey: string;
 	private readonly _intervalMs: number;
+	private readonly _minimumPassIntervalMs: number;
 	private readonly _fullVerificationIntervalMs: number;
 	private readonly _backgroundDelayMs: number;
 	private readonly _schedule: (callback: () => void, delay: number) => IDisposable;
 	private readonly _now: () => number;
 	private readonly _canSchedule: () => boolean;
 	private readonly _isSourceAvailable: (registered: IRegisteredSession) => boolean;
+	private readonly _onDidMarkSessionProvisional: (session: string) => void;
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
@@ -102,7 +119,17 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private _verificationCursor: string | undefined;
 	private _running: Promise<IAgentHostCatalogReconciliationReport> | undefined;
 	private _rerunRequested = false;
+	/** A `schedule()` arrived mid-pass; one follow-up is owed after the floor. */
+	private _followUpRequested = false;
 	private _periodic = false;
+	/**
+	 * Sessions whose source could not be resolved. Parking suppresses
+	 * *scheduling* only: `payloadDirty` stays set, because the rebuild is still
+	 * owed once the source returns. Deliberately in-memory, so a restart
+	 * re-attempts each parked session once and re-parks — parking can never
+	 * become hidden permanent state.
+	 */
+	private readonly _parkedSessions = new Set<string>();
 
 	constructor(
 		private readonly _catalogDatabase: IAgentHostDatabase,
@@ -118,12 +145,14 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._concurrency = this._positiveInteger(options.concurrency, DEFAULT_CONCURRENCY, 'concurrency');
 		this._cursorStorageKey = options.cursorStorageKey ?? RECONCILIATION_CURSOR_STORAGE_KEY;
 		this._intervalMs = this._positiveInteger(options.intervalMs, DEFAULT_INTERVAL_MS, 'intervalMs');
+		this._minimumPassIntervalMs = this._nonNegativeInteger(options.minimumPassIntervalMs, DEFAULT_MINIMUM_PASS_INTERVAL_MS, 'minimumPassIntervalMs');
 		this._fullVerificationIntervalMs = this._positiveInteger(options.fullVerificationIntervalMs, DEFAULT_FULL_VERIFICATION_INTERVAL_MS, 'fullVerificationIntervalMs');
 		this._backgroundDelayMs = this._nonNegativeInteger(options.backgroundDelayMs, DEFAULT_BACKGROUND_DELAY_MS, 'backgroundDelayMs');
 		this._schedule = options.schedule ?? ((callback, delay) => disposableTimeout(callback, delay));
 		this._now = options.now ?? Date.now;
 		this._canSchedule = options.canSchedule ?? (() => true);
 		this._isSourceAvailable = options.isSourceAvailable ?? (() => true);
+		this._onDidMarkSessionProvisional = options.onDidMarkSessionProvisional ?? (() => { });
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -137,7 +166,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		}
 		this._periodic = true;
 		if (this._running) {
-			void this.runPass();
+			// Coalesce: many mutations during one pass owe exactly one follow-up,
+			// taken after the floor rather than chained immediately.
+			this._followUpRequested = true;
 			return;
 		}
 		if (this._scheduledPassKind === 'background') {
@@ -186,17 +217,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	async whenIdle(): Promise<void> {
-		if (this._scheduledPassKind === 'background') {
-			this._scheduledPass.clear();
-			this._scheduledPassKind = undefined;
-			await this.runPass();
-		} else {
-			while (this._running) {
-				await this._running;
+		// Drains in a loop: completing a pass can release a coalesced follow-up,
+		// which must also settle before the service is considered idle.
+		while (true) {
+			if (this._scheduledPassKind === 'background') {
+				this._scheduledPass.clear();
+				this._scheduledPassKind = undefined;
+				await this.runPass();
+				continue;
 			}
-		}
-		while (this._running) {
-			await this._running;
+			if (this._running) {
+				await this._running;
+				continue;
+			}
+			break;
 		}
 		await this._storageService.whenIdle();
 	}
@@ -279,8 +313,79 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const receiptBySession = new Map(initialReceipts.map(receipt => [receipt.session, receipt]));
 		const sessions = [...listedSessions]
 			.filter(session => receiptBySession.get(session.session.toString())?.payloadDirty !== 0)
+			.filter(session => !this._parkedSessions.has(session.session.toString()))
 			.sort((first, second) => compareSessionKeys(first.session.toString(), second.session.toString()));
 		return { sessions, receiptBySession };
+	}
+
+	/**
+	 * Parks a session whose source cannot resolve, so later passes skip it
+	 * without opening its storage. The outcome still reports `retry`: the work
+	 * remains outstanding, it is simply waiting on a wake signal rather than a
+	 * timer.
+	 *
+	 * A mutation can land while the source is being resolved, and its wake is a
+	 * no-op because this session is not parked yet. Parking unconditionally
+	 * would then hide that newer revision until the periodic verification, so
+	 * the dirty marker is re-read and a changed one yields to the next pass.
+	 */
+	private async _park(session: string, observedDirty: number | undefined): Promise<AgentHostCatalogReconciliationOutcome> {
+		let currentDirty: number | undefined;
+		try {
+			currentDirty = await this._catalogDatabase.getSessionV2PayloadDirty(session);
+		} catch {
+			// An unreadable marker cannot rule out a concurrent mutation, so treat
+			// it as one rather than parking a session that may owe a rebuild.
+			return { session, status: 'retry', reason: 'superseded' };
+		}
+		if (currentDirty !== observedDirty) {
+			return { session, status: 'retry', reason: 'superseded' };
+		}
+		this._parkedSessions.add(session);
+		return { session, status: 'retry', reason: 'sourceUnresolvable' };
+	}
+
+	/**
+	 * Releases parked sessions so the next pass re-attempts them. Callers must
+	 * invoke this on evidence that a source may now resolve — a provider
+	 * registering, a provider enumerating its sessions, or a mutation of the
+	 * session itself.
+	 */
+	wakeParkedSessions(session?: string): void {
+		if (session === undefined) {
+			this._parkedSessions.clear();
+			return;
+		}
+		this._parkedSessions.delete(session);
+	}
+
+	/**
+	 * Records that an unresolvable session holds no conversation, so a later
+	 * listing can hide it (#321269). Pre-existing orphans carry no marker, and
+	 * nothing else would ever retract the catalog row the provider cannot vouch
+	 * for.
+	 *
+	 * The emptiness evidence is only valid for the revision it was gathered
+	 * against: a mutation or a concurrent materialization during source
+	 * resolution can add turns or clear the marker, and an unconditional write
+	 * would then re-mark a session that holds real work. The dirty marker is
+	 * therefore re-read and a changed one abandons the write, matching how
+	 * {@link _park} yields to the same race.
+	 */
+	private async _markEmptySourceUnresolvableAsProvisional(session: URI, database: AgentHostCatalogDatabaseReference | undefined, observedDirty: number | undefined): Promise<void> {
+		const sessionKey = session.toString();
+		try {
+			if (database && await database.object.hasConversationTurns()) {
+				return;
+			}
+			if (await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
+				return;
+			}
+			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
+			this._onDidMarkSessionProvisional(sessionKey);
+		} catch (error) {
+			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to confirm empty source-unresolvable session ${sessionKey}`, error);
+		}
 	}
 
 	private _runBatch(
@@ -327,6 +432,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						if (sourceResult.status === 'providerUnavailable') {
 							throw new CatalogReconciliationProviderUnavailableError();
 						}
+						if (sourceResult.status === 'sourceUnresolvable') {
+							throw new CatalogReconciliationSourceUnresolvableError();
+						}
 						await validate();
 						result = await synchronize(sourceResult.request, validate);
 					} catch (error) {
@@ -335,6 +443,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						}
 						if (error instanceof CatalogReconciliationProviderUnavailableError) {
 							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+						}
+						if (error instanceof CatalogReconciliationSourceUnresolvableError) {
+							await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
+							return await this._park(sessionKey, observedDirty);
 						}
 						throw error;
 					}
@@ -397,6 +509,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				const sourceResult = await this._resolveSource(registered, database);
 				if (sourceResult.status === 'providerUnavailable') {
 					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				}
+				if (sourceResult.status === 'sourceUnresolvable') {
+					await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
+					return await this._park(sessionKey, observedDirty);
 				}
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
@@ -589,6 +705,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	private async _prepareFullVerification(): Promise<void> {
+		// An explicit full verification re-checks everything, parked rows included.
+		this.wakeParkedSessions();
 		await this._markAllPayloadsDirty();
 		this._initialPayloadDirtyMarkPending = false;
 		this._trySetStorage(VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION);
@@ -599,6 +717,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
+		// The periodic verification is also the slow safety net for parked rows:
+		// a source that quietly came back is retried at most once per interval.
+		this.wakeParkedSessions();
 		const receipts = (await this._catalogDatabase.listSessionsV2Receipts())
 			.filter(receipt => receipt.payloadDirty === 0)
 			.sort((first, second) => compareSessionKeys(first.session, second.session));
@@ -671,6 +792,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 	private _scheduleNextPass(): void {
 		if (!this._periodic || this._running || this._scheduledPassKind || this._cancellation.token.isCancellationRequested) {
+			return;
+		}
+		if (this._followUpRequested) {
+			this._followUpRequested = false;
+			this._schedulePass('background', this._minimumPassIntervalMs);
 			return;
 		}
 		this._schedulePass('periodic', this._intervalMs);

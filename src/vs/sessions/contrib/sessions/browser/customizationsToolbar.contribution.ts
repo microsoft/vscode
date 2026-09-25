@@ -17,15 +17,14 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -35,6 +34,8 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -61,10 +62,34 @@ function customizationSectionVisibleKey(section: string): string {
 }
 
 const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
-	id: 'sessions.customization.overview',
+	id: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
 	label: localize('overview', "Overview"),
 	icon: Codicon.home,
 };
+
+export function readCustomizationCount(
+	config: ICustomizationItemConfig,
+	reader: IReader,
+	itemsModel: IAICustomizationItemsModel,
+	mcpServerCountService: IAICustomizationMcpServerCountService,
+	toolsService: ILanguageModelToolsService,
+	toolEnablementService: IAgentHostToolSetEnablementService,
+): number {
+	if (config.modelSection) {
+		return itemsModel.getCount(config.modelSection).read(reader);
+	}
+	if (config.isMcp) {
+		return mcpServerCountService.count.read(reader);
+	}
+	if (config.isPlugins) {
+		return itemsModel.getPluginCount().read(reader);
+	}
+	if (config.isTools) {
+		const state = toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+		return countEnabledCustomizationTools(toolsService.toolSets.read(reader), state, reader);
+	}
+	return 0;
+}
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
@@ -158,7 +183,7 @@ async function openCustomizationSectionPage(editorService: IEditorService, harne
  * observables that feed the customizations editor — so the badge always
  * matches the editor's count exactly.
  */
-export class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends BaseActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
@@ -169,11 +194,11 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
-		@IMcpService private readonly _mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
-		super(undefined, action, { ...options, icon: false, label: false });
+		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
 	}
 
@@ -182,7 +207,8 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
-		super.render(container);
+		this._viewItemDisposables.clear();
+		this.element = container;
 		container.classList.add('customization-link-widget', 'sidebar-action');
 
 		// Button (left) - uses supportIcons to render codicon in label
@@ -199,38 +225,50 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}));
 		this._button.element.classList.add('customization-link-button', 'sidebar-action-button');
 		this._button.label = `$(${this._config.icon.id}) ${this._config.label}`;
+		this.updateEnabled();
 
 		this._viewItemDisposables.add(this._button.onDidClick(() => {
-			this._action.run();
+			this.actionRunner.run(this._action, this._context);
 		}));
 
 		// Count container (inside button, floating right)
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
 		this._viewItemDisposables.add(autorun(reader => {
-			const count = this._readCount(reader);
+			const count = readCustomizationCount(this._config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
 			if (this._countContainer) {
 				this._renderTotalCount(this._countContainer, count);
 			}
 		}));
 	}
 
-	private _readCount(reader: Parameters<Parameters<typeof autorun>[0]>[0]): number {
-		if (this._config.modelSection) {
-			return this._itemsModel.getCount(this._config.modelSection).read(reader);
+	override focus(): void {
+		if (this._button) {
+			this._button.element.tabIndex = 0;
+			this._button.focus();
 		}
-		if (this._config.isMcp) {
-			return this._mcpService.servers.read(reader).length;
+	}
+
+	override blur(): void {
+		if (this._button) {
+			this._button.element.blur();
+			this._button.element.tabIndex = -1;
 		}
-		if (this._config.isPlugins) {
-			return this._itemsModel.getPluginCount().read(reader);
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
 		}
-		if (this._config.isTools) {
-			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-			const toolSets = this._toolsService.toolSets.read(reader);
-			return countEnabledCustomizationTools(toolSets, state, reader);
+		if (this._button) {
+			this._button.element.tabIndex = focusable ? 0 : -1;
 		}
-		return 0;
+	}
+
+	protected override updateEnabled(): void {
+		if (this._button) {
+			this._button.enabled = this._action.enabled;
+		}
 	}
 
 	private _renderTotalCount(container: HTMLElement, count: number): void {

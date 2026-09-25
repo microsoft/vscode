@@ -19,17 +19,19 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
 
@@ -78,14 +80,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IHostService private readonly hostService: IHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IAutomationService private readonly automationService: IAutomationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 
 		const existing = options.existing;
+		const allowedProviders = getAutomationDialogProviders(this.automationService, existing);
 		const initial = existing ?? options.initialValues;
 		const isEdit = !!existing;
+		const dialogTelemetry = new AutomationDialogTelemetry(this.telemetryService, isEdit ? 'update' : 'create');
 		const initialTarget = initial?.target;
 		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
 		const initialSessionConfiguration: IAutomationSessionConfiguration | undefined = initial ? {
@@ -187,6 +193,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (completion.isSettled) {
 				return;
 			}
+			dialogTelemetry.complete(result !== undefined);
 			saveCancellation.value?.cancel();
 			void completion.complete(result);
 			dialog.dispose();
@@ -198,9 +205,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 			revalidate();
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
+				dialogTelemetry.validationFailed();
 				return;
 			}
 			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
+				dialogTelemetry.validationFailed();
 				return;
 			}
 
@@ -220,8 +229,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 				await waitForAutomationSessionSync(cancellation.token);
 				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
+					dialogTelemetry.captureFailed();
 					showSessionConfigurationError(captureErrorMessage);
 					shouldFocusError = true;
+					return;
+				}
+				revalidate();
+				if (validation.sessionTypeError) {
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);
@@ -232,6 +246,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			} catch (error) {
 				if (!isCancellationError(error) && !cancellation.token.isCancellationRequested) {
 					this.logService.error('[AutomationDialog] Failed to save the automation session configuration.', error);
+					dialogTelemetry.captureFailed();
 					showSessionConfigurationError(captureErrorMessage);
 					shouldFocusError = true;
 				}
@@ -301,7 +316,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -323,7 +338,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {
-						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
+						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
+						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId);
+						handle.showTargetValidationError(validation.sessionTypeError);
 						if (saveInProgress && saveButton) {
 							saveButton.enabled = false;
 						}

@@ -16,6 +16,7 @@ import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
+import { ConfirmationOption, ConfirmationOptionKind } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -42,6 +43,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -65,12 +67,14 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'sessionApproval' }
 );
 
+type TerminalConfirmationButtonData = boolean | TerminalNewAutoApproveButtonData | { type: 'custom'; option: ConfirmationOption };
+
 export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
-		toolInvocation: IChatToolInvocation,
+		protected override readonly toolInvocation: IChatToolInvocation,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: IMarkdownRenderer,
@@ -102,16 +106,20 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
 
-		// Use pre-computed confirmation data from runInTerminalTool (cd prefix extraction happens there for localization)
-		// Use presentationOverrides for display if available (e.g., extracted Python code)
-		const initialContent = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
+		const originalContent = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const userEdited = terminalData.commandLine.userEdited;
+		const initialContent = terminalData.presentationOverrides?.commandLine
+			?? (userEdited?.startsWith(cdPrefix) ? userEdited.slice(cdPrefix.length) : userEdited)
+			?? originalContent;
 		// When presentationOverrides is set, the editor should be read-only since the displayed content
 		// differs from the actual command (e.g., extracted Python code vs full python -c command).
 		// A producer that cannot apply an edited command opts out the same way.
 		const isReadOnly = !!terminalData.presentationOverrides || terminalData.editable === false;
 
-		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
+		const hasCustomOptions = !!state.confirmationMessages.customOptions?.length;
+		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true
+			&& (!hasCustomOptions || terminalData.autoApproveRuleResolvable === true);
 		// Custom actions typically come pre-computed from the run in terminal tool, but they can
 		// also be generated asynchronously for confirmations that arrive without them (eg. agent
 		// host sessions), so track them in a mutable local shared by the builder below and the
@@ -180,9 +188,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		if (!isReadOnly) {
 			this._register(model.onDidChangeContent(() => {
 				const currentValue = model.getValue();
-				// Only set userEdited if the content actually differs from the initial value
-				// Prepend cd prefix back if it was extracted for display
-				if (currentValue !== initialContent) {
+				// Compare with the original command, not a restored user edit.
+				if (currentValue !== originalContent) {
 					terminalData.commandLine.userEdited = cdPrefix + currentValue;
 				} else {
 					terminalData.commandLine.userEdited = undefined;
@@ -211,7 +218,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
+			ChatCustomConfirmationWidget<TerminalConfirmationButtonData>,
 			this.context,
 			{
 				title,
@@ -221,6 +228,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				buttons: this._createButtons(buildMoreActions())
 			},
 		));
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		// Agent Host Copilot confirmations need client-generated persistent rule actions.
 		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
@@ -333,6 +341,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
+			let selectedOption: ConfirmationOption | undefined;
 			if (typeof data === 'boolean') {
 				if (data) {
 					toolConfirmKind = ToolConfirmKind.UserAction;
@@ -344,6 +353,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				}
 			} else if (typeof data !== 'boolean') {
 				switch (data.type) {
+					case 'custom': {
+						selectedOption = data.option;
+						toolConfirmKind = ToolConfirmKind.UserAction;
+						break;
+					}
 					case 'enable': {
 						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
@@ -491,7 +505,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 
 			if (doComplete) {
-				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
+				IChatToolInvocation.confirmWith(toolInvocation, {
+					type: toolConfirmKind,
+					...(selectedOption ? { selectedButton: selectedOption.id, selectedButtonKind: selectedOption.kind } : {}),
+				});
 				if (!isTouchClick) {
 					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 				}
@@ -501,7 +518,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this.domNode = confirmWidget.domNode;
 	}
 
-	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
+	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<TerminalConfirmationButtonData>[] {
+		const state = this.toolInvocation.state.get();
+		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.customOptions : undefined;
+		if (customOptions?.length) {
+			const buttons = buildCustomOptionButtons<TerminalConfirmationButtonData>(customOptions, option => ({ type: 'custom', option }));
+			if (moreActions?.length && customOptions.some(option => option.kind !== ConfirmationOptionKind.Deny)) {
+				const primary = buttons[0];
+				primary.moreActions = [...(primary.moreActions ?? []), new Separator(), ...moreActions];
+			}
+			return buttons;
+		}
+
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
 			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };

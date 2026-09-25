@@ -260,6 +260,24 @@ suite('Session Artifact Removal', () => {
 		});
 	});
 
+	test('removing an already-absent id is idempotent and leaves the collection unchanged', async () => {
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		const { service, session, stateManager, meta } = await createFixture(database);
+		await service.removeSessionArtifact(session, 'pr');
+		const afterFirstRemoval = stateManager.getSessionState(session.toString())?._meta;
+		// The same id removed again, and one that was never recorded, are both no-ops.
+		await service.removeSessionArtifact(session, 'pr');
+		await service.removeSessionArtifact(session, 'never-recorded');
+		assert.deepStrictEqual({
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+		}, {
+			meta: afterFirstRemoval,
+			persisted: stringifySessionArtifacts(artifacts.slice(1)),
+		});
+		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, artifacts.slice(1)));
+	});
+
 	test('rejects empty ids without changing metadata', async () => {
 		const database = new TestSessionDatabase();
 		const { service, session, stateManager, meta } = await createFixture(database);

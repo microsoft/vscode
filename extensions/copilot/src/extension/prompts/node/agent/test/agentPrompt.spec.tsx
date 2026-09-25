@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
@@ -49,6 +50,59 @@ const testFamilies = [
 	'gemini-2.0-flash',
 	'grok-code-fast-1'
 ];
+
+test.each([
+	{ summarization: false, systemInstructions: true },
+	{ summarization: false, systemInstructions: false },
+	{ summarization: true, systemInstructions: true },
+	{ summarization: true, systemInstructions: false },
+])('Responses cache boundaries in rendered history (summarization=$summarization, systemInstructions=$systemInstructions)', async ({ summarization, systemInstructions }) => {
+	const services = createExtensionUnitTestingServices();
+	const accessor = services.createTestingAccessor();
+	try {
+		const configuration = accessor.get(IConfigurationService);
+		configuration.setConfig(ConfigKey.CustomInstructionsInSystemMessage, systemInstructions);
+		configuration.setConfig(ConfigKey.CodeGenerationInstructions, [{ text: 'Use descriptive variable names.' }]);
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5.6-sol');
+		const history = Array.from({ length: 22 }, (_, index) => {
+			const turn = new Turn(`turn-${index}`, { type: 'user', message: `cache-query-${index}!` });
+			turn.setResponse(TurnStatus.Success, { type: 'user', message: `answer-${index}` }, `response-${index}`, undefined);
+			return turn;
+		});
+		const currentTurn = new Turn('current-turn', { type: 'user', message: 'cache-query-22!' });
+		const promptContext: IBuildPromptContext = {
+			chatVariables: new ChatVariablesCollection(),
+			conversation: new Conversation('cache-test', [...history, currentTurn]),
+			history,
+			query: 'cache-query-22!',
+			tools: { availableTools: [], toolInvocationToken: null as never, toolReferences: [] },
+		};
+		const renderer = PromptRenderer.create(instantiationService, endpoint, AgentPrompt, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext,
+			customizations: await PromptRegistry.resolveAllCustomizations(instantiationService, endpoint),
+			enableSummarization: summarization,
+			enableCacheBreakpoints: summarization,
+		});
+		const { messages } = await renderer.render();
+
+		addCacheBreakpoints(messages, 'responses');
+
+		const marked = messages.filter(message => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint));
+		expect(marked).toHaveLength(22);
+		expect(marked.filter(message => message.role === Raw.ChatRole.System)).toHaveLength(1);
+		expect(marked.filter(message => messageToMarkdown(message).includes('<environment_info>'))).toHaveLength(1);
+		for (let index = 0; index < 23; index++) {
+			expect(marked.some(message => messageToMarkdown(message).includes(`cache-query-${index}!`)), `query ${index}`).toBe(index >= 3);
+		}
+	} finally {
+		accessor.dispose();
+		services.dispose();
+	}
+});
 
 testFamilies.forEach(family => {
 	suite(`AgentPrompt - ${family}`, () => {

@@ -394,6 +394,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _modelRefreshInFlight: Promise<void> | undefined;
 
 	private _githubToken: string | undefined;
+	private _gitHubEndpointGeneration = 0;
+	private _gitHubAuthenticationGeneration = 0;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -677,6 +679,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
+		this._register(this._gitHubEndpointService.onDidChange(() => {
+			this._gitHubEndpointGeneration++;
+			void this.authenticate(this._gitHubEndpointService.getCopilotResource().resource, '').catch(error =>
+				this._logService.error('[Claude] Failed to clear authentication after endpoint change', error));
+		}));
 		// CAPI reports each request's billed credits via the proxy (the SDK
 		// strips `copilot_usage` from its `result`). Route every report to
 		// the originating session by the session id the proxy decoded from
@@ -815,6 +822,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
+		const endpointGeneration = this._gitHubEndpointGeneration;
+		const authenticationGeneration = ++this._gitHubAuthenticationGeneration;
 		if (!token) {
 			const oldHandle = this._proxyHandle;
 			const changed = this._githubToken !== undefined || oldHandle !== undefined;
@@ -853,6 +862,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		try {
 			newHandle = await this._claudeProxyService.start(token);
 		} catch (err) {
+			if (endpointGeneration !== this._gitHubEndpointGeneration || authenticationGeneration !== this._gitHubAuthenticationGeneration) {
+				this._logService.debug('[Claude] Superseded Copilot proxy startup failed', err);
+				return true;
+			}
 			// GitHub sign-in itself succeeded; only the Copilot proxy failed to
 			// start. Don't fail sign-in — the merged catalog still serves any native
 			// models, and a Copilot-routed model surfaces `AHP_AUTH_REQUIRED` on its
@@ -877,6 +890,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 			this._logService.warn('[Claude] Copilot proxy start failed; Copilot-routed models unavailable until the next sign-in', err);
 			void this._startModelRefresh();
+			return true;
+		}
+		if (endpointGeneration !== this._gitHubEndpointGeneration || authenticationGeneration !== this._gitHubAuthenticationGeneration || this._store.isDisposed) {
+			newHandle.dispose();
 			return true;
 		}
 		const oldHandle = this._proxyHandle;

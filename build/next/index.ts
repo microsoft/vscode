@@ -15,14 +15,14 @@ import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult 
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getBootstrapEntryPointsForTarget, type BuildTarget } from '../lib/esbuild.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
-import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
+import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
-import { copyResources, type BuildTarget } from './resources.ts';
+import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
@@ -66,7 +66,7 @@ const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
 
 // ============================================================================
-// Entry Points (from build/buildfile.ts)
+// Entry Points
 // ============================================================================
 
 // Extension host bundles are excluded from private field mangling because they
@@ -138,19 +138,6 @@ const serverEntryPoints = [
 	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
-// Bootstrap files per target
-const bootstrapEntryPointsDesktop = [
-	'main',
-	'cli',
-	'bootstrap-fork',
-];
-
-const bootstrapEntryPointsServer = [
-	'server-main',
-	'server-cli',
-	'bootstrap-fork',
-];
-
 /**
  * Get entry points for a build target.
  */
@@ -181,23 +168,6 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-/**
- * Get bootstrap entry points for a build target.
- */
-function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return bootstrapEntryPointsDesktop;
-		case 'server':
-		case 'server-web':
-			return bootstrapEntryPointsServer;
-		case 'web':
-			return []; // Web has no bootstrap files (served by external server)
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -550,11 +520,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entry}.ts`);
-		if (!fs.existsSync(entryPath)) {
-			console.log(`[bundle] Skipping ${entry} (not found)`);
-			continue;
-		}
-
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
@@ -716,7 +681,8 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
-			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+			outDir: path.join(outDir, devTunnelsWebOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${devTunnelsWebOutDir}` : undefined,
 		});
 	}
 
@@ -731,14 +697,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 // ============================================================================
 
 async function watch(): Promise<void> {
-	if (!useEsbuildTranspile) {
-		console.log('Starting transpilation...');
-		console.log('Finished transpilation with 0 errors after 0 ms');
-		console.log('[watch] esbuild transpile disabled (useEsbuildTranspile=false). Keeping process alive as no-op.');
-		await new Promise(() => { }); // keep alive
-		return;
-	}
-
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;

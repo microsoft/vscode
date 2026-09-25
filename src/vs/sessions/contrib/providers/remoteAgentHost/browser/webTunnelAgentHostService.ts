@@ -23,6 +23,7 @@ import {
 	isTunnelNotFoundError,
 	type ICachedTunnel,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -34,6 +35,7 @@ import type { IDiscoveredTunnel, ITunnelConnection, ITunnelDiscoveryProvider } f
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
+import { traceConnectionOperation } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 
 const LOG_PREFIX = '[WebTunnelAgentHost]';
 
@@ -104,6 +106,10 @@ class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostC
 		return this._createConnection(entry, connectOptions);
 	}
 
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
+	}
+
 	private _entryForTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'clusterId' | 'name'>, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
 		return {
 			name: tunnel.name,
@@ -164,7 +170,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 	// Discovery
 
-	async listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._discoveryProvider) {
 			return [];
 		}
@@ -175,7 +181,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 		try {
 			// The embedder acquires tokens internally via its own auth flow
-			const discovered = await this._discoveryProvider.listTunnels();
+			const discovered = await traceConnectionOperation(options?.onDiagnostic, 'discovery.embedder', () => this._discoveryProvider!.listTunnels());
 			const results: ITunnelInfo[] = [];
 			let droppedByProtocolVersion = 0;
 			let withoutIds = 0;
@@ -241,7 +247,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		await this._remoteAgentHostService.waitForConnection(address);
 	}
 
-	private async _createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+	private async _createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
 			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
 		}
@@ -256,7 +262,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${entry.name}' (${tunnelId}); ${browserConnectionContext()}`);
 		let connection: ITunnelConnection;
 		try {
-			connection = await discoveryProvider.connect(tunnelId, clusterId);
+			connection = await traceConnectionOperation(options.onDiagnostic, 'tunnel.embedder', () => discoveryProvider.connect(tunnelId, clusterId));
 			this._logService.info(`${LOG_PREFIX} Connected to tunnel '${entry.name}' (${tunnelId}) in ${Date.now() - connectStartedAt}ms; ${browserConnectionContext()}`);
 		} catch (error) {
 			if (isTunnelNotFoundError(error)) {
@@ -280,7 +286,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			try {
 				const reconnectStartedAt = Date.now();
 				this._logService.info(`${LOG_PREFIX} Re-establishing tunnel '${entry.name}' (${tunnelId}); ${browserConnectionContext()}`);
-				const reconnected = await reconnectProvider.connect(tunnelId, clusterId);
+				const reconnected = await traceConnectionOperation(options.onDiagnostic, 'tunnel.embedder', () => reconnectProvider.connect(tunnelId, clusterId));
 				try {
 					this._logService.info(`${LOG_PREFIX} Re-established tunnel '${entry.name}' (${tunnelId}) in ${Date.now() - reconnectStartedAt}ms; ${browserConnectionContext()}`);
 					return {

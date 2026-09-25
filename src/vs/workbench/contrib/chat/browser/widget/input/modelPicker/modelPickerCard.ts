@@ -5,6 +5,8 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Sequencer } from '../../../../../../../base/common/async.js';
@@ -17,11 +19,11 @@ import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelContextWindowTotal, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
+import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { getChangedModelConfigProperties, getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
-import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 
 /**
@@ -45,6 +47,8 @@ export interface IModelCardOptions {
 	readonly onDidChangeConfiguration?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void;
 	/** Whether the model is pinned, when pinning is offered here. */
 	readonly isPinned?: boolean;
+	/** The caller mounts the header separately from the scrollable card body. */
+	readonly externalHeader?: boolean;
 	readonly onTogglePin?: (pinned: boolean) => void;
 	readonly pricingDisclosure?: IPricingDisclosure;
 	/** The faster twin of this model, when the provider offers one. */
@@ -58,13 +62,13 @@ export interface IModelCardOptions {
 }
 
 /**
- * The detail card shown beside a model row: what the model costs, how hard it
- * thinks, and how much context it gets. Configuration changes are written
- * straight through and the card re-renders itself in place.
+ * Model information and configuration, shared by the picker's details page and fixtures.
+ * Configuration changes are written through and preserve keyboard focus.
  */
 export class ModelCard extends DisposableStore {
 
 	readonly element = dom.$('.chat-model-card');
+	readonly headerElement = dom.$('.chat-model-card-header');
 
 	private readonly _contentDisposables = this.add(new DisposableStore());
 	private readonly _configurationChanges = new Sequencer();
@@ -86,7 +90,7 @@ export class ModelCard extends DisposableStore {
 	/** Refreshes model and pin state without replacing the card or moving keyboard focus. */
 	update(options: IModelCardOptions): void {
 		const disclosureChanged = options.pricingDisclosure !== this._options.pricingDisclosure;
-		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || disclosureChanged;
+		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.externalHeader !== this._options.externalHeader || disclosureChanged;
 		if (options.model.identifier !== this._options.model.identifier) {
 			this._configurationChangeVersion++;
 		}
@@ -96,6 +100,19 @@ export class ModelCard extends DisposableStore {
 		}
 		if (changed) {
 			this._renderPreservingFocus();
+		}
+	}
+
+	refresh(): void {
+		this._renderPreservingFocus();
+	}
+
+	focus(): void {
+		const control = this._groupControls.get(MODEL_CONFIG_GROUP_EFFORT) ?? this._groupControls.get(MODEL_CONFIG_GROUP_CONTEXT);
+		if (control) {
+			control.focusActiveItem();
+		} else {
+			this._restoreFocus();
 		}
 	}
 
@@ -142,7 +159,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderPreservingFocus(fallbackGroup?: string): void {
-		const hadFocus = this.element.contains(dom.getActiveElement());
+		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
 		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
 		const group = focusedControl?.[0] ?? fallbackGroup;
 		const optionIndex = focusedControl?.[1].optionElements.findIndex(element => dom.isActiveElement(element));
@@ -173,13 +190,20 @@ export class ModelCard extends DisposableStore {
 		} else if (this._headerActions) {
 			this._headerActions.focus();
 		} else {
-			this._groupControls.values().next().value?.focusActiveItem();
+			const control = this._groupControls.values().next().value;
+			if (control) {
+				control.focusActiveItem();
+			} else {
+				this.element.tabIndex = -1;
+				this.element.focus();
+			}
 		}
 	}
 
 	private _render(): void {
 		this._contentDisposables.clear();
 		dom.clearNode(this.element);
+		dom.clearNode(this.headerElement);
 		this._pricingToggle = undefined;
 		this._pricingChevron = undefined;
 		this._pricingBody = undefined;
@@ -189,8 +213,14 @@ export class ModelCard extends DisposableStore {
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;
 		const isAuto = isAutoModel(model);
+		const isRoutingModel = isAuto || isHydraFusionModel(model);
+		const effort = this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
+		const context = this._configProperty(MODEL_CONFIG_GROUP_CONTEXT);
 
 		this._renderHeader();
+		if (metadata.tooltip) {
+			this._renderDescription(metadata.tooltip);
+		}
 
 		if (!isAuto) {
 			for (const message of Object.values(metadata.warningText ?? {})) {
@@ -207,15 +237,12 @@ export class ModelCard extends DisposableStore {
 			this.element.appendChild(createMessageBanner(message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, openerService));
 		}
 
-		const effort = this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
-		const context = this._configProperty(MODEL_CONFIG_GROUP_CONTEXT);
-
 		if (effort) {
 			this._renderEffortSection(effort, isAuto);
 		}
 		if (context) {
 			this._renderContextSection(context);
-		} else if (!isAuto) {
+		} else if (!isRoutingModel) {
 			this._renderContextWindow(metadata);
 		}
 		// After the settings every model has, so those keep one position whether or not
@@ -228,24 +255,25 @@ export class ModelCard extends DisposableStore {
 		} else if (!isAuto && metadata.pricing && isMultiplierPricing(model)) {
 			this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
 		}
-		if (!this.element.firstChild && metadata.tooltip) {
-			this._renderDescription(metadata.tooltip);
-		}
 	}
 
 	private _renderHeader(): void {
 		const metadata = this._options.model.metadata;
-		const isAuto = isAutoModel(this._options.model);
-		const header = dom.append(this.element, dom.$('.chat-model-card-header'));
-		dom.append(header, dom.$('.chat-model-card-name', undefined, metadata.name));
+		const isRoutingModel = isAutoModel(this._options.model) || isHydraFusionModel(this._options.model);
+		const header = this.headerElement;
+		if (!this._options.externalHeader) {
+			this.element.appendChild(header);
+		}
+		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, metadata.name));
+		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, metadata.name));
 
-		const badgeLabel = isAuto
+		const badgeLabel = isRoutingModel
 			? metadata.detail
 			: this._showsPriceBadgeInPricing()
 				? undefined
 				: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
 		if (badgeLabel) {
-			this._renderBadge(header, badgeLabel, !isAuto && isHighCostCategory(metadata.priceCategory));
+			this._renderBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
 		}
 
 		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess);
@@ -347,13 +375,19 @@ export class ModelCard extends DisposableStore {
 			className: 'segmented',
 			// Arrow keys move focus without changing the model's configuration.
 			arrowKeyBehavior: 'focus',
-			items: values.map((value, index) => ({
-				text: getModelConfigValueLabel(property.schema, value),
-				tooltip: property.schema.enumDescriptions?.[index],
-				isActive: value === property.value,
-			})),
+			items: values.map((value, index) => {
+				const label = getModelConfigValueLabel(property.schema, value);
+				const description = property.schema.enumDescriptions?.[index];
+				return {
+					text: label,
+					tooltip: description,
+					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
+					isActive: value === property.value,
+				};
+			}),
 		}));
-		this._contentDisposables.add(control.onDidSelect(index => {
+		const onDidChoose = isAutoModel(this._options.model) ? control.onDidActivate : control.onDidSelect;
+		this._contentDisposables.add(onDidChoose(index => {
 			this._setValues({ [property.key]: values[index] }, group).catch(onUnexpectedError);
 		}));
 		this._groupControls.set(group, control);

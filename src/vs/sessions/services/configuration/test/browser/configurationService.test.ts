@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -21,13 +22,18 @@ import { UserDataProfileService } from '../../../../../workbench/services/userDa
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IPolicyData } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationService } from '../../browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -36,10 +42,47 @@ suite('Sessions ConfigurationService', () => {
 	let testObject: ConfigurationService;
 	let workspaceService: SessionsWorkspaceContextService;
 	let fileService: FileService;
+	let fileReadsBarrier: Promise<void> | undefined;
+	let uriIdentityService: UriIdentityService;
 	let userDataProfileService: IUserDataProfileService;
 	let workspaceConfigResource: URI;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const logService = new NullLogService();
+	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
+
+	function createConfigurationService(policyService: IPolicyService): ConfigurationService {
+		return disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, nullConfigurationCache, TestEnvironmentService));
+	}
+
+	function startAccountPolicyInitialization(policyData: IPolicyData | null) {
+		testObject.dispose();
+		const onDidChangePolicyData = disposables.add(new Emitter<IPolicyData | null>());
+		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override policyData = policyData;
+			override readonly onDidChangePolicyData = onDidChangePolicyData.event;
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly onDidChangeManagedSettingsFreshness = Event.None;
+			override readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+			override async getDefaultAccount() { return null; }
+		}();
+		const policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService));
+		testObject = createConfigurationService(policyService);
+		return {
+			initialization: testObject.initialize(),
+			policyService,
+			setPolicyData: (data: IPolicyData | null) => {
+				defaultAccountService.policyData = data;
+				onDidChangePolicyData.fire(data);
+			},
+		};
+	}
+
+	async function initializeAccountPolicy(policyData: IPolicyData | null) {
+		const result = startAccountPolicyInitialization(policyData);
+		await result.initialization;
+		return result;
+	}
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -85,18 +128,45 @@ suite('Sessions ConfigurationService', () => {
 					scope: ConfigurationScope.RESOURCE,
 					agentsWindow: { default: { '*.md': 'vscode.markdown.preview.editor' } }
 				},
+				'sessionsConfigurationService.agentEnabled': {
+					type: 'boolean',
+					default: true,
+					policy: {
+						name: 'SessionsTestAgentMode',
+						category: PolicyCategory.InteractiveSession,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } },
+						value: policyData => policyData.chat_agent_enabled === false ? false : undefined,
+					},
+				},
+				'sessionsConfigurationService.mcpAccess': {
+					type: 'string',
+					default: 'all',
+					policy: {
+						name: 'SessionsTestMCP',
+						category: PolicyCategory.InteractiveSession,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } },
+						value: policyData => policyData.mcp === false ? 'none' : undefined,
+					},
+				},
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
+		fileReadsBarrier = undefined;
+		fileService = disposables.add(new class extends FileService {
+			override async readFile(...args: Parameters<FileService['readFile']>) {
+				await fileReadsBarrier;
+				return super.readFile(...args);
+			}
+		}(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const environmentService = TestEnvironmentService;
-		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
@@ -106,9 +176,91 @@ suite('Sessions ConfigurationService', () => {
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify({ folders: [] })));
 
 		workspaceService = disposables.add(new SessionsWorkspaceContextService(getWorkspaceIdentifier(configResource), uriIdentityService));
-		const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
-		testObject = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService, nullConfigurationCache, TestEnvironmentService));
+		testObject = createConfigurationService(new NullPolicyService());
 		await testObject.initialize();
+	});
+
+	suite('account policy', () => {
+		test('initializes policy definitions after defaults are available', async () => {
+			const { policyService } = await initializeAccountPolicy({ chat_agent_enabled: false, mcp: false });
+
+			assert.deepStrictEqual({
+				agentEnabled: testObject.getValue('sessionsConfigurationService.agentEnabled'),
+				agentPolicy: testObject.inspect('sessionsConfigurationService.agentEnabled').policyValue,
+				mcpAccess: testObject.getValue('sessionsConfigurationService.mcpAccess'),
+				mcpPolicy: testObject.inspect('sessionsConfigurationService.mcpAccess').policyValue,
+				source: policyService.getPolicyValueSource('SessionsTestAgentMode'),
+			}, {
+				agentEnabled: false,
+				agentPolicy: false,
+				mcpAccess: 'none',
+				mcpPolicy: 'none',
+				source: PolicyValueSource.Account,
+			});
+		});
+
+		test('overrides user and workspace configuration', async () => {
+			await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.agentEnabled": true }'));
+			await fileService.writeFile(workspaceConfigResource, VSBuffer.fromString(JSON.stringify({ folders: [], settings: { 'sessionsConfigurationService.agentEnabled': true } })));
+			await initializeAccountPolicy({ chat_agent_enabled: false });
+
+			const inspection = testObject.inspect('sessionsConfigurationService.agentEnabled');
+			assert.deepStrictEqual({
+				value: inspection.value,
+				policy: inspection.policyValue,
+				user: inspection.userValue,
+				workspace: inspection.workspaceValue,
+			}, { value: false, policy: false, user: true, workspace: true });
+		});
+
+		test('applies and removes account policy received after initialization', async () => {
+			const { setPolicyData } = await initializeAccountPolicy(null);
+			const values = [testObject.getValue('sessionsConfigurationService.agentEnabled')];
+
+			const restricted = Event.toPromise(Event.filter(testObject.onDidChangeConfiguration, e => e.affectsConfiguration('sessionsConfigurationService.agentEnabled')));
+			setPolicyData({ chat_agent_enabled: false });
+			await restricted;
+			values.push(testObject.getValue('sessionsConfigurationService.agentEnabled'));
+
+			const unrestricted = Event.toPromise(Event.filter(testObject.onDidChangeConfiguration, e => e.affectsConfiguration('sessionsConfigurationService.agentEnabled')));
+			setPolicyData(null);
+			await unrestricted;
+			values.push(testObject.getValue('sessionsConfigurationService.agentEnabled'));
+
+			assert.deepStrictEqual(values, [true, false, true]);
+		});
+
+		for (const agentEnabled of [false, true]) {
+			test(`preserves policy changes while configuration files are loading (agent enabled: ${agentEnabled})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const reads = new DeferredPromise<void>();
+				fileReadsBarrier = reads.p;
+				const { initialization, policyService, setPolicyData } = startAccountPolicyInitialization({ chat_agent_enabled: !agentEnabled });
+				try {
+					await timeout(0);
+					const changed = Event.toPromise(Event.filter(policyService.onDidChange, names => names.includes('SessionsTestAgentMode')));
+					setPolicyData({ chat_agent_enabled: agentEnabled });
+					await changed;
+				} finally {
+					fileReadsBarrier = undefined;
+					await reads.complete();
+				}
+				await initialization;
+
+				assert.deepStrictEqual({
+					value: testObject.getValue('sessionsConfigurationService.agentEnabled'),
+					policy: testObject.inspect('sessionsConfigurationService.agentEnabled').policyValue,
+				}, { value: agentEnabled, policy: agentEnabled ? undefined : false });
+			}));
+		}
+
+		test('rejects writes to account-policy-controlled settings', async () => {
+			await initializeAccountPolicy({ chat_agent_enabled: false });
+
+			await assert.rejects(
+				() => testObject.updateValue('sessionsConfigurationService.agentEnabled', true),
+				/configured in system policy/
+			);
+		});
 	});
 
 	// #region Reading

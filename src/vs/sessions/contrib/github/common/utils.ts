@@ -18,12 +18,38 @@ export interface IPullRequestContentUriParams {
 	readonly status?: IGitHubChangedFile['status'];
 }
 
+export interface IPullRequestContentUriData extends IPullRequestContentUriParams {
+	readonly fileName: string;
+}
+
 export function toPRContentUri(fileName: string, params: IPullRequestContentUriParams): URI {
 	return URI.from({
 		scheme: Schemas.copilotPr,
 		path: `/${fileName}`,
 		query: JSON.stringify({ ...params, fileName })
 	});
+}
+
+export function parsePRContentUri(resource: URI): IPullRequestContentUriData | undefined {
+	if (resource.scheme !== Schemas.copilotPr) {
+		return undefined;
+	}
+	try {
+		const value = JSON.parse(resource.query) as Partial<IPullRequestContentUriData>;
+		if (
+			typeof value.owner !== 'string'
+			|| typeof value.repo !== 'string'
+			|| !Number.isInteger(value.prNumber)
+			|| typeof value.commitSha !== 'string'
+			|| typeof value.isBase !== 'boolean'
+			|| typeof value.fileName !== 'string'
+		) {
+			return undefined;
+		}
+		return value as IPullRequestContentUriData;
+	} catch {
+		return undefined;
+	}
 }
 
 export function getPullRequestKey(owner: string, repo: string, prNumber: number): string {
