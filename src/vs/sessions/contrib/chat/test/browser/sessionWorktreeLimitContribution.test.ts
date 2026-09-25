@@ -10,6 +10,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -75,6 +76,24 @@ suite('SessionWorktreeLimitContribution', () => {
 		assert.strictEqual(confirmationCount, 0);
 	});
 
+	test('does not prompt when the experiment is disabled', async () => {
+		let confirmationCount = 0;
+		const service = disposables.add(createService(
+			Array.from({ length: 20 }, (_, index) => createSession(`old-${index}`, new Date(0))),
+			{
+				confirm: async () => {
+					confirmationCount++;
+					return { confirmed: false };
+				},
+			},
+			false,
+		));
+
+		await service.refresh();
+
+		assert.strictEqual(confirmationCount, 0);
+	});
+
 	test('counts a shared worktree only once', async () => {
 		let confirmationCount = 0;
 		const sessions = Array.from({ length: 20 }, (_, index) =>
@@ -92,7 +111,7 @@ suite('SessionWorktreeLimitContribution', () => {
 	});
 });
 
-function createService(sessions: readonly ISession[], dialogService: Pick<IDialogService, 'confirm'>): SessionWorktreeLimitContribution {
+function createService(sessions: readonly ISession[], dialogService: Pick<IDialogService, 'confirm'>, enabled = true): SessionWorktreeLimitContribution {
 	return new SessionWorktreeLimitContribution(
 		upcastPartial<ISessionsManagementService>({
 			getSessions: () => [...sessions],
@@ -103,6 +122,10 @@ function createService(sessions: readonly ISession[], dialogService: Pick<IDialo
 		upcastPartial<ISessionsListModelService>({ isSessionPinned: () => false }),
 		upcastPartial<IQuickInputService>({}),
 		upcastPartial<IDialogService>(dialogService),
+		upcastPartial<IConfigurationService>({
+			getValue: () => enabled,
+			onDidChangeConfiguration: Event.None,
+		}),
 		upcastPartial<IStorageService>({
 			getNumber: () => 0,
 			store: () => { },

@@ -8,6 +8,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -16,6 +17,7 @@ import { ISessionsListModelService } from '../../../services/sessions/browser/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING } from '../common/constants.js';
 
 const WORKTREE_COUNT_LIMIT = 20;
 const MINIMUM_SESSION_AGE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -39,6 +41,7 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -48,11 +51,16 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			void this.refresh().catch(error => this.logService.error('[SessionWorktreeLimitContribution] Failed to check the worktree limit', error));
 		}, REFRESH_DELAY_MS));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => refreshScheduler.schedule()));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING)) {
+				refreshScheduler.schedule();
+			}
+		}));
 		refreshScheduler.schedule();
 	}
 
 	async refresh(): Promise<void> {
-		if (this._promptPromise || this._isSnoozed()) {
+		if (!this.configurationService.getValue<boolean>(EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING) || this._promptPromise || this._isSnoozed()) {
 			return this._promptPromise;
 		}
 
