@@ -1024,9 +1024,6 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	// A peer folder's PR lookup must never run the session folder's artifact
-	// reconciliation: that reads the session's branch but writes the peer
-	// folder, replacing the peer's PR with the session folder's.
 	test('a peer-folder lookup keeps the peer PR when automatic attachment is disabled', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'main' };
