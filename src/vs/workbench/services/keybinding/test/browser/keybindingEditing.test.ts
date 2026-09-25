@@ -205,6 +205,12 @@ suite('KeybindingsEditing', () => {
 		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'alt+a', command: 'b', args: { text: 'a' } }]);
 	});
 
+	test('remove a user keybinding without args when another one has null args', async () => {
+		await writeToKeybindingsFile({ key: 'alt+a', command: 'b', args: null }, { key: 'alt+c', command: 'b' });
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
+		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'alt+a', command: 'b', args: null }]);
+	});
+
 	test('reset an edited keybinding', async () => {
 		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
 		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
@@ -281,6 +287,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', args ?? null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', args, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
 	}
 });
