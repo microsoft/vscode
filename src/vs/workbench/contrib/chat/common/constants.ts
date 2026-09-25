@@ -113,7 +113,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
-	CopilotHarnessIntroductionEnabled = 'chat.copilotHarnessIntroduction.enabled',
+	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsListLayout = 'chat.experimental.customizations.listLayout',
@@ -154,6 +154,12 @@ export enum ChatConfiguration {
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
+}
+
+export const enum CopilotHarnessIntroductionMode {
+	Off = 'off',
+	NewSession = 'newSession',
+	AfterRequest = 'afterRequest',
 }
 
 export const enum ChatClosedPromoNotification {
