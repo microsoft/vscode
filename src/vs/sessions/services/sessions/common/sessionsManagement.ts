@@ -546,6 +546,9 @@ export interface ISessionsManagementService {
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 
+	/** Returns the current on-disk size of the session's isolated worktree. */
+	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
