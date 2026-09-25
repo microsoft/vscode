@@ -785,7 +785,7 @@
           },
           "prompt": {
             "type": "string",
-            "description": "Initial prompt to send to the new chat or session."
+            "description": "Initial prompt to send to the new session."
           },
           "workspace": {
             "type": "string",
