@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
+import { getCopilotCustomizationCommandHandler } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
 
 suite('Copilot slash command output', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,6 +85,173 @@ suite('Copilot slash command handlers', () => {
 			byName: command,
 			byAlias: command,
 			missing: undefined,
+		});
+	});
+
+	suite('Copilot skills display', () => {
+		const command: RuntimeSlashCommandInfo = {
+			name: 'skills',
+			kind: 'builtin',
+			description: 'Manage skills',
+			allowDuringAgentExecution: false,
+		};
+
+		test('formats the plain runtime list as compact Markdown', async () => {
+			const provider = new CopilotSlashCommandProvider(async () => [command], {
+				getCommandHandler: getCopilotCustomizationCommandHandler,
+			}, store.add(new NullLogService()));
+			const resolved = await provider.resolveSlashCommand('skills');
+			const output = await resolved?.getOutput?.('', {
+				kind: 'text',
+				text: [
+					'Available Skills',
+					'',
+					'Project *skills*:',
+					'  - accessibility',
+					'    Improve [accessibility](command:unsafe).',
+					'  - disabled-skill (disabled)',
+					'    Disabled description.',
+					'',
+					'Found 2 skills.',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Available skills',
+					'',
+					'## Project \\*skills\\*',
+					'',
+					'- `accessibility` — Improve \\[accessibility\\]\\(command:unsafe\\).',
+					'- `disabled-skill` (disabled) — Disabled description.',
+					'',
+					'2 skills found.',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('defers to the runtime for other responses and changed list formats', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual([
+				await handler?.getOutput?.('info accessibility', { kind: 'text', text: 'Skill: accessibility' }),
+				await handler?.getOutput?.('reload', { kind: 'text', text: 'Skills reloaded.' }),
+				await handler?.getOutput?.('list', { kind: 'text', text: '# Already formatted', markdown: true }),
+				await handler?.getOutput?.('list', { kind: 'text', text: 'A newer runtime format' }),
+			], [undefined, undefined, undefined, undefined]);
+		});
+
+		test('formats missing info arguments as command guidance', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual(
+				await handler?.getErrorOutput?.('info', new Error('Usage: /skills info <skill-name>\nExample: /skills info my-skill')),
+				{
+					kind: 'text',
+					text: 'Usage: `/skills info <skill-name>`\n\nExample: `/skills info my-skill`',
+					markdown: true,
+				},
+			);
+		});
+	});
+
+	suite('Copilot MCP display', () => {
+		const command: RuntimeSlashCommandInfo = {
+			name: 'mcp',
+			kind: 'builtin',
+			description: 'Manage MCP servers',
+			allowDuringAgentExecution: false,
+		};
+
+		test('formats the plain runtime list as compact Markdown', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			const output = await handler?.getOutput?.('show github', {
+				kind: 'text',
+				text: [
+					'MCP Servers',
+					'',
+					'Per-server rows show standalone token counts.',
+					'',
+					'- github (connected, builtin): 1.2k tokens',
+					'- unsafe [server](command:unsafe) <https://example.invalid> (disabled, user): error: unavailable',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# MCP servers',
+					'',
+					'Per-server rows show standalone token counts.',
+					'',
+					'- github \\(connected, builtin\\): 1.2k tokens',
+					'- unsafe \\[server\\]\\(command:unsafe\\) &lt;https://example.invalid&gt; \\(disabled, user\\): error: unavailable',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('defers to the runtime for mutating and changed responses', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual([
+				await handler?.getOutput?.('enable github', { kind: 'text', text: 'MCP server enabled.' }),
+				await handler?.getOutput?.('list', { kind: 'text', text: '# Already formatted', markdown: true }),
+				await handler?.getOutput?.('list', { kind: 'text', text: 'A newer runtime format' }),
+			], [undefined, undefined, undefined]);
+		});
+
+		test('formats missing server arguments as command guidance', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual(
+				await handler?.getErrorOutput?.('disable', new Error('Usage: /mcp disable <server-name>')),
+				{
+					kind: 'text',
+					text: 'Usage: `/mcp disable <server-name>`',
+					markdown: true,
+				},
+			);
+		});
+	});
+
+	suite('Copilot plugin display', () => {
+		const command: RuntimeSlashCommandInfo = {
+			name: 'plugin',
+			kind: 'builtin',
+			description: 'Manage plugins',
+			allowDuringAgentExecution: false,
+		};
+
+		test('formats the plain runtime list as compact Markdown', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			const output = await handler?.getOutput?.('', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • document-skills@marketplace v<https://example.invalid>',
+					'  • unsafe-[plugin](command:unsafe) (disabled)',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `document-skills@marketplace` — v&lt;https://example.invalid&gt;',
+					'- `unsafe-[plugin](command:unsafe)` (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('defers to the runtime for unsupported and changed responses', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual([
+				await handler?.getOutput?.('install plugin', { kind: 'text', text: 'Usage' }),
+				await handler?.getOutput?.('list', { kind: 'text', text: '# Already formatted', markdown: true }),
+				await handler?.getOutput?.('list', { kind: 'text', text: 'A newer runtime format' }),
+			], [undefined, undefined, undefined]);
 		});
 	});
 

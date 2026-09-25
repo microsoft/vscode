@@ -6,6 +6,7 @@
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
@@ -36,6 +37,7 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'configuredPlugin' }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
 	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
@@ -54,6 +56,8 @@ export interface ICustomizationMarketplaceEntry {
 	readonly repository?: URI;
 	readonly icon?: URI;
 	readonly publisher?: string;
+	/** Source-supplied origin within a feed, distinct from the feed's display name. */
+	readonly originLabel?: string;
 	readonly version?: string;
 	readonly stars?: number;
 	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */
@@ -123,6 +127,8 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly error?: string;
 	/** Optional validity token shared across native pages, independent of request cancellation. Invalidates buffered entries and continuations; never sent over IPC. */
 	readonly cacheToken?: CancellationToken;
+	/** A partial failure that leaves this source's remaining pages available. */
+	readonly warning?: string;
 }
 
 /** A feed with a stable ID that owns transport, response validation, and installation provenance. */
@@ -174,6 +180,8 @@ export interface ICustomizationMarketplaceService {
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Complete source metadata, including sources that are not currently available. */
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
+	/** Fires when non-configuration inputs change source availability or query identity. */
+	readonly onDidChangeSources?: Event<void>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
@@ -214,7 +222,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(maxContinuations);
 
 	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
-		if (sources.some(source => !source.id) || new Set(sources.map(source => source.id)).size !== sources.length) {
+		if (sources.some(source => !source.id || source.sourceId === '') || new Set(sources.map(source => source.id)).size !== sources.length) {
 			throw new Error('Marketplace sources must have unique, nonempty identifiers.');
 		}
 	}
@@ -298,7 +306,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.cacheToken = page.cacheToken;
 					state.cursor = page.nextCursor;
 					state.total = page.total;
-					state.error = page.error;
+					state.error = page.error ?? state.error ?? page.warning;
 					state.exhausted = page.error !== undefined || page.nextCursor === undefined;
 					state.lastScore = lastScore;
 					state.lastPriority = lastPriority;
@@ -334,15 +342,19 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					states, nextSourceIndex, expiresAt: Date.now() + continuationLifetimeMs,
 				});
 			}
-			const sourceErrorsById = new Map<string, ICustomizationMarketplaceSourceError>();
+			const sourceErrorMessages = new Map<string, string[]>();
 			for (let index = 0; index < states.length; index++) {
 				const error = states[index].error;
 				if (error !== undefined) {
 					const sourceId = sources[index].sourceId ?? sources[index].id;
-					sourceErrorsById.set(sourceId, { sourceId, message: error });
+					const messages = sourceErrorMessages.get(sourceId) ?? [];
+					if (!messages.includes(error)) {
+						messages.push(error);
+					}
+					sourceErrorMessages.set(sourceId, messages);
 				}
 			}
-			const sourceErrors = [...sourceErrorsById.values()];
+			const sourceErrors = [...sourceErrorMessages].map(([sourceId, messages]) => ({ sourceId, message: messages.join('; ') }));
 			return {
 				items,
 				total: !sourceErrors.length && states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,

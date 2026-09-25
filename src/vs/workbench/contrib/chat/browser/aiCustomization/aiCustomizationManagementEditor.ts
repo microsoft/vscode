@@ -3356,7 +3356,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (this.showMcpGalleryInDiscover(section, options)) {
+		if (this.showMarketplaceInDiscover(section, options)) {
 			return;
 		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
@@ -3843,7 +3843,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (this.showMcpGalleryInDiscover(sectionId, options)) {
+		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return;
 		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
@@ -3892,13 +3892,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private showMcpGalleryInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
-		if (section !== AICustomizationManagementSection.McpServers || !options?.showMarketplace ||
+	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+		if (!options?.showMarketplace ||
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
 			return false;
 		}
+		const type = section === AICustomizationManagementSection.Plugins ? 'plugin'
+			: section === AICustomizationManagementSection.McpServers ? 'mcp'
+				: undefined;
+		if (!type) {
+			return false;
+		}
 		this.showWelcomePage();
-		this.welcomePage?.setSearchQuery('@type:mcp');
+		this.welcomePage?.setSearchQuery(`@type:${type}`);
 		return true;
 	}
 

@@ -51,7 +51,7 @@ export type CustomizationMarketplaceInstallationRecordTarget =
 		readonly project?: URI;
 		readonly session?: URI;
 	}
-	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision: string }
+	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision?: string }
 	| { readonly kind: 'mcp'; readonly id: string }
 	| {
 		readonly kind: 'copilotConnector';
@@ -85,7 +85,7 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 			readonly project?: string;
 			readonly session?: string;
 		}
-		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision: string }
+		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision?: string }
 		| { readonly kind: 'mcp'; readonly id: string }
 		| {
 			readonly kind: 'copilotConnector';
@@ -338,8 +338,9 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 	if (record.target.kind === 'plugin') {
 		return (record.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || record.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
 			&& isBoundedString(record.target.uri)
-			&& isBoundedString(record.target.resolvedRevision, 40, 40)
-			&& /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision);
+			&& (record.installation.kind === 'configuredPlugin'
+				? record.target.resolvedRevision === undefined
+				: isBoundedString(record.target.resolvedRevision, 40, 40) && /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision));
 	}
 	if (record.mediaType !== CustomizationMarketplaceMediaType.Skill) {
 		return false;
@@ -380,6 +381,9 @@ function isStoredInstallation(value: unknown): value is RecordedCustomizationMar
 	if (value.kind === 'copilotConnector') {
 		return isBoundedString(value.name);
 	}
+	if (value.kind === 'configuredPlugin') {
+		return Object.keys(value).length === 1;
+	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
 		&& isBoundedString(value.repository)
 		&& isBoundedString(value.ref)
@@ -388,7 +392,9 @@ function isStoredInstallation(value: unknown): value is RecordedCustomizationMar
 }
 
 function isStoredTargetKind(targetKind: unknown, installationKind: RecordedCustomizationMarketplaceInstallation['kind']): boolean {
-	return targetKind === installationKind || targetKind === 'mcp' && installationKind === 'mcpGallery';
+	return targetKind === installationKind
+		|| targetKind === 'mcp' && installationKind === 'mcpGallery'
+		|| targetKind === 'plugin' && installationKind === 'configuredPlugin';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

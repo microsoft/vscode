@@ -27,15 +27,16 @@ function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationSe
 }
 
 export function getCustomizationMarketplaceSourceInfos(configurationService: IConfigurationService, productService: IProductService): readonly ICustomizationMarketplaceSourceInfo[] {
-	const sources: readonly ICustomizationMarketplaceSourceInfo[] = [
-		CustomizationMarketplaceSources.McpGallery,
-		CustomizationMarketplaceSources.AgentFinderPublicFeed,
-	];
+	const sources = getAllMcpGalleryMarketplaceSourceInfos();
 	const hasCustomGallery = getConfiguredCustomMcpGalleryUrl(configurationService, productService) !== undefined;
 	const usesDefaultGallery = configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true;
 	return hasCustomGallery || usesDefaultGallery
 		? sources
 		: sources.filter(source => source.id !== CustomizationMarketplaceSources.McpGallery.id);
+}
+
+export function getAllMcpGalleryMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
+	return [CustomizationMarketplaceSources.McpGallery, CustomizationMarketplaceSources.AgentFinderPublicFeed];
 }
 
 export function createMcpGalleryMarketplaceProviders(instantiationService: IInstantiationService): readonly ICustomizationMarketplaceProvider[] {

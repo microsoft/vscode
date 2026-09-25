@@ -339,6 +339,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'configuredPlugin' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
 		];
 		const page: ICustomizationMarketplacePage = {

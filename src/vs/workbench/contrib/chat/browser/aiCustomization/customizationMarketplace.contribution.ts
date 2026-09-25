@@ -8,9 +8,11 @@ import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CopilotConnectorsRequestService, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { IAgentFinderMarketplaceService, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -20,9 +22,11 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MA
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { CopilotConnectorsService, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from './customizationMarketplaceInstallService.js';
-import { AgentFinderMarketplaceWorkbenchService, CustomizationMarketplaceWorkbenchService } from './customizationMarketplaceWorkbenchService.js';
+import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from './customizationMarketplaceWorkbenchService.js';
 
-registerSingleton(IAgentFinderMarketplaceService, AgentFinderMarketplaceWorkbenchService, InstantiationType.Delayed);
+if (isWeb) {
+	registerSingleton(IPlatformCustomizationMarketplaceService, PlatformCustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
+}
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsRequestService, CopilotConnectorsRequestService, InstantiationType.Delayed);
@@ -53,19 +57,18 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 			AccessibleViewProviderId.CustomizationDiscovery,
 			{ type: this.type, language: 'plaintext' },
 			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover ? [
-				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available items from enabled marketplace sources."),
+				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),
 				localize('customizationDiscovery.help.ranking', "Available search results are ordered by source-assigned relevance, not trust or quality. Feed priority breaks equal relevance scores. Browsing without search text shows higher-priority custom entries first and interleaves entries at the same priority while preserving each catalog's order."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
 				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens the related settings."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate the list. Press Enter to open an installed item."),
-				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code records the exact installed target instead of associating same-name local items. If recorded skill files are missing, choose Repair to restore only those files without overwriting existing files. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup. VS Code continues to apply destination, trust, policy, and compatibility checks. Copilot connectors may open a browser for authorization."),
+				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code records the exact installed target instead of associating same-name local items. If recorded skill files are missing, choose Repair to restore only those files without overwriting existing files. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup. VS Code continues to apply destination, trust, policy, and compatibility checks."),
 				localize('customizationDiscovery.help.links', "When a source provides an external resource, its available customization name opens that resource so you can review it before installing."),
 				localize('customizationDiscovery.help.paging', "Scrolling near the end of search results loads another page without removing loaded items. Retry repeats a failed marketplace request."),
-				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry button above the results. The Accessible View includes the warnings and retry instructions. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
+				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry action above the results. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
 				localize('customizationDiscovery.help.sourceRecovery', "A source that needs sign-in shows a Sign In action, not a warning. Sign-in starts only when you choose it; cancelling keeps the other results available."),
-				localize('customizationDiscovery.help.authorization', "Choose Sign In if you are signed out to browse connectors. Normal GitHub sign-in does not request connector permissions. With ordinary sign-in, connection status stays unknown until you choose Check Connection in MCP Servers; this action can request connector permission. Connect and Disconnect also request permission only when you choose them. Other marketplace sources remain available if you cancel."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : [
 				localize('customizationOverview.help.overview', "The Customizations overview shows categories you can open to manage agents, skills, MCP servers, plugins, and other customizations."),

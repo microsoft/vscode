@@ -20,6 +20,11 @@ export const enum CustomizationMarketplaceConfiguration {
 }
 
 export const CustomizationMarketplaceSources = {
+	PluginMarketplaces: {
+		id: 'pluginMarketplaces',
+		displayName: localize('customizationMarketplace.pluginMarketplaces', "Configured Plugin Marketplaces"),
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+	},
 	McpGallery: {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),

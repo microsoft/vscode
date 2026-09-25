@@ -129,6 +129,41 @@
 	position: relative;
 }
 
+.new-session-welcome-message {
+	align-self: center;
+	align-items: center;
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	justify-content: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	position: relative;
+	text-align: center;
+}
+
+.new-session-welcome-message[hidden] {
+	display: none;
+}
+
+.new-session-welcome-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	margin: 0;
+}
+
+.new-session-welcome-message-actions {
+	left: 100%;
+	opacity: 0;
+	padding-left: var(--vscode-spacing-size40);
+	position: absolute;
+}
+
+.new-session-welcome-message:hover .new-session-welcome-message-actions,
+.new-session-welcome-message:focus-within .new-session-welcome-message-actions {
+	opacity: 1;
+}
+
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;
