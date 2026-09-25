@@ -4319,6 +4319,7 @@ export namespace ChatSessionItem {
 		return {
 			resource: sessionContent.resource,
 			label: sessionContent.label,
+			iconPath: ThemeIcon.isThemeIcon(sessionContent.iconPath) ? IconPath.fromThemeIcon(sessionContent.iconPath) : undefined,
 			description: sessionContent.description ? MarkdownString.from(sessionContent.description) : undefined,
 			badge: sessionContent.badge ? MarkdownString.from(sessionContent.badge) : undefined,
 			status: convertStatus(sessionContent.status),
