@@ -7,6 +7,8 @@ import { streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { dirname } from '../../../../../base/common/path.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -61,6 +63,9 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			case 'chat-agent/install':
 				promptType = PromptsType.agent;
 				break;
+			case 'chat-skill/install':
+				promptType = PromptsType.skill;
+				break;
 			default:
 				return false;
 		}
@@ -95,6 +100,51 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 			const newFolder = await this.instantiationService.invokeFunction(askForPromptSourceFolder, promptType);
 			if (!newFolder) {
+				return true;
+			}
+
+			if (promptType === PromptsType.skill) {
+				const manifest = JSON.parse(responseData) as { name?: string; files: { source: string; destination: string }[] };
+
+				if (!manifest.name) {
+					this.notificationService.error(localize('missingSkillName', "The skill manifest does not contain a name."));
+					return true;
+				}
+
+				const newName = manifest.name;
+				if (!isValidBasename(newName)) {
+					this.notificationService.error(localize('invalidSkillName', "The skill name '{0}' is invalid.", newName));
+					return true;
+				}
+
+				const skillRootUri = URI.joinPath(newFolder.uri, newName);
+				if (await this.fileService.exists(skillRootUri)) {
+					this.notificationService.error(localize('skillExists', "A folder with the name '{0}' already exists.", newName));
+					return true;
+				}
+
+				await this.fileService.createFolder(skillRootUri);
+
+				// Process files
+				for (const file of manifest.files) {
+					const sourceUrl = file.source;
+
+					const fileUrl = URI.parse(sourceUrl);
+
+					const fileRes = await this.requestService.request({ type: 'GET', url: fileUrl.toString() }, CancellationToken.None);
+					if (fileRes.res.statusCode === 200) {
+						const buf = await streamToBuffer(fileRes.stream);
+						const destPath = URI.joinPath(skillRootUri, file.destination);
+						await this.fileService.createFolder(URI.joinPath(skillRootUri, dirname(file.destination)));
+						await this.fileService.createFile(destPath, buf);
+					}
+				}
+
+				const skillFile = URI.joinPath(skillRootUri, 'SKILL.md');
+				if (await this.fileService.exists(skillFile)) {
+					await this.openerService.open(skillFile);
+				}
+
 				return true;
 			}
 
@@ -134,6 +184,9 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				break;
 			case PromptsType.instructions:
 				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL. Do you want to continue by selecting a destination folder and name?");
+				break;
+			case PromptsType.skill:
+				message = localize('confirmInstallSkill', "An external application wants to create a skill folder with potential multiple files from a URL. Do you want to continue by selecting a destination folder?");
 				break;
 			default:
 				message = localize('confirmInstallAgent', "An external application wants to create a custom agent with content from a URL. Do you want to continue by selecting a destination folder and name?");
