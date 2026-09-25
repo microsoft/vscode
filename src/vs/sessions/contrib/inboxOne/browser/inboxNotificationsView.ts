@@ -253,6 +253,30 @@ type InboxImpressionTelemetryClassification = {
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with agents/inboxInteraction, for ordering the trajectory.' };
 };
 
+type InboxViewStateTelemetryEvent = {
+	state: string;
+	dwellMs: number | undefined;
+	visibleItemCount: number;
+	sortMode: string;
+	filterActive: string;
+	msSinceViewOpen: number;
+	viewInstanceId: string;
+	sequence: number;
+};
+
+type InboxViewStateTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks when the Sessions Inbox view opens, closes, gains, or loses focus, so time spent attending the inbox (dwell) and context switches away from it can be reconstructed as part of the user trajectory.';
+	state: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded view lifecycle transition: opened, closed, focus, or blur.' };
+	dwellMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'For blur, milliseconds the view was continuously focused; for closed, milliseconds the view instance was open; undefined otherwise.' };
+	visibleItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of notification cards visible when the transition occurred.' };
+	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode at the transition: priority or recent.' };
+	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied at the transition (yes or no).' };
+	msSinceViewOpen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when this inbox view instance opened to this event, for trajectory reconstruction.' };
+	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate view-state transitions with interactions and impressions.' };
+	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with the other inbox events, for ordering the trajectory.' };
+};
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -304,6 +328,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private interactionSequence = 0;
 	/** When each notification card was first shown in this view instance, for response-latency telemetry. */
 	private readonly itemFirstSeenMs = new Map<string, number>();
+	/** When the view most recently gained focus, for dwell telemetry; undefined while blurred. */
+	private viewFocusedAtMs: number | undefined;
 	/** Notification ids already reported as impressions in this view instance (deduped across re-renders). */
 	private readonly reportedImpressionIds = new Set<string>();
 	private selectionTelemetryState: ISelectionTelemetryState | undefined;
@@ -354,10 +380,25 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	override dispose(): void {
 		this.endSelectionTelemetry('viewDispose');
+		this.logViewState('closed', Date.now() - this.viewOpenedAtMs);
 		if (InboxNotificationsView.activeInstance === this) {
 			InboxNotificationsView.activeInstance = undefined;
 		}
 		super.dispose();
+	}
+
+	/** Logs an inbox view lifecycle transition (opened/closed/focus/blur) for dwell and trajectory. */
+	private logViewState(state: 'opened' | 'closed' | 'focus' | 'blur', dwellMs?: number): void {
+		this.telemetryService.publicLog2<InboxViewStateTelemetryEvent, InboxViewStateTelemetryClassification>('agents/inboxViewState', {
+			state,
+			dwellMs,
+			visibleItemCount: this.renderedCards.length,
+			sortMode: this.sortModeId(),
+			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
+			msSinceViewOpen: Date.now() - this.viewOpenedAtMs,
+			viewInstanceId: this.inboxViewInstanceId,
+			sequence: ++this.interactionSequence,
+		});
 	}
 
 	async debugShowAgentMergeAlwaysSpotlight(): Promise<boolean> {
@@ -404,8 +445,18 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const focusContext = InboxCustomViewFocusContext.bindTo(this.contextKeyService);
 		const focusTracker = this._register(trackFocus(container));
-		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
-		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
+		this._register(focusTracker.onDidFocus(() => {
+			focusContext.set(true);
+			this.viewFocusedAtMs = Date.now();
+			this.logViewState('focus');
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			focusContext.set(false);
+			const dwellMs = this.viewFocusedAtMs !== undefined ? Date.now() - this.viewFocusedAtMs : undefined;
+			this.viewFocusedAtMs = undefined;
+			this.logViewState('blur', dwellMs);
+		}));
+		this.logViewState('opened');
 		this._register({
 			dispose: () => focusContext.reset(),
 		});
