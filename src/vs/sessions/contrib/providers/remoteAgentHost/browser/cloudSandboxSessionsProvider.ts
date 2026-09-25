@@ -46,6 +46,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	private _setLocalArchived(sessionId: string, isArchived: boolean): void {
+		if (this._setPendingNewSessionArchived(sessionId, isArchived)) {
+			return;
+		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!session) {

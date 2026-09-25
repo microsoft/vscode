@@ -137,6 +137,7 @@ export function createAgentServiceComposition(
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				announceUnsentProvisionalSession: params => callbackAdapter.value.announceUnsentProvisionalSession(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));

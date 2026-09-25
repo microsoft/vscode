@@ -390,6 +390,12 @@ function reconcileWorkingDirectories(requested: readonly URI[] | undefined, reso
 	return [...resolved, ...tail].map(d => d.toString());
 }
 
+function processRootReplacement(current: SessionSummary, resolved: SessionSummary): { readonly directory: string; readonly replacement: string } | undefined {
+	const directory = current.workingDirectories?.[0];
+	const replacement = resolved.workingDirectories?.[0];
+	return directory && replacement && directory !== replacement ? { directory, replacement } : undefined;
+}
+
 export interface IAgentServiceOptions {
 	readonly rootConfigResource?: URI;
 	readonly copilotApiService?: ICopilotApiService;
@@ -409,6 +415,7 @@ export interface IAgentServiceCallbacks {
 	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
+	readonly announceUnsentProvisionalSession: NonNullable<IAgentSideEffectsOptions['announceUnsentProvisionalSession']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
@@ -731,6 +738,7 @@ export class AgentService extends Disposable implements IAgentService {
 			cancelAgentMergeTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
 			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
+			announceUnsentProvisionalSession: params => this._announceUnsentProvisionalSession(params.session, params.workingDirectories),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
@@ -5013,26 +5021,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			void write.then(clearWrite, clearWrite);
 		}
-		// The agent no longer knows about worktrees; the host's worktree project
-		// (created in the first-send hook) wins for worktree-isolated sessions, and
-		// falls back to whatever the agent reported for folder sessions.
-		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(session));
-		const project = worktreeInfo?.project ?? e.project;
-		const materializedMeta = worktreeInfo
-			? this._gitStateService.getMaterializedWorktreeMeta(sessionKey, worktreeInfo.branchName)
-			: currentSummary._meta;
-		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
-		const summary: SessionSummary = {
-			...currentSummary,
-			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
-			// The materialize receipt is authoritative for the roots it reports
-			// (index 0 = the resolved process root, e.g. a worktree). A send-path
-			// receipt carries the full resolved set; a resume-path receipt reports
-			// only the process root, so the rest of the current set is preserved.
-			workingDirectories: reconcileWorkingDirectories(currentSet, e.workingDirectories),
-			modifiedAt: new Date().toISOString(),
-			...(materializedMeta !== undefined ? { _meta: materializedMeta } : {}),
-		};
+		const summary = this._withResolvedWorkingDirectories(sessionKey, currentSummary, e.workingDirectories, e.project);
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
 			this._persistConfigValues(session, configValues);
@@ -5052,11 +5041,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
-		const previousWorkingDirectory = currentSummary.workingDirectories?.[0];
-		const materializedWorkingDirectory = summary.workingDirectories?.[0];
-		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
-			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
-			: undefined;
+		const workingDirectoryReplacement = processRootReplacement(currentSummary, summary);
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
@@ -5077,6 +5062,40 @@ export class AgentService extends Disposable implements IAgentService {
 		// before the working directory was known, recompute the current
 		// subscriptions now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
+	}
+
+	private _withResolvedWorkingDirectories(sessionKey: string, currentSummary: SessionSummary, workingDirectories: readonly URI[] | undefined, reportedProject: IAgentMaterializeChatEvent['project']): SessionSummary {
+		// Agents don't know about worktrees, so the host's worktree decides the project and branch.
+		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(sessionKey));
+		const project = worktreeInfo?.project ?? reportedProject;
+		const meta = worktreeInfo
+			? this._gitStateService.getMaterializedWorktreeMeta(sessionKey, worktreeInfo.branchName)
+			: currentSummary._meta;
+		return {
+			...currentSummary,
+			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
+			workingDirectories: reconcileWorkingDirectories(currentSummary.workingDirectories?.map(d => URI.parse(d)), workingDirectories),
+			modifiedAt: new Date().toISOString(),
+			...(meta !== undefined ? { _meta: meta } : {}),
+		};
+	}
+
+	/** Also publishes the resolved worktree, so the next send runs in it rather than in the picked folder. */
+	private _announceUnsentProvisionalSession(session: string, workingDirectories: readonly URI[] | undefined): void {
+		const currentSummary = this._stateManager.getSessionSummary(session);
+		if (!currentSummary) {
+			return;
+		}
+		const summary = this._withResolvedWorkingDirectories(session, currentSummary, workingDirectories, undefined);
+		const workingDirectoryReplacement = processRootReplacement(currentSummary, summary);
+		this._stateManager.markSessionPersisted(session, summary);
+		if (workingDirectoryReplacement) {
+			this._stateManager.dispatchServerAction(session, {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				...workingDirectoryReplacement,
+			});
+			void this._gitStateService.refreshSessionGitState(session, URI.parse(workingDirectoryReplacement.replacement));
+		}
 	}
 
 	/** Drop a session's download-progress opt-in, if any. */

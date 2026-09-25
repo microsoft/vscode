@@ -1252,6 +1252,32 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	test('a failed Dev Container worktree archive at commit does not fail the new session', async () => {
+		const localAgentHostService = new class extends mock<IAgentHostService>() {
+			override async setDetachedWorktreeArchived(): Promise<void> {
+				throw new Error('Archiving prepared worktrees is not supported.');
+			}
+		}();
+		const provider = createProvider(disposables, connection, { localAgentHostService, openSession: true });
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } };
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id, { metadata });
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+
+		await provider.archiveSession(session.sessionId);
+		fireSessionAdded(connection, AgentSession.id(session.resource), { metadata });
+		const committed = await request;
+
+		assert.deepStrictEqual({ resource: committed.resource.toString(), isArchived: committed.isArchived.get() }, { resource: session.resource.toString(), isArchived: false });
+	});
+
 	test('deletes a detached Dev Container worktree when its draft is abandoned', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';
 		const deleted = new DeferredPromise<void>();

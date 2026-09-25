@@ -2107,6 +2107,45 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a first turn cancelled during working-directory resolution announces the provisional session without sending', async () => {
+			setupProvisionalSession();
+			const resolving = new DeferredPromise<void>();
+			const resolved = new DeferredPromise<readonly URI[]>();
+			const announced = new DeferredPromise<{ session: string; workingDirectories: string[] | undefined }>();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: () => {
+					resolving.complete();
+					return resolved.p;
+				},
+				announceUnsentProvisionalSession: ({ session, workingDirectories }) => announced.complete({ session, workingDirectories: workingDirectories?.map(uri => uri.toString()) }),
+			});
+			const started = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, started, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, started);
+			await resolving.p;
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 }, { clientId: 'test', clientSeq: 2 });
+			resolved.complete([URI.file('/repo.worktrees/feature')]);
+
+			assert.deepStrictEqual({
+				announced: await announced.p,
+				sendMessageCalls: agent.sendMessageCalls,
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+			}, {
+				announced: { session: sessionUri.toString(), workingDirectories: [URI.file('/repo.worktrees/feature').toString()] },
+				sendMessageCalls: [],
+				lifecycle: SessionLifecycle.Creating,
+			});
+		});
+
 		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');

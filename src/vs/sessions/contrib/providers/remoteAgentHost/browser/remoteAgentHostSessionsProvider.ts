@@ -312,6 +312,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, true)) {
+			return;
+		}
 		if (!this._hasSession(sessionId) || !this.connection) {
 			return;
 		}
@@ -322,6 +325,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, false)) {
+			return;
+		}
 		if (!this._hasSession(sessionId) || !this.connection) {
 			return;
 		}
