@@ -404,7 +404,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async getMcpGalleryManifest(source: McpGalleryInstallation): Promise<IMcpGalleryManifest> {
 		const manifest = source.registry === 'default'
-			? await this.mcpGalleryManifestService.getDefaultMcpGalleryManifest()
+			? await this.mcpGalleryManifestService.getDefaultMcpGalleryManifest() ?? await this.mcpGalleryManifestService.getMcpGalleryManifest()
 			: await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		const sourceRegistryUrl = normalizeMcpGalleryUrl(source.registryUrl);
 		const configuredRegistryUrl = source.registry === 'custom'

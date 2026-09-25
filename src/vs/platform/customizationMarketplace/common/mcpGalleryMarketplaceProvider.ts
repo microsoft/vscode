@@ -109,7 +109,9 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			return { items: [], total: 0 };
 		}
 		const manifest = this.registry === 'default'
-			? await this.manifestService.getDefaultMcpGalleryManifest()
+			? this.productService.mcpGallery
+				? await this.manifestService.getDefaultMcpGalleryManifest()
+				: configuredUrl ? null : await this.manifestService.getMcpGalleryManifest()
 			: configuredUrl ? await this.manifestService.getMcpGalleryManifest() : null;
 		const registryUrl = normalizeMcpGalleryUrl(manifest?.url);
 		if (this.registry === 'custom' && configuredUrl && registryUrl !== configuredUrl) {

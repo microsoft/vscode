@@ -357,8 +357,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
 		const mcpGalleryManifestService = new class extends mock<IMcpGalleryManifestService>() {
 			customUrl = 'https://configured.registry.test';
+			defaultUrl: string | undefined = 'https://api.mcp.github.com';
 			override async getMcpGalleryManifest() { return { url: this.customUrl, version: 'v0.1', resources: [] }; }
-			override async getDefaultMcpGalleryManifest() { return { url: 'https://api.mcp.github.com', version: 'v0.1', resources: [] }; }
+			override async getDefaultMcpGalleryManifest() { return this.defaultUrl ? { url: this.defaultUrl, version: 'v0.1', resources: [] } : null; }
 		}();
 		instantiationService.stub(IMcpGalleryManifestService, mcpGalleryManifestService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
@@ -1048,6 +1049,28 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}, {
 				lookups: ['io.example/demo'],
 				manifests: ['https://api.mcp.github.com'],
+				installs: 1,
+			});
+		});
+
+		test('installs an active gallery entry when no product gallery is declared', async () => {
+			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
+			const activeUrl = 'https://active.registry.test';
+			fixture.mcpGalleryManifestService.customUrl = activeUrl;
+			fixture.mcpGalleryManifestService.defaultUrl = undefined;
+			fixture.mcpService.galleryServer = mcpServer('io.example/demo', McpServerInstallState.Uninstalled, 'io.example/demo', activeUrl);
+			const candidate = {
+				...galleryMcpResource(),
+				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const, registryUrl: activeUrl }
+			};
+			await fixture.service.install(candidate);
+			assert.deepStrictEqual({
+				lookups: fixture.mcpService.configuredGalleryLookups,
+				manifests: fixture.mcpService.galleryLookupManifests,
+				installs: fixture.mcpService.installs.length,
+			}, {
+				lookups: ['io.example/demo'],
+				manifests: [activeUrl],
 				installs: 1,
 			});
 		});

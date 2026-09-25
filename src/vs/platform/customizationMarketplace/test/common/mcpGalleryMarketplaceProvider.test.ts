@@ -186,4 +186,40 @@ suite('McpGalleryMarketplaceProvider', () => {
 			excluded: { items: [], total: 0 },
 		});
 	});
+
+	test('uses the active MCP gallery when the public feed is disabled and no product gallery is declared', async () => {
+		const activeUrl = 'https://active.registry.test';
+		let queryCalls = 0;
+		let activeManifestCalls = 0;
+		let defaultManifestCalls = 0;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(_options: IMcpGalleryQueryPageOptions, _token: CancellationToken, registry?: IMcpGalleryManifest) {
+				queryCalls++;
+				assert.strictEqual(registry?.url, activeUrl);
+				return { items: [server], total: 1 };
+			}
+		}();
+		const manifests = new class extends mock<IMcpGalleryManifestService>() {
+			override async getMcpGalleryManifest() { activeManifestCalls++; return { url: activeUrl, version: 'v0.1', resources: [] }; }
+			override async getDefaultMcpGalleryManifest() { defaultManifestCalls++; return null; }
+		}();
+		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration('', false), {} as IProductService);
+		const page = await provider.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			queryCalls,
+			activeManifestCalls,
+			defaultManifestCalls,
+			installations: page.items.map(item => item.installation),
+		}, {
+			queryCalls: 1,
+			activeManifestCalls: 1,
+			defaultManifestCalls: 0,
+			installations: [{
+				kind: 'mcpGallery',
+				name: server.name,
+				registry: 'default',
+				registryUrl: activeUrl,
+			}],
+		});
+	});
 });
