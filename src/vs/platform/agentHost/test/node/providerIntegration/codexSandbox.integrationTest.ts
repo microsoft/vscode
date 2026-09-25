@@ -54,6 +54,10 @@ suite('Agent Host Provider Integration — Codex Sandbox', function () {
 		if (!CODEX_SDK_ROOT || !isMacintosh) {
 			this.skip();
 		}
+		// Azure macOS sandbox probes allow forbidden access: https://github.com/microsoft/vscode/issues/337861
+		if (process.env['TF_BUILD'] && process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] !== '1') {
+			this.skip();
+		}
 		fixtureRoot = await mkdtemp(join(tmpdir(), 'codex-sandbox-'));
 		userHome = join(fixtureRoot, 'home');
 		codexHome = join(userHome, '.codex');

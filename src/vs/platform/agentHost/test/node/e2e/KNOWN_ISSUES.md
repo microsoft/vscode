@@ -16,6 +16,29 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Codex sandbox boundary probes fail on Azure macOS runners
+
+A user can restrict a Codex session to its workspace while granting read access to enabled skills and plugin resources. Disabling a plugin should remove its session-specific access, and unrelated private files and read-only resources should remain protected. On Azure macOS runners, the integration probes instead succeed at reads and writes that should be denied. These failures do not establish that the same behavior affects user sessions: the tests pass on GitHub macOS runners, and fixture placement is under investigation.
+
+- Tracking: [#337861](https://github.com/microsoft/vscode/issues/337861), assigned to `Giuspepe`.
+- Tests in `providerIntegration/codexSandbox.integrationTest.ts`:
+  - `Auto-Review reads discovered skill resources without granting private reads or customization writes`
+  - `reads cached Codex plugin skills and their references`
+  - `permission changes reload the sandbox without losing discovered read access`
+  - `keeps every workspace root accessible from a nested cwd without downgrading a workspace skill`
+  - `reads enabled client plugin resources without granting a disabled session access`
+- Scope: the five-test Codex Sandbox suite on Azure macOS runners. Local and GitHub macOS execution remains enabled; the existing Windows/Linux capability skip is unchanged.
+- Expected: enabled resources are readable, private reads and customization writes are denied, read-only sessions cannot write to the workspace, and disabled plugins lose access.
+- Observed: all five tests fail in [main build 477150](https://dev.azure.com/monacotools/Monaco/_build/results?buildId=477150). Both `disabled` and `disabledAfterUse` report `plugin_skill_read=0` and `plugin_reference_read=0` instead of `1`. The neighboring permission-suite fix in [#337826](https://github.com/microsoft/vscode/pull/337826) did not change this suite.
+- Gate: when `TF_BUILD` is set, the suite requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Re-enable after focused Azure macOS validation confirms all five tests pass, including the denied-operation assertions; remove the gate and this entry together.
+- Reproduce on the affected Azure macOS runner:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --build --run \
+    src/vs/platform/agentHost/test/node/providerIntegration/codexSandbox.integrationTest.ts
+  ```
+
 ### Copilot managed-settings diagnostics cannot return an account snapshot
 
 A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
