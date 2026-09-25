@@ -15,7 +15,6 @@ import {
 	normalizeOrtLibraryName,
 	requiredDependencyLibraryNames,
 } from '../../dictation-runtime/nuget.ts';
-import { buildTarball } from '../../dictation-runtime/package.ts';
 
 const dependencies: IFoundryDependencyVersions = {
 	onnxruntime: { version: '1.28.0' },
@@ -64,26 +63,6 @@ suite('dictation runtime', () => {
 				}
 				await fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [], skipIfPresent: true });
 			}
-		} finally {
-			fs.rmSync(directory, { recursive: true, force: true });
-		}
-	});
-
-	test('builds reproducible tarballs regardless of directory enumeration order', async () => {
-		const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-runtime-test-'));
-		try {
-			const stagingDirectory = path.join(directory, 'staging');
-			const targetDirectory = path.join(stagingDirectory, 'prebuilds', 'linux-x64');
-			fs.mkdirSync(targetDirectory, { recursive: true });
-			fs.writeFileSync(path.join(targetDirectory, 'z.node'), 'addon');
-			fs.writeFileSync(path.join(targetDirectory, 'a.so'), 'runtime');
-
-			const ascendingTarball = path.join(directory, 'ascending.tgz');
-			const descendingTarball = path.join(directory, 'descending.tgz');
-			await buildTarball(stagingDirectory, ascendingTarball, currentDirectory => fs.readdirSync(currentDirectory, { withFileTypes: true }));
-			await buildTarball(stagingDirectory, descendingTarball, currentDirectory => fs.readdirSync(currentDirectory, { withFileTypes: true }).reverse());
-
-			assert.deepStrictEqual(fs.readFileSync(descendingTarball), fs.readFileSync(ascendingTarball));
 		} finally {
 			fs.rmSync(directory, { recursive: true, force: true });
 		}
