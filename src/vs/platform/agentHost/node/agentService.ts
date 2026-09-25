@@ -6954,9 +6954,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		const chatState = action.type === ActionType.ChatIsArchivedChanged ? this._stateManager.getChatState(channel) : undefined;
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (isDefaultChatUri(channel) || !this._stateManager.getChatState(channel))) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known non-default chat can be archived independently.');
+			&& (isDefaultChatUri(channel) || !chatState || chatState.origin?.kind === ChatOriginKind.Tool)) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
 			return;
 		}
 		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {

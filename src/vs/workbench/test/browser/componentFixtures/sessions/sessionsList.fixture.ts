@@ -131,6 +131,7 @@ interface IChatSpec {
 	readonly id: string;
 	readonly title: string;
 	readonly status?: SessionStatus;
+	readonly isArchived?: boolean;
 	/** Terminal command awaiting approval; renders an approval row with an Allow button on this chat's row. */
 	readonly approvalCommand?: string;
 }
@@ -189,6 +190,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly title: IObservable<string> = constObservable(spec.title);
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
+		override readonly isArchived: IObservable<boolean> = constObservable(spec.isArchived ?? false);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
 		override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 	}();
@@ -272,6 +274,7 @@ interface IRenderOptions {
 	readonly focusSelectedSession?: boolean;
 	readonly revealFirstSession?: boolean;
 	readonly showFirstSessionTwistie?: boolean;
+	readonly showArchived?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 	readonly showConfetti?: boolean;
 }
@@ -562,7 +565,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	if (options.sessions.some(session => session.isArchived)) {
+	if (options.showArchived || options.sessions.some(session => session.isArchived)) {
 		list.setExcludeArchived(false);
 	}
 	list.layout(options.height ?? (options.phone ? 260 : showHeader && !options.showCustomizationsNavigation ? 180 : 220), width);
@@ -865,6 +868,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'chat', width: 340 }),
+	}),
+	SessionsList_ArchivedNestedChat: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent and uses the completed archive status icon.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{
+				id: 'nested-archive',
+				title: 'Investigate session persistence',
+				workspace: 'vscode',
+				minutesAgo: 2,
+				chats: [
+					{ id: 'active', title: 'Compare provider state' },
+					{ id: 'archived', title: 'Previous persistence approach', isArchived: true },
+				],
+			}],
+			showArchived: true,
+			width: 400,
+		}),
 	}),
 	SessionsList_CollapsedUnreadSections: defineComponentFixture({
 		labels: { kind: 'screenshot' },
