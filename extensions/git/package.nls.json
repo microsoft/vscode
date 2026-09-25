@@ -243,7 +243,7 @@
 	"config.detectSubmodulesLimit": "Controls the limit of Git submodules detected.",
 	"config.detectWorktrees": "Controls whether to automatically detect Git worktrees.",
 	"config.detectWorktreesLimit": "Controls the limit of Git worktrees detected.",
-	"config.worktreeIncludeFiles": "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for files and folders that are included when creating a new worktree. Only files and folders that match the patterns and are listed in `.gitignore` will be copied to the newly created worktree.",
+	"config.worktreeIncludeFiles": "Configure patterns, using `.gitignore` syntax, for files and folders that are included when creating a new worktree. Only files and folders that match the patterns and are ignored by git (for example, listed in `.gitignore`) will be copied to the newly created worktree.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.addAICoAuthor": "Controls whether a 'Co-authored-by' trailer is automatically added to the commit message when AI-generated code is included in the commit.",

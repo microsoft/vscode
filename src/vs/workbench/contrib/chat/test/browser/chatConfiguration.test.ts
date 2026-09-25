@@ -9,7 +9,9 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
+import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -32,7 +34,17 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('defaults persistent progress to Draw as an experimental setting', () => {
+	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+		assert.deepStrictEqual({
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
+		}, {
+			marketplace: false,
+			publicFeed: true,
+		});
+	});
+
+	test('gates persistent progress off while allowing an experiment override', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -40,7 +52,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: 'draw',
+			default: 'off',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -58,7 +70,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: 'draw',
+			default: 'off',
 			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
 			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
 			descriptions: 6,

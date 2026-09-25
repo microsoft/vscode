@@ -18,8 +18,7 @@ import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigK
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
-import { getSessionSandboxOverrides } from '../sessionSandbox.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -791,10 +790,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
 	private _computeSandboxConfig(session: string): SandboxConfig {
-		return buildSandboxConfigForSdk(process.platform, {
-			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(this._configurationService, session),
-		}) ?? { enabled: false };
+		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, session)) ?? { enabled: false };
 	}
 
 	/**

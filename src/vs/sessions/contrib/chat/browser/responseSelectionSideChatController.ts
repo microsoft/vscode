@@ -110,6 +110,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _menu: Menu;
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
+	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
+	private _pointerSelectionId: number | undefined;
+	private _pointerSelectionChanged = false;
 	private _visibleSurface: 'input' | 'menu' | undefined;
 	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
@@ -134,6 +137,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	) {
 		super();
 
+		this._selectionChangeScheduler = this._register(new dom.AnimationFrameScheduler(this._widget.domNode, () => this._applySelectionChange()));
 		this._input = this._register(new FeedbackInputWidget({
 			placeholder: localize('sessions.selectionSideChat.placeholder', "Ask Question"),
 			ariaLabel: localize('sessions.selectionSideChat.ariaLabel', "Ask a question about the selected response text"),
@@ -154,7 +158,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const askQuestionAction = this._register(new Action(
 			'sessions.responseSelection.askWithBtw',
-			localize('sessions.responseSelection.askWithBtw', "Ask with /btw"),
+			localize('sessions.responseSelection.askWithBtw', "Ask in a Side Chat"),
 			ThemeIcon.asClassName(Codicon.commentDiscussion),
 			true,
 			() => this._openQuestionInput(),
@@ -212,6 +216,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const window = dom.getWindow(this._widget.domNode);
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
+		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => this._beginPointerSelection(e), true));
+		this._register(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
 		// The transcript is a virtualized list that scrolls by transform, so it
 		// never fires a DOM scroll event; follow its own scroll event instead.
 		// The capture-phase DOM listener additionally covers nested scrollers
@@ -237,7 +245,44 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 	}
 
+	private _beginPointerSelection(event: PointerEvent): void {
+		if (event.button !== 0
+			|| event.isPrimary === false
+			|| this._input.isBusy) {
+			return;
+		}
+		this._selectionChangeScheduler.cancel();
+		this._pointerSelectionId = event.pointerId;
+		this._pointerSelectionChanged = false;
+	}
+
+	private _finishPointerSelection(pointerId?: number): void {
+		if (this._pointerSelectionId === undefined
+			|| (pointerId !== undefined && this._pointerSelectionId !== pointerId)) {
+			return;
+		}
+		this._pointerSelectionId = undefined;
+		this._pointerSelectionChanged = false;
+		this._selectionChangeScheduler.schedule();
+	}
+
 	private _onSelectionChange(): void {
+		if (this._pointerSelectionId !== undefined) {
+			this._updateAutoScrollHold();
+			if (!this._pointerSelectionChanged && !this._hasAffordanceFocus()) {
+				this._pointerSelectionChanged = true;
+				this._dismiss();
+			}
+			return;
+		}
+		if (this._selectionChangeScheduler.isScheduled()) {
+			this._updateAutoScrollHold();
+			return;
+		}
+		this._applySelectionChange();
+	}
+
+	private _applySelectionChange(): void {
 		// Reflect the new selection state first: every branch below (including
 		// the early returns) needs the hold to match what is currently selected.
 		this._updateAutoScrollHold();
@@ -485,7 +530,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!force && this._input.isBusy) {
 			return;
 		}
+		this._selectionChangeScheduler.cancel();
 		if (force) {
+			this._pointerSelectionId = undefined;
+			this._pointerSelectionChanged = false;
 			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
 			this._generation++;
 		}

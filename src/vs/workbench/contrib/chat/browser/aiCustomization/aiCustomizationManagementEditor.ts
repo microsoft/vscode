@@ -90,6 +90,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -2722,6 +2723,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 					countLabel: counts.join(' · '),
 				};
 			}
+			case CustomizationMigrationCategoryId.ConfiguredLocations:
+				return {
+					id, count,
+					label: localize('migrationChecklistConfiguredLocations', "Custom location settings"),
+					description: localize('migrationChecklistConfiguredLocationsDescription', "Move customizations out of locations configured in settings that the active agent no longer uses."),
+					countLabel: count === 1
+						? localize('migrationChecklistOneConfiguredLocationCustomization', "1 customization")
+						: localize('migrationChecklistConfiguredLocationCustomizationsCount', "{0} customizations", count),
+				};
 			default:
 				throw new Error(`Unsupported migration checklist category: ${id}`);
 		}
@@ -3330,6 +3340,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (this.showMcpGalleryInDiscover(section, options)) {
+			return;
+		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
@@ -3802,6 +3815,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (this.showMcpGalleryInDiscover(sectionId, options)) {
+			return;
+		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
 			// Directly update state and UI, bypassing the early-return guard in selectSection
@@ -3845,6 +3861,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 		}
+	}
+
+	private showMcpGalleryInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+		if (section !== AICustomizationManagementSection.McpServers || !options?.showMarketplace ||
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
+			return false;
+		}
+		this.showWelcomePage();
+		this.welcomePage?.setSearchQuery('@type:mcp');
+		return true;
 	}
 
 	private prepareCustomizationMigrationView(): void {

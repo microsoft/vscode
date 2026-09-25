@@ -3,10 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * Rows reveal actions on hover or keyboard focus. Pair every row `:hover` with
+ * `.hovered` (e.g. `.monaco-list-row:is(:hover, .hovered)`) so tests and
+ * component fixtures can render the hover state without a pointer.
+ */
+
 .sessions-list-control {
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
+
+	.monaco-tree-sticky-container {
+		--vscode-sideBar-background: var(--vscode-agents-background);
+	}
+
+	.monaco-list .monaco-tree-sticky-row.monaco-list-row {
+		background-color: var(--vscode-agents-background) !important;
+
+		&:is(:hover, .hovered):not(.selected):not(.focused) {
+			background-image: linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground));
+		}
+
+		&.focused {
+			background-image: linear-gradient(var(--vscode-list-inactiveFocusBackground, transparent), var(--vscode-list-inactiveFocusBackground, transparent));
+		}
+
+		&.selected {
+			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+
+		&.focused.selected {
+			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+	}
+
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row {
+		&.focused {
+			background-image: linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent));
+		}
+
+		&.selected {
+			background-image: linear-gradient(var(--vscode-list-activeSelectionBackground, transparent), var(--vscode-list-activeSelectionBackground, transparent));
+		}
+
+		&.focused.selected {
+			background-image: linear-gradient(var(--vscode-list-activeSelectionBackground, transparent), var(--vscode-list-activeSelectionBackground, transparent));
+		}
+	}
 
 	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
 		left: var(--vscode-spacing-size40);
@@ -40,7 +84,7 @@
 			outline-color: var(--vscode-contrastActiveBorder, var(--vscode-list-inactiveFocusOutline, transparent));
 		}
 
-		&:hover > .monaco-tl-row {
+		&:is(:hover, .hovered) > .monaco-tl-row {
 			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
 			outline-offset: calc(-1 * var(--vscode-strokeThickness));
 		}
@@ -57,14 +101,14 @@
 	}
 
 	/* Suppressed while selected so the selection highlight is not overpainted. */
-	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input),
-	.monaco-list-row:not(.selected):not(.focused):not(:hover) .session-chat-item.needs-input {
+	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
+	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
 		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input),
-		.monaco-list-row:not(.selected):not(.focused):not(:hover) .session-chat-item.needs-input {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
+		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
 			animation: none;
 			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 		}
@@ -89,12 +133,12 @@
 	}
 
 	/* Replace the status icon with the twistie only while hovering the session row. */
-	.monaco-list-row:hover .session-chat-twistie.collapsible {
+	.monaco-list-row:is(:hover, .hovered) .session-chat-twistie.collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
 
-	.monaco-list-row:hover[aria-expanded] .session-item .session-icon {
+	.monaco-list-row:is(:hover, .hovered)[aria-expanded] .session-item .session-icon {
 		visibility: hidden;
 	}
 
@@ -132,6 +176,8 @@
 		position: relative;
 		height: 16px;
 		display: none;
+		flex-shrink: 0;
+		margin-left: auto;
 
 		.monaco-toolbar {
 			position: relative;
@@ -176,7 +222,7 @@
 		}
 	}
 
-	.monaco-list-row:hover,
+	.monaco-list-row:is(:hover, .hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
 	.session-item.archive-onboarding {
@@ -285,87 +331,6 @@
 		}
 	}
 
-	&[data-session-group-connector] .session-icon {
-		> .codicon,
-		> .monaco-pixel-spinner {
-			display: none;
-		}
-
-		&::before {
-			flex-shrink: 0;
-			width: 16px;
-			height: 16px;
-			color: var(--vscode-descriptionForeground);
-			font-family: var(--monaco-monospace-font);
-			font-size: var(--vscode-fontSize-body1);
-			line-height: 16px;
-			text-align: center;
-		}
-	}
-
-	&[data-session-group-connector='first'] .session-icon::before {
-		content: '┌';
-	}
-
-	&[data-session-group-connector='middle'] .session-icon::before {
-		content: '├';
-	}
-
-	&[data-session-group-connector='last'] .session-icon::before {
-		content: '└';
-	}
-
-	&.session-comparison-participant[data-session-group-connector] .session-icon {
-		align-self: stretch;
-		width: var(--vscode-spacing-size160);
-
-		&::before,
-		&::after {
-			position: absolute;
-			content: '';
-		}
-
-		&::before {
-			top: var(--vscode-spacing-size80);
-			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
-			width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-			height: 0;
-			border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		}
-
-		&::after {
-			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
-			width: 0;
-			border-left: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		}
-	}
-
-	&.session-comparison-participant[data-session-group-connector='first'] .session-icon::after {
-		top: var(--vscode-spacing-size80);
-		bottom: calc(-1 * var(--vscode-spacing-size100));
-		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-		border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		border-top-left-radius: var(--vscode-cornerRadius-small);
-	}
-
-	&.session-comparison-participant[data-session-group-connector='middle'] .session-icon::after {
-		top: calc(-1 * var(--vscode-spacing-size80));
-		bottom: calc(-1 * var(--vscode-spacing-size100));
-	}
-
-	&.session-comparison-participant[data-session-group-connector='last'] .session-icon::after {
-		top: calc(-1 * var(--vscode-spacing-size80));
-		bottom: calc(100% - var(--vscode-spacing-size80));
-		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		border-bottom-left-radius: var(--vscode-cornerRadius-small);
-	}
-
-	&.session-comparison-participant[data-session-group-connector='first'] .session-icon::before,
-	&.session-comparison-participant[data-session-group-connector='last'] .session-icon::before {
-		display: none;
-	}
-
 	.session-main {
 		padding-left: 6px;
 	}
@@ -379,68 +344,6 @@
 	.session-title-row {
 		line-height: 17px;
 		padding-bottom: 4px;
-	}
-
-	.session-comparison-attempt-status {
-		display: none;
-		flex-shrink: 0;
-		align-items: center;
-		gap: var(--vscode-spacing-size40);
-		margin-left: var(--vscode-spacing-size80);
-		color: var(--vscode-descriptionForeground);
-		font-size: var(--vscode-fontSize-label2);
-		font-weight: var(--vscode-fontWeight-regular);
-
-		&.visible {
-			display: flex;
-		}
-
-		.session-comparison-attempt-status-icon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
-
-		.session-comparison-participant-stop.monaco-button {
-			display: none;
-			align-items: center;
-			justify-content: center;
-			width: var(--vscode-spacing-size160);
-			min-width: var(--vscode-spacing-size160);
-			height: var(--vscode-spacing-size160);
-			padding: 0;
-			border-radius: var(--vscode-cornerRadius-small);
-
-			.codicon {
-				font-size: var(--vscode-codiconFontSize-compact);
-			}
-
-			&[hidden] {
-				display: none;
-			}
-		}
-	}
-
-	&.session-comparison-attempt {
-		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
-
-		.session-icon {
-			line-height: 16px;
-		}
-
-		.session-title-row {
-			line-height: 16px;
-			padding-bottom: 0;
-		}
-
-		.session-title {
-			min-width: 0;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		.session-details-row {
-			display: none;
-		}
 	}
 
 	.session-details-row {
@@ -631,7 +534,7 @@
 		}
 	}
 
-	.monaco-list-row:hover .session-item:not(.quick-chat),
+	.monaco-list-row:is(:hover, .hovered) .session-item:not(.quick-chat),
 	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat) {
 		.session-title-row {
 			grid-column: 1 / -1;
@@ -639,20 +542,16 @@
 			.session-title {
 				flex: 0 1 auto;
 			}
-
-			.session-title-toolbar {
-				margin-left: auto;
-			}
 		}
 
 	}
 
-	.monaco-list-row:hover .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description,
+	.monaco-list-row:is(:hover, .hovered) .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description,
 	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description {
 		display: flex;
 	}
 
-	.monaco-list-row:hover .session-chat-item.has-folder-label:not(.renaming),
+	.monaco-list-row:is(:hover, .hovered) .session-chat-item.has-folder-label:not(.renaming),
 	.monaco-list:focus-within .monaco-list-row.focused .session-chat-item.has-folder-label:not(.renaming) {
 		.session-compact-hover-description {
 			display: flex;
@@ -847,6 +746,10 @@
 		font-size: var(--vscode-fontSize-label2);
 		line-height: var(--vscode-spacing-size160);
 
+		&[hidden] {
+			display: none;
+		}
+
 		.session-chat-folder-icon {
 			display: flex;
 			align-items: center;
@@ -910,6 +813,10 @@
 		.session-chat-title-input {
 			display: block;
 		}
+
+		.session-title-toolbar {
+			display: none;
+		}
 	}
 
 	/* Reuses the session row's approval-row styling; only the left inset is
@@ -959,7 +866,8 @@
 	padding-inline: var(--vscode-spacing-size200);
 }
 
-.monaco-list-row:hover .session-show-more:hover {
+.monaco-list-row:hover .session-show-more:hover,
+.monaco-list-row.hovered .session-show-more {
 	color: var(--vscode-foreground);
 }
 
@@ -1014,7 +922,7 @@
 }
 
 .agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:hover,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:is(:hover, .hovered),
 .agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
 .agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
 	background-color: transparent;
@@ -1029,12 +937,33 @@
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
 
-	.session-section-label {
+	.session-section-label-container {
 		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	.session-section-label {
+		flex: 0 1 auto;
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.session-section-migration-indicator {
+		display: none;
+		flex-shrink: 0;
+		width: var(--vscode-spacing-size60);
+		height: var(--vscode-spacing-size60);
+		margin-left: var(--vscode-spacing-size40);
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
+	}
+
+	.session-section-migration-indicator.visible {
+		display: block;
 	}
 
 	.session-section-icon {
@@ -1053,6 +982,11 @@
 		opacity: 0.7;
 		margin-left: 4px;
 		margin-right: 4px;
+	}
+
+	&.session-section-customizations .session-section-count {
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
 	}
 
 	.session-section-new-badge {
@@ -1119,7 +1053,7 @@
 	border-color: var(--vscode-contrastBorder);
 }
 
-.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
 .monaco-list-row.focused .session-section .session-section-toolbar,
 .monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
@@ -1133,7 +1067,7 @@
 	display: block;
 	visibility: hidden;
 }
-.monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
+.monaco-list-row:is(:hover, .hovered) .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: visible;
 }
 
@@ -1143,19 +1077,19 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-list-row:hover .session-section.session-section-shortcut.active {
+.monaco-list-row:is(:hover, .hovered) .session-section.session-section-shortcut.active {
 	background-color: transparent;
 	border-radius: 0;
 }
 
-.monaco-list-row:hover .session-section .session-section-chevron.collapsible,
+.monaco-list-row:is(:hover, .hovered) .session-section .session-section-chevron.collapsible,
 .sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
 .monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-list-row:hover .session-section .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row:is(:hover, .hovered) .session-section .session-section-chevron.collapsible + .session-section-icon,
 .sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible + .session-section-icon,
 .monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
 	display: none;
@@ -1166,16 +1100,16 @@
 }
 
 .sessions-list-control {
-	.monaco-list-row:hover .session-section .session-section-label,
+	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label,
-	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
+	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
 	}
 
 	/* Shortcut sections only change label and icon color on hover, unless active. */
-	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
-	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
+	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
 		color: var(--vscode-descriptionForeground);
 	}
 
@@ -1191,31 +1125,6 @@
 
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
-	.session-group-labels {
-		flex: 1 1 auto;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		line-height: normal;
-	}
-
-	.session-group-description {
-		display: none;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		color: var(--vscode-descriptionForeground);
-		font-size: var(--vscode-fontSize-label2);
-		font-weight: var(--vscode-fontWeight-regular);
-		line-height: 14px;
-
-		&.visible {
-			display: block;
-		}
-	}
-
 	.session-group-input {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -1232,80 +1141,6 @@
 			font-size: var(--vscode-fontSize-label2, 11px);
 		}
 	}
-}
-
-.monaco-list-row:hover .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
-.monaco-list-row:hover .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
-.session-comparison-participant .session-comparison-participant-stop:focus {
-	display: flex;
-}
-
-.monaco-list-row:hover .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
-.session-comparison-attempt .session-comparison-attempt-status:focus-within .session-comparison-attempt-status-icon {
-	display: none;
-}
-
-.session-group.session-comparison-group {
-	padding-top: var(--vscode-spacing-size40);
-	padding-bottom: var(--vscode-spacing-size40);
-	color: var(--vscode-foreground);
-
-	.session-section-label {
-		display: block;
-		color: var(--vscode-strongForeground);
-		font-size: var(--vscode-fontSize-label1);
-		font-weight: var(--vscode-fontWeight-semiBold);
-		line-height: 16px;
-	}
-
-	.session-section-chevron.collapsible {
-		order: 4;
-		display: flex;
-		align-items: center;
-		margin-right: 0;
-		margin-left: var(--vscode-spacing-size40);
-	}
-
-	.session-section-toolbar {
-		order: 3;
-		align-items: center;
-		gap: var(--vscode-spacing-size40);
-	}
-
-	.session-comparison-stop-all.monaco-button,
-	.session-comparison-archive.monaco-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: var(--vscode-spacing-size160);
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0;
-		border-radius: var(--vscode-cornerRadius-small);
-
-		.codicon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
-
-		&[hidden] {
-			display: none;
-		}
-	}
-}
-
-.monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-toolbar,
-.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-toolbar {
-	display: flex;
-}
-
-.monaco-list-row:hover .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
-.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
-	display: flex;
 }
 
 .session-group.session-group-editing .session-group-input {
@@ -1378,12 +1213,6 @@
 				var(--vscode-strongForeground) 70%,
 				var(--vscode-strongForeground) 100%
 			);
-		}
-
-		.monaco-list-row:not(.selected) .session-item.session-comparison-attempt.in-progress .session-title {
-			background: none;
-			-webkit-text-fill-color: currentColor;
-			animation: none;
 		}
 	}
 }
@@ -1464,6 +1293,10 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+	}
+
+	.session-chat-item .session-chat-title-row {
+		padding-right: var(--session-chat-base-height);
 	}
 
 	.session-item .session-icon {

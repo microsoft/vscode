@@ -38,7 +38,7 @@ import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, 
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentBackgroundActivity, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
@@ -1320,7 +1320,27 @@ suite('ChatListRenderer', () => {
 			return invocation;
 		};
 		const roundEnded: IChatRendererContent = { kind: 'thinking', value: '' };
+		const backgroundTerminal = (toolCallId: string, running: boolean): IChatToolInvocationSerialized => ({
+			kind: 'toolInvocationSerialized',
+			toolCallId,
+			toolId: 'bash',
+			source: ToolDataSource.Internal,
+			invocationMessage: 'Running command',
+			originMessage: undefined,
+			pastTenseMessage: undefined,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			toolSpecificData: {
+				kind: 'terminal',
+				commandLine: { original: 'npm run export-policy-data' },
+				language: 'shellscript',
+				didContinueInBackground: true,
+				terminalCommandState: running ? undefined : { exitCode: 0 },
+			},
+		});
 		const label = (parts: IChatRendererContent[]) => getPersistentWaitingLabel(parts)?.value.replaceAll('&nbsp;', ' ');
+		const inheritedBackgroundActivity = getPersistentBackgroundActivity([backgroundTerminal('previous-shell', true)]);
 
 		assert.deepStrictEqual({
 			foreground: label([agent('faint', true, false)]),
@@ -1340,6 +1360,14 @@ suite('ChatListRenderer', () => {
 			readTerminalOutput: label([{ kind: 'markdownContent', content: new MarkdownString('The build is running in the background.') }, await readTool('get_terminal_output', false)]),
 			readShell: label([agent('faint', true), await readTool('read_bash', false)]),
 			readShellComplete: label([await readTool('read_powershell', true)]),
+			backgroundTerminal: label([backgroundTerminal('current-shell', true)]),
+			backgroundTerminalComplete: label([backgroundTerminal('current-shell', false)]),
+			previousTurnBackgroundTerminal: getPersistentWaitingLabel([
+				{ kind: 'markdownContent', content: new MarkdownString('I answered the steering question.') },
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
+			combinedBackgroundWork: getPersistentWaitingLabel([
+				agent('faint', true),
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
 		}, {
 			foreground: 'Waiting for 1 subagent',
 			background: 'Waiting for 1 subagent',
@@ -1357,7 +1385,55 @@ suite('ChatListRenderer', () => {
 			readTerminalOutput: 'Waiting for terminal output',
 			readShell: 'Waiting for terminal output',
 			readShellComplete: undefined,
+			backgroundTerminal: 'Waiting for 1 background command',
+			backgroundTerminalComplete: undefined,
+			previousTurnBackgroundTerminal: 'Waiting for 1 background command',
+			combinedBackgroundWork: 'Waiting for 1 subagent and 1 background command',
 		});
+	});
+
+	test('persistent footer updates cached activity when a prior response tool changes', async () => {
+		const { model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundTerminal = new ChatToolInvocation(
+			{
+				invocationMessage: 'Regenerate policy data',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm run export-policy-data' },
+					language: 'shellscript',
+					didContinueInBackground: true,
+				},
+			},
+			{ id: 'bash', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+			'background-shell', undefined, {},
+		);
+		await backgroundTerminal.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTerminal);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({
+			text: 'What does policy mean?',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 22), new Range(1, 1, 1, 23), 'What does policy mean?')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Policy lets administrators centrally manage settings.') });
+		const nextResponse = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(nextResponse);
+		const node = { element: nextResponse, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		const whileRunning = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		const terminalData = backgroundTerminal.toolSpecificData;
+		assert.strictEqual(terminalData?.kind, 'terminal');
+		terminalData.terminalCommandState = { exitCode: 0 };
+		backgroundTerminal.notifyToolSpecificDataChanged();
+		renderer.renderElement(node, 0, template);
+		const afterCompletion = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		assert.deepStrictEqual({ whileRunning, afterCompletion }, {
+			whileRunning: 'Waiting for 1 background command',
+			afterCompletion: 'Working',
+		});
+		nextRequest.response?.complete();
 	});
 
 	test('working progress ignores subagent-owned response parts', () => {
@@ -1619,7 +1695,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('persistent progress is enabled by default and owns the only shimmer regardless of the mode-specific renderer option', async () => {
+	test('persistent progress defaults off and owns the only shimmer when an experiment enables it', async () => {
 		const { disposables, configurationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
 		const streamingTool = ChatToolInvocation.createStreaming({
@@ -1636,17 +1712,25 @@ suite('ChatListRenderer', () => {
 		streamingTool.updateStreamingMessage('Searching 42 files...');
 		model.acceptResponseProgress(request, streamingTool);
 		renderer.renderElement(node, 0, template);
+		const defaultOff = {
+			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
+			workingLogos: template.value.querySelectorAll('.chat-working-logo').length,
+		};
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		renderer.renderElement(node, 0, template);
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 
 		const workingProgress = template.value.querySelector<HTMLElement>('.chat-working-progress');
 		assert.deepStrictEqual({
+			defaultOff,
 			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
 			shimmerCount: template.value.querySelectorAll('.shimmer-progress').length,
 			workingIsActive: workingProgress?.classList.contains('chat-working-progress-active'),
 			workingIsFinalPart: template.value.lastElementChild === workingProgress,
 			hasStableProductIcon: !!workingProgress?.querySelector('.chat-progress-icon.codicon-vscode.chat-working-progress-icon-stable[aria-hidden="true"]'),
 		}, {
+			defaultOff: { hasPersistentState: false, workingLogos: 0 },
 			hasPersistentState: true,
 			shimmerCount: 1,
 			workingIsActive: true,
@@ -2102,7 +2186,8 @@ suite('ChatListRenderer', () => {
 			waitingRows,
 			errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 			error: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Could not ask the question.'),
-		}, { waitingRows: 0, errorRows: 1, error: true });
+			errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+		}, { waitingRows: 0, errorRows: 1, error: true, errorIcon: true });
 		request.response?.complete();
 	});
 
@@ -2166,9 +2251,94 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
 					errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
-					error: template.value.textContent?.replace(/\u00a0/g, ' ').includes(typeof error === 'string' ? error : 'Tool execution failed'),
-					waiting: template.value.textContent?.includes('Waiting for answer...'),
-				}, { errorRows: 1, error: true, waiting: false });
+					errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+					card: !!template.value.querySelector('.chat-notification-widget'),
+					originalContent: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Waiting for answer...'),
+				}, { errorRows: 1, errorIcon: true, card: false, originalContent: true });
+				request.response?.complete();
+			});
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'Browser', serverLabel: 'Browser', collectionId: 'browser', definitionId: 'browser', instructions: '' }] satisfies ToolDataSource[]) {
+				test(`failed tools use one error icon instead of a card (restored: ${restored}, preceding tool: ${grouped}, source: ${source.type})`, async () => {
+					const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+					configurePersistentProgressTypography(container, 13);
+					if (grouped) {
+						const first = new ChatToolInvocation(
+							{ invocationMessage: 'Read the first file' },
+							{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+							'first', undefined, {},
+						);
+						await first.didExecuteTool(undefined);
+						model.acceptResponseProgress(request, first);
+					}
+					const failed = new ChatToolInvocation(
+						{ invocationMessage: 'Navigate to the preview', icon: Codicon.search },
+						{ id: 'navigate', displayName: 'Navigate', modelDescription: 'Navigate', source },
+						'failed', undefined, {},
+					);
+					if (!restored) {
+						model.acceptResponseProgress(request, failed);
+						renderer.renderElement(node, 0, template);
+					}
+					await failed.didExecuteTool({ content: [], toolResultError: 'Connection refused' });
+					if (restored) {
+						model.acceptResponseProgress(request, failed.toJSON());
+					}
+					renderer.renderElement(node, 0, template);
+					const iconSelector = grouped && source.type !== 'mcp' ? '.chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-error-compact' : '.chat-tool-call-icon.codicon-error-compact';
+					const icon = template.value.querySelector<HTMLElement>(iconSelector);
+					const visibleErrors = [...template.value.querySelectorAll<HTMLElement>('.codicon-error-compact')].filter(element => element.getClientRects().length > 0 && mainWindow.getComputedStyle(element).display !== 'none');
+					assert.deepStrictEqual({
+						card: !!template.value.querySelector('.chat-notification-widget'),
+						toolLabel: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Navigate to the preview'),
+						errorIcon: !!icon,
+						decorative: icon?.getAttribute('aria-hidden'),
+						visibleErrors: visibleErrors.length,
+						neutralIcon: icon && mainWindow.getComputedStyle(icon).color === 'rgb(140, 140, 140)',
+						extraFocusTarget: !!template.value.querySelector('.progress-step[tabindex]'),
+					}, {
+						card: false, toolLabel: true, errorIcon: true, decorative: 'true', visibleErrors: 1,
+						neutralIcon: true, extraFocusTarget: false,
+					});
+					request.response?.complete();
+				});
+			}
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			test(`denied tools retain their denial icon (restored: ${restored}, grouped: ${grouped})`, async () => {
+				const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				if (grouped) {
+					const first = new ChatToolInvocation(
+						{ invocationMessage: 'Read the first file' },
+						{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						'first', undefined, {},
+					);
+					await first.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, first);
+				}
+				const toolId = grouped ? 'read_file' : 'mcp_read_file';
+				const denied = ChatToolInvocation.createCancelled({
+					toolData: { id: toolId, displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+					toolId,
+					toolCallId: 'denied',
+					chatRequestId: request.id,
+				}, {}, ToolConfirmKind.Denied);
+				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
+				renderer.renderElement(node, 0, template);
+				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');
+				assert.deepStrictEqual({
+					grouped: !!icon?.closest('.chat-thinking-tool-wrapper'),
+					denialIconVisible: !!icon && icon.getClientRects().length > 0 && mainWindow.getComputedStyle(icon).display !== 'none',
+					treatedAsFailure: !!icon?.closest('.chat-tool-call-error'),
+				}, { grouped, denialIconVisible: true, treatedAsFailure: false });
 				request.response?.complete();
 			});
 		}
@@ -2381,6 +2551,56 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('persistent progress reports prolonged inactivity and resets for response activity or known background work', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, configurationService, model, request, response } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const working = {
+			kind: 'working' as const,
+			content: new MarkdownString('Working'),
+			isActive: true,
+			progressStep: 0,
+			showDelayedProgressMessage: true,
+		};
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+		await timeout(89_999);
+		const beforeThreshold = part.workingLabel;
+		await timeout(1);
+		const afterThreshold = part.workingLabel;
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('New response activity') });
+		const afterActivity = part.workingLabel;
+		await timeout(90_000);
+		const afterSecondThreshold = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for 1 background command'), true, false, 1, false);
+		await timeout(90_000);
+		const knownBackgroundWork = part.workingLabel;
+		const statuses = [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({
+			beforeThreshold,
+			afterThreshold,
+			afterActivity,
+			afterSecondThreshold,
+			knownBackgroundWork,
+			statuses,
+		}, {
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+			afterActivity: 'Working',
+			afterSecondThreshold: 'This is taking a little longer than usual',
+			knownBackgroundWork: 'Waiting for 1 background command',
+			statuses: ['This is taking a little longer than usual'],
+		});
+	}));
+
 	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation', presentation },
@@ -2455,6 +2675,82 @@ suite('ChatListRenderer', () => {
 			persistent: { footer: 'Collecting workspace information', visibleRows: [] },
 			legacy: { footer: undefined, visibleRows: ['Collecting workspace information'] },
 			footerStillQuotesProgress: false,
+		});
+	});
+
+	for (const animation of [ChatProgressAnimation.Weave, ChatProgressAnimation.Off]) {
+		test(`progress action stays inline and keyboard-focused as progress updates (${animation})`, () => {
+			const calls: string[] = [];
+			const action = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
+			const { configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+			configurePersistentProgressTypography(container, 13);
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString('Starting Dev Container'), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			action.set({ label: 'Show Log', run: () => calls.push('old') }, undefined);
+			const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link')!;
+			link.focus();
+			action.set({ label: 'Show Log', run: () => calls.push('new') }, undefined);
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString('Initializing Agent Host session'), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			const detail = template.value.querySelector<HTMLElement>('.chat-progress-action')!;
+			const message = detail.parentElement!.querySelector<HTMLElement>('.rendered-markdown')!;
+			const messageBounds = message.getBoundingClientRect();
+			const linkBounds = link.getBoundingClientRect();
+			assert.deepStrictEqual({
+				detail: detail.textContent,
+				message: message.textContent?.trim(),
+				sameLink: detail.contains(link),
+				focused: dom.getActiveElement() === link,
+				tabIndex: link.tabIndex,
+				outsideLiveRegion: !link.closest('[aria-live], [role="status"]'),
+				sameLine: linkBounds.top < messageBounds.bottom && linkBounds.bottom > messageBounds.top && linkBounds.left >= messageBounds.right,
+				calls,
+			}, {
+				detail: '\u00b7 Show Log',
+				message: 'Initializing Agent Host session',
+				sameLink: true,
+				focused: true,
+				tabIndex: 0,
+				outsideLiveRegion: true,
+				sameLine: true,
+				calls: ['new'],
+			});
+			action.set(undefined, undefined);
+			assert.strictEqual(detail.hidden, true);
+		});
+	}
+
+	test('in-place progress announces changed phases only when verbose progress is enabled', () => {
+		const action = observableValue('progressAction', { label: 'Show Log', run: () => { } });
+		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const update = (message: string) => {
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString(message), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			return [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
+		};
+		const initial = update('Starting Dev Container');
+		const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link')!;
+		link.focus();
+		const changed = update('Initializing Agent Host session');
+		const repeated = update('Initializing Agent Host session');
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', false);
+		const quiet = update('Finishing preparation');
+		assert.deepStrictEqual({
+			initial, changed, repeated, quiet,
+			focused: dom.getActiveElement() === link,
+		}, {
+			initial: ['Starting Dev Container'],
+			changed: ['Initializing Agent Host session'],
+			repeated: ['Initializing Agent Host session'],
+			quiet: ['Initializing Agent Host session'],
+			focused: true,
 		});
 	});
 
@@ -3542,6 +3838,66 @@ suite('ChatListRenderer', () => {
 				});
 			}
 		}
+	}
+
+	for (const fontSize of [12, 13, 16]) {
+		test(`diff headers center counts and compact chevrons with their title (${fontSize}px)`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				chatMode: ChatModeKind.Agent,
+				progressVerbosity: ChatProgressVerbosity.Compact,
+			});
+			configurePersistentProgressTypography(container, fontSize);
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			for (const name of ['first.ts', 'second.ts']) {
+				model.acceptResponseProgress(request, {
+					kind: 'externalEdit',
+					uri: URI.file(`/workspace/${name}`),
+					editKind: 'edit',
+					beforeContentUri: URI.file(`/before/${name}`),
+					afterContentUri: URI.file(`/after/${name}`),
+					diff: { added: 5, removed: 18 },
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'review', value: '**Reviewing the changes**\nCheck the rendering.' });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The changes are ready.') });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const snapshot = (header: HTMLElement) => {
+				const title = header.querySelector<HTMLElement>(':scope > .monaco-icon-button > .monaco-button-mdlabel');
+				const stats = header.querySelector<HTMLElement>(':scope > .chat-thinking-title-diff, :scope > .chat-edit-stats');
+				const chevron = header.querySelector<HTMLElement>(':scope > .chat-collapsible-hover-chevron');
+				assert.ok(title && stats && chevron);
+				const center = (element: Element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.top + bounds.height / 2;
+				};
+				return {
+					counts: [...stats.children].map(child => child.textContent),
+					countsCentered: [...stats.children].every(child => Math.abs(center(child) - center(title)) < 0.1),
+					chevronCentered: Math.abs(center(chevron) - center(title)) < 0.1,
+					chevronSize: mainWindow.getComputedStyle(chevron).fontSize,
+					chevronBox: [chevron.getBoundingClientRect().width, chevron.getBoundingClientRect().height],
+					compactGlyph: chevron.classList.contains('codicon-chevron-right-compact'),
+				};
+			};
+			const thinkingHeader = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label.chat-thinking-title-with-diff');
+			assert.ok(thinkingHeader);
+			const thinking = snapshot(thinkingHeader);
+			const thinkingHeight = thinkingHeader.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const summary = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary');
+			assert.ok(summary);
+			const expected = { counts: ['+10', '-36'], countsCentered: true, chevronCentered: true, chevronSize: '12px', compactGlyph: true };
+			assert.deepStrictEqual({ thinking, completed: snapshot(summary), thinkingHeight }, {
+				thinking: { ...expected, chevronBox: [0, 0] },
+				completed: { ...expected, chevronBox: [12, 12] },
+				thinkingHeight: fontSize * 1.5,
+			});
+		});
 	}
 
 	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
@@ -4715,9 +5071,9 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress defaults to compact tool chains without explicit settings', async () => {
+	test('experiment-enabled persistent progress defaults to compact tool chains without an explicit verbosity', async () => {
 		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, undefined);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		for (const id of ['read-renderer', 'read-tests']) {
@@ -6589,6 +6945,9 @@ suite('ChatListRenderer', () => {
 				override removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
 					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
 				}
+				override dispose(): void {
+					carousels.clearAndDisposeAll();
+				}
 			}();
 			let widgetInputPart: ChatInputPart | undefined = inputPart;
 			const widget = new class extends mock<IChatWidget>() {
@@ -6641,6 +7000,27 @@ suite('ChatListRenderer', () => {
 				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
+
+		test('disposes pending confirmations after the widget input part has been cleared', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-at-disposal');
+			context.model.acceptResponseProgress(context.request, tool);
+			const pendingBeforeDisposal = context.carousel?.pendingCount;
+
+			context.inputPart.dispose();
+			context.clearWidgetInputPart();
+			context.renderer.dispose();
+
+			assert.deepStrictEqual({
+				pendingBeforeDisposal,
+				pendingAfterDisposal: context.carousel?.pendingCount ?? 0,
+				toolState: tool.state.get().type,
+			}, {
+				pendingBeforeDisposal: 1,
+				pendingAfterDisposal: 0,
+				toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('removes confirmations when the widget input is cleared before renderer disposal', () => {
 			const context = createConfirmationRenderer();

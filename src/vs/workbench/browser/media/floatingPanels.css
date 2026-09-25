@@ -24,14 +24,14 @@
 .monaco-workbench.floating-panels {
 	--modern-ui-floating-card-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
-	/* The cluster perimeter — the gutter against window chrome — is the same in both
-	 * densities. Only the gap *between* cards differs. */
 	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact {
 	--modern-ui-floating-card-margin: var(--vscode-spacing-sizeNone);
+	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-sizeNone);
+	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-sizeNone);
 	--modern-ui-floating-card-border-color: transparent;
 	--modern-ui-editor-border-color: transparent;
 }
@@ -119,7 +119,7 @@
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
-/* Compact parts meet edge-to-edge; only corners on the cluster perimeter are restored below. */
+/* Compact parts meet each other and the window chrome edge-to-edge. */
 .monaco-workbench.floating-panels.modern-ui-compact .part:is(.sidebar, .panel, .auxiliarybar),
 .monaco-workbench.floating-panels.modern-ui-compact .part.editor > .content,
 .monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content:not(.webview-overlay-modal) {
@@ -294,6 +294,7 @@
 	--modern-ui-activitybar-lane: var(--vscode-spacing-size40);
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
+	border-radius: 0;
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact.top-window-edge .part.activitybar {
@@ -310,24 +311,6 @@
  * row and separator spacing. */
 .monaco-workbench.floating-panels .part.activitybar > .content :not(.monaco-menu) > .monaco-action-bar > .actions-container > .action-item + .action-item {
 	margin-top: var(--activity-bar-action-gap, 0px);
-}
-
-/*
- * The compact cluster paints its perimeter stroke as background images rather than a real
- * border, so a card can show an edge only where it faces the outside (see the corner/edge
- * background stack below). A corner is a 1px-wide ring cut from a radial gradient. Hard
- * colour stops are not antialiased, which rendered the arc as a stepped chamfer, so each
- * edge of the ring is feathered by half a pixel either side of the solid 1px core. That
- * restores a smooth curve matching the browser-drawn borders used at the default density.
- */
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left {
-	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right {
-	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 /*
@@ -395,11 +378,10 @@
 	padding-right: var(--modern-ui-floating-card-margin);
 }
 
-/* Compact density insets the status bar by the cluster perimeter gutter so it
- * lines up with every other card, independent of the activity bar state. */
+/* Status bar controls keep their own inset, independent of the compact panel perimeter. */
 .monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
-	padding-left: var(--modern-ui-floating-card-outer-margin);
-	padding-right: var(--modern-ui-floating-card-outer-margin);
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
@@ -456,7 +438,7 @@
 	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
 }
 
-/* Compact cards form one connected cluster with a small perimeter gutter. */
+/* Compact cards form one connected cluster without a perimeter gutter. */
 .monaco-workbench.floating-panels.modern-ui-compact .part:is(.sidebar, .panel, .auxiliarybar) {
 	--modern-ui-floating-card-stroke-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent));
 	--modern-ui-floating-card-left-border-color: transparent;
@@ -491,25 +473,13 @@
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part:is(.activitybar, .sidebar, .panel, .auxiliarybar, .editor) {
-	--modern-ui-floating-card-corner-top-left-border-image: linear-gradient(transparent, transparent);
-	--modern-ui-floating-card-corner-top-right-border-image: linear-gradient(transparent, transparent);
-	--modern-ui-floating-card-corner-bottom-right-border-image: linear-gradient(transparent, transparent);
-	--modern-ui-floating-card-corner-bottom-left-border-image: linear-gradient(transparent, transparent);
 	background-image:
-		var(--modern-ui-floating-card-corner-top-left-border-image),
-		var(--modern-ui-floating-card-corner-top-right-border-image),
-		var(--modern-ui-floating-card-corner-bottom-right-border-image),
-		var(--modern-ui-floating-card-corner-bottom-left-border-image),
 		linear-gradient(var(--modern-ui-floating-card-top-border-color), var(--modern-ui-floating-card-top-border-color)),
 		linear-gradient(var(--modern-ui-floating-card-right-border-color, var(--modern-ui-floating-card-stroke-color)), var(--modern-ui-floating-card-right-border-color, var(--modern-ui-floating-card-stroke-color))),
 		linear-gradient(var(--modern-ui-floating-card-stroke-color), var(--modern-ui-floating-card-stroke-color)),
 		linear-gradient(var(--modern-ui-floating-card-left-border-color), var(--modern-ui-floating-card-left-border-color));
-	background-position: top left, top right, bottom right, bottom left, top left, top right, bottom right, bottom left;
+	background-position: top left, top right, bottom right, bottom left;
 	background-size:
-		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
-		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
-		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
-		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
 		100% var(--vscode-strokeThickness),
 		var(--vscode-strokeThickness) 100%,
 		100% var(--vscode-strokeThickness),
@@ -531,40 +501,31 @@
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-top {
-	border-top-left-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-}
+/* Window-facing curves are concentric with the native frame, not the internal card corners. */
+.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact) {
+	--modern-ui-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-floating-card-outer-margin)));
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-top {
-	border-top-right-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-}
+	.part.activitybar.left,
+	.part.floating-part-outer-left.floating-part-outer-bottom,
+	.part.editor.floating-editor-outer-left.floating-editor-outer-bottom {
+		border-bottom-left-radius: var(--modern-ui-window-corner-radius);
+	}
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-bottom {
-	border-bottom-left-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-}
+	.part.activitybar.right,
+	.part.floating-part-outer-right.floating-part-outer-bottom,
+	.part.editor.floating-editor-outer-right.floating-editor-outer-bottom {
+		border-bottom-right-radius: var(--modern-ui-window-corner-radius);
+	}
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-bottom {
-	border-bottom-right-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
-}
+	.part.editor.floating-editor-outer-left.floating-editor-outer-bottom > .content,
+	.webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
+		border-bottom-left-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
 
-.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-top {
-	border-top-left-radius: var(--vscode-cornerRadius-large);
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-top {
-	border-top-right-radius: var(--vscode-cornerRadius-large);
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-bottom {
-	border-bottom-left-radius: var(--vscode-cornerRadius-large);
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-bottom {
-	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+	.part.editor.floating-editor-outer-right.floating-editor-outer-bottom > .content,
+	.webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
+		border-bottom-right-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
 }
 
 /*

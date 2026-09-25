@@ -64,7 +64,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
-	branchCompletions(workingDirectory: URI | undefined, query?: string): Promise<{ items: { value: string; label: string }[] }>;
+	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
 	persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void>;
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
@@ -109,7 +109,7 @@ const DETACHED_WORKTREE_RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
 const LEGACY_WORKTREE_META_WORKING_DIRECTORY = 'copilot.workingDirectory';
 const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
-function detachedWorktreeRecordUri(handle: string): URI {
+export function detachedWorktreeRecordUri(handle: string): URI {
 	return URI.from({ scheme: DETACHED_WORKTREE_OWNER_SCHEME, path: `/${DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX}${handle}` });
 }
 
@@ -124,7 +124,6 @@ export class SessionWorkingDirectoryMissingError extends Error {
 }
 
 /** Default upper bound on branch names returned for the branch picker. */
-const BRANCH_COMPLETION_LIMIT = 25;
 const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
 export interface ISessionWorktree {
@@ -823,7 +822,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
-				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Glob patterns for git-ignored files to copy into the isolated worktree."),
+				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Patterns, in .gitignore syntax, for git-ignored files to copy into the isolated worktree."),
 				items: {
 					type: 'string',
 					title: localize('agentHost.sessionConfig.worktreeIncludeFilesItem', "Pattern"),
@@ -837,11 +836,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	/**
-	 * Branch-name completions for the branch picker. Callers forward this from
-	 * their `sessionConfigCompletions` when the requested property is
-	 * {@link SessionConfigKey.Branch}.
+	 * All local branch names for the branch picker, ordered with the current and
+	 * default branches first. Pickers filter and limit the returned list.
 	 */
-	async branchCompletions(workingDirectory: URI | undefined, query?: string): Promise<{ items: { value: string; label: string }[] }> {
+	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
@@ -853,8 +851,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
 			currentBranch,
 			defaultBranch: defaultBranch?.name,
-			query,
-			limit: BRANCH_COMPLETION_LIMIT,
 		});
 
 		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
@@ -958,7 +954,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
 				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
-					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, progress));
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, sessionId, progress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
@@ -1583,7 +1579,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async deleteDetachedWorktree(_handle: string): Promise<void> { }
 	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
-	async branchCompletions(_workingDirectory: URI | undefined, _query?: string): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
+	async branchCompletions(_workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
 	async resolveWorkingDirectoryForResume(_sessionUri: URI, _sessionId: string, workingDirectory: URI): Promise<URI> { return workingDirectory; }
 	takePendingAnnouncement(_sessionId: string): string | undefined { return undefined; }
 	async persistCreationFailure(_sessionUri: URI, _sessionId: string, _diagnostic: string | undefined): Promise<void> { }
