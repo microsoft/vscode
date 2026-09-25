@@ -18,6 +18,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
@@ -351,6 +352,11 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -390,15 +396,17 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig,
-			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
-				return new MobileChatInputConfigPickerActionViewItem(picker);
-			},
-		));
+		for (const menu of [Menus.NewSessionConfig, Menus.AutomationsDialogInputToolbar]) {
+			this._register(actionViewItemService.register(
+				menu,
+				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
+				(_action, _options, scopedInstantiationService) => {
+					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+					const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
+					return new MobileChatInputConfigPickerActionViewItem(picker);
+				},
+			));
+		}
 	}
 }
 

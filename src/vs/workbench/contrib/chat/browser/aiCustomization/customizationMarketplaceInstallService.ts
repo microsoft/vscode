@@ -15,7 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -94,7 +94,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.recordStates.set(record.id, { kind: 'checking' });
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.customizationMarketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
+				this.customizationMarketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.updateEnablement();
 			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this._onDidChange.fire();
@@ -113,12 +114,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isEnabled(): boolean {
-		return getEnabledCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).length > 0;
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).length > 0;
 	}
 
 	private isSourceEnabled(sourceId: string): boolean {
 		const source = this.customizationMarketplaceService.sources.find(source => source.id === sourceId);
-		return !!source && this.configurationService.getValue<boolean>(source.enablementSetting) === true;
+		return !!source && getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).includes(source);
 	}
 
 	private getInstalledMcpServer(name: string, version: string): IWorkbenchMcpServer | undefined {
@@ -379,6 +380,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getRepairUnavailableMessage(record: ICustomizationMarketplaceInstallationRecord): string | undefined {
+		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+			return localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.");
+		}
 		const sourceUnavailableMessage = this.getSourceUnavailableMessage(record.sourceId);
 		if (sourceUnavailableMessage) {
 			return sourceUnavailableMessage;
@@ -411,6 +415,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return { ...state, target };
 			}
 			return state.kind === 'missing' ? { kind: 'missing', target, repairUnavailableMessage: this.getRepairUnavailableMessage(record) } : { kind: state.kind, target };
+		}
+		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.") };
 		}
 		const sourceUnavailableMessage = this.getSourceUnavailableMessage(resource.sourceId);
 		if (sourceUnavailableMessage) {

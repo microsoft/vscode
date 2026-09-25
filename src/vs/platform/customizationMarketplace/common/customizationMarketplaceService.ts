@@ -19,6 +19,7 @@ const defaultPageSize = 30;
 const maxPageSize = 100;
 const maxQueryLength = 4096;
 const maxRelevanceScore = 100;
+const maxFeedPriority = 10;
 const continuationLifetimeMs = 30 * 60_000;
 
 export const CustomizationMarketplaceMediaType = {
@@ -106,9 +107,14 @@ export interface ICustomizationMarketplaceSourceQuery extends Omit<ICustomizatio
 	readonly cursor?: string;
 }
 
+/** Adapter-assigned ordering hint. It is not a trust, quality, or displayed rating. */
+export interface ICustomizationMarketplaceSourceEntry extends ICustomizationMarketplaceEntry {
+	readonly priority?: number;
+}
+
 export interface ICustomizationMarketplaceSourcePage {
 	/** Search results must be in descending score order across all pages, treating absent scores as zero. */
-	readonly items: readonly ICustomizationMarketplaceEntry[];
+	readonly items: readonly ICustomizationMarketplaceSourceEntry[];
 	readonly total?: number;
 	readonly nextCursor?: string;
 	/** A failure after fetching these items. Preserve them, but do not continue this source until a new query. */
@@ -125,6 +131,8 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
 	readonly displayName?: string;
 	readonly enablementSetting: string;
+	/** Sources without a legacy management surface are unavailable while Marketplace is hidden. */
+	readonly requiresMarketplaceVisibility?: boolean;
 }
 
 export interface ICustomizationMarketplaceSourceRecoveryAction {
@@ -167,10 +175,11 @@ export interface ICustomizationMarketplaceQueryService {
 interface IMarketplaceSourceState {
 	cursor?: string;
 	total?: number;
-	items: ICustomizationMarketplaceEntry[];
+	items: ICustomizationMarketplaceSourceEntry[];
 	error?: string;
 	exhausted: boolean;
 	lastScore: number;
+	lastPriority: number;
 }
 
 interface IMarketplaceContinuation {
@@ -217,7 +226,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const states: IMarketplaceSourceState[] = continuation
 			? continuation.states.map(state => ({ ...state, items: [...state.items] }))
-			: sources.map(() => ({ items: [], exhausted: false, lastScore: maxRelevanceScore }));
+			: sources.map(() => ({ items: [], exhausted: false, lastScore: maxRelevanceScore, lastPriority: maxFeedPriority }));
 		let nextSourceIndex = continuation?.nextSourceIndex ?? 0;
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
@@ -245,12 +254,19 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						throw new Error(localize('customizationMarketplace.invalidSourcePage', "The marketplace source '{0}' returned an invalid page.", sources[index].id));
 					}
 					let lastScore = state.lastScore;
+					let lastPriority = state.lastPriority;
 					for (const item of page.items) {
 						const score = item.score ?? 0;
+						const priority = item.priority ?? 0;
 						if ((item.score !== undefined && !Number.isFinite(item.score)) || score < 0 || score > maxRelevanceScore || (query && score > lastScore)) {
 							throw new Error(localize('customizationMarketplace.invalidSourceScore', "The marketplace source '{0}' returned invalid relevance ordering.", sources[index].id));
 						}
+						if (!Number.isSafeInteger(priority) || priority < 0 || priority > maxFeedPriority ||
+							(query ? score === lastScore && priority > lastPriority : priority > lastPriority)) {
+							throw new Error(localize('customizationMarketplace.invalidSourcePriority', "The marketplace source '{0}' returned invalid priority ordering.", sources[index].id));
+						}
 						lastScore = score;
+						lastPriority = priority;
 					}
 					state.items = [...page.items];
 					state.cursor = page.nextCursor;
@@ -258,20 +274,26 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.error = page.error;
 					state.exhausted = page.error !== undefined || page.nextCursor === undefined;
 					state.lastScore = lastScore;
+					state.lastPriority = lastPriority;
 				})), cancellation.token);
 
 				let selected = -1;
 				for (let offset = 0; offset < states.length; offset++) {
-					const index = ((query ? 0 : nextSourceIndex) + offset) % states.length;
-					if (states[index].items.length && (selected < 0 ||
-						(query && (states[index].items[0].score ?? 0) > (states[selected].items[0].score ?? 0)))) {
+					const index = (nextSourceIndex + offset) % states.length;
+					const candidate = states[index].items[0];
+					const current = selected < 0 ? undefined : states[selected].items[0];
+					const score = query ? candidate?.score ?? 0 : 0;
+					const currentScore = query ? current?.score ?? 0 : 0;
+					if (candidate && (!current || score > currentScore ||
+						(score === currentScore && (candidate.priority ?? 0) > (current.priority ?? 0)))) {
 						selected = index;
 					}
 				}
 				if (selected < 0) {
 					break;
 				}
-				items.push({ ...states[selected].items.shift()!, sourceId: sources[selected].id });
+				const { priority: _priority, ...item } = states[selected].items.shift()!;
+				items.push({ ...item, sourceId: sources[selected].id });
 				nextSourceIndex = (selected + 1) % states.length;
 			}
 			let nextCursor: ICustomizationMarketplaceCursor | undefined;

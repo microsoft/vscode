@@ -9,10 +9,11 @@ import { constObservable, observableValue, autorun, ISettableObservable } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyValue, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -203,6 +204,73 @@ suite('setSessionContextKeys - changes', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const change: IChatSessionFileChange = { modifiedUri: URI.parse('test:///file.ts'), insertions: 3, deletions: 1 };
+
+	test('publishes active session context keys atomically', () => {
+		const contextKeyService = disposables.add(new class extends MockContextKeyService {
+			private bufferDepth = 0;
+			readonly unbufferedKeys: string[] = [];
+
+			override createKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
+				const contextKey = super.createKey(key, defaultValue);
+				return {
+					set: value => {
+						if (this.bufferDepth === 0) {
+							this.unbufferedKeys.push(key);
+						}
+						contextKey.set(value);
+					},
+					reset: () => {
+						if (this.bufferDepth === 0) {
+							this.unbufferedKeys.push(key);
+						}
+						contextKey.reset();
+					},
+					get: () => contextKey.get(),
+				};
+			}
+
+			override bufferChangeEvents(callback: () => void): void {
+				this.bufferDepth++;
+				try {
+					callback();
+				} finally {
+					this.bufferDepth--;
+				}
+			}
+		});
+		const createActiveSession = (sessionId: string, providerId: string, changes: readonly IChatSessionFileChange[], isCreated: boolean): IActiveSession => {
+			const chat = { ...stubChat, resource: URI.parse(`test:///${sessionId}/chat`), changes: constObservable(changes) };
+			return upcastPartial<IActiveSession>({
+				...stubSession({
+					sessionId,
+					providerId,
+					mainChat: constObservable(chat),
+					chats: constObservable([chat]),
+				}),
+				isCreated: constObservable(isCreated),
+				sticky: constObservable(false),
+				activeChat: constObservable(chat),
+				visibleChatTabs: constObservable([chat]),
+				shouldShowChatTabs: constObservable(false),
+			});
+		};
+		const first = createActiveSession('first', 'first-provider', [change], true);
+		const second = createActiveSession('second', 'second-provider', [], false);
+		setActiveSessionContextKeys(first, contextKeyService, undefined);
+		setActiveSessionContextKeys(second, contextKeyService, undefined);
+
+		assert.deepStrictEqual({
+			unbufferedKeys: contextKeyService.unbufferedKeys,
+			providerId: SessionProviderIdContext.getValue(contextKeyService),
+			hasChanges: SessionHasChangesContext.getValue(contextKeyService),
+			isCreated: SessionIsCreatedContext.getValue(contextKeyService),
+		}, {
+			unbufferedKeys: [],
+			providerId: 'second-provider',
+			hasChanges: false,
+			isCreated: false,
+		});
+	});
 
 	test('hides the changes of the checkout that a session with a pending worktree was started from', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
