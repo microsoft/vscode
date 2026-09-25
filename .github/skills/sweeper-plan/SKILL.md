@@ -155,9 +155,11 @@ Then build it with the maintainer:
    sitting, say so and propose the first slice — do not plan the whole program.
 7. **Stop — end your turn.** Do not paste the plan into chat and do not summarize it — the
    file is one click away. Do not ask an approval question either: end the turn with
-   exactly this message (plain path, no markdown link):
+   exactly this message — with the file's **absolute** path, plain, no markdown link: a
+   relative path is ambiguous when the session runs in a worktree the maintainer never
+   sees (the Agents window does this):
 
-   `Plan written: <path to the file>. Open it in your editor and edit it freely. When it's
+   `Plan written: <absolute path to the file>. Open it in your editor and edit it freely. When it's
    right, run "/sweeper-implement <issue-number>" in this session — nothing is implemented until
    you do.`
 
