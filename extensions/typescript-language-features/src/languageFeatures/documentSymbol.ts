@@ -109,8 +109,15 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 
 
 		const kindModifiers = parseKindModifier(item.kindModifiers);
+		const tags = [];
 		if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
-			symbolInfo.tags = [vscode.SymbolTag.Deprecated];
+			tags.push(vscode.SymbolTag.Deprecated);
+		}
+		if (kindModifiers.has(PConst.KindModifiers.exported)) {
+			tags.push(vscode.SymbolTag.Exported);
+		}
+		if (tags.length) {
+			symbolInfo.tags = tags;
 		}
 
 		return symbolInfo;
