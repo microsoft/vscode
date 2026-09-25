@@ -10,7 +10,7 @@ import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationCatalogState, AutomationState } from '../channels-automation/state.js';
+import type { AutomationSchedule, AutomationScheduleTrigger, AutomationEntry, AutomationState } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
@@ -157,7 +157,8 @@ export interface InitializeParams extends BaseParams {
 	 *
 	 * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
 	 * If the server cannot speak any of the offered versions, it MUST return
-	 * error code `-32005` (`UnsupportedProtocolVersion`).
+	 * error code `-32005` (`UnsupportedProtocolVersion`) with required
+	 * `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
 	 */
 	protocolVersions: string[];
 	/** Unique client identifier */
@@ -221,7 +222,8 @@ export interface ClientCapabilities {
  * `protocolVersions` list. The client and server MUST use this version for
  * the rest of the connection. If the server cannot speak any of the offered
  * versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
- * instead of a result.
+ * with required `UnsupportedProtocolVersionErrorData` containing
+ * `supportedVersions`, instead of a result.
  */
 export interface InitializeResult {
 	/**
@@ -240,6 +242,15 @@ export interface InitializeResult {
 	 * software behind it.
 	 */
 	serverInfo?: Implementation;
+	/**
+	 * Optional implementation-specific extension metadata advertised by the host.
+	 *
+	 * Hosts and clients MAY agree on namespaced keys for capabilities that are not
+	 * part of the standardized protocol. Clients MUST ignore keys they do not
+	 * understand. Capabilities needed for interoperable behavior SHOULD use typed
+	 * fields on {@link InitializeResult} instead.
+	 */
+	_meta?: Record<string, unknown>;
 	/** Snapshots for each `initialSubscriptions` URI */
 	snapshots: Snapshot[];
 	/** Suggested default directory for remote filesystem browsing */
@@ -270,7 +281,7 @@ export interface InitializeResult {
 	telemetry?: TelemetryCapabilities;
 	/**
 	 * Host-owned automation support. Presence means clients may subscribe to
-	 * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	 * `ahp-automations://` for {@link AutomationState}; absence means the
 	 * host does not expose an automation catalogue or automation commands.
 	 *
 	 * @see {@link /guide/automations | Automations Guide}
@@ -286,7 +297,7 @@ export interface InitializeResult {
  * restrictions.
  *
  * Capabilities describe implementation support.
- * {@link AutomationState.operations} remains authoritative for which
+ * {@link AutomationEntry.operations} remains authoritative for which
  * definition mutations are currently allowed on a particular automation.
  *
  * @category Commands
@@ -302,7 +313,7 @@ export interface AutomationCapabilities {
 	 */
 	runCancellation?: AutomationRunCancellationCapability;
 	/**
-	 * Maximum terminal entries retained in {@link AutomationState.runs}. Active
+	 * Maximum terminal entries retained in {@link AutomationEntry.runs}. Active
 	 * runs are not counted toward the limit. Absence means the retention limit is
 	 * implementation-defined.
 	 */
@@ -374,6 +385,7 @@ export interface PingParams extends BaseParams {
  * Discriminant for reconnect result types.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ReconnectResultType {
 	Replay = 'replay',
@@ -563,6 +575,7 @@ export interface DispatchActionParams {
  * Encoding of fetched content data.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ContentEncoding {
 	Base64 = 'base64',
@@ -653,6 +666,7 @@ export interface ResourceReadResult {
  *   the file — use `truncate` to overwrite bytes in place.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ResourceWriteMode {
 	Truncate = 'truncate',
@@ -967,6 +981,7 @@ export interface ResourceMoveResult {
  * Discriminant for {@link ResourceResolveResult.type}.
  *
  * @category Commands
+ * @nonexhaustive
  */
 export const enum ResourceType {
 	File = 'file',
@@ -1115,7 +1130,8 @@ export interface ResourceMkdirResult {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 3, "method": "authenticate",
- *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com", "token": "gho_xxxx" } }
+ *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com",
+ *     "token": "gho_xxxx", "expiresIn": 3540 } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 3, "result": {} }
@@ -1135,6 +1151,23 @@ export interface AuthenticateParams extends BaseParams {
 	resource: string;
 	/** Bearer token obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * The access token's remaining lifetime, in seconds, when this
+	 * `authenticate` request is sent. This corresponds to `expires_in` in an
+	 * OAuth 2.0 token response (RFC 6749 section 5.1).
+	 *
+	 * If the client retained the original token response, it MUST subtract the
+	 * elapsed time before forwarding this value. Omit this field when the
+	 * authorization server did not supply an expiry or the expiry is otherwise
+	 * unknown. When supplied, the value MUST be a positive integer.
+	 *
+	 * This field is irrelevant when `token` is empty to revoke authentication
+	 * and SHOULD be omitted in that case.
+	 *
+	 * @integer
+	 * @minimum 1
+	 */
+	expiresIn?: number;
 	/**
 	 * OAuth scopes the token grants, when known. Lets the server determine
 	 * whether a specific challenge — e.g. the `requiredScopes` on a live

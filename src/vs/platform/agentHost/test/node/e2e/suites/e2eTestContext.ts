@@ -5,6 +5,7 @@
 
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
+import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 
 /**
  * Which axis a scenario belongs to.
@@ -48,6 +49,8 @@ export interface IAgentHostE2ETestContext {
 	readonly runHostOnlyKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/** Overrides the next matching model response while recording a fault-injection scenario. */
+	readonly setRecordingModelResponse: (response: ICapiReplayResponse, path?: string) => void;
 	/**
 	 * Restart the target against the current test's isolated persistent state and
 	 * replay stream. The replacement client is connected but not initialized.

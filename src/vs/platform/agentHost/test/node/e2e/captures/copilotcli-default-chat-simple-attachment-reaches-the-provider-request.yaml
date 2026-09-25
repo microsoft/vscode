@@ -8,7 +8,7 @@ exchanges:
         - role: user
           content:
             - type: text
-              text: Reply with only the value from the attachment.
+              text: Reply with only the value provided directly in the attachment. Do not inspect the workspace or use tools.
             - type: text
               text: |-
                 <attachment mimeType="text/plain" name="facts.txt">

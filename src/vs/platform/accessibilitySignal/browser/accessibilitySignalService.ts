@@ -611,10 +611,10 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
 
-	public static readonly chatConfetti = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatConfetti', 'Chat Confetti'),
+	public static readonly confetti = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.confetti', 'Confetti'),
 		sound: Sound.confetti,
-		settingsKey: 'accessibility.signals.chatConfetti'
+		settingsKey: 'accessibility.signals.confetti'
 	});
 
 	public static readonly codeActionTriggered = AccessibilitySignal.register({

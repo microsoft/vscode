@@ -11,11 +11,11 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionProviders, getAgentSessionProviderDescription } from '../../../../browser/agentSessions/agentSessions.js';
-import { createAgentSdkSetupNotification } from '../../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { SessionTypeAvailability } from '../../../../browser/agentSessions/sessionTypeAvailability.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { createSessionTypePickerAction, getConfiguredSessionTypePickerAvailability, ISessionTypeItem } from '../../../../browser/widget/input/sessionTargetPickerActionItem.js';
@@ -38,8 +38,9 @@ function createCodexItem(type: AgentSessionProviders.Codex | AgentSessionProvide
 	};
 }
 
-function getMarkdownValue(value: string | IMarkdownString | HTMLElement | undefined): string | undefined {
-	return typeof value === 'string' ? value : value instanceof HTMLElement ? value.textContent ?? undefined : value?.value;
+function getMarkdownValue(value: string | IMarkdownString | HTMLElement | (() => HTMLElement) | undefined): string | undefined {
+	const resolved = typeof value === 'function' ? value() : value;
+	return typeof resolved === 'string' ? resolved : resolved instanceof HTMLElement ? resolved.textContent ?? undefined : resolved?.value;
 }
 
 interface IAvailabilityInputs {
@@ -47,12 +48,14 @@ interface IAvailabilityInputs {
 	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether the harness is gated on a Copilot account. */
 	readonly requiresCopilotSignIn: boolean;
-	/** Notifications currently on offer, none dismissed. */
-	readonly notifications?: readonly IChatInputNotification[];
+	readonly entitlement?: ChatEntitlement;
+	/** Agents that advertise a demand-driven SDK setup path. */
+	readonly setupAgents?: readonly string[];
+	readonly codexAccountStatus?: ICodexAccountService['account']['status'];
 }
 
-/** Availability for a signed-out user whose harness needs its own models and has none. */
-function getSignedOutAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn, notifications = [] }: IAvailabilityInputs): SessionTypeAvailability {
+/** Availability for a harness that needs its own models and has none. */
+function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn, entitlement = ChatEntitlement.Unknown, setupAgents = [], codexAccountStatus = 'unknown' }: IAvailabilityInputs): SessionTypeAvailability {
 	const chatSessionsService = new class extends mock<IChatSessionsService>() {
 		override getChatSessionContribution(candidate: string): ResolvedChatSessionsExtensionPoint | undefined {
 			return candidate === type
@@ -71,7 +74,7 @@ function getSignedOutAvailability({ type, allowSignedOutWhenUsable, requiresCopi
 	}();
 	const entitlementService = new class extends mock<IChatEntitlementService>() {
 		override get entitlement(): ChatEntitlement {
-			return ChatEntitlement.Unknown;
+			return entitlement;
 		}
 		override get anonymous(): boolean {
 			return false;
@@ -85,10 +88,11 @@ function getSignedOutAvailability({ type, allowSignedOutWhenUsable, requiresCopi
 			return [];
 		}
 	}();
-	const notificationService = new class extends mock<IChatInputNotificationService>() {
-		override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
-			return notifications.find(notification => !filter || filter(notification));
-		}
+	const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
+		override readonly setups = setupAgents.map(agent => ({ agent, download: 'ready' as const }));
+	}();
+	const codexAccountService = new class extends mock<ICodexAccountService>() {
+		override readonly account = { status: codexAccountStatus };
 	}();
 
 	return getConfiguredSessionTypePickerAvailability(
@@ -97,22 +101,37 @@ function getSignedOutAvailability({ type, allowSignedOutWhenUsable, requiresCopi
 		chatSessionsService,
 		entitlementService,
 		languageModelsService,
-		notificationService,
+		agentSdkSetupService,
+		codexAccountService,
 	);
 }
 
 function getCopilotAvailability(allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
-	return getSignedOutAvailability({ type: SessionType.AgentHostCopilot, allowSignedOutWhenUsable, requiresCopilotSignIn: true });
-}
-
-/** The real banner, so the test is bound to the ids and session scoping it actually publishes. */
-function claudeSetupBanner(): readonly IChatInputNotification[] {
-	const notification = createAgentSdkSetupNotification({ agent: 'claude', download: 'notDownloaded' }, 'Claude', 'downloadOffered');
-	return notification ? [notification] : [];
+	return getAvailability({ type: SessionType.AgentHostCopilot, allowSignedOutWhenUsable, requiresCopilotSignIn: true });
 }
 
 suite('SessionTypePickerActionItem', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps Cloud as a harness choice without nested creation controls', async () => {
+		let selected = false;
+		const item: ISessionTypeItem = {
+			type: AgentSessionProviders.Cloud, label: 'Cloud', hoverDescription: '', commandId: 'open.cloud',
+		};
+		const action = createSessionTypePickerAction(
+			baseAction, item, AgentSessionProviders.Cloud, SessionTypeAvailability.Available, true,
+			{ label: 'Agent Types', order: 1 }, undefined, Codicon.cloud, () => { selected = true; },
+		);
+		await action.run();
+		assert.deepStrictEqual({
+			label: action.label,
+			selected,
+			inlineToggle: action.inlineToggle,
+			standaloneToggle: action.standaloneToggle,
+		}, {
+			label: 'Cloud', selected: true, inlineToggle: undefined, standaloneToggle: undefined,
+		});
+	});
 
 	test('applies signed-out Agent Host availability in editor chat', () => {
 		assert.deepStrictEqual({
@@ -124,52 +143,60 @@ suite('SessionTypePickerActionItem', () => {
 		});
 	});
 
-	test('a harness whose SDK setup banner is on offer stays selectable, so the banner can be reached', () => {
-		// The Claude harness no longer requires a Copilot account, so a signed-out
-		// user with no Claude models lands on "No models available" — and the banner
-		// telling them how to fix that only renders inside a Claude session.
-		const claude = (notifications: readonly IChatInputNotification[]) => getSignedOutAvailability({
+	test('a harness whose agent advertises setup stays selectable, so demand-driven discovery can start', () => {
+		const claude = (setupAgents: readonly string[]) => getAvailability({
 			type: SessionType.AgentHostClaude,
 			allowSignedOutWhenUsable: true,
 			requiresCopilotSignIn: false,
-			notifications,
+			setupAgents,
 		});
 
 		assert.deepStrictEqual({
-			withBanner: claude(claudeSetupBanner()),
-			withoutBanner: claude([]),
+			withSetup: claude(['claude']),
+			withoutSetup: claude([]),
 		}, {
-			withBanner: SessionTypeAvailability.Available,
-			withoutBanner: SessionTypeAvailability.NoModels,
+			withSetup: SessionTypeAvailability.Available,
+			withoutSetup: SessionTypeAvailability.NoModels,
 		});
 	});
 
-	test('another agent\'s setup banner does not unlock this harness', () => {
-		assert.strictEqual(getSignedOutAvailability({
+	test('another agent\'s setup does not unlock this harness', () => {
+		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
 			allowSignedOutWhenUsable: true,
 			requiresCopilotSignIn: false,
-			notifications: claudeSetupBanner(),
+			setupAgents: ['claude'],
 		}), SessionTypeAvailability.NoModels);
 	});
 
-	test('an unscoped notification does not unlock a harness that has nothing to offer', () => {
-		// `getActiveNotification`'s session-type filter passes notifications with no
-		// `sessionTypes` at all (a quota warning, say) — those must not read as setup.
-		assert.strictEqual(getSignedOutAvailability({
-			type: SessionType.AgentHostClaude,
-			allowSignedOutWhenUsable: true,
+	test('a Copilot Free account can initialize Codex without enabling signed-out use', () => {
+		assert.strictEqual(getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
 			requiresCopilotSignIn: false,
-			notifications: [{
-				id: 'chat.quotaExceeded',
-				severity: ChatInputNotificationSeverity.Warning,
-				message: 'Out of quota',
-				description: undefined,
-				actions: [],
-				dismissible: true,
-				autoDismissOnMessage: false,
-			}],
-		}), SessionTypeAvailability.NoModels);
+			entitlement: ChatEntitlement.Free,
+			setupAgents: ['codex'],
+		}), SessionTypeAvailability.Available);
+	});
+
+	test('a ChatGPT account can initialize Codex without GitHub or the signed-out experiment', () => {
+		assert.strictEqual(getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents: ['codex'],
+			codexAccountStatus: 'signedIn',
+		}), SessionTypeAvailability.Available);
+	});
+
+	test('a fully signed-out user still needs the signed-out experiment', () => {
+		assert.strictEqual(getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents: ['codex'],
+			codexAccountStatus: 'signedOut',
+		}), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('creates an available Codex extension action with hover context', () => {

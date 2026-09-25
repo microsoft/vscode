@@ -4,23 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES } from '../../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
 
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('activates the session and selects Last Turn Changes from the live input pill', () => {
+	function createChangesViewService(): IChangesViewService {
+		return new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+		}();
+	}
+
+	test('activates the chat and reveals Last Turn Changes when the Changes editor is hidden or already open', async () => {
 		const chatResource = URI.parse('chat:session');
 		const lastTurnChanges = observableValue<readonly ISessionTurnFileChange[]>('lastTurnChanges', [{
 			uri: URI.file('/workspace/first.ts'),
@@ -40,6 +48,7 @@ suite('SessionTurnChanges', () => {
 			providerId: 'local-agent-host',
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		});
 		const calls: object[] = [];
 		let selectedChanges: IObservable<readonly ISessionFileChange[]> | undefined;
@@ -49,9 +58,10 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-			override showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
-				calls.push({ showSession: sessionResource.toString(), preserveFocus: options?.preserveFocus });
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override async openChat(targetSession: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+				calls.push({ openChat: targetSession.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
+				this.activeSession.set(session, undefined);
 			}
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
@@ -65,8 +75,10 @@ suite('SessionTurnChanges', () => {
 				return undefined;
 			}
 		}();
+		let changesVisible = false;
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override revealEditorPartExplicitly(): void {
+				changesVisible = true;
 				calls.push({ revealEditorPartExplicitly: true });
 			}
 		}();
@@ -76,9 +88,12 @@ suite('SessionTurnChanges', () => {
 			sessionsService,
 			sessionChangesService,
 			layoutService,
+			createChangesViewService(),
 		));
 
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
+		await Promise.resolve();
+		const visibleAfterFirstOpen = changesVisible;
 		lastTurnChanges.set([{
 			uri: URI.file('/workspace/second.ts'),
 			modifiedUri: URI.file('/workspace/second.ts'),
@@ -86,16 +101,22 @@ suite('SessionTurnChanges', () => {
 			deletions: 1,
 			isOutsideWorkspace: false,
 		}], undefined);
+		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
+		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			calls,
+			visibility: [visibleAfterFirstOpen, changesVisible],
 			selectedChanges: selectedChanges?.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : undefined),
 		}, {
 			calls: [
-				{ showSession: session.resource.toString(), preserveFocus: true },
+				{ openChat: session.resource.toString(), chatResource: chat.resource.toString(), preserveFocus: true },
+				{ revealEditorPartExplicitly: true },
+				{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
 				{ revealEditorPartExplicitly: true },
 				{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
 			],
+			visibility: [true, true],
 			selectedChanges: undefined,
 		});
 	});
@@ -155,6 +176,7 @@ suite('SessionTurnChanges', () => {
 			sessionsService,
 			sessionChangesService,
 			layoutService,
+			createChangesViewService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -227,6 +249,7 @@ suite('SessionTurnChanges', () => {
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		});
 		const selections: string[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -255,6 +278,7 @@ suite('SessionTurnChanges', () => {
 			sessionsService,
 			sessionChangesService,
 			layoutService,
+			createChangesViewService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([]),
@@ -266,7 +290,7 @@ suite('SessionTurnChanges', () => {
 		assert.deepStrictEqual(selections, ['turn:historical', TURN_CHANGES_CHANGESET_ID]);
 	});
 
-	test('opens chat-specific last-turn changes when another chat is more recent', () => {
+	test('selects the chat-owned Last Turn Changes when another chat is more recent', () => {
 		const chatResource = URI.parse('chat:older');
 		const chat = upcastPartial<IChat>({
 			resource: chatResource,
@@ -296,6 +320,7 @@ suite('SessionTurnChanges', () => {
 			})),
 			chats: constObservable([chat, newerChat]),
 			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		});
 		const selections: object[] = [];
 		const service = disposables.add(new SessionsChatResponseFileChangesService(
@@ -326,6 +351,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IAgentWorkbenchLayoutService>() {
 				override revealEditorPartExplicitly(): void { }
 			}(),
+			createChangesViewService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -344,9 +370,9 @@ suite('SessionTurnChanges', () => {
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
 
 		assert.deepStrictEqual(selections, [{
-			id: 'turn:request',
-			label: 'Turn Changes',
-			uris: ['file:///workspace/response.ts'],
+			id: TURN_CHANGES_CHANGESET_ID,
+			label: undefined,
+			uris: undefined,
 		}, {
 			id: TURN_CHANGES_CHANGESET_ID,
 			label: undefined,
@@ -372,6 +398,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<ISessionsService>() { }(),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			createChangesViewService(),
 		));
 		disposables.add(service.registerProvider('test', {
 			getChangesForRequest: () => constObservable([{
@@ -389,5 +416,250 @@ suite('SessionTurnChanges', () => {
 		service.openChangesForRequest(URI.parse('test:session'), 'request', { isLastTurn: false });
 
 		assert.strictEqual(openCount, 1);
+	});
+
+	test('keeps an Agent Merge notice empty instead of using the previous turn changeset stats', () => {
+		const chatResource = URI.parse('chat:session');
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: TURN_CHANGES_CHANGESET_ID,
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes: constObservable(Array.from({ length: 10 }, (_, index) => ({
+				uri: URI.file(`/workspace/file-${index}.ts`),
+				modifiedUri: URI.file(`/workspace/file-${index}.ts`),
+				insertions: 1,
+				deletions: 0,
+			}))),
+		});
+		const chat = upcastPartial<IChat>({
+			resource: chatResource,
+			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
+			changesets: constObservable([changeset]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return { session, chat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
+			}(),
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable(AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES),
+		}));
+
+		const stats = service.getChangeStatsForRequest(chatResource, 'agent-merge-notice', { isLastTurn: true });
+
+		assert.deepStrictEqual(stats?.get(), { files: 0, insertions: 0, deletions: 0 });
+	});
+
+	test('reads current-turn stats from the Changes view service', () => {
+		const chatResource = URI.parse('chat:session');
+		const changes = observableValue<readonly ISessionFileChange[]>('turnChanges', [{
+			uri: URI.file('/workspace/first.ts'),
+			modifiedUri: URI.file('/workspace/first.ts'),
+			insertions: 4,
+			deletions: 2,
+		}]);
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: TURN_CHANGES_CHANGESET_ID,
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes,
+		});
+		const chat = upcastPartial<IChat>({
+			resource: chatResource,
+			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
+			changesets: constObservable([changeset]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
+		}();
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return { session, chat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			changesViewService,
+		));
+
+		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
+		let notificationCount = 0;
+		disposables.add(autorun(reader => {
+			stats?.read(reader);
+			notificationCount++;
+		}));
+		const before = stats?.get();
+		changes.set([{
+			uri: URI.file('/workspace/first.ts'),
+			modifiedUri: URI.file('/workspace/first.ts'),
+			insertions: 4,
+			deletions: 2,
+		}], undefined);
+		const afterEquivalentUpdate = notificationCount;
+		changes.set([
+			...changes.get(),
+			{
+				uri: URI.file('/workspace/second.ts'),
+				modifiedUri: URI.file('/workspace/second.ts'),
+				insertions: 3,
+				deletions: 1,
+			},
+		], undefined);
+
+		assert.deepStrictEqual({ before, afterEquivalentUpdate, afterChangedUpdate: notificationCount, after: stats?.get() }, {
+			before: { files: 1, insertions: 4, deletions: 2 },
+			afterEquivalentUpdate: 1,
+			afterChangedUpdate: 2,
+			after: { files: 2, insertions: 7, deletions: 3 },
+		});
+	});
+
+	test('falls back to request stats when another chat becomes most recent', () => {
+		const chatResource = URI.parse('chat:session');
+		const chatUpdatedAt = observableValue('chatUpdatedAt', new Date('2026-08-13T10:00:00Z'));
+		const newerChatUpdatedAt = observableValue('newerChatUpdatedAt', new Date('2026-08-13T09:00:00Z'));
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: TURN_CHANGES_CHANGESET_ID,
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes: constObservable([{
+				uri: URI.file('/workspace/current.ts'),
+				modifiedUri: URI.file('/workspace/current.ts'),
+				insertions: 4,
+				deletions: 2,
+			}]),
+		});
+		const chat = upcastPartial<IChat>({
+			resource: chatResource,
+			updatedAt: chatUpdatedAt,
+			changesets: constObservable([changeset]),
+		});
+		const newerChat = upcastPartial<IChat>({
+			resource: URI.parse('chat:newer'),
+			updatedAt: newerChatUpdatedAt,
+		});
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			chats: constObservable([chat, newerChat]),
+			mainChat: constObservable(chat),
+		});
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return { session, chat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
+			}(),
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable([{
+				originalURI: URI.file('/workspace/request.ts.before'),
+				modifiedURI: URI.file('/workspace/request.ts'),
+				added: 2,
+				removed: 1,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			}]),
+		}));
+
+		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
+		const states = [stats?.get()];
+		newerChatUpdatedAt.set(new Date('2026-08-13T11:00:00Z'), undefined);
+		states.push(stats?.get());
+		chatUpdatedAt.set(new Date('2026-08-13T12:00:00Z'), undefined);
+		states.push(stats?.get());
+
+		assert.deepStrictEqual(states, [
+			{ files: 1, insertions: 4, deletions: 2 },
+			{ files: 1, insertions: 2, deletions: 1 },
+			{ files: 1, insertions: 4, deletions: 2 },
+		]);
+	});
+
+	test('preserves current-turn stats while the changeset reloads', () => {
+		const chatResource = URI.parse('chat:session');
+		const loading = observableValue('turnChangesLoading', false);
+		const changes = observableValue<readonly ISessionFileChange[]>('turnChanges', [{
+			uri: URI.file('/workspace/current.ts'),
+			modifiedUri: URI.file('/workspace/current.ts'),
+			insertions: 4,
+			deletions: 2,
+		}]);
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: TURN_CHANGES_CHANGESET_ID,
+			isEnabled: constObservable(true),
+			isLoadingChanges: loading,
+			changes,
+		});
+		const chat = upcastPartial<IChat>({
+			resource: chatResource,
+			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
+			changesets: constObservable([changeset]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return { session, chat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+			new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
+			}(),
+		));
+
+		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
+		const states = [stats?.get()];
+		transaction(tx => {
+			loading.set(true, tx);
+			changes.set([], tx);
+		});
+		states.push(stats?.get());
+		loading.set(false, undefined);
+		states.push(stats?.get());
+
+		assert.deepStrictEqual(states, [
+			{ files: 1, insertions: 4, deletions: 2 },
+			{ files: 1, insertions: 4, deletions: 2 },
+			{ files: 0, insertions: 0, deletions: 0 },
+		]);
 	});
 });

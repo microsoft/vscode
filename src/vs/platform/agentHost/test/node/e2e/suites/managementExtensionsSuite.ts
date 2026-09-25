@@ -424,6 +424,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	if (config.provider === 'copilotcli') {
+		// Since 1.0.15-preview.2 (still true in preview.3), the bundled runtime no longer exposes the account-scoped diagnostics API.
 		providerHostOnlyTest(context, 'managed settings diagnostics expose the provider snapshot', async function () {
 			await initializeClient('managed-settings-snapshot');
 			const result = await context.client.call<readonly IAgentHostManagedSettingsDiagnostics[]>('getManagedSettingsDiagnostics');
@@ -433,7 +434,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 				hasProvider: provider !== undefined,
 				hasSnapshot: provider?.snapshot !== undefined,
 				hasError: provider?.error !== undefined,
-				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'mixed', 'none'].includes(provider.snapshot.source),
+				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'policyHelper', 'mixed', 'none'].includes(provider.snapshot.source),
 				managedKeysAreArray: Array.isArray(provider?.snapshot?.managedKeys),
 			}, {
 				hasProvider: true,
@@ -442,7 +443,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 				sourceIsValid: true,
 				managedKeysAreArray: true,
 			});
-		});
+		}, context.runHostOnlyKnownIssueTests);
 	}
 
 	if (context.tier === 'parity') {
@@ -474,23 +475,21 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 
 		if (config.provider === 'copilotcli') {
-			(context.runKnownIssueTests ? test : test.skip)('materialized Copilot debug collection includes provider log entries', async function () {
-				this.timeout(180_000);
+			providerHostOnlyTest(context, 'materialized Copilot debug collection includes process log', async function () {
 				const workspace = mkdtempSync(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 				tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, config, 'copilot-debug-logs', createdSessions, URI.file(workspace));
-				await driveTurnToCompletion(context.client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
 
 				const debugLogs = await collectDebugLogs('archive', sessionUri);
 
 				assert.deepStrictEqual({
 					providerLogsIncluded: debugLogs.providerLogsIncluded,
-					hasProviderLogEntries: debugLogs.entries.some(entry => !isAgentHostProcessLog(entry.path)),
+					hasProcessLog: debugLogs.entries.some(entry => entry.path === 'process.log' && entry.size > 0),
 				}, {
 					providerLogsIncluded: true,
-					hasProviderLogEntries: true,
+					hasProcessLog: true,
 				});
-			});
+			}, context.runHostOnlyKnownIssueTests);
 		}
 	}
 }

@@ -22,6 +22,7 @@ import {
 	parseGitHubCloneUrl,
 	resolveGitHubRefToSha,
 } from './githubRepoFetcher.js';
+import { getExistingGitHubAuthenticationToken } from './pluginGitHubAuthentication.js';
 
 /** Storage key for the per-target metadata index used by this service. */
 const BROWSER_CACHE_STORAGE_KEY = 'chat.plugins.browserCache.v1';
@@ -86,7 +87,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		// Auth ladder: signed-in token → anonymous → freshly-requested repo session.
 		// Each rung only runs when the previous one failed with a 401/403 (the
 		// `GitHubAuthRequiredError`); other errors propagate immediately.
-		const initialAuthToken = await this._lookupGitHubToken();
+		const initialAuthToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
 		const attempts: Array<() => Promise<string | undefined>> = [
 			async () => initialAuthToken,
 		];
@@ -128,7 +129,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			throw new Error(`Cannot pull plugin: no cached metadata for ${repoDir.toString()}`);
 		}
 		const cancel = token ?? CancellationToken.None;
-		const authToken = await this._lookupGitHubToken();
+		const authToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
 		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
 		try {
 			const newSha = await resolveGitHubRefToSha(this._requestService, repo, entry.ref, authToken, cancel);
@@ -151,7 +152,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		}
 
 		const cancel = token ?? CancellationToken.None;
-		const authToken = await this._lookupGitHubToken();
+		const authToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
 		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
 		const requestedRef = treeish.trim();
 
@@ -161,21 +162,35 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			? requestedRef.toLowerCase()
 			: await resolveGitHubRefToSha(this._requestService, repo, requestedRef, authToken, cancel);
 
-		if (requestedSha === entry.sha.toLowerCase()) {
+		await this._materializeCommit(repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, authToken, cancel);
+	}
+
+	async checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken): Promise<void> {
+		const expectedCommit = commit.trim().toLowerCase();
+		if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
+			throw new Error(localize('pluginsInvalidPinnedCommit', "Pinned plugin commit '{0}' is not a full SHA-1 hash.", commit));
+		}
+
+		const entry = this._getCacheEntry(repoDir);
+		if (!entry) {
+			throw new Error(`Cannot checkout plugin: no cached metadata for ${repoDir.toString()}`);
+		}
+		if (entry.sha.toLowerCase() === expectedCommit) {
 			return;
 		}
 
-		try {
-			await fetchAndExtractGitHubRepo(this._requestService, this._fileService, this._logService, repo, requestedSha, repoDir, authToken, cancel);
-			this._setCacheEntry(repoDir, {
-				...entry,
-				ref: isFullSha ? entry.ref : requestedRef,
-				sha: requestedSha,
-				fetchedAt: Date.now(),
-			});
-		} catch (err) {
-			this._maybeLogTransientError(err, repo);
-			throw err;
+		const cancel = token ?? CancellationToken.None;
+		const authToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService);
+		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
+		const resolvedCommit = (await resolveGitHubRefToSha(this._requestService, repo, expectedCommit, authToken, cancel)).toLowerCase();
+		if (resolvedCommit !== expectedCommit) {
+			throw new Error(localize('pluginsPinnedCommitResolutionMismatch', "Pinned plugin commit '{0}' resolved to a different commit '{1}'.", commit, resolvedCommit));
+		}
+
+		await this._materializeCommit(repoDir, entry, resolvedCommit, entry.ref, authToken, cancel);
+		const checkedOutCommit = (await this.revParse(repoDir, 'HEAD')).toLowerCase();
+		if (checkedOutCommit !== expectedCommit) {
+			throw new Error(localize('pluginsPinnedCommitCheckoutMismatch', "Pinned plugin commit '{0}' was not checked out. The repository is at commit '{1}'.", commit, checkedOutCommit));
 		}
 	}
 
@@ -209,6 +224,26 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 	// -- helpers --------------------------------------------------------------
 
+	private async _materializeCommit(repoDir: URI, entry: IBrowserPluginCacheEntry, commit: string, ref: string | undefined, authToken: string | undefined, token: CancellationToken): Promise<void> {
+		if (commit === entry.sha.toLowerCase()) {
+			return;
+		}
+
+		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
+		try {
+			await fetchAndExtractGitHubRepo(this._requestService, this._fileService, this._logService, repo, commit, repoDir, authToken, token);
+			this._setCacheEntry(repoDir, {
+				...entry,
+				ref,
+				sha: commit,
+				fetchedAt: Date.now(),
+			});
+		} catch (err) {
+			this._maybeLogTransientError(err, repo);
+			throw err;
+		}
+	}
+
 	private _parseOrThrow(cloneUrl: string): IGitHubRepoRef {
 		const parsed = parseGitHubCloneUrl(cloneUrl);
 		if (!parsed) {
@@ -232,26 +267,6 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			// (CORS, DNS, offline) don't reach the user without context.
 			const cause = err.cause instanceof Error ? ` (cause: ${err.cause.name}: ${err.cause.message})` : '';
 			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.repo}: ${err.message}${cause}`);
-		}
-	}
-
-	/**
-	 * Best-effort silent lookup of an existing GitHub session token. Returns
-	 * `undefined` when no session is available; callers fall back to anonymous,
-	 * which still works for public repos. Prefers a `repo`-scoped session when
-	 * multiple are present (e.g. EMU + personal).
-	 */
-	private async _lookupGitHubToken(): Promise<string | undefined> {
-		try {
-			const sessions = await this._authenticationService.getSessions('github', [], { silent: true });
-			if (sessions.length === 0) {
-				return undefined;
-			}
-			const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
-			return repoScopeSession?.accessToken ?? sessions[0].accessToken;
-		} catch (err) {
-			this._logService.trace('[BrowserPluginGitCommandService] Silent GitHub session lookup failed:', err);
-			return undefined;
 		}
 	}
 

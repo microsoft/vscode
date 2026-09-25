@@ -7,19 +7,6 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
 /**
- * Per-platform filesystem rule bundle accepted under each `fileSystem.<os>`
- * sub-key (`AgentHostSandboxKey.LinuxFileSystem` etc.) in the AgentHost root
- * sandbox config bag. Mirrors the workbench's `chat.agent.sandbox.fileSystem.*`
- * shape so the workbench-side forwarder can copy values verbatim.
- */
-export interface IAgentSandboxFileSystemSetting {
-	allowRead?: string[];
-	allowWrite?: string[];
-	denyRead?: string[];
-	denyWrite?: string[];
-}
-
-/**
  * ToDo: This will be removed as the SDK's built-in sandbox configuration types are exported.
  */
 export interface SandboxConfig {
@@ -100,15 +87,9 @@ export interface SandboxSeatbeltPolicy {
 }
 
 /**
- * Translate the AgentHost's host-side sandbox configuration into the
+ * Translate the AgentHost's normalized host-side sandbox configuration into the
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
- *
- * Used when {@link CopilotCliConfigKey.EnableCustomTerminalTool} is OFF — the
- * SDK's built-in shell tool runs the user's commands, so we have to push the
- * sandbox policy down into the SDK itself. When the custom terminal tool is
- * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and
- * this function is not consulted.
  *
  * Mirrors `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
@@ -123,10 +104,17 @@ export interface SandboxSeatbeltPolicy {
  * Windows uses its platform-specific enablement and filesystem settings. It
  * does not fall back to the shared enablement setting so Windows rollout is
  * controlled independently.
+ *
+ * `extraReadonlyPaths` grants read access to host-generated files the shell
+ * tool needs, such as the session's shell init scripts. The SDK treats init
+ * script readability as a caller obligation and fails silently when a script
+ * cannot be read. `CopilotAgentSession` therefore includes the directory when
+ * it applies the effective sandbox immediately before each turn.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
+	extraReadonlyPaths?: readonly string[],
 ): SandboxConfig | undefined {
 	const enabledRaw = platform === 'win32'
 		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
@@ -141,7 +129,7 @@ export function buildSandboxConfigForSdk(
 			? sandbox?.[AgentHostSandboxKey.MacFileSystem]
 			: sandbox?.[AgentHostSandboxKey.LinuxFileSystem];
 	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
-	const fs = hasFileSystemPolicy ? fsRaw as IAgentSandboxFileSystemSetting : {};
+	const fs = hasFileSystemPolicy ? fsRaw : {};
 
 	const denied = new Set<string>(fs.denyRead ?? []);
 	const readonly = new Set<string>();
@@ -161,6 +149,15 @@ export function buildSandboxConfigForSdk(
 			readonly.add(p);
 		}
 	}
+	// Host-generated files the shell tool must be able to read (see
+	// `extraReadonlyPaths`). Routed through the same precedence sets as user
+	// paths so an explicit `denyRead` still wins, and so a path the user already
+	// made readwrite is not downgraded.
+	for (const p of extraReadonlyPaths ?? []) {
+		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
+			readonly.add(p);
+		}
+	}
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
 	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] ?? false;
@@ -170,8 +167,8 @@ export function buildSandboxConfigForSdk(
 		addCurrentWorkingDirectory: true,
 		allowDevToolAccess: true,
 		auth: {
-			git: false,
-			gh: false,
+			git: true,
+			gh: true,
 		},
 		userPolicy: {
 			filesystem: {
@@ -182,7 +179,7 @@ export function buildSandboxConfigForSdk(
 			},
 			network: {
 				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			},
 		},
 	};

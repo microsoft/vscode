@@ -12,6 +12,8 @@ import { INativeEnvironmentService } from '../../../../../platform/environment/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
@@ -19,6 +21,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -40,6 +43,10 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly diagnosticsEnabled = false;
+	emitTurnTiming(): void { }
+	emitFirstResponse(): void { }
+	emitUserInteraction(): void { }
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
@@ -73,6 +80,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 		onDidRootConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
@@ -83,7 +91,9 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
-	disposables.add(instantiationService.createInstance(CodexAgent));
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
+	agent['_probeAccountAtStartup'] = async () => { };
 	return { stateManager, otelService };
 }
 

@@ -334,7 +334,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		const storedState = this._getStoredState();
-		this._reportSessionInfo('chatEditing/sessionStore', this._entriesObs.get());
+		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
+		if (isStringInSample(editSessionId, 5)) {
+			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
+				editSessionId,
+				...this._countEntryStates(this._entriesObs.get()),
+			});
+		}
 		return storage.storeState(storedState);
 	}
 
@@ -1013,7 +1019,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
-		this._reportSessionInfo('chatEditing/sessionRestore', entriesArr);
+		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
+		if (isStringInSample(editSessionId, 5)) {
+			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
+				editSessionId,
+				...this._countEntryStates(entriesArr),
+			});
+		}
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -1047,18 +1059,25 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 				return undefined;
 			}
-		};
-	}
 
-	private _reportSessionInfo(eventName: 'chatEditing/sessionStore' | 'chatEditing/sessionRestore', entries: readonly AbstractChatEditingModifiedFileEntry[]): void {
-		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
-		// Select 5% of edit sessions by ID, retaining all store and restore events for selected sessions and none for the rest.
-		if (isStringInSample(editSessionId, 5)) {
-			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>(eventName, {
-				editSessionId,
-				...this._countEntryStates(entries),
-			});
-		}
+			// The fields above are getters on the prototype, so they are NOT own enumerable
+			// properties and would be dropped by `JSON.stringify` when this object is persisted
+			// as part of the checkpoint timeline. Snapshot the current values into a plain object
+			// so `sessionResource` (and the other fields) survive serialization and revival.
+			toJSON(): IModifiedEntryTelemetryInfo {
+				return {
+					agentId: this.agentId,
+					modelId: this.modelId,
+					modeId: this.modeId,
+					command: this.command,
+					sessionResource: this.sessionResource,
+					requestId: this.requestId,
+					result: undefined,
+					applyCodeBlockSuggestionId: this.applyCodeBlockSuggestionId,
+					feature: this.feature,
+				};
+			}
+		};
 	}
 
 	private _countEntryStates(entries: readonly AbstractChatEditingModifiedFileEntry[]): { entryCount: number; modifiedCount: number; acceptedCount: number; rejectedCount: number } {

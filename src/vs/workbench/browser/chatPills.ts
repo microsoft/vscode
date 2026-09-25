@@ -3,23 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, EventType, reset } from '../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, isHTMLElement, reset } from '../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../base/browser/keyboardEvent.js';
+import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
+import type { IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
+import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
+import { disposableTimeout } from '../../base/common/async.js';
+import { CancellationToken, cancelOnDispose } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
+import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
-import { Disposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../base/common/scrollable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../platform/files/common/files.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
+import { createChatImageHoverContent } from './chatImagePreview.js';
 import './media/chatPills.css';
 
 /**
@@ -41,11 +51,30 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
+	/** Optional trailing metadata rendered after the dropdown row label. */
+	readonly badge?: string;
+	/** Optional CSS class added to the dropdown row. */
+	readonly className?: string;
+	/** Short label used when this entry renders as the pill itself. */
+	readonly pillLabel?: string;
 	readonly icon?: ThemeIcon;
 	/** Renders the entry with its resource's themed file icon. */
 	readonly resource?: URI;
+	/** Displays a thumbnail above the resource location in the entry's hover. */
+	readonly imagePreview?: {
+		readonly resource: URI;
+		readonly mimeType: string;
+	};
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
-	readonly toolbarActions?: readonly IAction[];
+	readonly toolbarActions?: readonly IChatPillAction[];
+	/** Additional actions shown only in the rich hover footer. */
+	readonly hoverActions?: readonly IChatPillAction[];
+	/**
+	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
+	 * which consumers may also promote onto the pill itself when this is its
+	 * only entry.
+	 */
+	readonly promotedAction?: IChatPillAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
@@ -54,13 +83,125 @@ export interface IChatPillEntry {
 	readonly hover?: IActionListItemHover;
 	/** Tooltip for the pill when this is the only entry. */
 	readonly tooltip?: string;
+	/** Rich hover content for the pill when this is the only entry. */
+	readonly pillHover?: IManagedHoverContent;
 	open(): void;
+}
+
+export interface IChatPillAction extends IAction {
+	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
+	readonly hoverLabel?: string;
+}
+
+export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
+export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy Hash");
+export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove Reference");
+export const chatPillRemoveArtifactHoverLabel = localize('chatPills.removeArtifact', "Remove Artifact");
+
+export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
+	return Object.assign(action, { hoverLabel });
+}
+
+export function getChatPillLocationHover(location: string): IActionListItemHover {
+	return {
+		content: $('.chat-pill-location-hover', undefined, location),
+		panelClassName: 'chat-pill-location-hover-panel',
+	};
+}
+
+export interface IChatPillImagePreview {
+	readonly element: HTMLElement;
+	readonly disposable: IDisposable;
+}
+
+const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
+
+/** Creates the visual preview shared by direct image pills and image rows in a dropdown. */
+export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
+	const preview = entry.imagePreview;
+	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
+	const disposables = new DisposableStore();
+	const readToken = cancelOnDispose(disposables);
+	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+	if (token.isCancellationRequested) {
+		disposables.dispose();
+		return { element: container, disposable: disposables };
+	}
+	const showUnavailable = () => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		container.setAttribute('aria-busy', 'false');
+		container.replaceChildren(
+			$('.chat-pill-image-preview-unavailable', undefined, localize('chatPills.imagePreviewUnavailable', "Image preview unavailable.")),
+			$('.chat-image-hover-location', undefined, entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true)),
+		);
+	};
+
+	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE } }, readToken).then(content => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		const imageHover = createChatImageHoverContent(
+			preview.resource,
+			entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true),
+			content.value.buffer,
+			`${preview.resource.toString()}:${content.etag}`,
+			() => {
+				if (disposables.isDisposed) {
+					return;
+				}
+				container.setAttribute('aria-busy', 'false');
+				container.classList.add('loaded');
+			},
+			undefined,
+			undefined,
+			localize('chatPills.imagePreviewAlt', "Preview of {0}", entry.label),
+			true,
+			showUnavailable,
+		);
+		disposables.add(imageHover.disposable);
+		container.replaceChildren(imageHover.element);
+	}, () => {
+		showUnavailable();
+	});
+
+	return { element: container, disposable: disposables };
+}
+
+/** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
+export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IChatPillAction[] {
+	const actions = [...entry.toolbarActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
+}
+
+/** Footer actions for a rich entry hover, including row actions and hover-only actions. */
+export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IChatPillAction[] {
+	const actions = [...entry.toolbarActions ?? [], ...entry.hoverActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
 }
 
 /** A titled group of entries, rendered as a dropdown section. */
 export interface IChatPillSection {
 	readonly title: string;
 	readonly entries: readonly IChatPillEntry[];
+}
+
+/** Describes a pill entry's target while keeping its accessible name action-oriented. */
+export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel = localize('chatPills.open', "Open {0}", label)): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
+	const value = uri.toString(true);
+	return {
+		ariaDescription: value,
+		ariaLabel,
+		hover: getChatPillLocationHover(value),
+		tooltip: value,
+	};
 }
 
 export function getChatPillEntries(sections: readonly IChatPillSection[]): readonly IChatPillEntry[] {
@@ -78,6 +219,169 @@ export interface IChatPillsWidgetOptions {
 }
 
 /**
+ * The floating row's rendered height: 2px/4px vertical padding around a 22px
+ * small button. Hosts reserve this much transcript space while the row is shown.
+ */
+export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
+
+export type ChatPillsCompactMode = boolean | 'auto';
+
+export interface IChatPillsRowOptions {
+	/** Collapses pills to their icons and uses tighter spacing while preserving full accessible labels and tooltips. */
+	readonly compact?: ChatPillsCompactMode;
+	/** Window that owns the row. Required when rendering in an auxiliary window. */
+	readonly targetWindow?: CodeWindow;
+}
+
+/** Shared horizontally scrollable row for pills mounted above a chat input. */
+export class ChatPillsRow extends Disposable {
+
+	readonly element: HTMLElement;
+	readonly content: HTMLElement;
+
+	private readonly _scrollable: DomScrollableElement;
+	private readonly _resizeObserver: DisposableResizeObserver;
+	private readonly _mutationObserver: MutationObserver | undefined;
+	private _expandedContentWidth: number | undefined;
+	private _isLayouting = false;
+	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
+	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
+	private readonly _onDidRequestContextMenu = this._register(new Emitter<HTMLElement>());
+	readonly onDidRequestContextMenu: Event<HTMLElement> = this._onDidRequestContextMenu.event;
+	private readonly _pendingFocus = this._register(new MutableDisposable());
+
+	constructor(debugName: string, options?: IChatPillsRowOptions) {
+		super();
+
+		const targetWindow = options?.targetWindow ?? mainWindow;
+		this.content = $('.chat-pills-row-content');
+		this._scrollable = this._register(new DomScrollableElement(this.content, {
+			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: 6,
+			scrollYToX: true,
+			vertical: ScrollbarVisibility.Hidden,
+		}));
+		this.element = this._scrollable.getDomNode();
+		this.element.classList.add('chat-pills-row');
+		const compactMode = options?.compact ?? false;
+		this.element.classList.toggle('compact', compactMode === true);
+
+		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
+			if (entries.some(entry => entry.target !== this.content)) {
+				this._expandedContentWidth = undefined;
+			}
+			this.layout();
+		}, targetWindow));
+		this._register(this._resizeObserver.observe(this.content));
+		if (compactMode === 'auto') {
+			this._mutationObserver = new targetWindow.MutationObserver(() => {
+				this._expandedContentWidth = undefined;
+				this.layout();
+			});
+			this._observeMutations();
+			this._register({ dispose: () => this._mutationObserver?.disconnect() });
+		} else {
+			this._mutationObserver = undefined;
+		}
+		this._register(this._scrollable.onScroll(event => {
+			if (event.scrollLeftChanged) {
+				this._onDidChangeLayout.fire();
+			}
+		}));
+		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, () => this.scanDomNode()));
+		this._register(addDisposableListener(this.content, EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const target = isHTMLElement(event.target) ? event.target : this.content;
+			const activatesEmptyRow = target === this.content && (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space);
+			if (activatesEmptyRow
+				|| keyboardEvent.keyCode === KeyCode.ContextMenu
+				|| (keyboardEvent.shiftKey && keyboardEvent.keyCode === KeyCode.F10)) {
+				EventHelper.stop(event, true);
+				this._onDidRequestContextMenu.fire(target);
+			}
+		}));
+	}
+
+	observe(element: HTMLElement): void {
+		this._register(this._resizeObserver.observe(element));
+		this.layout();
+	}
+
+	layout(): void {
+		if (this._isLayouting || !this.element.isConnected) {
+			return;
+		}
+
+		this._isLayouting = true;
+		this._mutationObserver?.disconnect();
+		try {
+			if (this._mutationObserver) {
+				const availableWidth = this.element.getBoundingClientRect().width;
+				if (this._expandedContentWidth === undefined || !this.element.classList.contains('compact')) {
+					const wasCompact = this.element.classList.contains('compact');
+					this.element.classList.remove('compact');
+					const expandedContentWidth = [...this.content.children].reduce((width, child) => {
+						return isHTMLElement(child) ? Math.max(width, child.offsetLeft + child.offsetWidth) : width;
+					}, 0);
+					if (expandedContentWidth > 0 || this.content.children.length === 0) {
+						this._expandedContentWidth = expandedContentWidth;
+					}
+					this.element.classList.toggle('compact', wasCompact);
+				}
+				this.element.classList.toggle('compact', availableWidth > 0 && this._expandedContentWidth !== undefined && this._expandedContentWidth > availableWidth + 1);
+			}
+			this.scanDomNode();
+			this._onDidChangeLayout.fire();
+		} finally {
+			this._observeMutations();
+			this._isLayouting = false;
+		}
+	}
+
+	scanDomNode(): void {
+		this._scrollable.scanDomNode();
+	}
+
+	private _observeMutations(): void {
+		this._mutationObserver?.observe(this.content, {
+			attributes: true,
+			attributeFilter: ['class', 'hidden', 'style'],
+			characterData: true,
+			childList: true,
+			subtree: true,
+		});
+	}
+
+	setEmpty(empty: boolean, ariaLabel: string): void {
+		this.element.classList.toggle('empty', empty);
+		if (empty) {
+			this.content.tabIndex = 0;
+			this.content.setAttribute('role', 'button');
+			this.content.setAttribute('aria-label', ariaLabel);
+			this.content.setAttribute('aria-haspopup', 'menu');
+		} else {
+			this.content.removeAttribute('tabindex');
+			this.content.removeAttribute('role');
+			this.content.removeAttribute('aria-label');
+			this.content.removeAttribute('aria-haspopup');
+		}
+	}
+
+	restoreFocus(getPillElements: () => readonly HTMLElement[], fallback?: () => void): void {
+		this._pendingFocus.value = disposableTimeout(() => {
+			const pill = getPillElements().at(0);
+			if (pill) {
+				pill.focus();
+			} else if (this.element.classList.contains('empty')) {
+				this.content.focus();
+			} else {
+				fallback?.();
+			}
+		});
+	}
+}
+
+/**
  * A reusable horizontal toolbar whose pill set and action context are observable.
  */
 export class ChatPillsWidget extends Disposable {
@@ -86,12 +390,12 @@ export class ChatPillsWidget extends Disposable {
 	readonly isVisible: IObservable<boolean>;
 	private readonly _onDidChangePills = this._register(new Emitter<void>());
 	readonly onDidChangePills: Event<void> = this._onDidChangePills.event;
+	private readonly _onDidRemoveFocusedPill = this._register(new Emitter<void>());
+	readonly onDidRemoveFocusedPill: Event<void> = this._onDidRemoveFocusedPill.event;
 
-	private readonly _toolbar: ToolBar;
+	private readonly _toolbar: ChatPillsToolBar;
 	private _pillByAction = new Map<IAction, IChatPill>();
 	private _pills: readonly IChatPill[] = [];
-	private _pillViewItems: ChatPillActionViewItemBase[] = [];
-
 	constructor(
 		model: IChatPillsModel,
 		options: IChatPillsWidgetOptions | undefined,
@@ -100,15 +404,12 @@ export class ChatPillsWidget extends Disposable {
 		super();
 
 		this.element = $('.chat-pills.hidden');
-		this._toolbar = this._register(new ToolBar(this.element, contextMenuService, {
+		this._toolbar = this._register(new ChatPillsToolBar(this.element, contextMenuService, {
 			ariaLabel: options?.ariaLabel ?? localize('chatPills.ariaLabel', "Chat status"),
 			actionRunner: options?.actionRunner,
 			allowContextMenu: options?.allowContextMenu,
 			actionViewItemProvider: (action, viewItemOptions) => {
 				const viewItem = this._pillByAction.get(action)?.createActionViewItem?.(viewItemOptions) ?? new ChatPillActionViewItem(undefined, action, viewItemOptions);
-				if (viewItem instanceof ChatPillActionViewItemBase) {
-					this._pillViewItems.push(viewItem);
-				}
 				return viewItem;
 			},
 		}));
@@ -120,9 +421,32 @@ export class ChatPillsWidget extends Disposable {
 			this._toolbar.context = model.context?.read(reader);
 			const pillsChanged = pills.length !== this._pills.length || pills.some((pill, index) => pill !== this._pills[index]);
 			if (pillsChanged) {
+				const focusedPill = this._pills.find((_pill, index) => {
+					const viewItem = this._toolbar.getItemViewItem(index);
+					return viewItem instanceof ChatPillActionViewItemBase && viewItem.isFocused();
+				});
+				const expandedPill = focusedPill ? undefined : this._pills.find((_pill, index) => {
+					const viewItem = this._toolbar.getItemViewItem(index);
+					return viewItem instanceof ChatPillActionViewItemBase && viewItem.buttonElement?.getAttribute('aria-expanded') === 'true';
+				});
+				const focusOwner = focusedPill ?? expandedPill;
+				const focusedAction = focusOwner?.action;
+				const focusedIndexBeforeUpdate = focusOwner ? this._pills.indexOf(focusOwner) : -1;
+				const previousPills = this._pills;
 				this._pills = pills;
-				this._pillViewItems = [];
-				this._toolbar.setActions(pills.map(pill => pill.action));
+				this._toolbar.setPills(previousPills, pills);
+				const expandedPillPreserved = expandedPill && pills.includes(expandedPill);
+				if (!expandedPillPreserved) {
+					let focusedIndex = focusedAction ? pills.findIndex(pill => pill.action === focusedAction) : -1;
+					if (focusedIndex < 0 && focusedIndexBeforeUpdate >= 0 && pills.length > 0) {
+						focusedIndex = Math.min(focusedIndexBeforeUpdate, pills.length - 1);
+					}
+					if (focusedIndex >= 0) {
+						this._toolbar.focus(focusedIndex);
+					} else if (focusedIndexBeforeUpdate >= 0) {
+						this._onDidRemoveFocusedPill.fire();
+					}
+				}
 			}
 			this.element.classList.toggle('hidden', pills.length === 0);
 			if (pillsChanged) {
@@ -133,7 +457,22 @@ export class ChatPillsWidget extends Disposable {
 
 	/** Returns the rendered button for each pill. */
 	getPillElements(): readonly HTMLElement[] {
-		return this._pillViewItems.flatMap(viewItem => viewItem.buttonElement ? [viewItem.buttonElement] : []);
+		const elements: HTMLElement[] = [];
+		for (let index = 0; index < this._toolbar.getItemsLength(); index++) {
+			const viewItem = this._toolbar.getItemViewItem(index);
+			if (viewItem instanceof ChatPillActionViewItemBase && viewItem.buttonElement) {
+				elements.push(viewItem.buttonElement);
+			}
+		}
+		return elements;
+	}
+
+	focusFirst(): boolean {
+		if (this._toolbar.getItemsLength() === 0) {
+			return false;
+		}
+		this._toolbar.focus(0);
+		return true;
 	}
 
 	/**
@@ -147,6 +486,48 @@ export class ChatPillsWidget extends Disposable {
 			return undefined;
 		}
 		return this._pills[[...item.parentElement.children].indexOf(item)];
+	}
+}
+
+/** Updates only the changed middle of a pill toolbar so stable pills keep their DOM and focus. */
+class ChatPillsToolBar extends ToolBar {
+	setPills(previous: readonly IChatPill[], next: readonly IChatPill[]): void {
+		let prefix = 0;
+		while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) {
+			prefix++;
+		}
+
+		let suffix = 0;
+		while (suffix < previous.length - prefix
+			&& suffix < next.length - prefix
+			&& previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) {
+			suffix++;
+		}
+
+		for (let index = previous.length - suffix - 1; index >= prefix; index--) {
+			this.actionBar.pull(index);
+		}
+		for (let index = prefix; index < next.length - suffix; index++) {
+			this.actionBar.push(next[index].action, { icon: true, label: false, index });
+		}
+		let focusedIndex = -1;
+		for (let index = 0; index < this.getItemsLength(); index++) {
+			const viewItem = this.getItemViewItem(index);
+			if (viewItem instanceof ChatPillActionViewItemBase && viewItem.isFocused()) {
+				focusedIndex = index;
+				break;
+			}
+		}
+		let focusableSet = false;
+		for (let index = 0; index < this.getItemsLength(); index++) {
+			const viewItem = this.getItemViewItem(index);
+			if (!(viewItem instanceof BaseActionViewItem)) {
+				continue;
+			}
+			const focusable: boolean = focusedIndex >= 0 ? index === focusedIndex : !focusableSet && viewItem.isEnabled();
+			viewItem.setFocusable(focusable);
+			focusableSet ||= focusable;
+		}
 	}
 }
 
@@ -275,9 +656,7 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 	}
 }
 
-/**
- * Compact `icon + label` rendering, the default for chat pill actions.
- */
+/** The default `icon + label` rendering for chat pill actions. */
 export class ChatPillActionViewItem extends ChatPillActionViewItemBase {
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {

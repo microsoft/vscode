@@ -36,9 +36,13 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
-import { openSessionToTheSide } from './views/sessionsView.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
+import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -163,6 +167,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _isRendering = false;
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
+	private _activeSessionTitle: string | undefined;
+	private _activeChatTitle: string | undefined;
+	private readonly _sessionTitle: string | undefined;
 
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
@@ -189,9 +196,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(undefined, action, options);
 
+		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
@@ -202,11 +212,20 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when the active session's title, workspace, or quick-chat kind changes
+		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, configurationService);
+
+		// Re-render when the active session's title, presentation, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
+			const showSessionTitle = !!sessionData && chatTabsMode.read(reader) === SessionsChatTabsMode.Single;
+			this._activeSessionTitle = showSessionTitle
+				? sessionData?.title.read(reader) || getUntitledSessionTitle(this._isQuickChat)
+				: undefined;
+			this._activeChatTitle = showSessionTitle
+				? sessionData?.activeChat.read(reader).title.read(reader) || getUntitledSessionTitle(true)
+				: undefined;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -295,7 +314,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._workspaceInfo?.branch ?? ''}|${this._isQuickChat}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -351,9 +370,17 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
-		container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
-
+		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
 		const workspaceInfo = this._workspaceInfo;
+		const accessibleTitle = sessionTitle && contextTitle
+			? localize('agentSessionsSessionWithContextAccessible', "{0}, {1}", sessionTitle, contextTitle)
+			: sessionTitle ?? contextTitle;
+		const accessibleTitleWithBranch = accessibleTitle && workspaceInfo?.branch
+			? localize('agentSessionsSessionWithBranchAccessible', "{0}, branch {1}", accessibleTitle, workspaceInfo.branch)
+			: accessibleTitle;
+		container.setAttribute('aria-label', accessibleTitleWithBranch
+			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitleWithBranch)
+			: localize('agentSessionsShowSessions', "Show Sessions"));
 
 		// Session pill: workspace icon + label
 		const sessionPill = $('div.agent-sessions-titlebar-pill');
@@ -361,21 +388,50 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Center group: workspace icon and name
 		const centerGroup = $('div.agent-sessions-titlebar-center');
 
-		if (workspaceInfo) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
+		if (sessionTitle) {
+			const sessionTitleEl = $('div.agent-sessions-titlebar-session');
+			sessionTitleEl.textContent = sessionTitle;
+			centerGroup.appendChild(sessionTitleEl);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(sessionTitleEl, { content: sessionTitle }));
+		}
+
+		if (sessionTitle && contextTitle) {
+			const separatorEl = $('span.agent-sessions-titlebar-separator', { 'aria-hidden': 'true' });
+			separatorEl.textContent = '·';
+			centerGroup.appendChild(separatorEl);
+		}
+
+		if (contextTitle) {
+			const workspaceGroup = $('div.agent-sessions-titlebar-workspace-group');
+			if (workspaceInfo) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
+				workspaceGroup.appendChild(workspaceIconEl);
+			} else if (this._isQuickChat) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+				workspaceGroup.appendChild(workspaceIconEl);
+			}
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = workspaceInfo.label;
-			centerGroup.appendChild(workspaceEl);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceInfo.label }));
-		} else if (this._isQuickChat) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
+			workspaceEl.textContent = contextTitle;
+			workspaceGroup.appendChild(workspaceEl);
+			centerGroup.appendChild(workspaceGroup);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: contextTitle }));
+		}
 
-			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = localize('noWorkspace', "No workspace");
-			centerGroup.appendChild(workspaceEl);
+		if (workspaceInfo?.branch) {
+			const separatorEl = $('span.agent-sessions-titlebar-separator', { 'aria-hidden': 'true' });
+			separatorEl.textContent = '·';
+			centerGroup.appendChild(separatorEl);
+
+			const branchGroup = $('div.agent-sessions-titlebar-branch-group');
+			const branchIconEl = $(`div.agent-sessions-titlebar-branch-icon${ThemeIcon.asCSSSelector(Codicon.gitBranchCompact)}`, { 'aria-hidden': 'true' });
+			branchGroup.appendChild(branchIconEl);
+
+			const branchEl = $('div.agent-sessions-titlebar-branch');
+			branchEl.textContent = workspaceInfo.branch;
+			branchGroup.appendChild(branchEl);
+			centerGroup.appendChild(branchGroup);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(branchEl, { content: workspaceInfo.branch }));
 		}
 
 		sessionPill.appendChild(centerGroup);
@@ -401,6 +457,23 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				this._showSessionsPicker();
 			}
 		}));
+	}
+
+	private _getCommandCenterTitle(): string | undefined {
+		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
+		if (sessionTitle && contextTitle) {
+			return localize('agentSessionsSessionWithContext', "{0} · {1}", sessionTitle, contextTitle);
+		}
+		return sessionTitle ?? contextTitle;
+	}
+
+	private _getCommandCenterTitles(): { sessionTitle: string | undefined; contextTitle: string | undefined } {
+		const contextTitle = this._sessionTitle ?? this._workspaceInfo?.label ?? (this._isQuickChat ? localize('noWorkspace', "No workspace") : undefined);
+		const sessionTitle = this._activeSessionTitle === this._activeChatTitle ? undefined : this._activeSessionTitle;
+		if (!sessionTitle || sessionTitle === contextTitle) {
+			return { sessionTitle: undefined, contextTitle: sessionTitle ?? contextTitle };
+		}
+		return { sessionTitle, contextTitle };
 	}
 
 	/**
@@ -654,11 +727,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				openSessionToTheSide(this.sessionsService, session, { preserveFocus }).catch(onUnexpectedError);
+				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 				return;
 			}
 		}
-		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
+		this.sessionsService.openSession(resource, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 	}
 
 	private _showSessionsPicker(): void {

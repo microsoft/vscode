@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,6 +18,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -31,6 +33,7 @@ import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvision
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -56,6 +59,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
+	private readonly _onRootStateChange = new Emitter<RootState>();
+
 	/** Agents advertised by the (stubbed) root state; drives capability gating. */
 	rootStateAgents: AgentInfo[] = [];
 	override readonly rootState: IAgentSubscription<RootState> = (() => {
@@ -63,11 +68,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return {
 			get value(): RootState { return { agents: self.rootStateAgents } as unknown as RootState; },
 			verifiedValue: undefined,
-			onDidChange: Event.None,
+			onDidChange: self._onRootStateChange.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		} as unknown as IAgentSubscription<RootState>;
 	})();
+
+	/** Simulates the host re-advertising after a `multiRootEnabled` change. */
+	fireRootStateChange(): void {
+		this._onRootStateChange.fire({ agents: this.rootStateAgents } as unknown as RootState);
+	}
 
 	/**
 	 * Each entry is consumed in order by the next `resolveSessionConfig` call.
@@ -105,6 +115,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	dispose(): void {
 		this._onAgentHostStart.dispose();
+		this._onRootStateChange.dispose();
 	}
 
 	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
@@ -172,6 +183,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	});
 
 	let agentHost: MockAgentHostService;
+	let sessionResolutions: ResourceMap<IAgentHostSessionResolution | undefined>;
+	let onDidChangeSessionResolution: Emitter<void>;
+	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
@@ -189,6 +203,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
+		sessionResolutions = new ResourceMap();
+		onDidChangeSessionResolution = ds.add(new Emitter<void>());
+		warnings = [];
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
 		workspaceFolders = [];
@@ -200,7 +217,19 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
-		insta.stub(ILogService, new NullLogService());
+		insta.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: onDidChangeSessionResolution.event,
+			resolveSessionResource: sessionResource => {
+				if (sessionResolutions.has(sessionResource)) {
+					return sessionResolutions.get(sessionResource);
+				}
+				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				return backendSession ? { connection: agentHost, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession } : undefined;
+			},
+		});
+		insta.stub(ILogService, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}());
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
@@ -531,6 +560,120 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('recreates an untitled draft with the workspace root set when multi-root is enabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// Multi-root capability is off at creation, so the draft is single-root.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('multi-root-enabled-at-runtime');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// The hidden `multiRootEnabled` setting is toggled on: the host
+		// re-advertises `multipleWorkingDirectories`, so `rootState` changes
+		// without a window reload.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), secondary.toString()],
+			],
+		);
+	});
+
+	test('does not recreate a started session when multi-root is enabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// Capability off at creation, so the started session is rooted single-root.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('started-multi-root-enabled-at-runtime');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-multi-root-enabled' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot');
+		const realBackend = provisional.get(real);
+		assert.ok(realBackend);
+		const createsAfterRebind = agentHost.createCalls.length;
+
+		// Enabling multi-root must not re-root a started session: its working
+		// directories are the agent's fixed process root once the session started.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(real);
+
+		assert.deepStrictEqual({
+			createsAfterEnable: agentHost.createCalls.length - createsAfterRebind,
+			liveBackendDisposed: agentHost.disposed.some(uri => uri.toString() === realBackend.toString()),
+			currentBackend: provisional.get(real)?.toString(),
+		}, {
+			createsAfterEnable: 0,
+			liveBackendDisposed: false,
+			currentBackend: realBackend.toString(),
+		});
+	});
+
+	test('recreates an untitled draft with the workspace root set when the agent host starts after the draft', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// The host has not started yet, so multi-root is not advertised.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('multi-root-after-host-start');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// The host starts and re-advertises `multipleWorkingDirectories`. The
+		// listener re-binds on `onAgentHostStart` and reconciles, so the draft
+		// picks up the capability even though `rootState.onDidChange` never fired
+		// (the pre-start root state is a noop whose event never fires).
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireAgentHostStart();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), secondary.toString()],
+			],
+		);
+	});
+
+	test('recreates an untitled draft with a single root when multi-root is disabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-disabled-at-runtime');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// Disabling the setting drops the advertised capability; the draft must
+		// collapse back to just its primary.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString(), secondary.toString()],
+				[primary.toString()],
+			],
+		);
+	});
+
 	test('tryRebind reselects when the primary is removed during final creation', async () => {
 		const primary = URI.file('/workspace/one');
 		const secondary = URI.file('/workspace/two');
@@ -822,6 +965,103 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		assert.deepStrictEqual(provisional.getResolvedConfig(ui), { schema: makeSchema(true), values: { isolation: 'folder' } });
 	});
+
+	test('refreshResolvedConfig routes matching backend session IDs to their owning hosts', async () => {
+		const firstHost = ds.add(new MockAgentHostService());
+		const secondHost = ds.add(new MockAgentHostService());
+		const firstSession = URI.parse('remote-host-one-test-agent:/same-session');
+		const secondSession = URI.parse('remote-host-two-test-agent:/same-session');
+		const backendSession = URI.parse('ahp-session:/same-session');
+		const workingDirectory = URI.file('/workspace');
+		const firstConfig: ResolveSessionConfigResult = { schema: makeSchema(false), values: { isolation: 'worktree' } };
+		const secondConfig: ResolveSessionConfigResult = { schema: makeSchema(true), values: { isolation: 'folder' } };
+		sessionResolutions.set(firstSession, { connection: firstHost, connectionAuthority: 'host-one', backendSession });
+		sessionResolutions.set(secondSession, { connection: secondHost, connectionAuthority: 'host-two', backendSession });
+		firstHost.resolveQueue = [firstConfig];
+		secondHost.resolveQueue = [secondConfig];
+
+		await Promise.all([
+			provisional.refreshResolvedConfig(firstSession, 'test-agent', workingDirectory, firstConfig.values),
+			provisional.refreshResolvedConfig(secondSession, 'test-agent', workingDirectory, secondConfig.values),
+		]);
+
+		assert.deepStrictEqual({
+			localCalls: agentHost.resolveCalls,
+			firstCalls: firstHost.resolveCalls,
+			secondCalls: secondHost.resolveCalls,
+			firstOverlay: provisional.getResolvedConfig(firstSession),
+			secondOverlay: provisional.getResolvedConfig(secondSession),
+		}, {
+			localCalls: [],
+			firstCalls: [{ provider: 'test-agent', workingDirectory, config: firstConfig.values }],
+			secondCalls: [{ provider: 'test-agent', workingDirectory, config: secondConfig.values }],
+			firstOverlay: firstConfig,
+			secondOverlay: secondConfig,
+		});
+	});
+
+	test('refreshResolvedConfig reports a disconnected host instead of falling back to the local host', async () => {
+		const session = URI.parse('remote-host-test-agent:/disconnected');
+
+		await provisional.refreshResolvedConfig(session, 'test-agent', undefined, {});
+
+		assert.deepStrictEqual({
+			localCalls: agentHost.resolveCalls,
+			overlay: provisional.getResolvedConfig(session),
+			warnings,
+		}, {
+			localCalls: [],
+			overlay: undefined,
+			warnings: ['[AgentHostProvisional] schema re-resolve failed: No connected agent host is available for session configuration'],
+		});
+	});
+
+	test('refreshResolvedConfig discards an in-flight result across disconnect and reconnect', async () => {
+		const remoteHost = ds.add(new MockAgentHostService());
+		const session = URI.parse('remote-host-test-agent:/reconnected');
+		const resolution = { connection: remoteHost, connectionAuthority: 'host', backendSession: URI.parse('ahp-session:/reconnected') };
+		sessionResolutions.set(session, resolution);
+		const stale = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => stale.cancel() });
+		remoteHost.resolveQueue = [stale.p];
+		const pending = provisional.refreshResolvedConfig(session, 'test-agent', undefined, {});
+
+		sessionResolutions.set(session, undefined);
+		onDidChangeSessionResolution.fire();
+		sessionResolutions.set(session, resolution);
+		onDidChangeSessionResolution.fire();
+		stale.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+		await pending;
+
+		assert.strictEqual(provisional.getResolvedConfig(session), undefined);
+	});
+
+	for (const change of ['connection', 'backend session'] as const) {
+		test(`refreshResolvedConfig invalidates its overlay when the ${change} changes`, async () => {
+			const remoteHost = ds.add(new MockAgentHostService());
+			const session = URI.parse('remote-host-test-agent:/running');
+			const resolution = { connection: remoteHost, connectionAuthority: 'host', backendSession: URI.parse('ahp-session:/running') };
+			const config: ResolveSessionConfigResult = { schema: makeSchema(false), values: { isolation: 'worktree' } };
+			sessionResolutions.set(session, resolution);
+			remoteHost.resolveQueue = [config];
+			let changes = 0;
+			cleanup.add(provisional.onDidChange(() => changes++));
+			await provisional.refreshResolvedConfig(session, 'test-agent', undefined, {});
+
+			onDidChangeSessionResolution.fire();
+			const unchanged = provisional.getResolvedConfig(session);
+			sessionResolutions.set(session, {
+				...resolution,
+				connection: change === 'connection' ? ds.add(new MockAgentHostService()) : remoteHost,
+				backendSession: change === 'backend session' ? URI.parse('ahp-session:/replacement') : resolution.backendSession,
+			});
+			onDidChangeSessionResolution.fire();
+
+			assert.deepStrictEqual({ unchanged, invalidated: provisional.getResolvedConfig(session), changes }, {
+				unchanged: config, invalidated: undefined, changes: 2,
+			});
+		});
+	}
 
 	test('optimistic merge: overlay.values reflects partial before re-resolve completes', async () => {
 		const ui = untitledChatUri('d');
@@ -1369,6 +1609,26 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		}, {
 			multiRoot: [folderB.toString(), folderA.toString(), folderC.toString()],
 			singleRoot: [folderA.toString()],
+		});
+	});
+
+	test('retains working directories after rebinding a provisional session', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		workspaceFolders = [folderA, folderB];
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const untitled = untitledChatUri('rebind-roots');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-roots' });
+
+		await provisional.getOrCreate(untitled, 'copilot', folderA);
+		await provisional.tryRebind(untitled, real, 'copilot');
+
+		assert.deepStrictEqual({
+			untitled: provisional.getProvisionalWorkingDirectories(untitled),
+			real: provisional.getProvisionalWorkingDirectories(real)?.map(directory => directory.toString()),
+		}, {
+			untitled: undefined,
+			real: [folderA.toString(), folderB.toString()],
 		});
 	});
 

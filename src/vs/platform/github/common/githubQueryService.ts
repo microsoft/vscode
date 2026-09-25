@@ -18,11 +18,21 @@ export interface GitHubIssueRef extends GitHubRepositoryRef {
 	readonly number: number;
 }
 
+export interface GitHubCommitRef extends GitHubRepositoryRef {
+	readonly sha: string;
+}
+
+export type GitHubHydratableResourceRef =
+	| { readonly kind: 'repository'; readonly ref: GitHubRepositoryRef }
+	| { readonly kind: 'issue'; readonly ref: GitHubIssueRef };
+
 export interface GitHubRepository {
 	readonly id?: string;
 	readonly owner: GitHubActor;
 	readonly name: string;
 	readonly nameWithOwner: string;
+	readonly language?: string;
+	readonly stars?: number;
 	readonly defaultBranch: string;
 	readonly private: boolean;
 	readonly description: string;
@@ -50,6 +60,14 @@ export interface GitHubIssue {
 	readonly closedAt?: string;
 }
 
+export interface GitHubCommit {
+	readonly sha: string;
+	readonly message: string;
+	readonly url: string;
+	readonly author: GitHubActor;
+	readonly committedAt: string;
+}
+
 export type GitHubResourcePriority = 'background' | 'visible' | 'interactive';
 
 export interface GitHubResourceSubscriptionOptions {
@@ -66,6 +84,11 @@ export interface GitHubIssueResource {
 	readonly state: IObservable<FragmentState<GitHubIssue>>;
 }
 
+export interface GitHubCommitResource {
+	readonly ref: GitHubCommitRef;
+	readonly state: IObservable<FragmentState<GitHubCommit>>;
+}
+
 export interface GitHubRepositorySubscription extends IDisposable {
 	readonly resource: GitHubRepositoryResource;
 	update(options: GitHubResourceSubscriptionOptions): void;
@@ -74,6 +97,12 @@ export interface GitHubRepositorySubscription extends IDisposable {
 
 export interface GitHubIssueSubscription extends IDisposable {
 	readonly resource: GitHubIssueResource;
+	update(options: GitHubResourceSubscriptionOptions): void;
+	refresh(token?: CancellationToken): Promise<void>;
+}
+
+export interface GitHubCommitSubscription extends IDisposable {
+	readonly resource: GitHubCommitResource;
 	update(options: GitHubResourceSubscriptionOptions): void;
 	refresh(token?: CancellationToken): Promise<void>;
 }
@@ -192,6 +221,8 @@ export interface GitHubPullRequestLookup {
 export interface GitHubQueryApi {
 	subscribeRepository(ref: GitHubRepositoryRef, options: GitHubResourceSubscriptionOptions): GitHubRepositorySubscription;
 	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription;
+	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription;
+	hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void>;
 	compare(ref: GitHubRepositoryRef, base: string, head: string, signal: AbortSignal): Promise<GitHubComparison>;
 	listPullRequests(ref: GitHubRepositoryRef, cursor: string | undefined, signal: AbortSignal): Promise<GitHubPullRequestsPage>;
 	listPullRequestsWaitingForReview(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]>;
