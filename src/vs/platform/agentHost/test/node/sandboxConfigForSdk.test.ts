@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
-import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, type IAgentSandboxFileSystemSetting, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import { AgentSandboxEnabledValue, type IAgentSandboxFileSystemSetting } from '../../../sandbox/common/settings.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 /**
  * Build the host-side `sandbox` root-config bag (the shape the workbench
@@ -39,7 +39,7 @@ function sandbox(
 			: platform === 'darwin'
 				? AgentHostSandboxKey.MacFileSystem
 				: AgentHostSandboxKey.LinuxFileSystem;
-		cfg[fsKey] = fs as Record<string, unknown>;
+		cfg[fsKey] = fs;
 	}
 	if (hosts?.allowedHosts?.length) {
 		cfg[AgentHostSandboxKey.AllowedNetworkDomains] = [...hosts.allowedHosts];

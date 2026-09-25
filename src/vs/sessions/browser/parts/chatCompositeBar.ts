@@ -336,6 +336,7 @@ export class ChatCompositeBar extends Disposable {
 			viewportRight: this._tabsContainer.clientWidth,
 			shoulderExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill, '::after').width),
 		}, scrollLeft);
+		this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', activeTab.element.matches(':hover'));
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
@@ -383,6 +384,12 @@ export class ChatCompositeBar extends Disposable {
 			tab,
 			() => chat.title.get(),
 		));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
+			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
+		}));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_LEAVE, () => {
+			this._connectedTabOverflowEdge.classList.remove('connected-tab-hovered');
+		}));
 
 		// Track untitled state for styling (dirty dot + close button)
 		this._tabDisposables.add(autorun(reader => {

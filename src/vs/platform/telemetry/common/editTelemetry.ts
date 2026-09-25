@@ -21,6 +21,8 @@ export interface IEditSourcesDetailsTelemetryData {
 	languageId: string | undefined;
 	statsUuid: string;
 	conversationId: string | undefined;
+	/** Hashed originating Agent Host chat ID, scoped under its session rather than globally; omitted when provenance is unknown. */
+	chatSessionId?: string;
 	requestId: string | undefined;
 	origin: string | undefined;
 	harness: string | undefined;
@@ -41,8 +43,9 @@ type EditSourcesDetailsTelemetryClassification = {
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The LLM id.' };
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The canonical Auto tier (efficiency, balance, intelligence or fast), when known for a Copilot Auto edit.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the session for which stats are reported. The sourceKey is unique in this session.' };
-	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat conversation identifier when the edit source comes from chat. Sourced from the chat edit session id.' };
+	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the editing window for which stats are reported. Agent Host source rows are further separated by conversationId and chatSessionId.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat edit session identifier. Agent Host sources retain the existing session/resource identifier for compatibility.' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed originating Agent Host chat identifier, scoped under its session rather than globally and matching core Agent Host telemetry. Omitted when chat provenance is unknown.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The process or subsystem that observed the edit source.' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };

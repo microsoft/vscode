@@ -56,6 +56,7 @@ suite('Agent Host Edit Marker Service', () => {
 		context.fireMarker(marker(1, 'a', 'ab', {
 			modelId: 'gpt-5',
 			conversationId: 'session-1',
+			chatSessionId: 'hashed-side-chat',
 			requestId: 'turn-1',
 			harness: 'copilotcli',
 		}));
@@ -66,12 +67,14 @@ suite('Agent Host Edit Marker Service', () => {
 			suppressed: correlation.isSuppressed(second),
 			sourceKey: resolution?.source?.toKey(1),
 			sessionId: resolution?.source?.props.$$sessionId,
+			chatSessionId: resolution?.source?.props.$$chatSessionId,
 			requestId: resolution?.source?.props.$$requestId,
 		}, {
 			sharedObservation: true,
 			suppressed: true,
 			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 			sessionId: 'session-1',
+			chatSessionId: 'hashed-side-chat',
 			requestId: 'turn-1',
 		});
 	});
@@ -301,6 +304,43 @@ suite('Agent Host Edit Marker Service', () => {
 		}, {
 			suppressed: true,
 			suppressedIds: [observation],
+		});
+	});
+
+	test('does not assign one chat to a reload containing edits from different chats', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const source = { modelId: 'model', conversationId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' };
+		context.fireMarker(marker(1, 'a', 'ab', { ...source, chatSessionId: 'hashed-main-chat' }));
+		context.fireMarker(marker(2, 'ab', 'abc', { ...source, chatSessionId: 'hashed-side-chat' }));
+
+		const observation = correlation.register('a', 'abc');
+		assert.deepStrictEqual({
+			suppressed: correlation.isSuppressed(observation),
+			source: correlation.getResolution?.(observation)?.source,
+		}, {
+			suppressed: true,
+			source: undefined,
+		});
+	});
+
+	test('preserves legacy representative selection for marker chains without chat metadata', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const source = { modelId: 'model', conversationId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' };
+		context.fireMarker(marker(1, 'a', 'ab', source));
+		context.fireMarker(marker(2, 'ab', 'abc', { ...source, conversationId: 'session-2' }));
+
+		const observation = correlation.register('a', 'abc');
+		const resolvedSource = correlation.getResolution?.(observation)?.source;
+		assert.deepStrictEqual({
+			suppressed: correlation.isSuppressed(observation),
+			conversationId: resolvedSource?.props.$$sessionId,
+			chatSessionId: resolvedSource?.props.$$chatSessionId,
+		}, {
+			suppressed: true,
+			conversationId: 'session-1',
+			chatSessionId: undefined,
 		});
 	});
 
@@ -774,6 +814,7 @@ suite('Agent Host Edit Marker Service', () => {
 function marker(sequence: number, before: string, after: string, source?: {
 	readonly modelId?: string;
 	readonly conversationId: string;
+	readonly chatSessionId?: string;
 	readonly requestId: string;
 	readonly harness: string;
 }): IFileEditAttributionMarker {

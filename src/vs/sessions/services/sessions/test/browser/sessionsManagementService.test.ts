@@ -1105,6 +1105,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const preserveNavigation of [false, true]) {
+		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+			const quickChat = stubSession({
+				sessionId: 'quick-chat',
+				providerId: 'test',
+				isQuickChat: constObservable(true),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return quickChat; }
+			}(quickChat);
+			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const navigation = view.navigationRequest.get();
+
+			view.openQuickChat(undefined, preserveNavigation);
+
+			assert.deepStrictEqual({
+				activeSession: view.activeSession.get()?.sessionId,
+				preservedNavigation: view.navigationRequest.get() === navigation,
+			}, {
+				activeSession: 'quick-chat',
+				preservedNavigation: preserveNavigation,
+			});
+		});
+	}
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);

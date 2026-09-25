@@ -450,6 +450,71 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
+	test('caps known chat scopes and preserves legacy unknown-chat grouping in both focus windows', () => runWithFakedTimers({}, async () => {
+		const visible = observableValue('visible', true);
+		const sources = new Map<string, TextModelEditSource>();
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after,
+			isSuppressed: id => sources.has(id),
+			getResolution: id => sources.has(id) ? { id, source: sources.get(id) } : undefined,
+			release: () => { },
+		};
+		const context = setup(visible, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => undefined,
+		});
+		await timeout(10);
+		const chatSessionIds = [...Array.from({ length: 12 }, (_, i) => `hashed-chat-${i + 1}`), undefined, undefined];
+		let content = 'hello';
+		for (const [index, chatSessionId] of chatSessionIds.entries()) {
+			const newText = 'x'.repeat(index + 1);
+			content += newText;
+			sources.set(content, EditSources.agentHostChatApplyEdits({
+				modelId: 'model',
+				sessionId: chatSessionId !== undefined ? 'session-1' : `session-${index}`,
+				chatSessionId,
+				requestId: `turn-${index}`,
+				harness: 'copilotcli',
+			}));
+			context.document.applyEdit(StringEditWithReason.replace(
+				OffsetRange.emptyAt(context.document.value.get().value.length),
+				newText,
+				EditSources.reloadFromDisk(),
+			));
+			await timeout(1500);
+		}
+		visible.set(false, undefined);
+		await timeout(10);
+
+		const project = (mode: string) => context.allDetails
+			.filter(event => event.mode === mode)
+			.sort((a, b) => a.modifiedCount - b.modifiedCount)
+			.map(event => ({
+				sourceKey: event.sourceKey,
+				conversationId: event.conversationId,
+				chatSessionId: event.chatSessionId,
+				hasChatSessionId: Object.hasOwn(event, 'chatSessionId'),
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+			}));
+		// The legacy group retains 13 + 14 characters, so the top ten exclude the three smallest known chats.
+		const expected = chatSessionIds.slice(3, -1).map((chatSessionId, index) => ({
+			sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
+			conversationId: chatSessionId !== undefined ? 'session-1' : 'session-12',
+			chatSessionId,
+			hasChatSessionId: chatSessionId !== undefined,
+			modifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+			deltaModifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+		}));
+		assert.deepStrictEqual({
+			short: project('10minFocusWindow'),
+			long: project('20minFocusWindow'),
+		}, { short: expected, long: expected });
+		context.disposables.dispose();
+	}));
+
 	test('falls back to external attribution after the focus correlation drain times out', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', true);
 		const correlation = new TestExternalEditCorrelation(true);
@@ -1014,6 +1079,7 @@ function setup(
 		modelId: string | undefined;
 		autoTier?: string;
 		conversationId: string | undefined;
+		chatSessionId?: string;
 		requestId: string | undefined;
 		statsUuid: string;
 		modifiedCount: number;

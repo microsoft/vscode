@@ -738,6 +738,7 @@ export namespace WorkspaceEdit {
 				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
 				if (isSnippet) {
 					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+					editOrSnippetTest.keepWhitespace = item.textEdit.keepWhitespace;
 				} else {
 					editOrSnippetTest = types.TextEdit.replace(range, text);
 				}
