@@ -442,6 +442,37 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			input: { value: input },
+			inputPart: { value: input },
+			contribs: { value: [] },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		return widget;
+	}
+
 	test('editing a steering request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
@@ -466,36 +497,39 @@ suite('ChatWidget', () => {
 			modelConfiguration,
 			pendingKind: ChatRequestQueueKind.Steering,
 		});
-		let editing: IChatRequestViewModel | undefined;
-		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
-		Object.defineProperties(widget, {
-			_store: { value: store },
-			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
-			configurationService: { value: configurationService },
-			telemetryService: { value: NullTelemetryService },
-			viewModel: {
-				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
-					sessionResource: URI.parse('agent-host-copilot:/session'),
-					get editing() { return editing; },
-					setEditing: (request: IChatRequestViewModel) => { editing = request; },
-				},
-			},
-			input: { value: input },
-			inputPart: { value: input },
-			contribs: { value: [] },
-			onDidChangeItems: { value: () => { } },
-			listWidget: {
-				value: {
-					getTemplateDataForRequestId: () => ({ currentElement: request }),
-					acquireAutoScrollHold: () => Disposable.None,
-				},
-			},
-		});
+		const widget = createStartEditingWidget(input, request, configurationService);
 
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('releases request edit listeners when editing finishes', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		const onDidClickOverlay = store.add(new Emitter<void>());
+		const input = mockObject<ChatInputPart>()({
+			element: mainWindow.document.createElement('div'),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: onDidClickOverlay.event,
+		});
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+		});
+		const widget = createStartEditingWidget(input, request, configurationService);
+
+		widget.startEditing(request.id);
+		const whileEditing = onDidClickOverlay.hasListeners();
+		widget.finishedEditing();
+
+		assert.deepStrictEqual({ whileEditing, afterEditing: onDidClickOverlay.hasListeners() }, { whileEditing: true, afterEditing: false });
 	});
 
 	test('confirms before cancelling changed request edits', async () => {
