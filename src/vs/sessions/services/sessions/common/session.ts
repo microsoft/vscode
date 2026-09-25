@@ -658,6 +658,16 @@ export const enum ChatModelSource {
 	CarriedOver = 'carriedOver',
 }
 
+/** Provider-neutral metadata for an active background shell owned by a chat. */
+export interface IChatBackgroundShell {
+	readonly id: string;
+	readonly description: string;
+	readonly command: string;
+	readonly status: 'running' | 'idle';
+	readonly startedAt: string;
+	readonly attachmentMode: 'attached' | 'detached';
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -695,6 +705,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

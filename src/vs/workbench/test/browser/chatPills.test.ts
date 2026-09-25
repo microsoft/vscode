@@ -21,7 +21,7 @@ import { constObservable, derived, observableValue } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
@@ -77,6 +77,45 @@ suite('ChatPills', () => {
 			{ preferred: AnchorPosition.ABOVE, fixed: undefined },
 			{ preferred: AnchorPosition.BELOW, fixed: undefined },
 		]);
+	});
+
+	test('shell-style dropdowns prefer opening upward and route row activation to live details', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let options: IActionListOptions | undefined;
+		let opensDetails: boolean | undefined;
+		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
+			override get isVisible(): boolean { return false; }
+			override show<T>(_user: string, _preview: boolean, items: readonly IActionListItem<T>[], _delegate: IActionListDelegate<T>, _anchor: HTMLElement | StandardMouseEvent | IAnchor, _container: HTMLElement | undefined, _actions?: readonly IAction[], _accessibility?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
+				options = listOptions;
+				opensDetails = items[1].openSubmenuOnClick;
+			}
+			override hide(): void { }
+		}());
+		const action = store.add(new Action('shells', 'Background Shells'));
+		const view = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable([{
+			title: 'Active background shells',
+			entries: [{ id: 'shell', label: 'Run tests', hover: { content: 'details', expandable: true }, open: () => { } }],
+		}]), {
+			widgetId: 'shells',
+			icon: Codicon.terminal,
+			title: 'Background Shells',
+			summaryLabel: count => `${count} Background Shells`,
+			summaryAriaLabel: count => `Show ${count} background shells`,
+			singleEntry: ChatPillSingleEntry.Summary,
+			preferredAnchorPosition: AnchorPosition.ABOVE,
+			openHoverOnSelect: true,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		view.render(container);
+		container.querySelector<HTMLElement>('.chat-pill-button')!.click();
+
+		assert.deepStrictEqual({ preferred: options?.preferredAnchorPosition, fixed: options?.anchorPosition, opensDetails }, {
+			preferred: AnchorPosition.ABOVE,
+			fixed: undefined,
+			opensDetails: true,
+		});
 	});
 
 	test('keeps an empty compact pill row keyboard-accessible', async () => {

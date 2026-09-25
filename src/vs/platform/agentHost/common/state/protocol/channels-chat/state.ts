@@ -38,6 +38,8 @@ export interface ChatState {
 	status: SessionStatus;
 	/** Human-readable description of what the chat is currently doing */
 	activity?: string;
+	/** Active background shells owned by this chat, independent of its current turn. */
+	backgroundShells?: BackgroundShellInfo[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/** How this chat came into existence */
@@ -130,6 +132,8 @@ export interface ChatSummary {
 	status: SessionStatus;
 	/** Human-readable description of what the chat is currently doing */
 	activity?: string;
+	/** Active background shells, mirrored from {@link ChatState.backgroundShells}. */
+	backgroundShells?: BackgroundShellInfo[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/** How this chat came into existence */
@@ -147,6 +151,49 @@ export interface ChatSummary {
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
+}
+
+/**
+ * Activity of a background shell that has not finished.
+ *
+ * @category Background Shells
+ * @nonexhaustive
+ */
+export const enum BackgroundShellStatus {
+	Running = 'running',
+	Idle = 'idle',
+}
+
+/**
+ * Whether a background shell is retained by its agent or runs independently.
+ *
+ * @category Background Shells
+ * @nonexhaustive
+ */
+export const enum BackgroundShellAttachmentMode {
+	Attached = 'attached',
+	Detached = 'detached',
+}
+
+/**
+ * Metadata for a shell command continuing outside its initiating tool call.
+ * Shell identity is scoped to the owning chat, not to a turn or terminal.
+ *
+ * @category Background Shells
+ */
+export interface BackgroundShellInfo {
+	/** Stable identifier within the owning chat. */
+	id: string;
+	/** Human-readable description of the command's purpose. */
+	description: string;
+	/** Command line, displayed as plain text. */
+	command: string;
+	/** Current activity of the unfinished shell. */
+	status: BackgroundShellStatus;
+	/** ISO 8601 timestamp when the command started. */
+	startedAt: string;
+	/** Whether the shell remains attached to the agent's lifetime. */
+	attachmentMode: BackgroundShellAttachmentMode;
 }
 
 /**

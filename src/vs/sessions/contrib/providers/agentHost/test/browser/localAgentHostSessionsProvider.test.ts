@@ -26,6 +26,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { BackgroundShellAttachmentMode, BackgroundShellStatus } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -6642,6 +6643,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.getSessionConfig(session!.sessionId);
 			return session!;
 		}
+
+		test('projects background shells independently for default and peer chats', () => {
+			const provider = createProvider(disposables, agentHost);
+			const rawId = 'background-shell-catalog';
+			const session = setupMultiChatSession(provider, rawId);
+			const backend = AgentSession.uri('copilotcli', rawId);
+			const main = buildDefaultChatUri(backend);
+			const peer = buildChatUri(backend, 'peer');
+			const shell = {
+				id: 'same-id', description: 'Run tests', command: 'npm test',
+				status: BackgroundShellStatus.Running, startedAt: new Date(0).toISOString(),
+				attachmentMode: BackgroundShellAttachmentMode.Attached,
+			};
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				{ ...makeChatSummary(main, 'Main'), backgroundShells: [shell] },
+				{ ...makeChatSummary(peer, 'Peer'), backgroundShells: [{ ...shell, command: 'npm run build' }] },
+			], { defaultChat: main }));
+			const before = session.chats.get().map(chat => chat.backgroundShells?.get());
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				{ ...makeChatSummary(main, 'Main'), backgroundShells: [] },
+				{ ...makeChatSummary(peer, 'Peer'), backgroundShells: [{ ...shell, command: 'npm run build' }] },
+			], { defaultChat: main }));
+
+			assert.deepStrictEqual({
+				before,
+				after: session.chats.get().map(chat => chat.backgroundShells?.get()),
+			}, {
+				before: [[shell], [{ ...shell, command: 'npm run build' }]],
+				after: [[], [{ ...shell, command: 'npm run build' }]],
+			});
+		});
 
 		test('list metadata surfaces peer titles and archived state without subscribing and loads stable chat details while observed', async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);

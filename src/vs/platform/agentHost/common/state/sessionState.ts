@@ -976,6 +976,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.backgroundShells !== undefined ? { backgroundShells: summary.backgroundShells } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -1076,6 +1077,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.backgroundShells !== undefined) { summary.backgroundShells = state.backgroundShells; }
 	return summary;
 }
 

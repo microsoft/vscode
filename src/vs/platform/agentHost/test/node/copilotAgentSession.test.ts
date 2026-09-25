@@ -1396,6 +1396,172 @@ suite('CopilotAgentSession', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('background shells', () => {
+		function shell(id: string): Extract<BackgroundTasks[number], { type: 'shell' }> {
+			return {
+				type: 'shell', id, description: `Run ${id}`, command: 'npm test',
+				status: 'running', startedAt: new Date(0).toISOString(),
+				attachmentMode: 'attached', executionMode: 'background',
+			};
+		}
+
+		function shellActions(signals: readonly AgentSignal[]) {
+			return getActions(signals).filter(action => action.type === ActionType.ChatBackgroundShellSet || action.type === ActionType.ChatBackgroundShellRemoved);
+		}
+
+		test('lists silent background shells across steering and removes completed commands', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('original-turn');
+			mockSession.backgroundTasks = [shell('silent')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+			session.resetTurnState('steered-turn');
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterSteering = shellActions(signals);
+			mockSession.backgroundTasks = [{ ...shell('silent'), status: 'completed' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellRemoved));
+
+			const { type: _type, executionMode: _mode, ...metadata } = shell('silent');
+			assert.deepStrictEqual({
+				afterSteering,
+				finished: shellActions(signals),
+			}, {
+				afterSteering: [{ type: ActionType.ChatBackgroundShellSet, shell: metadata }],
+				finished: [
+					{ type: ActionType.ChatBackgroundShellSet, shell: metadata },
+					{ type: ActionType.ChatBackgroundShellRemoved, shellId: 'silent' },
+				],
+			});
+		});
+
+		test('publishes attached and detached active shells but not foreground or finished tasks', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [
+				shell('attached'),
+				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached' },
+				{ ...shell('foreground'), executionMode: 'sync' },
+				{ ...shell('completed'), status: 'completed' },
+				{ ...shell('failed'), status: 'failed' },
+				{ ...shell('cancelled'), status: 'cancelled' },
+			];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(shellActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundShellSet
+				? [{ id: action.shell.id, status: action.shell.status, attachmentMode: action.shell.attachmentMode }]
+				: []), [
+				{ id: 'attached', status: 'running', attachmentMode: 'attached' },
+				{ id: 'detached', status: 'idle', attachmentMode: 'detached' },
+			]);
+		});
+
+		test('shows a synchronous command once the runtime moves it to the background', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{ ...shell('timed-out'), executionMode: 'sync' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const whileForeground = shellActions(signals);
+			mockSession.backgroundTasks = [shell('timed-out')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+			assert.deepStrictEqual({
+				whileForeground,
+				afterTimeout: shellActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundShellSet ? [action.shell.id] : []),
+			}, { whileForeground: [], afterTimeout: ['timed-out'] });
+		});
+
+		test('refreshes and republishes the shell inventory when a restored chat is observed again', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [shell('restored')]; },
+			});
+			const first = disposables.add(session.observeBackgroundShells());
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+			first.dispose();
+			disposables.add(session.observeBackgroundShells());
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				publishedIds: shellActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundShellSet ? [action.shell.id] : []),
+				refreshes: mockSession.backgroundTaskRefreshCalls,
+			}, { publishedIds: ['restored', 'restored'], refreshes: 2 });
+		});
+
+		test('does not publish a stale shell snapshot after a newer change', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTasks = [shell('stale')];
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.backgroundTasks = [shell('current')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await gate.complete();
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+
+			assert.deepStrictEqual(shellActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundShellSet ? [action.shell.id] : []), ['current']);
+		});
+
+		test('preserves the inventory on failed reads and reconciles on the next change', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [shell('running')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+			mockSession.backgroundTaskListError = new Error('temporary task-list failure');
+			mockSession.backgroundTasks = [];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterFailure = shellActions(signals).map(action => action.type);
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellRemoved));
+
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: shellActions(signals).map(action => action.type),
+			}, {
+				afterFailure: [ActionType.ChatBackgroundShellSet],
+				afterRetry: [ActionType.ChatBackgroundShellSet, ActionType.ChatBackgroundShellRemoved],
+			});
+		});
+
+		test('does not publish a shell read that finishes after disposal', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTasks = [shell('late')];
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			session.dispose();
+			await gate.complete();
+			await timeout(0);
+			assert.deepStrictEqual(shellActions(signals), []);
+		});
+
+		test('refreshes detached shell completion without SDK events and stops polling when unobserved', () => runWithFakedTimers({}, async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{ ...shell('detached'), attachmentMode: 'detached' }];
+			const observer = disposables.add(session.observeBackgroundShells());
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundShellSet));
+			mockSession.backgroundTasks = [];
+			await timeout(5001);
+			observer.dispose();
+			const refreshes = mockSession.backgroundTaskRefreshCalls;
+			await timeout(5001);
+
+			assert.deepStrictEqual({
+				actions: shellActions(signals).map(action => action.type),
+				refreshes,
+				afterUnobserve: mockSession.backgroundTaskRefreshCalls,
+			}, {
+				actions: [ActionType.ChatBackgroundShellSet, ActionType.ChatBackgroundShellRemoved],
+				refreshes: 2,
+				afterUnobserve: 2,
+			});
+		}));
+	});
+
 	test('initializes customization enablement before launching the SDK session', async () => {
 		let initialized = false;
 		await createAgentSession(disposables, {

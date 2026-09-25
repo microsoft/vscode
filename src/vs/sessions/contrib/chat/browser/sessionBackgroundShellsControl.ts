@@ -1,0 +1,118 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, append } from '../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { getDurationString } from '../../../../base/common/date.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import type { IChat, IChatBackgroundShell } from '../../../services/sessions/common/session.js';
+
+function createShellDetails() {
+	const element = $('.chat-pill-location-hover');
+	return {
+		element,
+		status: append(element, $('div')),
+		command: append(element, $('div')),
+		shellId: append(element, $('div')),
+		startedAt: append(element, $('div')),
+	};
+}
+
+export class SessionBackgroundShellsControl extends Disposable {
+
+	readonly sections: IObservable<readonly IChatPillSection[]>;
+	// Stable detail nodes let the picker preserve the open panel across clock ticks.
+	private readonly _details = new Map<string, ReturnType<typeof createShellDetails>>();
+	private _currentChat: IChat | undefined;
+
+	constructor(
+		chat: IObservable<IChat | undefined>,
+	) {
+		super();
+		const now = observableFromEvent(this, listener => {
+			const scheduler = new RunOnceScheduler(() => {
+				scheduler.schedule();
+				listener(undefined);
+			}, 1000);
+			scheduler.schedule();
+			return scheduler;
+		}, () => Date.now());
+
+		this.sections = derived(this, reader => {
+			const currentChat = chat.read(reader);
+			if (currentChat !== this._currentChat) {
+				this._currentChat = currentChat;
+				this._details.clear();
+			}
+			const shells = currentChat?.backgroundShells?.read(reader) ?? [];
+			const shellIds = new Set(shells.map(shell => shell.id));
+			for (const id of this._details.keys()) {
+				if (!shellIds.has(id)) {
+					this._details.delete(id);
+				}
+			}
+			if (shells.length === 0) {
+				return [];
+			}
+			const timestamp = now.read(reader);
+			return [{
+				title: localize('backgroundShells.active', "Active background shells"),
+				entries: shells.map(shell => this._entry(shell, timestamp)),
+			}];
+		});
+	}
+
+	private _entry(shell: IChatBackgroundShell, now: number): IChatPillEntry {
+		const name = shell.description.trim() || shell.command;
+		const activity = shell.status === 'running'
+			? localize('backgroundShells.running', "Running")
+			: localize('backgroundShells.waiting', "Waiting");
+		const attachment = shell.attachmentMode === 'detached'
+			? localize('backgroundShells.detached', "Detached")
+			: localize('backgroundShells.attached', "Attached");
+		const startedAt = Date.parse(shell.startedAt);
+		const badge = Number.isFinite(startedAt)
+			? localize('backgroundShells.statusWithDuration', "{0}, {1}, {2}", activity, attachment, getDurationString(Math.max(0, Math.floor((now - startedAt) / 1000) * 1000)))
+			: localize('backgroundShells.status', "{0}, {1}", activity, attachment);
+		const detail = localize('backgroundShells.details', "{0}\n\nCommand: {1}\nShell ID: {2}\nStarted: {3}", badge, shell.command, shell.id, shell.startedAt);
+		const content = this._details.get(shell.id) ?? createShellDetails();
+		this._details.set(shell.id, content);
+		for (const [element, text] of [
+			[content.status, badge],
+			[content.command, localize('backgroundShells.command', "Command: {0}", shell.command)],
+			[content.shellId, localize('backgroundShells.id', "Shell ID: {0}", shell.id)],
+			[content.startedAt, localize('backgroundShells.startedAt', "Started: {0}", shell.startedAt)],
+		] as const) {
+			if (element.textContent !== text) {
+				element.textContent = text;
+			}
+		}
+		return {
+			id: shell.id,
+			label: name,
+			icon: Codicon.terminal,
+			badge,
+			ariaLabel: localize('backgroundShells.showDetails', "Show details for background shell {0}", name),
+			ariaDescription: detail,
+			hover: {
+				content: content.element,
+				expandable: true,
+				alignToParentBottom: true,
+				panelClassName: 'chat-pill-location-hover-panel',
+			},
+			open: () => { },
+		};
+	}
+
+	override dispose(): void {
+		this._details.clear();
+		this._currentChat = undefined;
+		super.dispose();
+	}
+}

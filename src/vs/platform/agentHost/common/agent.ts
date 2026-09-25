@@ -1345,6 +1345,8 @@ export interface IAgent {
 	readonly onDidChangeChatHistory?: Event<IAgentChatHistoryChange>;
 	/** Observe another client's persisted transcript while a host client subscribes to this chat. */
 	watchChatHistory?(chat: URI): IDisposable;
+	/** Refresh background shell inventory while a client observes an already-hydrated chat. */
+	watchChatBackgroundShells?(chat: URI): IDisposable;
 
 	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
 	startChatDiscovery?(): Promise<void>;

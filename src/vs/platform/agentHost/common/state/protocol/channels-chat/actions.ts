@@ -10,7 +10,7 @@ import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, FileEdit, UsageInfo, URI } from '../common/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundShellInfo, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -530,6 +530,32 @@ export interface ChatActivityChangedAction {
 }
 
 /**
+ * Adds or replaces an active background shell by ID, independently of turn state.
+ * Hosts mirror the resulting inventory through `session/chatUpdated`.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatBackgroundShellSetAction {
+	type: ActionType.ChatBackgroundShellSet;
+	/** Complete shell metadata. */
+	shell: BackgroundShellInfo;
+}
+
+/**
+ * Removes a finished or no-longer-tracked background shell; unknown IDs are a no-op.
+ * Hosts mirror the resulting inventory through `session/chatUpdated`.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatBackgroundShellRemovedAction {
+	type: ActionType.ChatBackgroundShellRemoved;
+	/** Identifier scoped to the owning chat. */
+	shellId: string;
+}
+
+/**
  * The {@link Changeset | catalogue of changesets} the agent host advertises
  * for this chat changed. Replaces
  * {@link ChatState.changesets | `state.changesets`} entirely
@@ -869,6 +895,8 @@ export type ChatAction =
 	| ChatErrorAction
 	| ChatTurnResumeAction
 	| ChatActivityChangedAction
+	| ChatBackgroundShellSetAction
+	| ChatBackgroundShellRemovedAction
 	| ChatChangesetsChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction

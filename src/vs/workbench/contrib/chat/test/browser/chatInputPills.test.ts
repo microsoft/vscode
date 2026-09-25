@@ -88,6 +88,7 @@ suite('StandardChatInputPillSources', () => {
 			customizations: { sections },
 			browsers: { sections },
 			subagents: { sections },
+			backgroundShells: { sections },
 		};
 		const full = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, SESSION_CHAT_PILL_KINDS));
 		const editorKinds = [
@@ -136,6 +137,7 @@ suite('StandardChatInputPillSources', () => {
 			customizations: { sections },
 			browsers: { sections },
 			subagents: { sections },
+			backgroundShells: { sections },
 		}, SESSION_CHAT_PILL_KINDS));
 		const inputPills = store.add(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'ChatInputPills.placement.test',
@@ -150,10 +152,26 @@ suite('StandardChatInputPillSources', () => {
 			pill.click();
 		}
 
-		assert.deepStrictEqual(placements, Array.from({ length: 7 }, () => ({
+		assert.deepStrictEqual(placements, Array.from({ length: 8 }, () => ({
 			preferred: AnchorPosition.ABOVE,
 			fixed: undefined,
 		})));
+	});
+
+	test('background shells are visible by default and a single shell still opens a picker', () => {
+		const pills = createPills({
+			backgroundShells: { sections: constObservable([{ title: 'Active background shells', entries: [{ id: 'shell', label: 'Run tests', open: () => { } }] }]) },
+		});
+		const button = pills.inputPills.element.querySelector('.chat-pill-button');
+		assert.deepStrictEqual({
+			labels: pills.labels(),
+			popup: button?.getAttribute('aria-haspopup'),
+			label: button?.getAttribute('aria-label'),
+		}, {
+			labels: ['1 Background Shell'],
+			popup: 'listbox',
+			label: 'Show 1 background shell',
+		});
 	});
 
 	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
@@ -453,7 +471,7 @@ suite('StandardChatInputPillSources', () => {
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
 			.filter(action => action instanceof SubmenuAction).map(action => action.label);
 		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
-		const toggles = ['Pull Requests', ...otherKinds];
+		const toggles = ['Pull Requests', ...otherKinds, '', 'Background Shells'];
 		const expectedMenus = [
 			['Pull Requests Options', '', ...toggles],
 			...otherKinds.map(label => [`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles]),

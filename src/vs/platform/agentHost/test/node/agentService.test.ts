@@ -1340,6 +1340,32 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('observes background shells only after chat hydration and shares the observer across subscribers', async () => {
+		const hydrated: boolean[] = [];
+		let stops = 0;
+		const agent = new class extends MockAgent {
+			watchChatBackgroundShells(chat: URI) {
+				hydrated.push(!!getStateManager(service).getChatState(chat.toString()));
+				return toDisposable(() => stops++);
+			}
+		}('shells');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ provider: 'shells' });
+		const chat = URI.parse(buildDefaultChatUri(session));
+		await service.subscribe(chat, 'first');
+		await service.subscribe(chat, 'second');
+		service.unsubscribe(chat, 'first');
+		const afterFirst = stops;
+		service.unsubscribe(chat, 'second');
+		await service.subscribe(chat, 'reconnected');
+		service.unsubscribe(chat, 'reconnected');
+
+		assert.deepStrictEqual({ hydrated, afterFirst, stops }, {
+			hydrated: [true, true], afterFirst: 0, stops: 2,
+		});
+	});
+
 	test('starts catalog reconciliation after host startup and the first listing settle', async () => {
 		registerTestAgentProvider(service, copilotAgent);
 		const reconciliation = (service as unknown as { _catalogReconciliationService: { schedule(): void; start(): void } })._catalogReconciliationService;

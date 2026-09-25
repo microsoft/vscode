@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
@@ -60,7 +60,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { BackgroundShellAttachmentMode, BackgroundShellStatus, MessageAttachmentKind, ToolCallContributorKind, type BackgroundShellInfo, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
@@ -901,8 +901,13 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentTaskCompletionDelay: number;
 	/** Bumped when a child starts a model round so a task snapshot taken earlier cannot complete it; entries are dropped on completion. */
 	private readonly _subagentActivityRevisions = new Map<string, number>();
-	private _subagentTaskStatusRevision = 0;
-	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
+	private _backgroundTaskStatusRevision = 0;
+	private readonly _backgroundTaskStatusRefreshThrottler = this._register(new Throttler());
+	private readonly _backgroundShells = new Map<string, BackgroundShellInfo>();
+	private _backgroundShellObservers = 0;
+	private _republishBackgroundShells = false;
+	private _refreshDetachedBackgroundShells = false;
+	private readonly _backgroundShellRefresh = this._register(new RunOnceScheduler(() => this._refreshBackgroundTasks(true), 5000));
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
@@ -1692,7 +1697,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._activeSubagentAgentIds.add(e.agentId);
 		this._subagentObservedTokenUsage.set(parentToolCallId, new ObservedTokenUsage());
-		this._subagentTaskStatusRevision++;
+		this._subagentActivityRevisions.set(e.agentId, (this._subagentActivityRevisions.get(e.agentId) ?? 0) + 1);
 		this._onDidSessionProgress.fire({
 			kind: 'subagent_resumed',
 			chat: this._chatChannelUri,
@@ -1757,7 +1762,7 @@ export class CopilotAgentSession extends Disposable {
 			const confirmation = new RunOnceScheduler(() => {
 				// Confirm against the task list so a child that resumed meanwhile stays active. A superseded
 				// or failed confirmation re-arms itself until the child is completed or running again.
-				this._reconcileSubagentTaskStatuses().then(settled => {
+				this._reconcileBackgroundTasks().then(settled => {
 					if (!settled && this._subagentTaskCompletionSchedulers.get(agentId) === confirmation) {
 						confirmation.schedule();
 					}
@@ -1812,14 +1817,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Resolves false when a newer reconcile superseded this one; the newest queued reconcile processes every task. */
-	private _reconcileSubagentTaskStatuses(): Promise<boolean> {
-		const revision = ++this._subagentTaskStatusRevision;
-		return this._subagentTaskStatusRefreshThrottler.queue(async () => {
+	private _reconcileBackgroundTasks(): Promise<boolean> {
+		const revision = ++this._backgroundTaskStatusRevision;
+		return this._backgroundTaskStatusRefreshThrottler.queue(async () => {
 			const activityRevisions = new Map(this._subagentActivityRevisions);
+			if (this._refreshDetachedBackgroundShells) {
+				this._refreshDetachedBackgroundShells = false;
+				await this._wrapper.session.rpc.tasks.refresh();
+			}
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			if (this._store.isDisposed || revision !== this._subagentTaskStatusRevision) {
+			if (this._store.isDisposed || revision !== this._backgroundTaskStatusRevision) {
 				return false;
 			}
+			this._publishBackgroundShells(tasks.tasks);
 			for (const task of tasks.tasks) {
 				if (task.type !== 'agent') {
 					continue;
@@ -1846,10 +1856,63 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	private _refreshSubagentTaskStatuses(): void {
-		void this._reconcileSubagentTaskStatuses().catch(err => {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile subagent task status: ${getErrorMessage(err)}`);
+	private _refreshBackgroundTasks(refreshDetached = false): void {
+		this._refreshDetachedBackgroundShells ||= refreshDetached;
+		void this._reconcileBackgroundTasks().catch(err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile background task status: ${getErrorMessage(err)}`);
+			if (!this._store.isDisposed && this._backgroundShellObservers > 0) {
+				this._backgroundShellRefresh.schedule();
+			}
 		});
+	}
+
+	observeBackgroundShells(): IDisposable {
+		this._backgroundShellObservers++;
+		this._republishBackgroundShells = true;
+		this._refreshBackgroundTasks(true);
+		return toDisposable(() => {
+			if (--this._backgroundShellObservers === 0) {
+				this._backgroundShellRefresh.cancel();
+			}
+		});
+	}
+
+	private _publishBackgroundShells(tasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks']): void {
+		const shells = new Map<string, BackgroundShellInfo>();
+		for (const task of tasks) {
+			if (task.type !== 'shell' || task.executionMode === 'sync' || (task.status !== 'running' && task.status !== 'idle')) {
+				continue;
+			}
+			const shell: BackgroundShellInfo = {
+				id: task.id,
+				description: task.description,
+				command: task.command,
+				status: task.status === 'running' ? BackgroundShellStatus.Running : BackgroundShellStatus.Idle,
+				startedAt: task.startedAt,
+				attachmentMode: task.attachmentMode === 'detached' ? BackgroundShellAttachmentMode.Detached : BackgroundShellAttachmentMode.Attached,
+			};
+			shells.set(shell.id, shell);
+		}
+		for (const id of this._backgroundShells.keys()) {
+			if (!shells.has(id)) {
+				this._emitAction({ type: ActionType.ChatBackgroundShellRemoved, shellId: id });
+				this._backgroundShells.delete(id);
+			}
+		}
+		for (const [id, shell] of shells) {
+			if (this._republishBackgroundShells || !equals(this._backgroundShells.get(id), shell)) {
+				this._emitAction({ type: ActionType.ChatBackgroundShellSet, shell });
+				this._backgroundShells.set(id, shell);
+			}
+		}
+		this._republishBackgroundShells = false;
+		if (this._backgroundShellObservers > 0 && [...shells.values()].some(shell => shell.attachmentMode === BackgroundShellAttachmentMode.Detached)) {
+			if (!this._backgroundShellRefresh.isScheduled()) {
+				this._backgroundShellRefresh.schedule();
+			}
+		} else {
+			this._backgroundShellRefresh.cancel();
+		}
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -3885,7 +3948,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
 			this._subagentActivityRevisions.clear();
-			this._subagentTaskStatusRevision++;
+			this._backgroundTaskStatusRevision++;
 		}
 		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
 		try {
@@ -7825,7 +7888,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onBackgroundTasksChanged(() => {
-			this._refreshSubagentTaskStatuses();
+			this._refreshBackgroundTasks();
 		}));
 
 		this._register(wrapper.onTurnStart(e => {
@@ -7887,7 +7950,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onTurnEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
 			if (e.agentId) {
-				this._refreshSubagentTaskStatuses();
+				this._refreshBackgroundTasks();
 			}
 			const turn = this._currentTurn.value;
 			if (!e.agentId && turn?.activeSdkTurnId === e.data.turnId) {
