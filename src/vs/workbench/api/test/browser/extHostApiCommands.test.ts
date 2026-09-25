@@ -42,7 +42,7 @@ import '../../../contrib/search/browser/search.contribution.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { nullExtensionDescription, IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { dispose, ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { dispose, ImmortalReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
@@ -58,7 +58,7 @@ import { LanguageFeaturesService } from '../../../../editor/common/services/lang
 import { assertType } from '../../../../base/common/types.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -731,6 +731,47 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			assert.strictEqual(first.range.end.character, 25);
 		});
 
+	});
+
+	test('vscode.executeDocumentHighlights merges providers using the resource setting', async () => {
+		const configurationReads: (IConfigurationOverrides | undefined)[] = [];
+		const configurationService = new class extends TestConfigurationService {
+			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+				if (arg1 === 'editor.occurrencesHighlightFromAllProviders') {
+					configurationReads.push(arg2);
+				}
+				return super.getValue<T>(arg1, arg2);
+			}
+		}({ 'editor.occurrencesHighlightFromAllProviders': false });
+		const originalConfigurationService = insta.get(IConfigurationService);
+		disposables.push(toDisposable(() => insta.stub(IConfigurationService, originalConfigurationService)));
+		insta.stub(IConfigurationService, configurationService);
+
+		const first = new types.DocumentHighlight(new types.Range(0, 0, 0, 4), types.DocumentHighlightKind.Read);
+		const second = new types.DocumentHighlight(new types.Range(1, 0, 1, 4), types.DocumentHighlightKind.Write);
+		disposables.push(extHost.registerDocumentHighlightProvider(nullExtensionDescription, '*', {
+			provideDocumentHighlights: () => [
+				new types.DocumentHighlight(first.range, types.DocumentHighlightKind.Write),
+				second
+			]
+		}));
+		disposables.push(extHost.registerDocumentHighlightProvider(nullExtensionDescription, defaultSelector, {
+			provideDocumentHighlights: () => [first]
+		}));
+		await rpcProtocol.sync();
+
+		const defaultHighlights = await commands.executeCommand<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', model.uri, new types.Position(0, 1));
+		await configurationService.setUserConfiguration('editor.occurrencesHighlightFromAllProviders', true, model.uri);
+		const mergedHighlights = await commands.executeCommand<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', model.uri, new types.Position(0, 1));
+
+		assert.deepStrictEqual({ defaultHighlights, mergedHighlights, configurationReads }, {
+			defaultHighlights: [first],
+			mergedHighlights: [first, second],
+			configurationReads: [
+				{ resource: model.uri, overrideIdentifier: model.getLanguageId() },
+				{ resource: model.uri, overrideIdentifier: model.getLanguageId() }
+			]
+		});
 	});
 
 	// --- outline

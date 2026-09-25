@@ -14,7 +14,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { LanguageFilter } from '../../../common/languageSelector.js';
 
 
-class TextualDocumentHighlightProvider implements DocumentHighlightProvider, MultiDocumentHighlightProvider {
+export class TextualDocumentHighlightProvider implements DocumentHighlightProvider, MultiDocumentHighlightProvider {
 
 	selector: LanguageFilter = { language: '*' };
 
