@@ -309,9 +309,7 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-left-clipped.connected-tab-hovered::before,
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped.connected-tab-hovered::after,
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-strip .tab-connected-overflow-edge.connected-tab-left-clipped.connected-tab-hovered::before,
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-strip .tab-connected-overflow-edge.connected-tab-right-clipped.connected-tab-hovered::after {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-strip .tab-connected-overflow-edge.connected-tab-left-clipped.connected-tab-hovered::before {
 	background-color: var(--modern-ui-connected-tab-active-hover-background);
 }
 
@@ -550,9 +548,9 @@
 /* Rows above the document retain the original control-tier pills. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row {
 	--modern-ui-editor-tab-hover-background: var(--modern-ui-editor-tab-custom-hover-background, var(--modern-ui-connected-tab-upper-hover-background));
-	--modern-ui-editor-tab-unfocused-hover-background: var(--modern-ui-editor-tab-hover-background);
+	--modern-ui-editor-tab-unfocused-hover-background: var(--modern-ui-editor-tab-custom-unfocused-hover-background, var(--modern-ui-editor-tab-hover-background));
 	--modern-ui-editor-tab-action-hover-background: var(--modern-ui-editor-tab-hover-background);
-	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-hover-background);
+	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-unfocused-hover-background);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab.connected-tab-upper-row {

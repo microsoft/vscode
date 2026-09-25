@@ -2054,11 +2054,18 @@ suite('ModernUIContribution', () => {
 			const activeTab = appendElement(tabs, 'tab active');
 			const activeFill = appendElement(activeTab, 'tab-fill');
 			const inactiveFill = appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+			const upperTab = appendElement(tabs, 'tab connected-tab-upper-row');
+			const upperHoverProbe = appendElement(upperTab, 'upper-hover-probe');
+			upperHoverProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-hover-background)';
+			const upperUnfocusedHoverProbe = appendElement(upperTab, 'upper-unfocused-hover-probe');
+			upperUnfocusedHoverProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-unfocused-hover-background)';
+			const upperUnfocusedActionProbe = appendElement(upperTab, 'upper-unfocused-action-probe');
+			upperUnfocusedActionProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-action-unfocused-hover-background)';
 			const hoverProbe = appendElement(title, 'hover-probe');
 			hoverProbe.style.backgroundColor = `var(--modern-ui-editor-tab-${active ? '' : 'unfocused-'}hover-background)`;
 			const activeHoverProbe = appendElement(title, 'active-hover-probe');
 			activeHoverProbe.style.backgroundColor = 'var(--modern-ui-connected-tab-active-hover-background)';
-			return { activeFill, inactiveFill, hoverProbe, activeHoverProbe };
+			return { activeFill, inactiveFill, upperHoverProbe, upperUnfocusedHoverProbe, upperUnfocusedActionProbe, hoverProbe, activeHoverProbe };
 		};
 		const activeGroup = createGroup(true);
 		const unfocusedGroup = createGroup(false);
@@ -2066,6 +2073,9 @@ suite('ModernUIContribution', () => {
 		const colors = (group: ReturnType<typeof createGroup>) => ({
 			active: targetWindow.getComputedStyle(group.activeFill).backgroundColor,
 			inactive: targetWindow.getComputedStyle(group.inactiveFill).backgroundColor,
+			upperHover: targetWindow.getComputedStyle(group.upperHoverProbe).backgroundColor,
+			upperUnfocusedHover: targetWindow.getComputedStyle(group.upperUnfocusedHoverProbe).backgroundColor,
+			upperUnfocusedAction: targetWindow.getComputedStyle(group.upperUnfocusedActionProbe).backgroundColor,
 			hover: targetWindow.getComputedStyle(group.hoverProbe).backgroundColor,
 			activeHover: targetWindow.getComputedStyle(group.activeHoverProbe).backgroundColor,
 		});
@@ -2077,12 +2087,18 @@ suite('ModernUIContribution', () => {
 			activeGroup: {
 				active: 'rgb(18, 52, 86)',
 				inactive: 'rgb(52, 86, 120)',
+				upperHover: 'rgb(86, 120, 154)',
+				upperUnfocusedHover: 'rgb(103, 137, 171)',
+				upperUnfocusedAction: 'rgb(103, 137, 171)',
 				hover: 'rgb(86, 120, 154)',
 				activeHover: 'rgb(86, 120, 154)',
 			},
 			unfocusedGroup: {
 				active: 'rgb(35, 69, 103)',
 				inactive: 'rgb(69, 103, 137)',
+				upperHover: 'rgb(86, 120, 154)',
+				upperUnfocusedHover: 'rgb(103, 137, 171)',
+				upperUnfocusedAction: 'rgb(103, 137, 171)',
 				hover: 'rgb(103, 137, 171)',
 				activeHover: 'rgb(103, 137, 171)',
 			},

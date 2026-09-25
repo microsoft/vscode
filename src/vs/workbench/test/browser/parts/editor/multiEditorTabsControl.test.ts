@@ -1367,6 +1367,7 @@ suite('MultiEditorTabsControl', () => {
 		const overflowRight = overflowEdge.querySelector<HTMLElement>('.tab-connected-overflow-right')!;
 		const clippedRightHover = {
 			hovered: overflowEdge.classList.contains('connected-tab-hovered'),
+			mask: mainWindow.getComputedStyle(overflowEdge, '::after').backgroundColor,
 			cap: mainWindow.getComputedStyle(overflowRight, '::before').backgroundColor,
 			shoulder: mainWindow.getComputedStyle(overflowRight, '::after').boxShadow.includes('rgb(101, 67, 33)'),
 		};
@@ -1450,7 +1451,7 @@ suite('MultiEditorTabsControl', () => {
 			rightShoulderRevealed: { edge: false, clipped: false, rightShoulder: '""', rightMask: '""' },
 			leftShoulderAtViewport: { edge: true, clipped: false, left: '1px', leftShoulder: 'none', leftMask: 'none', overflowEdge: 'none' },
 			leftShoulderRevealed: { edge: false, clipped: false, leftShoulder: '""', leftMask: '""' },
-			clippedRightHover: { hovered: true, cap: 'rgb(101, 67, 33)', shoulder: true },
+			clippedRightHover: { hovered: true, mask: 'rgb(255, 255, 255)', cap: 'rgb(101, 67, 33)', shoulder: true },
 			clippedRightHoverReset: { hovered: false, cap: 'rgb(51, 51, 51)', shoulder: true },
 			clippedRight: {
 				edge: true,
