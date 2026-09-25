@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -16,9 +17,24 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 // Capture the registered schema before configuration tests reset the shared registry.
 const collapsedSectionStatusProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING];
 const showChatTabsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_CHAT_TABS_SETTING];
+const markAsDoneConfettiProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING];
+const groupExternalSessionsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING];
+const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('enables the External section by default with automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: groupExternalSessionsProperty.type,
+			default: groupExternalSessionsProperty.default,
+			experiment: groupExternalSessionsProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			experiment: { mode: 'auto' },
+		});
+	});
 
 	test('disables collapsed section status indicators by default with automatic experiments', () => {
 		assert.deepStrictEqual({
@@ -28,6 +44,22 @@ suite('Sessions Contribution', () => {
 		}, {
 			type: 'boolean',
 			default: false,
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('hides archived sessions by default with automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: showArchivedByDefaultProperty.type,
+			default: showArchivedByDefaultProperty.default,
+			scope: showArchivedByDefaultProperty.scope,
+			tags: showArchivedByDefaultProperty.tags,
+			experiment: showArchivedByDefaultProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
 	});
@@ -43,6 +75,18 @@ suite('Sessions Contribution', () => {
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			scope: ConfigurationScope.WINDOW,
+		});
+	});
+
+	test('enables mark as done confetti by default with automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: markAsDoneConfettiProperty.type,
+			default: markAsDoneConfettiProperty.default,
+			experiment: markAsDoneConfettiProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			experiment: { mode: 'auto' },
 		});
 	});
 });

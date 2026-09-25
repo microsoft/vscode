@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -48,9 +48,9 @@ suite('agentHostSchema', () => {
 		assert.strictEqual(property.default, false);
 	});
 
-	test('compact artifact prompts are an additive opt-in root setting', () => {
-		const property = platformRootSchema.toProtocol().properties[AgentHostArtifactToolsCompactPromptsConfigKey];
-		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
+	test('agent orchestration limits are on by default and can be turned off', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAgentOrchestrationLimitsConfigKey];
+		assert.deepStrictEqual({ type: property.type, enum: property.enum, default: property.default }, { type: 'string', enum: ['on', 'off'], default: 'on' });
 	});
 
 	test('GitHub MCP is an additive enabled-by-default root setting', () => {

@@ -37,6 +37,7 @@ interface ICustomizationGroupHeaderTemplateData {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly infoIcon: HTMLElement;
+	readonly actions: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -50,6 +51,7 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 	constructor(
 		readonly templateId: string,
 		private readonly hoverService: IHoverService,
+		private readonly renderActions?: (entry: T, container: HTMLElement, disposables: DisposableStore) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICustomizationGroupHeaderTemplateData {
@@ -64,8 +66,9 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		const count = DOM.append(container, $('.group-count'));
 		const infoIcon = DOM.append(container, $('.group-info'));
 		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		const actions = DOM.append(container, $('.group-actions'));
 
-		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
+		return { container, chevron, icon, label, count, infoIcon, actions, disposables, elementDisposables };
 	}
 
 	renderElement(element: T, _index: number, templateData: ICustomizationGroupHeaderTemplateData): void {
@@ -79,8 +82,11 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 
 		templateData.label.textContent = element.label;
 		templateData.count.textContent = `${element.count}`;
+		DOM.clearNode(templateData.actions);
+		this.renderActions?.(element, templateData.actions, templateData.elementDisposables);
 
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.infoIcon, () => ({
+		templateData.infoIcon.style.display = 'none';
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, () => ({
 			content: element.description,
 			appearance: {
 				compact: true,

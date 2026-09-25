@@ -395,15 +395,6 @@ export interface IAgentHostE2EProviderConfig {
 	readonly fileDeleteReplayUnstableOnWindows?: boolean;
 	/** Provider's file-create shell turn can report success during Windows replay without writing the file. */
 	readonly fileCreateReplayUnstableOnWindows?: boolean;
-	/**
-	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
-	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
-	 * on-disk `subagents/agent-*.jsonl` files — not reliably visible on Windows
-	 * right after the turn, so the transcript can come back empty. macOS/Linux keep
-	 * full coverage; providers that rebuild from the in-process event log (Copilot)
-	 * are unaffected and stay enabled on Windows.
-	 */
-	readonly subagentReplayUnstableOnWindows?: boolean;
 	/** Provider-specific observable used to exercise entering and leaving plan mode. */
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */

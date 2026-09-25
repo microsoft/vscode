@@ -24,7 +24,7 @@ import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workb
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -493,6 +493,28 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
 	});
 
+	test('returns changes from the active chat instead of aggregate session changes', () => {
+		const aggregateChange = URI.file('/aggregate.ts');
+		const activeChatChange = URI.file('/active-chat.ts');
+		const activeChat = new class extends mock<IChat>() {
+			override readonly changes = observableValue<readonly ISessionFileChange[]>('activeChatChanges', [{
+				modifiedUri: activeChatChange,
+				originalUri: activeChatChange,
+				insertions: 1,
+				deletions: 0,
+			}]);
+		}();
+		const activeSession = {
+			...makeSession(sessionS1, SessionStatus.InProgress, { changes: [aggregateChange] }),
+			activeChat: observableValue('activeChat', activeChat),
+		} as unknown as IActiveSession;
+		setActiveSession(activeSession);
+
+		assert.deepStrictEqual(service.getChatChanges(sessionS1).map(change => change.modifiedUri?.toString()), [
+			activeChatChange.toString(),
+		]);
+	});
+
 	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {
 		const firstDraft = makeSession(sessionS1, SessionStatus.Untitled);
 		const secondDraft = makeSession(sessionS2, SessionStatus.Untitled);
@@ -902,10 +924,13 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let sessionLoaded: boolean;
 	/** Simulates the widget loading the session's chat model. */
 	let loadSession: () => void;
+	/** The resources a chat widget was looked up for. */
+	let widgetLookups: string[];
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
+		widgetLookups = [];
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -958,7 +983,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 			override onDidAddWidget = Event.None;
 			override getAllWidgets(): readonly IChatWidget[] { return [widget]; }
-			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined {
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				widgetLookups.push(resource.toString());
 				return sessionLoaded ? widget : undefined;
 			}
 		});
@@ -1021,6 +1047,25 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				{ id: first.id, state: AgentFeedbackState.Submitted },
 				{ id: second.id, state: AgentFeedbackState.Accepted },
 			],
+		});
+	});
+
+	test('sends session feedback to another chat while reading and marking it under the session', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
+		const targetChat = URI.parse('test://session/1#peer');
+
+		const submitted = await service.submitFeedback(session, { query: '/act-on-feedback', feedbackIds: [first.id], targetChat });
+
+		assert.deepStrictEqual({
+			submitted,
+			lookups: [...new Set(widgetLookups)],
+			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			state: service.getFeedback(session)[0].state,
+		}, {
+			submitted: true,
+			lookups: [targetChat.toString()],
+			attachedTexts: ['Fix the PR comment'],
+			state: AgentFeedbackState.Submitted,
 		});
 	});
 

@@ -280,6 +280,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
+			if (contribution.hideFromSessionTypePicker) {
+				continue;
+			}
 			// TODO: Remove hardcoded providers from core
 			const agentSessionType = getAgentSessionProvider(contribution.type);
 			if (agentSessionType) {

@@ -33,6 +33,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
+	protected override _adapterOptions() {
+		return { ...super._adapterOptions(), preserveStatusWhenDisconnected: true };
+	}
+
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
 	}
@@ -71,7 +75,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (this._sessionCache.has(rawId)) {
 			return;
 		}
-		this._sessionCache.set(rawId, this.createAdapter(meta));
+		const adapter = this.createAdapter(meta);
+		adapter.updateDiscoveryMetadata(meta);
+		this._sessionCache.set(rawId, adapter);
 		this._withheldSessions.add(rawId);
 		// No deadline yet: the clock starts when the host first omits it.
 		this._provisionalSessions.set(rawId, undefined);
@@ -100,6 +106,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 */
 	getCachedSession(rawId: string): ISession | undefined {
 		return this._sessionCache.get(rawId);
+	}
+
+	getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
 	}
 
 	override getSessions(): ISession[] {

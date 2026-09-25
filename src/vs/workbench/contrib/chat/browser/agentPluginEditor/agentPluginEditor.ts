@@ -43,7 +43,7 @@ import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
-import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
+import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyManagedEnablementAction, getPluginPolicyEnablement, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -102,6 +102,7 @@ export class AgentPluginEditor extends EditorPane {
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AgentPluginEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -290,6 +291,9 @@ export class AgentPluginEditor extends EditorPane {
 			}
 
 			this.pluginMarketplaceService.lastFetchedPlugins.read(reader);
+			if (current.kind === AgentPluginItemKind.Installed) {
+				getPluginPolicyEnablement(current.plugin, reader);
+			}
 
 			const actions = this.getItemActions(current, storedPlugin.read(reader));
 			if (actions.length > 0) {
@@ -333,9 +337,9 @@ export class AgentPluginEditor extends EditorPane {
 			}
 		}
 
-		if (isPluginPolicyBlocked(item.plugin)) {
-			const notificationService = this.instantiationService.invokeFunction(a => a.get(INotificationService));
-			actions.push(createPolicyBlockedEnableAction(item.plugin, notificationService));
+		const policyAction = createPolicyManagedEnablementAction(item.plugin, this.notificationService);
+		if (policyAction) {
+			actions.push(policyAction);
 		} else {
 			actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 			actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));

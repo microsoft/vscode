@@ -22,6 +22,8 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
@@ -48,10 +50,15 @@ function createMockActiveSession(title: string, workspaceLabel?: string): IActiv
 			override readonly isVirtualWorkspace = false;
 		}();
 	}
+	// A chat without its own folders shares the session's workspace.
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
+	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
+		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
@@ -136,6 +143,11 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
+			}());
+			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+				override readonly onDidChange = Event.None;
+				override readonly selectedHostId = undefined;
+				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;

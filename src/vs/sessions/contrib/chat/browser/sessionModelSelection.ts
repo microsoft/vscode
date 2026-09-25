@@ -123,6 +123,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		super();
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
+			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
 			setModelConfiguration: async (modelId, values) => {
 				await this._modelConfigurationAccess?.setModelConfiguration(modelId, values);
 			},
