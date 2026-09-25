@@ -488,12 +488,35 @@ suite('AgentHostGitStateService', () => {
 		}, {
 			before: undefined,
 			afterRefresh: chatGitState,
-			afterUnavailable: undefined,
+			afterUnavailable: chatGitState,
 			sessionGitState,
-			scopedState: undefined,
+			scopedState: chatGitState,
 			persistedAfterRefresh: { [scopeId]: chatGitState },
-			persistedAfterUnavailable: {},
+			persistedAfterUnavailable: { [scopeId]: chatGitState },
 			runEvents: [chat, chat],
+		});
+	}));
+
+	test('keeps default-chat Git state when the Git probe fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const previous: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: previous });
+		await h.db.setMetadata(META_GIT_STATE, JSON.stringify(previous));
+		h.setGitResult(undefined);
+
+		await h.service.refreshSessionGitState(defaultChat, undefined);
+
+		assert.deepStrictEqual({
+			chatGitState: h.service.getSessionGitState(defaultChat),
+			sessionGitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			persisted: JSON.parse((await h.db.getMetadata(META_GIT_STATE))!),
+			runEvents: h.runEvents,
+		}, {
+			chatGitState: previous,
+			sessionGitState: previous,
+			persisted: previous,
+			runEvents: [defaultChat],
 		});
 	}));
 
