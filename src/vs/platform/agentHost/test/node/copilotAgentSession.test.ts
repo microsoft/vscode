@@ -8024,7 +8024,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
-			const sandbox = { [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
+			const sandbox = {
+				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:/src3/'], allowRead: ['C:\\src3\\'] },
+			};
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				platform: 'win32',
@@ -8032,7 +8035,10 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', {
+				...sandbox,
+				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:\\src3\\'] },
+			}));
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
