@@ -94,7 +94,7 @@ import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile,
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
@@ -1123,6 +1123,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private readonly _accountRefreshSequencer = new Sequencer();
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
+	private _openAIAccountRateLimits: ICodexAccountInfo['rateLimits'];
 	private _openAIAccountRateLimitUpdatedAt: number | undefined;
 	private _openAIAccountRateLimitRequest = 0;
 	private _openAIAccountProfileImage: ICodexAccountInfo['profileImage'];
@@ -1387,6 +1388,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			&& previousState.email === state.email;
 		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
+			this._openAIAccountRateLimits = undefined;
 			this._openAIAccountRateLimitUpdatedAt = undefined;
 			this._openAIAccountRateLimitRequest++;
 			this._openAIAccountProfileImage = undefined;
@@ -1494,6 +1496,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			profileImage: state.authType === 'chatgpt' ? this._openAIAccountProfileImage : undefined,
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
+			rateLimits: state.authType === 'chatgpt' ? this._openAIAccountRateLimits : undefined,
 		};
 	}
 
@@ -3308,7 +3311,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (request !== this._openAIAccountRateLimitRequest || !this._isCurrentChatGPTAccountClient(client, accountEmail)) {
 				return;
 			}
-			this._openAIAccountRateLimit = codexAccountRateLimitFromResponse(response);
+			this._openAIAccountRateLimits = codexAccountRateLimitsFromResponse(response);
+			this._openAIAccountRateLimit = this._openAIAccountRateLimits[0];
 			this._openAIAccountRateLimitUpdatedAt = this._openAIAccountRateLimit ? Date.now() : undefined;
 			this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
 		} catch (error) {
