@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -158,7 +159,7 @@ suite('SpotlightOverlay', () => {
 		assert.deepStrictEqual(fired, ['skip', 'back', 'next']);
 	});
 
-	test('advanceOnTargetClick hides Next and advances when the target is clicked', () => {
+	test('advanceOnTargetClick hides Next and advances when the target is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 100, 100, 80, 30);
@@ -173,6 +174,7 @@ suite('SpotlightOverlay', () => {
 		const viewportWidth = mainWindow.document.documentElement.clientWidth;
 		const viewportHeight = mainWindow.document.documentElement.clientHeight;
 		target.click();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			nextHidden: next.style.display === 'none',
@@ -187,6 +189,39 @@ suite('SpotlightOverlay', () => {
 				{ left: '0px', top: '94px', width: '94px', height: '42px' },
 			],
 			advanced: 1
+		});
+	});
+
+	test('advanceOnTargetClick observes a nested control that stops propagation', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const previous = $('button');
+		container.appendChild(previous);
+		previous.focus();
+		const target = createTarget(container, 100, 100, 80, 30);
+		const nestedButton = $('button');
+		target.appendChild(nestedButton);
+		const events: string[] = [];
+		nestedButton.addEventListener('click', event => {
+			event.stopPropagation();
+			nestedButton.focus();
+			events.push('control');
+		});
+		disposables.add(overlay.onDidClickNext(source => {
+			events.push(source);
+			overlay.dispose();
+		}));
+
+		overlay.show(target, content(), { advanceOnTargetClick: true });
+		nestedButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			events,
+			nestedControlRetainsFocus: mainWindow.document.activeElement === nestedButton,
+		}, {
+			events: ['control', 'target'],
+			nestedControlRetainsFocus: true,
 		});
 	});
 

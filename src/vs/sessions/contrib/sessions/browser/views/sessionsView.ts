@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -29,15 +29,14 @@ import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSection
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -47,11 +46,11 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -126,6 +125,8 @@ export class SessionsView extends ViewPane {
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private readonly customizationsNavigationVisible = observableValue(this, false);
+	private readonly customizationsNavigationState: CustomizationsNavigationState;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
@@ -152,15 +153,15 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
+		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -186,16 +187,6 @@ export class SessionsView extends ViewPane {
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
-	}
-
-	private _handleSessionOpened(session: ISession): void {
-		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
-		if (comparison) {
-			this.layoutService.hideSidePane();
-		}
-		if (isWeb && isPhoneLayout(this.layoutService)) {
-			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-		}
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -259,17 +250,23 @@ export class SessionsView extends ViewPane {
 			sorting: () => this.currentSorting,
 			compact: () => this.currentCompact,
 			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
+			customizationsCount: this.customizationsNavigationState.totalCount,
+			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
 			findWidgetContainer,
 			sessionsHeader: headerRow,
 			sessionsHeaderContainer,
 			layoutSessionsHeader: () => this.updateHeaderLayout(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
+				const onOpened = () => {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
+						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					}
+				};
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
 					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
 					return;
 				}
-				const onOpened = () => this._handleSessionOpened(session);
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
 					return this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
@@ -420,6 +417,7 @@ export class SessionsView extends ViewPane {
 		const automationsFocused = this.sessionsControl?.isAutomationsFocused() === true;
 		const wasTreatment = this.customizationsPresentation === 'treatment';
 		this.customizationsPresentation = presentation;
+		this.customizationsNavigationVisible.set(presentation === 'treatment', undefined);
 
 		if (wasTreatment !== (presentation === 'treatment')) {
 			this.sessionsControl?.updateNavigationVisibility();

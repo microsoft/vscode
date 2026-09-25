@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { $ } from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -151,6 +152,7 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.dispose();
 	});
 
@@ -238,6 +240,20 @@ suite('ChatThinkingContentPart', () => {
 				]);
 			});
 		}
+
+		test('only queries collapse animations after a preview has been expanded', () => {
+			const part = createToolChain(true);
+			const container = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation')!;
+			const getAnimations = sinon.stub(container, 'getAnimations').returns([]);
+
+			part.getPendingCollapseAnimation();
+			const beforeExpanding = getAnimations.callCount;
+			part.expandContent();
+			part.collapseContentWhenUnfocused();
+			part.getPendingCollapseAnimation();
+
+			assert.deepStrictEqual({ beforeExpanding, afterCollapsing: getAnimations.callCount }, { beforeExpanding: 0, afterCollapsing: 1 });
+		});
 
 		test('restores a generated summary without materializing its tools', async () => {
 			const part = createToolChain(true);
@@ -3296,14 +3312,16 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual({
 				added: addedEl?.textContent,
 				removed: removedEl?.textContent,
+				headerHasDiff: label?.classList.contains('chat-thinking-title-with-diff'),
 				childClasses: [...label!.children].map(child => child.className),
 				initialExpanded,
 				expandedAfterChevronClick: titleButton?.ariaExpanded,
 			}, {
 				added: '+10',
 				removed: '-3',
+				headerHasDiff: true,
 				childClasses: [
-					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
+					'monaco-button monaco-icon-button monaco-text-button',
 					'monaco-button chat-thinking-title-diff',
 					'chat-collapsible-hover-chevron codicon codicon-chevron-right-compact expanded',
 				],

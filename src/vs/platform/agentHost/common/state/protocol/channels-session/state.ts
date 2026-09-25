@@ -1343,6 +1343,19 @@ export const enum McpAuthRequiredReason {
  */
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
+	/**
+	 * When `true`, the host MAY hold back processing of new messages (for
+	 * example, the next turn) until this server finishes starting, because the
+	 * server's contributions — such as its tools — are still being discovered.
+	 * Clients SHOULD make it clear that the session is waiting on this server
+	 * and MAY offer to
+	 * {@link SessionMcpServerBackgroundRequestedAction | background} the
+	 * startup so message processing can continue without it.
+	 *
+	 * Omitted or `false` means message processing is not blocked on this
+	 * server.
+	 */
+	blocking?: boolean;
 }
 
 /**

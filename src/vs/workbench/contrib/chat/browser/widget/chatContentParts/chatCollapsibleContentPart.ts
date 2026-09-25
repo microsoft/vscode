@@ -184,9 +184,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 		this.logUserToggle();
 		const value = this._isExpanded.get();
-		if (value && this._domNode) {
-			this.onWillCollapse?.(this._domNode);
-		}
 		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isExpanded.set(!value, undefined);
 	}

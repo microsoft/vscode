@@ -447,6 +447,8 @@ export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange
 /** A last-turn file change classified against its owning session workspace. */
 export type ISessionTurnFileChange = ISessionFileChange & {
 	readonly isOutsideWorkspace: boolean;
+	/** Workspace URI before a rename in this turn, used to replace the cumulative entry for the old path. */
+	readonly renamedFromUri?: URI;
 };
 
 /**
@@ -822,10 +824,6 @@ export interface ISession {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
-	/** Provider-owned permission level selected while configuring a new session. */
-	readonly permissionLevel?: IObservable<string>;
-	/** Provider-owned branch selected while configuring a new session. */
-	readonly branch?: IObservable<string | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
@@ -1059,7 +1057,9 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 
 /** Structural equality for arrays of {@link ISessionTurnFileChange}. */
 export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
-	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+	return sessionFileChangesEqual(a, b) && a.every((change, index) =>
+		change.isOutsideWorkspace === b[index].isOutsideWorkspace &&
+		isEqual(change.renamedFromUri, b[index].renamedFromUri));
 }
 
 /**

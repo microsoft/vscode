@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -33,7 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -42,6 +41,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { isChangesFileResource } from './changesViewRenderer.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -369,8 +369,7 @@ class ChangesHeaderActionsAction extends Action2 {
 					IsAuxiliaryWindowContext.toNegated(),
 					CustomViewVisibleContext.negate(),
 					SinglePaneLayoutEnabledContext,
-					SessionIsCreatedContext,
-					SessionHasChangesContext
+					SessionIsCreatedContext
 				)
 			},
 		});
@@ -596,7 +595,7 @@ class OpenChangesAction extends Action2 {
 		const sessionChanges = changesViewService.activeSessionChangesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
-			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+			resources.some(resource => isChangesFileResource(change, resource))
 		) ?? [];
 
 		await Promise.all(changes.map(change => editorService.openEditor({

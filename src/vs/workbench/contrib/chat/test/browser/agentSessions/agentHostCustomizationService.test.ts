@@ -70,6 +70,10 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return Promise.resolve();
 	}
 	stopMcpServer(): Promise<void> { return Promise.resolve(); }
+	backgroundMcpServer(rawId: string): Promise<void> {
+		this.operationLog.push(`background:${rawId}`);
+		return Promise.resolve();
+	}
 	setRootConfigValue(): void { /* no-op */ }
 }
 
@@ -154,6 +158,26 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
+
+	test('backgrounds blocking servers through the required target operation', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([
+			{ ...mcpServer('blocking', 'Blocking'), state: { kind: McpServerStatus.Starting, blocking: true } },
+			{ ...mcpServer('background', 'Background'), state: { kind: McpServerStatus.Starting, blocking: false } },
+		]);
+		sut.setTarget(session, target);
+		const servers = sut.getMcpServers(session);
+		await servers[0].background?.();
+
+		assert.deepStrictEqual({
+			operations: target.operationLog,
+			actions: servers.map(server => !!server.background),
+		}, {
+			operations: ['background:blocking'],
+			actions: [true, false],
+		});
+	});
 
 	for (const authority of ['local', 'remote-test']) {
 		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
