@@ -35,6 +35,46 @@ describe('MCP configuration generation', () => {
 		const server = { type: 'sse', url: 'https://example.com', oauthClientId: 'client' };
 		expect(extractMcpConfiguration(JSON.stringify({ name: 'remote', ...server }), { type: 'object' })).toEqual({ name: 'remote', server });
 	});
+	describe('remote URI validation', () => {
+		const schema = {
+			type: 'object',
+			required: ['name', 'url'],
+			properties: { name: { type: 'string' }, url: { type: 'string', format: 'uri', pattern: '^https?://.+' } },
+		};
+		for (const url of [
+			'https://example.com/mcp',
+			'http://localhost:3000/sse',
+			'http://[::1]:3000/mcp',
+			'https://example.com/mcp?name=hello%20world',
+			'https://${input:mcp-host}:${input:mcp-port}/mcp?token=${input:mcp-token}',
+			'https://${env:MCP_HOST}:${env:MCP_PORT}/${env:MCP_PATH}',
+			'https://${MCP_HOST}:${MCP_PORT}/mcp?token=${TOKEN}',
+		]) {
+			it(`accepts the URI without rewriting references: ${url}`, () => {
+				expect(extractMcpConfiguration(JSON.stringify({ name: 'remote', url }), schema)).toEqual({ name: 'remote', server: { url } });
+			});
+		}
+		for (const url of [
+			'https:// ',
+			'https://example.com/a b',
+			'https://example.com/\npath',
+			'https://example.com/\u0000',
+			'https://example.com\\path',
+			'https:///mcp',
+			'https://[invalid]/mcp',
+			'https://example.com:not-a-port/mcp',
+			'https://example.com:65536/mcp',
+			'https://example.com/%invalid',
+			'https://${input:}/mcp',
+			'https://${unknown:host}/mcp',
+			'https://${input:host/mcp',
+			'https://${env:HOST}:invalid/mcp',
+		]) {
+			it(`rejects malformed endpoints: ${JSON.stringify(url)}`, () => {
+				expect(() => extractMcpConfiguration(JSON.stringify({ name: 'remote', url }), schema)).toThrow('Expected exactly one named MCP server');
+			});
+		}
+	});
 	it('returns opaque references so embedded and repeated answers never reach the model', () => {
 		const ref = new McpPickRef(new Promise(() => { }), 'workspaceRoot');
 		try {

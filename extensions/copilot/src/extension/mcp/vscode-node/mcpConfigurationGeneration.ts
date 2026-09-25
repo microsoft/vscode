@@ -11,7 +11,15 @@ export type McpTargetFormat = 'vscode' | 'workspaceRoot' | 'copilotGlobal';
 
 /** Validates the core-owned schema without converting the destination's dialect. */
 export function extractMcpConfiguration(response: string, schema: JsonSchema): { name: string; server: Record<string, unknown> } {
-	const ajv = new Ajv({ strict: false, validateFormats: false });
+	const ajv = new Ajv({ strict: false });
+	ajv.addFormat('uri', value => {
+		// A numeric placeholder works in hostnames, ports, paths and query parameters.
+		const uri = value.replace(/\$\{(?:(?:input|env):[A-Za-z0-9_.-]+|[A-Z_][A-Z0-9_]*)\}/g, '1');
+		return !/[\s\u0000-\u001f\u007f\\{}<>"`^|]/.test(uri)
+			&& !/%(?![0-9a-f]{2})/i.test(uri)
+			&& !/^https?:\/\/[/?#]/i.test(uri)
+			&& URL.canParse(uri);
+	});
 	const validate = ajv.compile(schema);
 	const blocks = extractCodeBlocks(response);
 	const candidates = blocks.length ? blocks.map(block => block.code) : [response];
