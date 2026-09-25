@@ -28,7 +28,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -157,7 +157,8 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
  * Attaches a remove action to an entry, when the surface supports it. Applies
  * equally to durable artifacts and mere references — both are removable by
  * their stable id, since removal only ever deletes the session's own record,
- * never the underlying file, resource, PR, issue or other external target.
+ * never the underlying file, resource, PR, issue or other external target. The
+ * action names which of the two it removes.
  */
 function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, actions: ISessionArtifactActions): IChatPillEntry {
 	const remove = actions.remove;
@@ -168,10 +169,12 @@ function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, act
 		...entry,
 		promotedAction: withChatPillHoverLabel(toAction({
 			id: `sessions.artifacts.remove.${artifact.id}`,
-			label: localize('sessionArtifacts.removeArtifact', "Remove {0} from Session", artifact.label),
+			label: artifact.isArtifact
+				? localize('sessionArtifacts.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
+				: localize('sessionArtifacts.removeReference', "Remove Reference {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => remove(artifact.id, artifact.label),
-		}), chatPillRemoveReferenceHoverLabel),
+		}), artifact.isArtifact ? chatPillRemoveArtifactHoverLabel : chatPillRemoveReferenceHoverLabel),
 	};
 }
 
@@ -190,13 +193,13 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			resource: uri,
 			toolbarActions: [toAction({
 				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFilePath', "Copy path"),
+				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(fullPath),
 			})],
 			hoverActions: [toAction({
 				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
+				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(relativePath),
 			})],
@@ -235,14 +238,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			icon,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
-				label: localize('sessionArtifacts.copyCommitUrl', "Copy commit URL"),
+				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
 				hoverActions: [withChatPillHoverLabel(toAction({
 					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
-					label: localize('sessionArtifacts.copyCommitHash', "Copy commit hash"),
+					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
 				}), chatPillCopyHashHoverLabel)],
@@ -281,11 +284,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 	}
 	const link = artifact.link;
 	const copyLinkLabel = artifact.kind === SessionArtifactKind.PullRequest
-		? localize('sessionArtifacts.copyPullRequestLink', "Copy pull request link")
+		? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
 		: artifact.kind === SessionArtifactKind.Issue
-			? localize('sessionArtifacts.copyIssueLink', "Copy issue link")
+			? localize('sessionArtifacts.copyIssueLink', "Copy Issue Link")
 			: artifact.kind === SessionArtifactKind.Website
-				? localize('sessionArtifacts.copyWebsiteUrl', "Copy website URL")
+				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
 		? [withChatPillHoverLabel(toAction({
@@ -354,13 +357,13 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						resource: uri,
 						toolbarActions: [toAction({
 							id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFilePath', "Copy path"),
+							label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(fullPath),
 						})],
 						hoverActions: [toAction({
 							id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
+							label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(relativePath),
 						})],
@@ -504,10 +507,11 @@ export class SessionArtifacts extends Disposable {
 				return [];
 			}
 			locationFormatting.read(reader);
-			const gitHubReferences = this._gitHubReferences.read(reader);
+			// Only artifacts are promoted into the pull request and issue pills; references always stay in the references pill.
+			const gitHubReferences = isArtifact ? this._gitHubReferences.read(reader) : undefined;
 			const surfacedIds = new Set([
-				...gitHubReferences.pullRequests,
-				...gitHubReferences.issues,
+				...gitHubReferences?.pullRequests ?? [],
+				...gitHubReferences?.issues ?? [],
 			].map(ref => ref.recordedReferenceId));
 			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !surfacedIds.has(artifact.id));
 			const commits = new Map(artifacts.flatMap(artifact => {

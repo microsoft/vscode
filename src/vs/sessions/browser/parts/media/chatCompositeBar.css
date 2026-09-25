@@ -578,6 +578,39 @@
 	--modern-ui-connected-tab-surface: var(--session-view-background);
 }
 
+/* Paint the frame in the same box as the tabs, rather than clipping a second
+ * rounded tab border against the outside of the card. Keep its layout space. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.sessionspart.agents-part-card {
+	border-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view {
+	position: relative;
+	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .modern-ui-editor-tab-content::after {
+	border: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .chat-composite-bar-tab:first-child > .chat-composite-bar-tab-fill {
+	border-top-left-radius: 0;
+	border-left-color: transparent;
+	background-clip: border-box;
+}
+
 .modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0;
 	max-width: none;

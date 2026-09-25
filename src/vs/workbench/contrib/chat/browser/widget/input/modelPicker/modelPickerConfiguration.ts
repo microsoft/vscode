@@ -14,8 +14,9 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues } from './modelPickerModelConfig.js';
 import { logModelConfigurationChange } from './modelPickerTelemetry.js';
+import { isAutoModel } from './modelPickerPresentation.js';
 
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -35,21 +36,24 @@ export class ModelPickerConfiguration {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, showModelDetails = false): void {
+	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, useTabbedPicker = false): void {
 		const model = this._host.getSelectedModel();
 		const effortConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT);
 		const tokensConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT);
-		const summary = showModelDetails ? getModelConfigSummary(model, this._host.getConfigurationAccess()) : undefined;
+		const summary = useTabbedPicker ? getModelConfigSummary(model, this._host.getConfigurationAccess()) : undefined;
 		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig && !summary)) {
 			button.style.display = 'none';
 			return;
 		}
 
-		if (showModelDetails) {
+		if (useTabbedPicker) {
 			const label = summary ?? localize('chat.modelPicker.configureLabel', "Configure");
 			dom.reset(button, dom.$('span.chat-input-picker-label', undefined, label));
 			button.style.display = '';
-			button.ariaLabel = localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, getModelConfigDescription(model, this._host.getConfigurationAccess()) ?? label);
+			const description = getModelConfigDescription(model, this._host.getConfigurationAccess()) ?? label;
+			button.ariaLabel = isAutoModel(model)
+				? localize('chat.modelPicker.autoOptionsAriaLabel', "{0} options, {1}", model.metadata.name, description)
+				: localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, description);
 			return;
 		}
 
@@ -155,7 +159,6 @@ export class ModelPickerConfiguration {
 			return [];
 		}
 
-		const modelIdentifier = model.identifier;
 		const configurationAccess = this._host.getConfigurationAccess();
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const defaultLabel = localize('models.configDefault', "Default");
@@ -168,33 +171,25 @@ export class ModelPickerConfiguration {
 			if (!config) {
 				return;
 			}
-			const previousValue = String(config.value ?? '');
-			const enumValues = config.schema.enum ?? [];
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator });
 			}
 			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
-			for (let index = 0; index < enumValues.length; index++) {
-				const value = enumValues[index];
-				const isDefault = value === config.schema.default;
-				const displayLabel = formatValueLabel(value, config.schema.enumItemLabels?.[index]);
-				const enumDescription = config.schema.enumDescriptions?.[index];
+			for (const { value, label: displayLabel, description: enumDescription, checked, isDefault, readOnly } of getModelConfigChoices(config, formatValueLabel)) {
 				const ariaDescriptionParts = [isDefault ? defaultLabel : undefined, enumDescription].filter((part): part is string => !!part);
-				const checked = config.value === value;
 				items.push({
 					item: {
 						id: `${group}.${value}`,
-						enabled: true,
+						enabled: !readOnly,
 						checked,
 						class: undefined,
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
-						run: () => {
-							logModelConfigurationChange(this._telemetryService, model, group, config.key, previousValue, value);
-							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
-						}
+						run: () => setModelConfigValues(model, configurationAccess, { [config.key]: value },
+							(group, key, fromValue, toValue) => logModelConfigurationChange(this._telemetryService, model, group, key, fromValue, toValue)),
 					},
 					kind: ActionListItemKind.Action,
+					disabled: readOnly,
 					className: 'chat-model-picker-config-option',
 					label: displayLabel,
 					description: isDefault ? defaultLabel : undefined,

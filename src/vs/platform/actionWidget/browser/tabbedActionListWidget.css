@@ -29,25 +29,40 @@
 	gap: 4px;
 }
 
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button {
 	border: none;
 	border-radius: 4px;
 }
 
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button:not(.active) {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button:not(.active) {
 	color: var(--vscode-descriptionForeground);
 }
 
 /* A closing tab holds its old label while it shrinks, so it has to clip it. */
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.label-collapsing {
 	overflow: hidden;
 }
 
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing > span:not(.codicon) {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.label-collapsing > span:not(.codicon) {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.action-widget .tabbed-action-list-tab {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.action-widget .tabbed-action-list-tab-toggle:not([hidden]) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
 }
 
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {

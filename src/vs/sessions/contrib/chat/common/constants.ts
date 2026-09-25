@@ -10,3 +10,5 @@ export const NEW_SESSION_ACTION_ID = 'workbench.action.sessions.newChat';
 export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspacePicker;
 export { COMPARE_AGENTS_ENABLED_SETTING };
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
+export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
+export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';

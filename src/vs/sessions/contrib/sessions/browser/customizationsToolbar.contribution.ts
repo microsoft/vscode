@@ -91,6 +91,27 @@ export function readCustomizationCount(
 	return 0;
 }
 
+export function readTotalCustomizationCount(
+	reader: IReader,
+	itemsModel: IAICustomizationItemsModel,
+	mcpServerCountService: IAICustomizationMcpServerCountService,
+	toolsService: ILanguageModelToolsService,
+	toolEnablementService: IAgentHostToolSetEnablementService,
+	harnessService: ICustomizationHarnessService,
+): number {
+	harnessService.activeHarness.read(reader);
+	harnessService.availableHarnesses.read(reader);
+	const hiddenSections = new Set(harnessService.getActiveDescriptor().hiddenSections ?? []);
+	let total = 0;
+	for (const config of CUSTOMIZATION_ITEMS) {
+		if (config.section && hiddenSections.has(config.section)) {
+			continue;
+		}
+		total += readCustomizationCount(config, reader, itemsModel, mcpServerCountService, toolsService, toolEnablementService);
+	}
+	return total;
+}
+
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
 		id: 'sessions.customization.plugins',

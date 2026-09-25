@@ -8,7 +8,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -95,17 +95,13 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.discoverEnabled = this.isAnySourceEnabled();
 		this.createImplementation();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.isMarketplaceConfigurationChange(event) && this.discoverEnabled !== this.isAnySourceEnabled()) {
-				const hadFocus = this.container.contains(DOM.getActiveElement());
-				this.implementation.clear();
-				DOM.clearNode(this.container);
-				this.discoverEnabled = this.isAnySourceEnabled();
-				this.createImplementation();
-				if (hadFocus) {
-					this.focus();
-				}
+			if (this.isMarketplaceConfigurationChange(event)) {
+				this.updateImplementation();
 			}
 		}));
+		if (this.marketplaceService.onDidChangeSources) {
+			this._register(this.marketplaceService.onDidChangeSources(() => this.updateImplementation()));
+		}
 	}
 
 	get isDiscover(): boolean {
@@ -113,11 +109,26 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting));
+		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources);
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+	}
+
+	private updateImplementation(): void {
+		const discoverEnabled = this.isAnySourceEnabled();
+		if (this.discoverEnabled === discoverEnabled) {
+			return;
+		}
+		const hadFocus = this.container.contains(DOM.getActiveElement());
+		this.implementation.clear();
+		DOM.clearNode(this.container);
+		this.discoverEnabled = discoverEnabled;
+		this.createImplementation();
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	private createImplementation(): void {

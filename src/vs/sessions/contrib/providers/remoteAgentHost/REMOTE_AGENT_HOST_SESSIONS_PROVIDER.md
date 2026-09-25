@@ -14,7 +14,7 @@ Kind-specific contributions create and register one provider for each remote hos
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 
-Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. Discovery remains account-wide; the Editor adapter scopes its list to the workspace's GitHub repositories, or all projects in an empty window, and groups its filters under Cloud. Repository scope applies to cached and connected sessions without changing their routing; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation.
+Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. Discovery remains account-wide; the Editor adapter scopes its list to the workspace's GitHub repositories, or all projects in an empty window, and groups its filters under Cloud. Repository scope applies to cached and connected sessions without changing their routing; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation. The Editor keeps the discovery and environment providers registered for existing conversations but excludes them from the harness picker and automatic new-chat selection.
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
@@ -66,6 +66,10 @@ Transport-specific callers own discovery, on-demand staging, credentials, and co
 their context by address, request an explicit reconnect, and wait for the service to report the connection.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
+
+Hosts may publish execution-platform, CPU, and memory-capacity metadata in the root state's namespaced metadata. Remote delegation consumes these host-reported facts alongside the host-wide running-session count. Missing facts remain unknown, including when connecting to an older host; they must not satisfy explicit resource requirements. The execution environment is authoritative, so a Linux container or WSL instance reports Linux regardless of the client operating system.
+
+Hosts explicitly advertise support for preserving remote-session origins. Creation tools require that capability rather than using resource metadata or build versions as a proxy. The origin and cumulative spawn depth are included in initial publication and persisted by the host before creation succeeds; listing and restoration rehydrate them independently of provider-owned metadata.
 
 Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
 

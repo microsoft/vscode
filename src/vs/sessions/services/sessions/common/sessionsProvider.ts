@@ -10,6 +10,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -51,6 +52,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** UI-only response observation, forwarded to the chat service rather than the backend. */
+	readonly onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'];
 	/** The query text to send. */
 	readonly query: string;
 	/** Provider-specific request metadata, separate from the prompt. */
@@ -482,6 +485,12 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to unarchive.
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat?(sessionId: string, chatResource: URI): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat?(sessionId: string, chatResource: URI): Promise<void>;
 
 	/**
 	 * Set the read/unread state of a session. The provider owns and persists
