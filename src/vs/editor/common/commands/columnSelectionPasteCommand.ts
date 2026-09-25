@@ -25,7 +25,7 @@ export class ColumnSelectionPasteCommand implements ICommand {
 		const ChosenReplaceCommand = this._overtype ? ReplaceOvertypeCommand : ReplaceCommand;
 
 		for (let i = 0; i < this._text.length; i++) {
-			const lineNumber = this._selection.startLineNumber + i;
+			const lineNumber = this._selection.endLineNumber + i;
 			if (lineNumber > lineCount) {
 				const endColumn = model.getLineMaxColumn(lineCount);
 				const padding = ' '.repeat(visibleColumn);

@@ -42,8 +42,7 @@ suite('Column selection paste', () => {
 		} satisfies PastePayload);
 	}
 
-	const cases: {
-		name: string;
+	function assertPaste(scenario: {
 		text: string[];
 		selections: Selection[];
 		expected: string[];
@@ -51,248 +50,313 @@ suite('Column selection paste', () => {
 		tabSize?: number;
 		options?: IEditorOptions;
 		payload?: Partial<PastePayload>;
-	}[] = [
-			{
-				name: 'inserts successive rows from a single cursor',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA--right', 'leftBC--right', 'leftD--right']
-			},
-			{
-				name: 'replaces a single-line selection with the first row',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 1, 7)],
-				expected: ['leftAright', 'leftBC--right', 'leftD--right']
-			},
-			{
-				name: 'uses the start of a reversed selection',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 7, 1, 5)],
-				expected: ['leftAright', 'leftBC--right', 'leftD--right']
-			},
-			{
-				name: 'replaces an equal-height continuous selection with the first row',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 3, 7)],
-				expected: ['leftAright', '    BC', '    D']
-			},
-			{
-				name: 'replaces a reversed equal-height continuous selection',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(3, 7, 1, 5)],
-				expected: ['leftAright', '    BC', '    D']
-			},
-			{
-				name: 'replaces a full-line selection including its final newline',
-				text: ['first', 'second', 'third', 'unselected'],
-				selections: [new Selection(1, 1, 4, 1)],
-				expected: ['Aunselected', 'BC', 'D']
-			},
-			{
-				name: 'preserves the suffix when a reversed selection ends at column one',
-				text: ['left--right', 'second', 'third', 'unselected'],
-				selections: [new Selection(4, 1, 1, 5)],
-				expected: ['leftAunselected', '    BC', '    D']
-			},
-			{
-				name: 'replaces a shorter continuous selection with the first row',
-				text: ['left--right', 'left--right', 'last'],
-				selections: [new Selection(1, 5, 2, 7)],
-				expected: ['leftAright', 'lastBC', '    D']
-			},
-			{
-				name: 'replaces a taller continuous selection with the first row',
-				text: ['left--right', 'middle', 'middle', 'left--right'],
-				selections: [new Selection(1, 5, 4, 7)],
-				expected: ['leftAright', '    BC', '    D']
-			},
-			{
-				name: 'pads short and empty lines to the block column',
-				text: ['left--right', 'x', ''],
-				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA--right', 'x   BC', '    D']
-			},
-			{
-				name: 'appends missing rows without moving the existing suffix',
-				text: ['left--right'],
-				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA--right', '    BC', '    D']
-			},
-			{
-				name: 'appends rows when the cursor is at the end of the file',
-				text: ['left'],
-				selections: [new Selection(1, 5, 1, 5)],
-				expected: ['leftA', '    BC', '    D']
-			},
-			{
-				name: 'pastes into an empty document',
-				text: [''],
-				selections: [new Selection(1, 1, 1, 1)],
-				expected: ['A', 'BC', 'D']
-			},
-			{
-				name: 'preserves empty and trailing copied rows',
-				text: ['left--right', 'left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 1, 5)],
-				pastedText: 'A\n\nD\n',
-				expected: ['leftA--right', 'left--right', 'leftD--right', 'left--right']
-			},
-			{
-				name: 'pads short lines for empty and trailing copied rows',
-				text: ['left', 'x', '', 'y'],
-				selections: [new Selection(1, 5, 1, 5)],
-				pastedText: 'A\n\nD\n',
-				expected: ['leftA', 'x   ', '    D', 'y   ']
-			},
-			{
-				name: 'appends empty and trailing copied rows',
-				text: ['left'],
-				selections: [new Selection(1, 5, 1, 5)],
-				pastedText: 'A\n\nD\n',
-				expected: ['leftA', '    ', '    D', '    ']
-			},
-			{
-				name: 'aligns using visible columns across tabs and spaces',
-				text: ['\tleft', '    left', '  \tleft'],
-				selections: [new Selection(1, 2, 1, 2)],
-				expected: ['\tAleft', '    BCleft', '  \tDleft']
-			},
-			{
-				name: 'pads short lines using the configured tab size',
-				text: ['\t--left', '\t', ''],
-				selections: [new Selection(1, 4, 1, 4)],
-				tabSize: 8,
-				expected: ['\t--Aleft', '\t  BC', '          D']
-			},
-			{
-				name: 'pads using visible widths of graphemes and full-width characters',
-				text: ['left--right', 'e\u0301', '\u4E2D', '\u{1F600}'],
-				selections: [new Selection(1, 5, 1, 5)],
-				pastedText: 'A\nB\nC\nD',
-				expected: ['leftA--right', 'e\u0301   B', '\u4E2D  C', '\u{1F600}  D']
-			},
-			{
-				name: 'uses grapheme boundaries and full-width character columns',
-				text: ['\u{1F600}left', 'e\u0301xleft', '\u4E2Dleft'],
-				selections: [new Selection(1, 3, 1, 3)],
-				expected: ['\u{1F600}Aleft', 'e\u0301xBCleft', '\u4E2DDleft']
-			},
-			{
-				name: 'uses successive model lines when word wrap is enabled',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 1, 5)],
-				options: { wordWrap: 'wordWrapColumn', wordWrapColumn: 6 },
-				expected: ['leftA--right', 'leftBC--right', 'leftD--right']
-			},
-			{
-				name: 'does not create cursors or truncate at the multi-cursor limit',
-				text: ['left--right', 'left--right', 'left--right'],
-				selections: [new Selection(1, 5, 1, 5)],
-				options: { multiCursorLimit: 1 },
-				expected: ['leftA--right', 'leftBC--right', 'leftD--right']
-			},
-			{
-				name: 'distributes matching cursors in document order',
-				text: ['xx', 'yy', 'zz'],
-				selections: [new Selection(3, 2, 3, 2), new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
-				expected: ['xAx', 'yBCy', 'zDz']
-			},
-			{
-				name: 'distributes matching non-empty selections',
-				text: ['[one]', '[two]', '[three]'],
-				selections: [new Selection(1, 2, 1, 5), new Selection(2, 2, 2, 5), new Selection(3, 2, 3, 7)],
-				expected: ['[A]', '[BC]', '[D]']
-			},
-			{
-				name: 'repeats the whole text when multiple cursor counts differ',
-				text: ['xx', 'yy', 'zz'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(3, 2, 3, 2)],
-				expected: ['xA', 'BC', 'Dx', 'yy', 'zA', 'BC', 'Dz']
-			},
-			{
-				name: 'uses normal replacement for multiple destinations including a multiline selection',
-				text: ['xx', 'yy', 'zz', '[one]', '[two]'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(4, 2, 5, 5)],
-				expected: ['xA', 'BC', 'Dx', 'yy', 'zz', '[A', 'BC', 'D]']
-			},
-			{
-				name: 'retains ordinary trailing-newline handling when spreading to multiple cursors',
-				text: ['xx', 'yy'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
-				pastedText: 'A\nB\n',
-				expected: ['xAx', 'yBy']
-			},
-			{
-				name: 'block mode respects multiCursorPaste full for multiple destinations without row metadata',
-				text: ['xx', 'yy', 'zz'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
-				options: { multiCursorPaste: 'full' },
-				payload: { multicursorText: null },
-				expected: ['xA', 'BC', 'Dx', 'yA', 'BC', 'Dy', 'zA', 'BC', 'Dz']
-			},
-			{
-				name: 'text mode retains single-cursor multiline pasting',
-				text: ['left--right', 'last'],
-				selections: [new Selection(1, 5, 1, 5)],
-				options: { columnSelectionPaste: 'text' },
-				expected: ['leftA', 'BC', 'D--right', 'last']
-			},
-			{
-				name: 'text mode retains existing multi-cursor metadata distribution',
-				text: ['xx', 'yy', 'zz'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
-				options: { columnSelectionPaste: 'text', multiCursorPaste: 'full' },
-				expected: ['xAx', 'yBCy', 'zDz']
-			},
-			{
-				name: 'ordinary multi-cursor copies are not treated as blocks',
-				text: ['left--right', 'last'],
-				selections: [new Selection(1, 5, 1, 5)],
-				payload: { isBlock: false },
-				expected: ['leftA', 'BC', 'D--right', 'last']
-			},
-			{
-				name: 'missing block metadata retains normal paste',
-				text: ['left--right', 'last'],
-				selections: [new Selection(1, 5, 1, 5)],
-				payload: { isBlock: undefined, multicursorText: null },
-				expected: ['leftA', 'BC', 'D--right', 'last']
-			},
-			{
-				name: 'preserves ordinary spread pasting without metadata',
-				text: ['xx', 'yy', 'zz'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
-				payload: { isBlock: undefined, multicursorText: null },
-				expected: ['xAx', 'yBCy', 'zDz']
-			},
-			{
-				name: 'preserves ordinary full pasting without metadata',
-				text: ['xx', 'yy'],
-				selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
-				pastedText: 'A\nB',
-				options: { multiCursorPaste: 'full' },
-				payload: { isBlock: undefined, multicursorText: null },
-				expected: ['xA', 'Bx', 'yA', 'By']
-			},
-			{
-				name: 'does not edit a read-only document',
-				text: ['left--right', 'last'],
-				selections: [new Selection(1, 5, 1, 5)],
-				options: { readOnly: true },
-				expected: ['left--right', 'last']
-			}
-		];
-
-	for (const scenario of cases) {
-		test(scenario.name, () => {
-			withTestCodeEditor(scenario.text, { columnSelectionPaste: 'block', ...scenario.options }, editor => {
-				editor.getModel().updateOptions({ tabSize: scenario.tabSize ?? 4 });
-				editor.setSelections(scenario.selections);
-				paste(editor, scenario.pastedText ?? block, scenario.payload);
-				assert.deepStrictEqual(editor.getModel().getLinesContent(), scenario.expected);
-			});
+	}): void {
+		withTestCodeEditor(scenario.text, { columnSelectionPaste: 'block', ...scenario.options }, editor => {
+			editor.getModel().updateOptions({ tabSize: scenario.tabSize ?? 4 });
+			editor.setSelections(scenario.selections);
+			paste(editor, scenario.pastedText ?? block, scenario.payload);
+			assert.deepStrictEqual(editor.getModel().getLinesContent(), scenario.expected);
 		});
 	}
+
+	test('inserts successive rows from a single cursor', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+		});
+	});
+
+	test('replaces a single-line selection with the first row', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 7)],
+			expected: ['leftAright', 'leftBC--right', 'leftD--right']
+		});
+	});
+
+	test('uses the start of a reversed selection', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 7, 1, 5)],
+			expected: ['leftAright', 'leftBC--right', 'leftD--right']
+		});
+	});
+
+	test('replaces an equal-height continuous selection with the first row', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 3, 7)],
+			expected: ['leftAright', '    BC', '    D']
+		});
+	});
+
+	test('replaces a reversed equal-height continuous selection', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(3, 7, 1, 5)],
+			expected: ['leftAright', '    BC', '    D']
+		});
+	});
+
+	test('replaces a full-line selection including its final newline', () => {
+		assertPaste({
+			text: ['first', 'second', 'third', 'unselected'],
+			selections: [new Selection(1, 1, 4, 1)],
+			expected: ['Aunselected', 'BC', 'D']
+		});
+	});
+
+	test('preserves the suffix when a reversed selection ends at column one', () => {
+		assertPaste({
+			text: ['left--right', 'second', 'third', 'unselected'],
+			selections: [new Selection(4, 1, 1, 5)],
+			expected: ['leftAunselected', '    BC', '    D']
+		});
+	});
+
+	test('replaces a shorter continuous selection with the first row', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'last'],
+			selections: [new Selection(1, 5, 2, 7)],
+			expected: ['leftAright', 'lastBC', '    D']
+		});
+	});
+
+	test('replaces a taller continuous selection with the first row', () => {
+		assertPaste({
+			text: ['left--right', 'middle', 'middle', 'left--right'],
+			selections: [new Selection(1, 5, 4, 7)],
+			expected: ['leftAright', '    BC', '    D']
+		});
+	});
+
+	test('pads short and empty lines to the block column', () => {
+		assertPaste({
+			text: ['left--right', 'x', ''],
+			selections: [new Selection(1, 5, 1, 5)],
+			expected: ['leftA--right', 'x   BC', '    D']
+		});
+	});
+
+	test('appends missing rows without moving the existing suffix', () => {
+		assertPaste({
+			text: ['left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			expected: ['leftA--right', '    BC', '    D']
+		});
+	});
+
+	test('appends rows when the cursor is at the end of the file', () => {
+		assertPaste({
+			text: ['left'],
+			selections: [new Selection(1, 5, 1, 5)],
+			expected: ['leftA', '    BC', '    D']
+		});
+	});
+
+	test('pastes into an empty document', () => {
+		assertPaste({
+			text: [''],
+			selections: [new Selection(1, 1, 1, 1)],
+			expected: ['A', 'BC', 'D']
+		});
+	});
+
+	test('preserves empty and trailing copied rows', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			pastedText: 'A\n\nD\n',
+			expected: ['leftA--right', 'left--right', 'leftD--right', 'left--right']
+		});
+	});
+
+	test('pads short lines for empty and trailing copied rows', () => {
+		assertPaste({
+			text: ['left', 'x', '', 'y'],
+			selections: [new Selection(1, 5, 1, 5)],
+			pastedText: 'A\n\nD\n',
+			expected: ['leftA', 'x   ', '    D', 'y   ']
+		});
+	});
+
+	test('appends empty and trailing copied rows', () => {
+		assertPaste({
+			text: ['left'],
+			selections: [new Selection(1, 5, 1, 5)],
+			pastedText: 'A\n\nD\n',
+			expected: ['leftA', '    ', '    D', '    ']
+		});
+	});
+
+	test('aligns using visible columns across tabs and spaces', () => {
+		assertPaste({
+			text: ['\tleft', '    left', '  \tleft'],
+			selections: [new Selection(1, 2, 1, 2)],
+			expected: ['\tAleft', '    BCleft', '  \tDleft']
+		});
+	});
+
+	test('pads short lines using the configured tab size', () => {
+		assertPaste({
+			text: ['\t--left', '\t', ''],
+			selections: [new Selection(1, 4, 1, 4)],
+			tabSize: 8,
+			expected: ['\t--Aleft', '\t  BC', '          D']
+		});
+	});
+
+	test('pads using visible widths of graphemes and full-width characters', () => {
+		assertPaste({
+			text: ['left--right', 'e\u0301', '\u4E2D', '\u{1F600}'],
+			selections: [new Selection(1, 5, 1, 5)],
+			pastedText: 'A\nB\nC\nD',
+			expected: ['leftA--right', 'e\u0301   B', '\u4E2D  C', '\u{1F600}  D']
+		});
+	});
+
+	test('uses grapheme boundaries and full-width character columns', () => {
+		assertPaste({
+			text: ['\u{1F600}left', 'e\u0301xleft', '\u4E2Dleft'],
+			selections: [new Selection(1, 3, 1, 3)],
+			expected: ['\u{1F600}Aleft', 'e\u0301xBCleft', '\u4E2DDleft']
+		});
+	});
+
+	test('uses successive model lines when word wrap is enabled', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			options: { wordWrap: 'wordWrapColumn', wordWrapColumn: 6 },
+			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+		});
+	});
+
+	test('does not create cursors or truncate at the multi-cursor limit', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			options: { multiCursorLimit: 1 },
+			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+		});
+	});
+
+	test('distributes matching cursors in document order', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz'],
+			selections: [new Selection(3, 2, 3, 2), new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
+			expected: ['xAx', 'yBCy', 'zDz']
+		});
+	});
+
+	test('distributes matching non-empty selections', () => {
+		assertPaste({
+			text: ['[one]', '[two]', '[three]'],
+			selections: [new Selection(1, 2, 1, 5), new Selection(2, 2, 2, 5), new Selection(3, 2, 3, 7)],
+			expected: ['[A]', '[BC]', '[D]']
+		});
+	});
+
+	test('repeats the whole text when multiple cursor counts differ', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(3, 2, 3, 2)],
+			expected: ['xA', 'BC', 'Dx', 'yy', 'zA', 'BC', 'Dz']
+		});
+	});
+
+	test('uses normal replacement for multiple destinations including a multiline selection', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz', '[one]', '[two]'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(4, 2, 5, 5)],
+			expected: ['xA', 'BC', 'Dx', 'yy', 'zz', '[A', 'BC', 'D]']
+		});
+	});
+
+	test('retains ordinary trailing-newline handling when spreading to multiple cursors', () => {
+		assertPaste({
+			text: ['xx', 'yy'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
+			pastedText: 'A\nB\n',
+			expected: ['xAx', 'yBy']
+		});
+	});
+
+	test('block mode respects multiCursorPaste full for multiple destinations without row metadata', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
+			options: { multiCursorPaste: 'full' },
+			payload: { multicursorText: null },
+			expected: ['xA', 'BC', 'Dx', 'yA', 'BC', 'Dy', 'zA', 'BC', 'Dz']
+		});
+	});
+
+	test('text mode retains single-cursor multiline pasting', () => {
+		assertPaste({
+			text: ['left--right', 'last'],
+			selections: [new Selection(1, 5, 1, 5)],
+			options: { columnSelectionPaste: 'text' },
+			expected: ['leftA', 'BC', 'D--right', 'last']
+		});
+	});
+
+	test('text mode retains existing multi-cursor metadata distribution', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
+			options: { columnSelectionPaste: 'text', multiCursorPaste: 'full' },
+			expected: ['xAx', 'yBCy', 'zDz']
+		});
+	});
+
+	test('ordinary multi-cursor copies are not treated as blocks', () => {
+		assertPaste({
+			text: ['left--right', 'last'],
+			selections: [new Selection(1, 5, 1, 5)],
+			payload: { isBlock: false },
+			expected: ['leftA', 'BC', 'D--right', 'last']
+		});
+	});
+
+	test('missing block metadata retains normal paste', () => {
+		assertPaste({
+			text: ['left--right', 'last'],
+			selections: [new Selection(1, 5, 1, 5)],
+			payload: { isBlock: undefined, multicursorText: null },
+			expected: ['leftA', 'BC', 'D--right', 'last']
+		});
+	});
+
+	test('preserves ordinary spread pasting without metadata', () => {
+		assertPaste({
+			text: ['xx', 'yy', 'zz'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
+			payload: { isBlock: undefined, multicursorText: null },
+			expected: ['xAx', 'yBCy', 'zDz']
+		});
+	});
+
+	test('preserves ordinary full pasting without metadata', () => {
+		assertPaste({
+			text: ['xx', 'yy'],
+			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)],
+			pastedText: 'A\nB',
+			options: { multiCursorPaste: 'full' },
+			payload: { isBlock: undefined, multicursorText: null },
+			expected: ['xA', 'Bx', 'yA', 'By']
+		});
+	});
+
+	test('does not edit a read-only document', () => {
+		assertPaste({
+			text: ['left--right', 'last'],
+			selections: [new Selection(1, 5, 1, 5)],
+			options: { readOnly: true },
+			expected: ['left--right', 'last']
+		});
+	});
 
 	test('preserves multi-cursor distribution through undo and redo in block mode', () => {
 		const text = ['xx', 'yy', 'zz'];
@@ -356,7 +420,7 @@ suite('Column selection paste', () => {
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
 				text: ['leftA', 'leftBC', 'left'],
-				selections: [new Selection(3, 5, 3, 5)]
+				selections: [new Selection(2, 7, 2, 7)]
 			});
 		});
 	});
@@ -492,28 +556,34 @@ suite('Column selection paste', () => {
 			return clipboardData;
 		}
 
-		for (const isCut of [false, true]) {
-			test(`${isCut ? 'cut' : 'copy'} retains rectangular identity through clipboard serialization`, () => {
-				withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (editor, viewModel) => {
-					selectColumn(viewModel, new Position(1, 2), new Position(3, 4));
-					const clipboardData = copy(viewModel, isCut);
-					const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
-					assert.deepStrictEqual({
-						text: event.text,
-						isBlock: event.metadata?.isBlock,
-						multicursorText: event.metadata?.multicursorText,
-						isFromEmptySelection: event.metadata?.isFromEmptySelection,
-						document: editor.getModel().getLinesContent()
-					}, {
-						text: 'AA\nBB\nCC',
-						isBlock: true,
-						multicursorText: ['AA', 'BB', 'CC'],
-						isFromEmptySelection: false,
-						document: isCut ? ['<>', '<>', '<>'] : ['<AA>', '<BB>', '<CC>']
-					});
+		function assertRectangularClipboardIdentity(isCut: boolean): void {
+			withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (editor, viewModel) => {
+				selectColumn(viewModel, new Position(1, 2), new Position(3, 4));
+				const clipboardData = copy(viewModel, isCut);
+				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
+				assert.deepStrictEqual({
+					text: event.text,
+					isBlock: event.metadata?.isBlock,
+					multicursorText: event.metadata?.multicursorText,
+					isFromEmptySelection: event.metadata?.isFromEmptySelection,
+					document: editor.getModel().getLinesContent()
+				}, {
+					text: 'AA\nBB\nCC',
+					isBlock: true,
+					multicursorText: ['AA', 'BB', 'CC'],
+					isFromEmptySelection: false,
+					document: isCut ? ['<>', '<>', '<>'] : ['<AA>', '<BB>', '<CC>']
 				});
 			});
 		}
+
+		test('copy retains rectangular identity through clipboard serialization', () => {
+			assertRectangularClipboardIdentity(false);
+		});
+
+		test('cut retains rectangular identity through clipboard serialization', () => {
+			assertRectangularClipboardIdentity(true);
+		});
 
 		test('copies reversed rectangles in document order', () => {
 			withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (editor, viewModel) => {
@@ -538,22 +608,10 @@ suite('Column selection paste', () => {
 				selectColumn(viewModel, new Position(1, 1), new Position(3, 3));
 				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData: copy(viewModel, true) }));
 				assert.deepStrictEqual({ text: event.text, document: editor.getModel().getLinesContent() }, {
-					text: 'AA\n\nCC', document: ['', '', '']
+					text: 'AA\n\n\nCC', document: ['', '']
 				});
 			});
 		});
-
-		for (const emptySelectionClipboard of [false, true]) {
-			test(`preserves selected empty rows with emptySelectionClipboard ${emptySelectionClipboard}`, () => {
-				withTestCodeEditor(['AA', '', 'CC'], { emptySelectionClipboard }, (editor, viewModel) => {
-					selectColumn(viewModel, new Position(1, 1), new Position(3, 3));
-					const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData: copy(viewModel) }));
-					assert.deepStrictEqual({ text: event.text, rows: event.metadata?.multicursorText, isBlock: event.metadata?.isBlock }, {
-						text: 'AA\n\nCC', rows: ['AA', '', 'CC'], isBlock: true
-					});
-				});
-			});
-		}
 
 		test('aligned ordinary multi-selections are not rectangular copies', () => {
 			withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (editor, viewModel) => {
@@ -568,7 +626,7 @@ suite('Column selection paste', () => {
 				selectColumn(viewModel, new Position(1, 2), new Position(3, 2));
 				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData: copy(viewModel) }));
 				assert.deepStrictEqual({ rows: event.metadata?.multicursorText, isBlock: event.metadata?.isBlock }, {
-					rows: ['AA', 'BB', 'CC'].map(line => line + (isWindows ? '\r\n' : '\n')), isBlock: false
+					rows: ['AA', 'BB', 'CC'].map(line => line + (isWindows ? '\r\n' : '\n')), isBlock: true
 				});
 			});
 		});
