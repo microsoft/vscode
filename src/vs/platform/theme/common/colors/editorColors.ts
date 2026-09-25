@@ -268,11 +268,11 @@ export const defaultInsertColor = new Color(new RGBA(155, 185, 85, .2));
 export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, .2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground',
-	{ dark: '#9ccc2c33', light: '#9ccc2c40', hcDark: null, hcLight: null },
+	{ dark: '#9ccc2c33', light: '#9ccc2c40', hcDark: '#033A16', hcLight: '#DAFBE1' },
 	nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const diffRemoved = registerColor('diffEditor.removedTextBackground',
-	{ dark: '#ff000033', light: '#ff000033', hcDark: null, hcLight: null },
+	{ dark: '#ff000033', light: '#ff000033', hcDark: '#67060C', hcLight: '#FFEBE9' },
 	nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 
