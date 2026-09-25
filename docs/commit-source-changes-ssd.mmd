@@ -1,0 +1,9 @@
+sequenceDiagram
+    actor Developer
+    participant S as :VSCodeSystem
+    loop each selected changed resource
+        Developer->>S: stageResource(resourceId: ResourceID)
+        S-->>Developer: stagedResourceId: ResourceID
+    end
+    Developer->>S: commitChanges(message: Text)
+    S-->>Developer: commitId: CommitID
