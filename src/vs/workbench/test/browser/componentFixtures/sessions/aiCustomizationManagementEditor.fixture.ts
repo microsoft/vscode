@@ -102,7 +102,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -671,6 +671,17 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, sourceUri: URI.file('/workspace/.vscode/mcp.json'), logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+];
+
+const allStateMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[0] },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:GitHub', name: 'GitHub', status: McpServerStatus.Starting, state: { kind: McpServerStatus.Starting } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Redis', name: 'Redis', status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped } },
+	{ ...activeSessionMcpServers[1], id: 'mcp-top-level:fixture:session:Docker', name: 'Docker' },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Web Search', name: 'Web Search', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Global } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Filesystem', name: 'Filesystem', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: URI.file('/workspace').toString(), enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Workspace } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Puppeteer', name: 'Puppeteer', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session } },
 ];
 
 const inlineErrorMcpServers: FixtureAgentHostMcpServer[] = [
@@ -1450,7 +1461,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
 				override readonly enablementModel = {
-					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readEnabled: (serverId: string) => {
+						if (serverId.includes('mcp-web-search')) {
+							return ContributionEnablementState.DisabledProfile;
+						}
+						if (serverId.includes('mcp-filesystem') || serverId.includes('mcp-puppeteer')) {
+							return ContributionEnablementState.DisabledWorkspace;
+						}
+						return ContributionEnablementState.EnabledProfile;
+					},
 					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
@@ -1858,7 +1877,7 @@ const galleryServers = [
 	makeGalleryServer('gallery-redis', 'Redis', 'In-memory data store operations and key management', 'Redis Ltd'),
 ];
 
-async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Promise<void> {
+async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void> {
 	await renderEditor(ctx, {
 		sessionResource: localSessionResource,
 		isSessionsWindow: true,
@@ -1868,10 +1887,11 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 	});
 	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
-		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
+		.find(row => row.querySelector('.mcp-server-state-icon.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
 	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
-	assert(!row.textContent?.includes('Unable to connect') && !row.getAttribute('aria-label')?.includes('Unable to connect'), 'Error details must only appear in the MCP detail view.');
+	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
+	assert(row.querySelector('.mcp-server-show-output')?.textContent === 'Show Output', 'Error rows must show the output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
@@ -2611,7 +2631,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, the component-explorer MCP server has a Partially supported badge and PostgreSQL has separate Unsupported and Error badges. Compatibility badges sit beside the server name without replacing runtime status.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2620,6 +2640,44 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ id: 'mcp-postgres', kind: 'unsupported' },
 			],
 		}),
+	}),
+
+	McpServersAllStates: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: agentHostCopilotSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				activeSessionMcpServers: allStateMcpServers,
+				mcpServerCompatibility: [
+					{ id: 'linear-mcp', kind: 'unsupported' },
+					{ id: 'acme-mcp', kind: 'partiallySupported' },
+				],
+				width: 800,
+				height: 1200,
+			});
+			const rows = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')];
+			const runningRowHeight = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer')?.getBoundingClientRect().height;
+			assert(runningRowHeight !== undefined && rows.every(row => Math.abs(row.getBoundingClientRect().height - runningRowHeight) < 0.5), 'All installed MCP rows must match the running row height.');
+			for (const [name, label] of [
+				['Web Search', 'Disabled (Globally)'],
+				['Filesystem', 'Disabled (Workspace)'],
+				['Puppeteer', 'Disabled (Session)'],
+			]) {
+				const disabledRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === name);
+				assert(disabledRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked') === 'false', `The ${name} switch must be off.`);
+				assert(disabledRow?.querySelector('.mcp-server-disabled-label')?.textContent === label, `The ${name} row must show ${label}.`);
+			}
+			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Linear MCP');
+			const source = unsupportedRow?.querySelector('.mcp-server-source-path');
+			const migrationLink = unsupportedRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+			assert(source?.textContent === 'Plugin: Linear', 'Plugin provenance must share the compatibility secondary line.');
+			assert(source.parentElement === migrationLink?.closest('.mcp-server-secondary-line'), 'Plugin provenance and compatibility must share the secondary line.');
+			assert(migrationLink?.textContent === 'Migrations' && migrationLink.getAttribute('href') === '#', 'Compatibility messages must link to Migrations.');
+		},
 	}),
 
 	McpServersSearch: defineComponentFixture({
@@ -2641,11 +2699,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	McpServersErrorsWithoutDetails: defineComponentFixture({
+	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row stays compact and shows its ordinary description with an Error badge. No inline error message or Show More control appears; diagnostics are available from the MCP detail page.'],
-		render: renderMcpErrorsWithoutDetails,
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon followed by Show Output immediately before the switch. No inline error snippet, status badge, or expansion control appears.'],
+		render: renderMcpErrorActions,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
