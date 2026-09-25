@@ -61,6 +61,7 @@ export class PointerEventHandler extends MouseHandler {
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
 		this._dispatchGesture(event, /*inSelectionMode*/false);
+		this._emitTapAsMouse(event);
 	}
 
 	private onChange(event: GestureEvent): void {
@@ -70,6 +71,16 @@ export class PointerEventHandler extends MouseHandler {
 		if (this._lastPointerType === 'pen') {
 			this._dispatchGesture(event, /*inSelectionMode*/true);
 		}
+	}
+
+	private _emitTapAsMouse(event: GestureEvent): void {
+		// preventDefault() on the tap suppresses compatibility mouse events. Emit
+		// down/up so contributions (e.g. the inline fold placeholder) see the tap.
+		const editorMouseEvent = new EditorMouseEvent(event, false, this.viewHelper.viewDomNode);
+		editorMouseEvent.detail = event.tapCount;
+		const target = this._createMouseTarget(editorMouseEvent, false);
+		this.viewController.emitMouseDown({ event: editorMouseEvent, target });
+		this.viewController.emitMouseUp({ event: editorMouseEvent, target });
 	}
 
 	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
@@ -93,12 +104,26 @@ export class PointerEventHandler extends MouseHandler {
 		}
 	}
 
+	private _isTouchPointerEvent(e: EditorMouseEvent): boolean {
+		return (e.browserEvent as PointerEvent).pointerType === 'touch';
+	}
+
 	protected override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
-		if ((e.browserEvent as PointerEvent).pointerType === 'touch') {
+		if (this._isTouchPointerEvent(e)) {
 			return;
 		}
 
 		super._onMouseDown(e, pointerId);
+	}
+
+	protected override _onMouseUp(e: EditorMouseEvent): void {
+		// Ignore touch pointerup as well as pointerdown. Android Chrome also
+		// dispatches a compatibility mouseup; handling both would emit onMouseUp twice.
+		if (this._isTouchPointerEvent(e)) {
+			return;
+		}
+
+		super._onMouseUp(e);
 	}
 }
 
@@ -119,16 +144,23 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const editorMouseEvent = new EditorMouseEvent(event, false, this.viewHelper.viewDomNode);
+		editorMouseEvent.detail = event.tapCount;
+		const target = this._createMouseTarget(editorMouseEvent, false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
-			const event = document.createEvent('CustomEvent');
-			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
-			this.viewHelper.dispatchTextAreaEvent(event);
+			const tap = document.createEvent('CustomEvent');
+			tap.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+			this.viewHelper.dispatchTextAreaEvent(tap);
 
 			this.viewController.moveTo(target.position, NavigationCommandRevealType.Minimal);
 		}
+
+		// Same as PointerEventHandler: Gesture preventDefault() suppresses mouse
+		// events, so emit down/up for contributions such as folding.
+		this.viewController.emitMouseDown({ event: editorMouseEvent, target });
+		this.viewController.emitMouseUp({ event: editorMouseEvent, target });
 	}
 
 	private onChange(e: GestureEvent): void {
@@ -141,8 +173,11 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		const isPhone = platform.isIOS || (platform.isAndroid && platform.isMobile);
-		if (isPhone && BrowserFeatures.pointerEvents) {
+		// Pointer events + Gesture on iOS and all Android (phones and tablets).
+		// Previously Android tablets used TouchHandler only, which did not emit
+		// synthetic mouse down/up for taps, so folding never saw unfold gestures.
+		const usePointerHandler = platform.isIOS || platform.isAndroid;
+		if (usePointerHandler && BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
