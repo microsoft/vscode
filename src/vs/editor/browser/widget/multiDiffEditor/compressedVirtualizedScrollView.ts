@@ -369,12 +369,18 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 	}
 
 	private _render(items: readonly TItem[], layout: ICompressedVirtualizedScrollLayout, width: number): void {
+		// Release invisible bindings before acquiring templates for newly visible items.
+		// Otherwise scrolling upward can create a new template for every item before
+		// the old templates later in the list are returned to the pool.
 		for (let index = 0; index < items.length; index++) {
-			const item = items[index];
+			if (layout.items[index].visibility !== 'visible') {
+				items[index].hide();
+			}
+		}
+		for (let index = 0; index < items.length; index++) {
 			const itemLayout = layout.items[index];
-			if (itemLayout.visibility !== 'visible') {
-				item.hide();
-			} else {
+			if (itemLayout.visibility === 'visible') {
+				const item = items[index];
 				item.render(itemLayout.renderedRange, itemLayout.scrollOffset, width, layout.renderedViewport, {
 					runWithScrollAnchor: (getItemOffset, update) => this._runWithItemScrollAnchor(item, getItemOffset, update),
 				});
