@@ -64,7 +64,6 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
@@ -255,7 +254,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) { super(); }
 
@@ -315,7 +313,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
-		const source = getMcpEntrySource(element, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
+		const source = getMcpEntrySource(element, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
 		if (source) {
 			templateData.sourcePath.textContent = source.label;
 			templateData.sourcePath.style.display = '';
@@ -914,15 +912,14 @@ function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 	}
 }
 
-function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService, openPlugin?: (plugin: IAgentPlugin) => void): { label: string; hover: string; ariaLabel?: string; open?(): void } | undefined {
-	const sourceUri = getMcpEntrySourceUri(element);
+function getMcpEntrySource(element: IMcpInstalledEntry, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService, openPlugin?: (plugin: IAgentPlugin) => void): { label: string; hover: string; ariaLabel?: string; open?(): void } | undefined {
 	if (element.type === 'builtin-item') {
 		const pluginUri = getPluginUriFromCollectionId(element.collectionId);
 		const plugin = pluginUri ? agentPluginService.plugins.get().find(plugin => plugin.uri.toString() === pluginUri) : undefined;
 		if (plugin) {
 			return {
 				label: localize('fromPlugin', "Plugin: {0}", plugin.label),
-				hover: labelService.getUriLabel(sourceUri ?? plugin.uri, { noPrefix: true }),
+				hover: plugin.label,
 				ariaLabel: localize('openPluginDetails', "Open plugin details for {0}", plugin.label),
 				open: openPlugin ? () => openPlugin(plugin) : undefined,
 			};
@@ -933,24 +930,18 @@ function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelServ
 			const extensionName = extension?.displayName || extensionId.value;
 			return {
 				label: localize('fromExtension', "Extension: {0}", extensionName),
-				hover: sourceUri ? labelService.getUriLabel(sourceUri, { noPrefix: true }) : extensionName,
+				hover: extensionName,
 				ariaLabel: localize('openExtensionDetails', "Open extension details for {0}", extensionName),
 				open: () => extensionsWorkbenchService.open(extensionId.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }),
 			};
 		}
 	}
-	if (!sourceUri) {
-		return undefined;
-	}
-	return {
-		label: labelService.getUriLabel(sourceUri, { relative: true }),
-		hover: labelService.getUriLabel(sourceUri, { noPrefix: true }),
-	};
+	return undefined;
 }
 
-function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
+function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
 	const label = getMcpEntryLabel(element);
-	const source = getMcpEntrySource(element, labelService, agentPluginService, extensionsWorkbenchService);
+	const source = getMcpEntrySource(element, agentPluginService, extensionsWorkbenchService);
 	return source
 		? localize('mcpServerAriaLabelWithSource', "{0}, configured in {1}", label, source.label)
 		: label;
@@ -979,8 +970,8 @@ function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntr
 	return undefined;
 }
 
-function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boolean, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
-	const label = getMcpEntryLabelWithSource(element, labelService, agentPluginService, extensionsWorkbenchService);
+function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boolean, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
+	const label = getMcpEntryLabelWithSource(element, agentPluginService, extensionsWorkbenchService);
 	const statusKind = getMcpStatusKind(element, isSessionsWindow);
 	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
 	const status = getMcpStatusPresentation(statusKind, disabledReason);
@@ -1494,7 +1485,6 @@ export class McpListWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
@@ -1684,7 +1674,7 @@ export class McpListWidget extends Disposable {
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container.customization-tree-container'));
 		const delegate = new McpSectionDelegate(entry => {
 			const description = entry.type === 'server-item' ? entry.server.description?.trim() : entry.type === 'builtin-item' ? entry.description : undefined;
-			const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
+			const source = getMcpEntrySource(entry, this.agentPluginService, this.extensionsWorkbenchService);
 			return description && source ? MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION : MCP_INSTALLED_ITEM_HEIGHT;
 		});
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>(
@@ -2020,7 +2010,7 @@ export class McpListWidget extends Disposable {
 	private getMcpEntryAriaLabel(entry: IMcpInstalledEntry): IObservable<string> {
 		return derived(this, reader => {
 			this.agentHostCustomizationsChanged.read(reader);
-			const label = getMcpEntryLabelWithSource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
+			const label = getMcpEntryLabelWithSource(entry, this.agentPluginService, this.extensionsWorkbenchService);
 			const compatibility = getMcpCompatibilityPresentation(this.getMcpServerCompatibilityKind(entry, reader));
 			const activeSessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			let statusKind: McpStatusKind | undefined;
@@ -2293,7 +2283,7 @@ export class McpListWidget extends Disposable {
 		const enabled = this.isInstalledEntryEnabled(entry);
 		row.classList.toggle('disabled', !enabled);
 
-		const primaryAction = this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.labelService, this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
+		const primaryAction = this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
 
 		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
@@ -2332,7 +2322,7 @@ export class McpListWidget extends Disposable {
 				description,
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
-				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
+				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
 		}));
@@ -2350,7 +2340,7 @@ export class McpListWidget extends Disposable {
 				description,
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
-				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
+				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
 			signIn?.update();

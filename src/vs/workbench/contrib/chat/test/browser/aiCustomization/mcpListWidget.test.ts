@@ -19,7 +19,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
@@ -1198,17 +1197,6 @@ suite('mcpListWidget', () => {
 				}],
 				open: async (extensionId: string) => { openedExtensions.push(extensionId); },
 			} as unknown as IExtensionsWorkbenchService;
-			const labelService = new class extends mock<ILabelService>() {
-				override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
-					if (options?.relative && resource.path.startsWith('/workspace/')) {
-						return resource.path.slice('/workspace/'.length);
-					}
-					if (!options?.noPrefix && resource.path.startsWith('/Users/test/')) {
-						return `~/${resource.path.slice('/Users/test/'.length)}`;
-					}
-					return resource.fsPath;
-				}
-			}();
 			const renderManagementActions = (getEntry: () => Entry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => {
 				if (useRealManagementActions) {
 					widget.renderMcpListActions(getEntry, actions, disposables, updateTabbability);
@@ -1229,7 +1217,6 @@ suite('mcpListWidget', () => {
 				hoverService,
 				agentHostCustomizationService,
 				customizationHarnessService,
-				labelService,
 				extensionsWorkbenchService,
 			));
 
@@ -1253,7 +1240,6 @@ suite('mcpListWidget', () => {
 				customizationHarnessService,
 				mcpService: { servers: runtimeServers },
 				workspaceService: { isSessionsWindow },
-				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, never>>(widget, new Map<string, never>()),
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
@@ -1336,7 +1322,7 @@ suite('mcpListWidget', () => {
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
 
-		test('shows workspace-relative and home-relative configuration paths in the row and accessible label', () => {
+		test('omits workspace and user configuration paths from rows and accessible labels but retains detail sources', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
@@ -1353,8 +1339,10 @@ suite('mcpListWidget', () => {
 				ctx.render({ type: 'server-item', server });
 				return {
 					path: ctx.templateData.sourcePath.textContent,
+					display: ctx.templateData.sourcePath.style.display,
 					hover: ctx.readSource().hover,
 					ariaLabel: ctx.read().ariaLabel,
+					detailSource: ctx.detailInput({ type: 'server-item', server }).source?.uri,
 				};
 			};
 
@@ -1363,19 +1351,72 @@ suite('mcpListWidget', () => {
 				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
 			}, {
 				workspace: {
-					path: '.vscode/mcp.json',
-					hover: URI.file('/workspace/.vscode/mcp.json').fsPath,
-					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
+					path: '',
+					display: 'none',
+					hover: '',
+					ariaLabel: 'Workspace Server',
+					detailSource: URI.file('/workspace/.vscode/mcp.json'),
 				},
 				home: {
-					path: '~/.config/mcp.json',
-					hover: URI.file('/Users/test/.config/mcp.json').fsPath,
-					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
+					path: '',
+					display: 'none',
+					hover: '',
+					ariaLabel: 'User Server',
+					detailSource: URI.file('/Users/test/.config/mcp.json'),
 				},
 			});
 		});
 
-		test('shows the plugin name with the full configuration location in the hover', () => {
+		for (const kind of ['session-server-item', 'builtin-item'] as const) {
+			test(`${kind} retains its detail source without showing a path in a recycled row`, () => {
+				const sourceUri = URI.file('/Users/test/.config/mcp.json');
+				const server = createAgentHostServer({ sourceUri });
+				const ctx = createRenderer(server, false);
+				disposables.add(ctx.store);
+				ctx.render({
+					type: 'builtin-item',
+					id: 'plugin-server',
+					label: 'Plugin Server',
+					description: '',
+					collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/plugins/example').toString()}`,
+				});
+				const detailServer = createMcpDetailTestServer(sourceUri);
+				const entry: Entry = kind === 'session-server-item'
+					? { type: kind, server }
+					: {
+						type: kind,
+						id: 'external-server',
+						label: server.name,
+						description: '',
+						localServer: {
+							...detailServer,
+							definition: detailServer.readDefinitions().get().server,
+							enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+							connectionState: observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Running }),
+						} as IMcpServer,
+					};
+				ctx.render(entry);
+				ctx.templateData.sourcePath.click();
+
+				assert.deepStrictEqual({
+					source: ctx.readSource(),
+					display: ctx.templateData.sourcePath.style.display,
+					href: ctx.templateData.sourcePath.getAttribute('href'),
+					ariaLabel: ctx.read().ariaLabel,
+					detailSource: ctx.detailInput(entry).source?.uri,
+					openedPlugins: ctx.openedPlugins,
+				}, {
+					source: { label: '', hover: '', tagName: 'A', ariaLabel: null, tabIndex: -1 },
+					display: 'none',
+					href: null,
+					ariaLabel: kind === 'session-server-item' ? 'Server One, Running' : 'Server One',
+					detailSource: sourceUri,
+					openedPlugins: [],
+				});
+			});
+		}
+
+		test('shows the plugin name and link without its configuration path', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const sourceUri = URI.file('/Users/test/.config/plugins/example/.mcp.json');
@@ -1404,7 +1445,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Plugin: Example Plugin',
-					hover: sourceUri.fsPath,
+					hover: 'Example Plugin',
 					tagName: 'A',
 					ariaLabel: 'Open plugin details for Example Plugin',
 					tabIndex: 0,
@@ -1446,7 +1487,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('shows the extension name as a link with the full configuration location in the hover', () => {
+		test('shows the extension name and link without its configuration path', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const sourceUri = URI.file('/Users/test/.vscode/extensions/publisher.extension/mcp.json');
@@ -1475,7 +1516,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Extension: Example Extension',
-					hover: sourceUri.fsPath,
+					hover: 'Example Extension',
 					tagName: 'A',
 					ariaLabel: 'Open extension details for Example Extension',
 					tabIndex: 0,
