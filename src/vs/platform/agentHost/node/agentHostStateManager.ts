@@ -1296,6 +1296,7 @@ export class AgentHostStateManager extends Disposable {
 					...existing,
 					...(options.origin !== undefined ? { origin: options.origin } : {}),
 					interactivity: options.interactivity ?? existing.interactivity,
+					...(options.archived !== undefined ? { status: withSessionStatusFlag(existing.status ?? SessionStatus.Idle, SessionStatus.IsArchived, options.archived) } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);

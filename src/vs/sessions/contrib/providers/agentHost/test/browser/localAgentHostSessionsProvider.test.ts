@@ -6613,7 +6613,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				summary: 'Session',
 				chats: [
 					{ chat: defaultChat, kind: 'default', summary: 'Default' },
-					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden, archived: true },
 				],
 			}));
 			const provider = createProvider(disposables, agentHost);
@@ -6639,7 +6639,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				titles: ['Default', 'Catalog Peer'],
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
 				observedInteractivity: ChatInteractivity.Hidden,
-				observedArchived: false,
+				observedArchived: true,
 				sessionSubscriptions: 0,
 			});
 
@@ -7334,6 +7334,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 					{ channel: peerChat, isArchived: false },
 				],
 			});
+		});
+
+		test('peer chat archive dispatches to the host-supplied chat resource', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive-resource');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-archive').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive-resource', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+
+			await provider.archiveChat(session.sessionId, session.chats.get()[1].resource);
+
+			assert.strictEqual(
+				agentHost.dispatchedActions.findLast(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged)?.channel,
+				peerChat,
+			);
 		});
 
 		test('side chats cannot be archived independently', () => {

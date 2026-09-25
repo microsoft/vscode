@@ -227,6 +227,7 @@ interface ISerializedSessionMetadata {
 		readonly kind: 'default' | 'peer';
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ProtocolChatInteractivity;
+		readonly archived?: boolean;
 	}[];
 	/** Session folder's GitHub state, written by earlier versions; migrated on read. */
 	readonly github?: ISessionGitHubState;
@@ -279,6 +280,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			kind: chat.kind,
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			...(chat.archived === true ? { archived: true } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
 		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
@@ -363,6 +365,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 				kind: chat.kind,
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
 			})),
 			...(_meta ? { _meta } : {}),
 		};
@@ -378,6 +381,7 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 		kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+		...(chat.archived === true ? { archived: true } : {}),
 	}));
 }
 
@@ -1027,9 +1031,10 @@ class AdditionalChat extends Disposable {
 		});
 	}
 
-	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, tx?: ITransaction): void {
+	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, archived: boolean | undefined, tx?: ITransaction): void {
 		this._title.set(title || localize('newChatTab', "New Chat"), tx);
 		this._interactivity.set(toChatInteractivity(interactivity), tx);
+		this._isArchived.set(archived === true, tx);
 	}
 
 	/** Optimistically update the chat title ahead of the host's `chatUpdated`. */
@@ -1570,14 +1575,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				entry = this._createAdditionalChat(chatId, {
 					resource: chat.chat.toString(),
 					title: chat.summary ?? '',
-					status: ProtocolSessionStatus.Idle,
+					status: withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
 					modifiedAt: this.updatedAt.get().toISOString(),
 					origin: chat.origin,
 					interactivity: chat.interactivity,
 				});
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.updateCatalogMetadata(chat.summary, chat.interactivity, tx);
+				entry.updateCatalogMetadata(chat.summary, chat.interactivity, chat.archived, tx);
 			}
 			ordered.push(entry.chat);
 		}
@@ -5503,8 +5508,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached.chats.get().some(chat => chat.resource.fragment === chatId)) {
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
+		const backendChatResource = this.getBackendChatResource(chatResource);
+		if (!backendChatResource) {
+			throw new Error(localize('chatNotFound', "The chat could not be found."));
+		}
 		this._keepSessionStateAlive(cached.sessionId);
-		connection.dispatch(buildChatUri(cached.backendUri, chatId), { type: ActionType.ChatIsArchivedChanged, isArchived: archived });
+		connection.dispatch(backendChatResource.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: archived });
 	}
 
 	/**

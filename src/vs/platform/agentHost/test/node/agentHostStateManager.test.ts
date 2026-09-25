@@ -1955,6 +1955,29 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('registerRestoredChatSummary applies archived state to a listed peer', () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const summary: SessionSummary = {
+				...makeSessionSummary(),
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer', archived: false },
+				],
+				defaultChat,
+			};
+			manager.restoreSession(summary, []);
+
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				archived: true,
+				resolver: async () => ({ turns: [] }),
+			});
+
+			assert.strictEqual(
+				manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.status,
+				SessionStatus.Idle | SessionStatus.IsArchived,
+			);
+		});
+
 		test('resolveChatState coalesces restored peer resolution and atomically installs its state', async () => {
 			manager.restoreSession(makeSessionSummary(), []);
 

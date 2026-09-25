@@ -373,6 +373,7 @@ interface ICatalogChat {
 	readonly title?: string;
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
+	readonly archived?: boolean;
 	readonly inheritedTurnId?: string;
 	readonly workingDirectories?: readonly string[];
 }
@@ -2113,6 +2114,7 @@ export class AgentService extends Disposable implements IAgentService {
 			kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			...(chat.archived === true ? { archived: true } : {}),
 		}));
 	}
 
@@ -2294,6 +2296,7 @@ export class AgentService extends Disposable implements IAgentService {
 						uri: peer.uri,
 						kind: 'peer' as const,
 						origin: peer.origin,
+						archived: peer.archived,
 						inheritedTurnId: peer.inheritedTurnId,
 						workingDirectories: peer.workingDirectories,
 					})),
@@ -2366,6 +2369,7 @@ export class AgentService extends Disposable implements IAgentService {
 				title: chat.title,
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(isSessionStatusArchived(chat.status) && state.defaultChat !== chat.resource && !isDefaultChatUri(chat.resource) ? { archived: true } : {}),
 				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
 				workingDirectories: chat.workingDirectories,
 			}));
@@ -3034,6 +3038,7 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
+					archived: peer.archived,
 					inheritedTurnId: peer.inheritedTurnId,
 				})),
 			],
@@ -3087,6 +3092,7 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: chat.uri,
 					...(matchingProviderData !== undefined ? { providerData: matchingProviderData } : {}),
 					...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+					...(chat.archived === true ? { archived: true } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				};
 			})
@@ -7950,6 +7956,7 @@ export class AgentService extends Disposable implements IAgentService {
 			title: chat.title ?? '',
 			...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			...(chat.archived === true ? { status: SessionStatus.IsArchived } : {}),
 		}));
 		const restoredDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default')?.uri;
 		const workingDirectories = withChatWorkingDirectories(meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
@@ -8105,6 +8112,7 @@ export class AgentService extends Disposable implements IAgentService {
 			entries = await this._peerChatStore.readLocalChatMetadata(cachedPeers.map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 			})));
@@ -8147,6 +8155,7 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
+					archived: peer.archived,
 					inheritedTurnId: peer.inheritedTurnId,
 					workingDirectories: peer.workingDirectories,
 				})),
@@ -8177,6 +8186,7 @@ export class AgentService extends Disposable implements IAgentService {
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			...(chat.archived === true ? { archived: true } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
 			workingDirectories: chat.workingDirectories,
 		}));
@@ -8192,6 +8202,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 			}));

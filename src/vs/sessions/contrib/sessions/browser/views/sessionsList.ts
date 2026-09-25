@@ -3244,6 +3244,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _approvalModel!: AgentSessionApprovalModel;
 	private _sessionRenderer!: SessionItemRenderer;
 	private _chatRenderer!: SessionChatItemRenderer;
+	private readonly _sessionContextMenuDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	/**
 	 * Maximum number of sessions shown per workspace section or user group.
@@ -5040,6 +5041,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		];
 
 		const disposables = new DisposableStore();
+		this._sessionContextMenuDisposables.value = disposables;
 		const menu = disposables.add(this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay)));
 
 		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession[].
@@ -5078,7 +5080,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const groupActions = this.getGroupSessionActions(selectedSessions);
 		const actions = groupActions.length > 0 ? [...baseActions, new Separator(), ...groupActions] : baseActions;
 		if (actions.length === 0) {
-			disposables.dispose();
+			this._sessionContextMenuDisposables.clear();
 			return;
 		}
 
@@ -5086,7 +5088,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
-			onHide: () => disposables.dispose(),
+			onHide: () => {
+				if (this._sessionContextMenuDisposables.value === disposables) {
+					this._sessionContextMenuDisposables.clear();
+				} else {
+					disposables.dispose();
+				}
+			},
 		});
 	}
 
