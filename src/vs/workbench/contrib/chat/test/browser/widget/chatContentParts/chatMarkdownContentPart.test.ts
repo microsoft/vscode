@@ -887,6 +887,33 @@ suite('ChatMarkdownContentPart', () => {
 		});
 	});
 
+	test('tryIncrementalUpdate accepts inline references appended while streaming', () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const fooReference: IChatContentInlineReference = { kind: 'inlineReference', inlineReference: URI.parse('file:///workspace/foo.ts'), name: 'foo.ts' };
+		const barReference: IChatContentInlineReference = { kind: 'inlineReference', inlineReference: URI.parse('file:///workspace/bar.ts'), name: 'bar.ts' };
+		const withFoo = 'See [foo.ts](http://_vscodecontentref_/0)';
+		const withBar = `${withFoo} and [bar.ts](http://_vscodecontentref_/1)`;
+		const part = createMarkdownPart('See ', createRenderContext(false), true);
+
+		assert.deepStrictEqual({
+			firstReference: part.tryIncrementalUpdate({
+				kind: 'markdownContent',
+				content: new MarkdownString(withFoo),
+				inlineReferences: { 0: fooReference },
+			}),
+			appendedReference: part.tryIncrementalUpdate({
+				kind: 'markdownContent',
+				content: new MarkdownString(withBar),
+				inlineReferences: { 0: fooReference, 1: barReference },
+			}),
+		}, {
+			firstReference: true,
+			appendedReference: true,
+		});
+	});
+
 	test('php code blocks get php opening tag prepended', () => {
 		createMarkdownPart('```php\necho "hello";\n```');
 
