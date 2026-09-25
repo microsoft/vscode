@@ -1417,7 +1417,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof MenuItemAction && action.item.id === MarkHelpfulActionId) {
 					const animation = upvoteAnimationSettingToEnum(this.configService.getValue<string>('chat.upvoteAnimation'));
-					return scopedInstantiationService.createInstance(MenuEntryActionViewItem, action, { ...options, onClickAnimation: animation });
+					return scopedInstantiationService.createInstance(MenuEntryActionViewItem, action, {
+						...options,
+						onClickAnimation: animation,
+						onDidTriggerClickAnimation: animation === ClickAnimation.Confetti
+							? () => this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti)
+							: undefined
+					});
 				}
 				return createActionViewItem(scopedInstantiationService, action, options);
 			}
