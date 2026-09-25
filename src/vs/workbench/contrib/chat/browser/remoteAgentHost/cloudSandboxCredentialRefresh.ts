@@ -79,6 +79,14 @@ export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Da
 	return Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delay));
 }
 
+/** Retry bookkeeping retained by a staged sandbox connection across protocol-client replacements. */
+export class CloudSandboxCredentialRefreshState {
+	unhealthyCycles = 0;
+	hasRefreshed = false;
+	nextRefreshAt: number | undefined;
+	stopped = false;
+}
+
 /**
  * Refreshes credentials before expiry and on demand during recovery, sharing in-flight requests.
  * The open socket is untouched; replacement transports use the refreshed credentials.
@@ -88,7 +96,7 @@ export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Da
  * {@link MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES} caps a run of transient ones, and
  * {@link MIN_CREDENTIAL_REFRESH_DELAY_MS} rate-limits a token that always looks due for refresh.
  *
- * Disposing stops the loop and cancels any request in flight.
+ * Disposing cancels this client's timer and request without discarding the staged connection's retry state.
  */
 export class CloudSandboxCredentialRefresher extends Disposable {
 
@@ -102,18 +110,14 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	 */
 	private readonly _cts = new CancellationTokenSource();
 
-	/** Consecutive cycles that did not yield a healthy, long-lived token. */
-	private _unhealthyCycles = 0;
 	private _refreshInFlight: Promise<void> | undefined;
-	private _hasRefreshed = false;
-	private _nextRefreshAt = 0;
-	private _stopped = false;
 
 	constructor(
 		private readonly _address: string,
 		private readonly _request: ICloudSandboxConnectionRequest,
 		private readonly _clientId: string,
 		private readonly _creds: ICloudSandboxCreds,
+		private readonly _refreshState: CloudSandboxCredentialRefreshState,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 		@ILogService private readonly _logService: ILogService,
@@ -121,6 +125,13 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		super();
 		this._register(toDisposable(() => this._cts.dispose(true)));
 
+		if (this._refreshState.stopped) {
+			return;
+		}
+		if (this._refreshState.nextRefreshAt !== undefined) {
+			this._armAt(this._refreshState.nextRefreshAt);
+			return;
+		}
 		const initialDelayMs = credentialRefreshDelayMs(this._creds.token.expires_at);
 		if (initialDelayMs === undefined) {
 			this._armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
@@ -137,8 +148,9 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		if (this._hasUnexpiredCredentials()) {
 			return;
 		}
-		const awaitingRetry = this._hasRefreshed && this._unhealthyCycles > 0 && Date.now() < this._nextRefreshAt;
-		if (!this._refreshInFlight && (this._stopped || awaitingRetry)) {
+		const awaitingRetry = this._refreshState.hasRefreshed && this._refreshState.unhealthyCycles > 0
+			&& this._refreshState.nextRefreshAt !== undefined && Date.now() < this._refreshState.nextRefreshAt;
+		if (!this._refreshInFlight && (this._refreshState.stopped || awaitingRetry)) {
 			throw new Error('No unexpired sandbox credentials are available; credential refresh is stopped or waiting to retry.');
 		}
 		await raceCancellationError(this._refresh(), this._cts.token);
@@ -152,25 +164,28 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	}
 
 	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown): void {
-		this._stopped = true;
+		this._refreshState.stopped = true;
 		this._timer.clear();
-		this._telemetry.reportCredentialRefreshStopped(reason, this._unhealthyCycles, error);
+		this._telemetry.reportCredentialRefreshStopped(reason, this._refreshState.unhealthyCycles, error);
 		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. The connection will drop when the current token expires.`);
 	}
 
 	private _arm(delayMs: number): void {
+		this._armAt(Date.now() + Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
+	}
+
+	private _armAt(refreshAt: number): void {
 		if (this._cts.token.isCancellationRequested) {
 			return;
 		}
-		const delay = Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs);
-		this._nextRefreshAt = Date.now() + delay;
-		this._timer.value = disposableTimeout(() => void this._refresh(), delay);
+		this._refreshState.nextRefreshAt = refreshAt;
+		this._timer.value = disposableTimeout(() => void this._refresh(), Math.max(0, refreshAt - Date.now()));
 	}
 
 	/** Re-arm after a cycle that produced no usable token, giving up once too many pile up. */
 	private _armUnhealthy(delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string): void {
-		if (++this._unhealthyCycles >= MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
-			this._stop(reason, `${detail} across ${this._unhealthyCycles} consecutive attempts`);
+		if (++this._refreshState.unhealthyCycles >= MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
+			this._stop(reason, `${detail} across ${this._refreshState.unhealthyCycles} consecutive attempts`);
 			return;
 		}
 		this._arm(delayMs);
@@ -181,7 +196,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			return this._refreshInFlight;
 		}
 		this._timer.clear();
-		this._hasRefreshed = true;
+		this._refreshState.hasRefreshed = true;
 		const pending = this._doRefresh();
 		this._refreshInFlight = pending;
 		try {
@@ -259,7 +274,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			this._armUnhealthy(delayMs, 'unusableToken', 'refreshed tokens kept expiring immediately');
 			return;
 		}
-		this._unhealthyCycles = 0;
+		this._refreshState.unhealthyCycles = 0;
 		this._arm(delayMs);
 	}
 }

@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
+import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -52,6 +52,7 @@ interface IStagedCloudSandboxConnection {
 	readonly options: ICloudSandboxConnectOptions;
 	readonly creds: ICloudSandboxCreds;
 	readonly clientId: string;
+	readonly refreshState: CloudSandboxCredentialRefreshState;
 }
 
 /** Builds cloud sandbox protocol clients from credentials staged by the caller. */
@@ -133,6 +134,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			options,
 			creds: { token: clientToken },
 			clientId: clientToken.client_id,
+			refreshState: new CloudSandboxCredentialRefreshState(),
 		});
 		this._updateEntries();
 		return entry;
@@ -165,6 +167,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
 				staged.clientId,
 				staged.creds,
+				staged.refreshState,
 			));
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const telemetry = this._connectionTelemetry.get(address);

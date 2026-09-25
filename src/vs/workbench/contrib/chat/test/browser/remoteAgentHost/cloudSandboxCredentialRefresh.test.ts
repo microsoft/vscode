@@ -22,6 +22,7 @@ import {
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import {
 	CloudSandboxCredentialRefresher,
+	CloudSandboxCredentialRefreshState,
 	credentialRefreshDelayMs,
 	MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 	type ICloudSandboxCreds,
@@ -108,6 +109,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
+			new CloudSandboxCredentialRefreshState(),
 			credentials,
 			telemetry,
 			new NullLogService(),
@@ -228,6 +230,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
+			new CloudSandboxCredentialRefreshState(),
 			credentials,
 			telemetry,
 			new NullLogService(),
@@ -369,6 +372,7 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
+			new CloudSandboxCredentialRefreshState(),
 			credentials,
 			telemetry,
 			new NullLogService(),

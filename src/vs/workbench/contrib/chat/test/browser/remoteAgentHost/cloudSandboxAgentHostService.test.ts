@@ -17,6 +17,7 @@ import { AgentHostProtocolClient, InitialAuthenticationError, type IAgentHostPro
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import {
 	CloudSandboxEnabledSettingId,
+	CloudSandboxRequestError,
 	cloudSandboxAddress,
 	ICloudSandboxApiService,
 	type CloudSandboxConnectResult,
@@ -159,7 +160,7 @@ suite('CloudSandboxAgentHostService', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createRecoveryFixture() {
+	async function createRecoveryFixture(refresh?: () => Promise<CloudSandboxConnectResult>) {
 		const initialToken = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() };
 		const fixture = createService(store, [{ kind: 'token', token: initialToken }]);
 		fixture.service.connectThroughFactory = true;
@@ -167,10 +168,12 @@ suite('CloudSandboxAgentHostService', () => {
 		await fixture.started;
 		const response = new DeferredPromise<CloudSandboxConnectResult>();
 		let refreshCalls = 0;
+		const refreshTimes: number[] = [];
 		fixture.instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 			override async reconnect(): Promise<CloudSandboxConnectResult> {
 				refreshCalls++;
-				return response.p;
+				refreshTimes.push(Date.now());
+				return refresh ? refresh() : response.p;
 			}
 		}());
 		fixture.instantiationService.stubInstance(AgentHostProtocolClient, {
@@ -179,21 +182,32 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 		const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 		const factory = fixture.getFactory();
-		const created = await factory.createConnection(factory.entries.get()[0], { userInitiated: true });
-		assert.ok(created.transportDisposable);
-		store.add(created.transportDisposable);
-		store.add(created.connection);
-		const call = createInstance.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
-		const options = call?.args[3] as IAgentHostProtocolClientOptions | undefined;
-		assert.ok(options?.prepareReconnect);
+		async function createConnection(userInitiated: boolean) {
+			const created = await factory.createConnection(factory.entries.get()[0], { userInitiated });
+			assert.ok(created.transportDisposable);
+			store.add(created.transportDisposable);
+			store.add(created.connection);
+			const call = createInstance.getCalls().findLast(call => call.args[0] === AgentHostProtocolClient);
+			const options = call?.args[3] as IAgentHostProtocolClientOptions | undefined;
+			assert.ok(options?.prepareReconnect);
+			return { connection: created.connection, resources: created.transportDisposable, prepareReconnect: options.prepareReconnect };
+		}
+		let current = await createConnection(true);
 		return {
-			...fixture, response, initialToken, resources: created.transportDisposable,
-			prepareReconnect: options.prepareReconnect,
+			...fixture, response, initialToken, refreshTimes,
+			get resources() { return current.resources; },
+			prepareReconnect: () => current.prepareReconnect(),
 			refreshCalls: () => refreshCalls,
+			async redial(): Promise<void> {
+				current.connection.dispose();
+				current.resources.dispose();
+				current = await createConnection(false);
+			},
 			async finish(): Promise<void> {
 				fixture.settle();
 				await connecting;
-				created.transportDisposable?.dispose();
+				current.connection.dispose();
+				current.resources.dispose();
 				fixture.service.dispose();
 			},
 		};
@@ -225,6 +239,68 @@ suite('CloudSandboxAgentHostService', () => {
 
 		assert.deepStrictEqual({ calls: fixture.refreshCalls(), sealedAfterDisposal }, {
 			calls: 1, sealedAfterDisposal: fixture.initialToken.encrypted_github_token,
+		});
+	}));
+
+	test('preserves a permanent refresh stop across automatic client replacements', () => runWithFakedTimers({}, async () => {
+		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(404, 'environment gone'); });
+		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		for (let redial = 0; redial < 2; redial++) {
+			await fixture.redial();
+			await assert.rejects(fixture.prepareReconnect(), /stopped/);
+			await timeout(60_000);
+		}
+		await fixture.finish();
+
+		assert.deepStrictEqual({
+			calls: fixture.refreshCalls(),
+			stops: fixture.events.filter(event => event.eventName === 'cloudSandboxCredentialRefreshStopped').map(event => event.data),
+		}, {
+			calls: 1,
+			stops: [{ reason: 'permanentError', consecutiveFailures: 0, statusCode: 404 }],
+		});
+	}));
+
+	test('preserves the refresh failure limit across automatic client replacements', () => runWithFakedTimers({}, async () => {
+		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
+		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		await timeout(180_001);
+		const callsBeforeReplacement = fixture.refreshCalls();
+		await fixture.redial();
+		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		await timeout(90_000);
+		await assert.rejects(fixture.prepareReconnect(), /stopped/);
+		await fixture.redial();
+		await assert.rejects(fixture.prepareReconnect(), /stopped/);
+		await timeout(60_000);
+		await fixture.finish();
+
+		assert.deepStrictEqual({
+			callsBeforeReplacement,
+			calls: fixture.refreshCalls(),
+			stops: fixture.events.filter(event => event.eventName === 'cloudSandboxCredentialRefreshStopped').map(event => event.data),
+		}, {
+			callsBeforeReplacement: 7,
+			calls: 10,
+			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 10, statusCode: undefined }],
+		});
+	}));
+
+	test('preserves the refresh backoff deadline across automatic client replacement', () => runWithFakedTimers({}, async () => {
+		const start = Date.now();
+		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
+		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		await timeout(10_000);
+		await fixture.redial();
+		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		await timeout(19_999);
+		const callsBeforeRetry = fixture.refreshCalls();
+		await timeout(2);
+		await fixture.finish();
+		await timeout(60_000);
+
+		assert.deepStrictEqual({ callsBeforeRetry, times: fixture.refreshTimes.map(time => time - start) }, {
+			callsBeforeRetry: 1, times: [0, 30_000],
 		});
 	}));
 
