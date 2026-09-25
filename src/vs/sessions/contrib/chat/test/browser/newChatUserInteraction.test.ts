@@ -136,6 +136,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			response.progress();
 			h.frame(2);
 			assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [undefined, undefined]);
+			assert.deepStrictEqual(h.otelRoutes.map(route => route.resource), [h.chat.resource]);
 			h.assertFinished('queued');
 		});
 
@@ -189,6 +190,19 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 	}
 
 	for (const replacement of ['replaced', 'replacedDraft'] as const) {
+		test(`${replacement} updates the remote routing identity before a response`, () => {
+			const h = createHarness();
+			const interaction = h.createInteraction();
+			interaction.handoff(h.session, h.chat);
+			const resource = URI.parse('remote-example-copilot:/prepared');
+			const chat = upcastPartial<IChat>({ resource });
+			const prepared = { ...h.session, sessionId: 'prepared', mainChat: constObservable(chat), activeChat: constObservable(chat) };
+			h[replacement].fire({ from: h.session, to: prepared });
+			interaction.cancel('error');
+			assert.deepStrictEqual(h.otelRoutes.map(route => route.resource), [resource]);
+			h.assertFinished('error');
+		});
+
 		test(`${replacement} and response-widget replacement preserve the timestamp`, async () => {
 			const h = createHarness();
 			const interaction = h.createInteraction();
@@ -343,6 +357,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			});
 			await input.submit();
 			assert.strictEqual(requests, 0);
+			assert.deepStrictEqual(h.otelRoutes, [{ resource: undefined, sessionType: undefined }]);
 			h.assertFinished(result);
 		});
 	}
@@ -377,6 +392,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				response.disposed.fire();
 			} else {
 				interaction.disposeSource();
+				assert.deepStrictEqual(h.otelRoutes, [{ resource: undefined, sessionType: undefined }]);
 			}
 			h.assertFinished('disposed');
 		});
