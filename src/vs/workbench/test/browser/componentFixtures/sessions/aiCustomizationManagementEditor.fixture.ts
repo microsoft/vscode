@@ -2656,7 +2656,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 					{ id: 'linear-mcp', kind: 'unsupported' },
 					{ id: 'acme-mcp', kind: 'partiallySupported' },
 				],
-				configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 				width: 800,
 				height: 1200,
 			});
