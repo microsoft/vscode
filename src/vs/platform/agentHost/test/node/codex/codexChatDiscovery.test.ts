@@ -31,7 +31,6 @@ import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
-import { IAgentHostMcpConnectorsService } from '../../../node/agentHostMcpConnectorsService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -48,7 +47,6 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { createTestMcpConnectorsService } from '../testMcpConnectorsService.js';
 
 const codexHome = URI.file('/codex-discovery/custom-home');
 
@@ -161,7 +159,6 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	instantiation.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiation.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiation.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
-	instantiation.stub(IAgentHostMcpConnectorsService, createTestMcpConnectorsService());
 	instantiation.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiation.stub(IAgentHostOTelService, { getNativeSdkTelemetryConfig: async () => undefined });
 	instantiation.stub(IAgentHostSessionTitleSignal, { onDidChangeSessionTitle: Event.None });

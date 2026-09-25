@@ -39,7 +39,6 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -68,9 +67,7 @@ import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationE
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
-import { IAgentHostMcpConnectorsService, type IAgentHostMcpConnector } from '../../node/agentHostMcpConnectorsService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createTestMcpConnectorsService } from './testMcpConnectorsService.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
@@ -1169,7 +1166,6 @@ function createTestContext(
 		[IProductService, FakeProductService],
 		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 		[IAgentHostAuthenticationService, authenticationService],
-		[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	// Seed root config (e.g. `allowSignedOutWhenUsable`) BEFORE the agent
@@ -1267,7 +1263,6 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
-		[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 		// Every test ClaudeAgent's always-on merged model refresh reads `userHome`
 		// at construction, so a mock environment service is part of the baseline.
@@ -4313,7 +4308,6 @@ suite('ClaudeAgent', () => {
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
-			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 		);
 		services.set(IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService()));
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -5687,7 +5681,6 @@ suite('ClaudeAgent', () => {
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
-			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 		);
 		services.set(IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService()));
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -6905,7 +6898,6 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService())],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
-			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[ISessionDataService, sessionData],
@@ -8512,7 +8504,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		};
 	}
 
-	function buildCtxWith(pluginManager: FakeAgentPluginManager, mcpConnectorsService = createTestMcpConnectorsService()): ITestContext {
+	function buildCtxWith(pluginManager: FakeAgentPluginManager): ITestContext {
 		const proxy = new FakeClaudeProxyService();
 		const api = new FakeCopilotApiService();
 		api.models = async () => [...ALL_MODELS];
@@ -8589,7 +8581,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostAuthenticationService, authenticationService],
-			[IAgentHostMcpConnectorsService, mcpConnectorsService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -8657,54 +8648,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 
 		assert.deepStrictEqual(pm.syncCalls, []);
-	});
-
-	test('connector MCP servers are authenticated and remain below workspace configuration', async () => {
-		const connector = (serverName: string, url: string): IAgentHostMcpConnector => ({
-			pluginName: `${serverName}-plugin`,
-			displayName: serverName,
-			serverName,
-			configuration: { type: McpServerType.REMOTE, url, headers: { Authorization: 'Bearer connector-token' } },
-			scopes: [],
-		});
-		const connectors = [
-			connector('mail', 'https://connectors.example.test/mail'),
-			connector('collision', 'https://connectors.example.test/collision'),
-		];
-		const mcpConnectorsService = createTestMcpConnectorsService();
-		let connectorRefreshes = 0;
-		let cachedConnectorReads = 0;
-		mcpConnectorsService.refresh = async () => {
-			connectorRefreshes++;
-			return connectors;
-		};
-		mcpConnectorsService.getConnectors = async () => {
-			cachedConnectorReads++;
-			return [];
-		};
-		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService } = buildCtxWith(pm, mcpConnectorsService);
-		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const workspace = URI.file('/work');
-		await fileService.createFolder(workspace);
-		await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
-			collision: { type: 'http', url: 'https://user.example.test/mcp', headers: { 'X-Source': 'user' } },
-		})));
-		const created = await createSession(agent, { workingDirectories: [workspace] });
-		sdk.supportedAgentsResult = [];
-		sdk.mcpServerStatusResult = [];
-		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
-		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-
-		assert.deepStrictEqual({ connectorRefreshes, cachedConnectorReads }, { connectorRefreshes: 1, cachedConnectorReads: 0 });
-		const servers = sdk.capturedStartupOptions[0].mcpServers;
-		assert.deepStrictEqual({
-			mail: servers?.mail,
-			collision: servers?.collision,
-		}, {
-			mail: { type: 'http', url: 'https://connectors.example.test/mail', headers: { Authorization: 'Bearer connector-token' } },
-			collision: undefined,
-		});
 	});
 
 	test('GitHub MCP is enabled by default and respects customization disablement', async () => {

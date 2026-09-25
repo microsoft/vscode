@@ -28,7 +28,6 @@ import { AgentHostAuthenticationService } from '../../../node/agentHostAuthentic
 import { AgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
-import { IAgentHostMcpConnectorsService } from '../../../node/agentHostMcpConnectorsService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -45,7 +44,6 @@ import { createNullSessionDataService } from '../../common/sessionTestHelpers.js
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
-import { createTestMcpConnectorsService } from '../testMcpConnectorsService.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFunction) {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -73,7 +71,6 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	instantiationService.stub(ICopilotApiService, apiService);
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, endpoints);
-	instantiationService.stub(IAgentHostMcpConnectorsService, createTestMcpConnectorsService());
 	instantiationService.stub(ISessionDataService, createNullSessionDataService());
 	instantiationService.stub(ICodexProxyService, disposables.add(new CodexProxyService(undefined, logService, apiService)));
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
