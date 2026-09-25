@@ -73,6 +73,7 @@ suite('SessionServerTools', () => {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
 			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => overrides?.isActiveAgentTitleGenerationEnabled?.() === false ? 'utility' : 'activeAgent'),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
+			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
@@ -1650,6 +1651,97 @@ suite('SessionServerTools', () => {
 		await applyCreateSessionTool(accessor, { relationship: 'currentSession', prompt: 'do it', title: 'Task' }, URI.parse('copilot:/s1'));
 
 		assert.deepStrictEqual({ added, workingDirectories: createdChatOptions?.workingDirectories }, { added: false, workingDirectories: undefined });
+	});
+
+	test('create_session offers the shared-workspace definition only while the provider lacks multi-root support', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let supportsChatWorkingDirectories = false;
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ supportsChatWorkingDirectories: () => supportsChatWorkingDirectories })),
+		]);
+		const createSessionDefinition = () => {
+			const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.CreateSession);
+			return {
+				description: definition?.description,
+				required: definition?.inputSchema?.required,
+				workspace: (definition?.inputSchema?.properties?.workspace as { description?: string } | undefined)?.description,
+			};
+		};
+
+		const withoutMultiRoot = createSessionDefinition();
+		supportsChatWorkingDirectories = true;
+		const withMultiRoot = createSessionDefinition();
+
+		assert.deepStrictEqual({ withoutMultiRoot, withMultiRoot }, {
+			withoutMultiRoot: {
+				description: 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.',
+				required: ['relationship', 'prompt', 'title'],
+				workspace: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`.',
+			},
+			withMultiRoot: {
+				description: 'Create delegated work and start it with an initial prompt.',
+				required: ['prompt', 'title'],
+				workspace: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.',
+			},
+		});
+		stateManager.dispose();
+	});
+
+	test('create_session without multi-root support keeps current-session chats in the session workspace', async () => {
+		let preparedFolder = false;
+		const createdChats: (readonly string[] | undefined)[] = [];
+		const created: IAgentCreateSessionConfig[] = [];
+		const accessor = createAccessor({
+			supportsChatWorkingDirectories: () => false,
+			prepareChatWorkingDirectory: async (_session, directory) => {
+				preparedFolder = true;
+				return prepared(directory);
+			},
+			onCreateChat: (_session, _chat, options) => createdChats.push(options?.workingDirectories?.map(directory => directory.toString())),
+			onCreate: config => created.push(config),
+		});
+		const source = URI.parse('copilot:/s1');
+		const errorOf = async (args: object) => {
+			try {
+				await applyCreateSessionTool(accessor, args, source);
+				return undefined;
+			} catch (error) {
+				return (error as Error).message;
+			}
+		};
+
+		const errors = {
+			workspace: await errorOf({ relationship: 'currentSession', workspace: 'file:///workspace/other', prompt: 'do it there', title: 'Other Folder' }),
+			worktree: await errorOf({ relationship: 'currentSession', worktree: true, prompt: 'do it', title: 'Task' }),
+			omittedRelationship: await errorOf({ prompt: 'do it', title: 'Task' }),
+		};
+		await applyCreateSessionTool(accessor, { relationship: 'currentSession', prompt: 'do it', title: 'Task' }, source);
+		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: 'file:///workspace/other', prompt: 'do it there', title: 'Other Folder' }, source);
+
+		assert.deepStrictEqual({
+			errors,
+			preparedFolder,
+			createdChats,
+			independentWorkingDirectories: created.map(config => config.workingDirectories?.map(directory => directory.toString())),
+		}, {
+			errors: {
+				workspace: 'Invalid create_session input: workspace is only valid when relationship is "independent".',
+				worktree: 'Invalid create_session input: worktree is only valid when relationship is "independent"; chats in the current session share its workspace.',
+				omittedRelationship: 'Invalid create_session input: relationship must be a non-empty string.',
+			},
+			preparedFolder: false,
+			createdChats: [undefined],
+			independentWorkingDirectories: [['file:///workspace/other']],
+		});
 	});
 
 	test('create_session with currentSession does not create a chat when its folder cannot be prepared', async () => {
