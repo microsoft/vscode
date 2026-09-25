@@ -49,26 +49,55 @@ suite('ChatAccessibilityService', () => {
 		const requestInProgress = observableValue('requestInProgress', options.inProgress);
 		const hasActiveRequest = observableValue('hasActiveRequest', options.inProgress);
 		const model = upcastPartial<IChatModel>({ requestInProgress, hasActiveRequest, onDidDispose: options.onDidDispose ?? Event.None });
-		return { model, requestInProgress, hasActiveRequest };
+		const setRequestState = (active: boolean) => transaction(tx => {
+			requestInProgress.set(active, tx);
+			hasActiveRequest.set(active, tx);
+		});
+		return { model, requestInProgress, hasActiveRequest, setRequestState };
 	}
 
 	test('stops the progress signal when a request nobody reports a response for completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { model, requestInProgress, hasActiveRequest } = createModel({ inProgress: true });
+		const { model, setRequestState } = createModel({ inProgress: true });
 		const { service, log } = createService(model);
 
 		service.acceptRequest(URI.parse('test://session'), true);
 		await timeout(5000);
-		transaction(tx => {
-			requestInProgress.set(false, tx);
-			hasActiveRequest.set(false, tx);
-		});
+		setRequestState(false);
+		await timeout(10);
+		log.push('unrelated request');
+		setRequestState(true);
 		await timeout(10000);
+
+		assert.deepStrictEqual(log, ['progress started', 'progress stopped', 'unrelated request']);
+	}));
+
+	test('keeps tracking a rerun that cancels the active request before sending its replacement', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, setRequestState } = createModel({ inProgress: true });
+		const { service, log } = createService(model);
+
+		service.acceptRequest(URI.parse('test://session'));
+		setRequestState(false);
+		setRequestState(true);
+		await timeout(5000);
+		setRequestState(false);
+
+		assert.deepStrictEqual(log, ['progress started', 'progress stopped']);
+	}));
+
+	test('stops the progress signal when a displayed model that is not registered with the chat service is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const onDidDispose = store.add(new Emitter<void>());
+		const { model } = createModel({ inProgress: true, onDidDispose: onDidDispose.event });
+		const { service, log } = createService(undefined);
+
+		service.acceptRequest(URI.parse('test://preparation'), true, model);
+		await timeout(5000);
+		onDidDispose.fire();
 
 		assert.deepStrictEqual(log, ['progress started', 'progress stopped']);
 	}));
 
 	test('pauses the progress signal while the request waits for input and resumes it afterwards', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { model, requestInProgress, hasActiveRequest } = createModel({ inProgress: true });
+		const { model, requestInProgress, setRequestState } = createModel({ inProgress: true });
 		const { service, log } = createService(model);
 
 		service.acceptRequest(URI.parse('test://session'), true);
@@ -78,10 +107,7 @@ suite('ChatAccessibilityService', () => {
 		await timeout(10000);
 		requestInProgress.set(true, undefined);
 		await timeout(5000);
-		transaction(tx => {
-			requestInProgress.set(false, tx);
-			hasActiveRequest.set(false, tx);
-		});
+		setRequestState(false);
 
 		assert.deepStrictEqual(log, ['progress started', 'progress stopped', 'waiting for input', 'progress started', 'progress stopped']);
 	}));

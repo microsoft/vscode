@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,6 +18,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVoiceSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ElicitationState, IChatElicitationRequest, IChatService } from '../../common/chatService/chatService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 
@@ -47,7 +49,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}));
 	}
 
-	acceptRequest(uri: URI, skipRequestSignal?: boolean): void {
+	acceptRequest(uri: URI, skipRequestSignal?: boolean, model: IChatModel | undefined = this._chatService.getSession(uri)): void {
 		if (!skipRequestSignal) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
 		}
@@ -59,15 +61,15 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			}
 		};
 		startProgress();
-		const model = this._chatService.getSession(uri);
 		if (model) {
-			// Pause while the request waits for user input; not every caller reports the response, so stop once the request settles.
-			store.add(runOnChange(model.requestInProgress, inProgress => inProgress ? startProgress() : scheduler.clear()));
-			store.add(runOnChange(model.hasActiveRequest, active => {
-				if (!active) {
+			// Reruns cancel the active request right before sending its replacement, so only stop once the model settles as idle.
+			const stopIfIdle = store.add(new RunOnceScheduler(() => {
+				if (!model.hasActiveRequest.get()) {
 					this._disposeRequestIfCurrent(uri, store);
 				}
-			}));
+			}, 0));
+			store.add(runOnChange(model.requestInProgress, inProgress => inProgress ? startProgress() : scheduler.clear()));
+			store.add(runOnChange(model.hasActiveRequest, active => active ? stopIfIdle.cancel() : stopIfIdle.schedule()));
 			store.add(Event.once(model.onDidDispose)(() => this._disposeRequestIfCurrent(uri, store)));
 		}
 		this._pendingSignalMap.set(uri, store);
