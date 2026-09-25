@@ -1945,6 +1945,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const chatSub = this._ensureChatSubscription(sessionKey, chatURI);
 				this._activeSessions.get(request.sessionResource)?.setStateSubscriptions(sessionSub, chatSub);
 				this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
+				this._ensureDraftSyncSubscription(request.sessionResource, resolvedSession, chatURI);
 				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
 				// In the Agents window, the sessions provider supplies per-request
@@ -5817,8 +5818,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const chatSub = this._ensureChatSubscription(session.toString(), chatURI);
 		this._activeSessions.get(sessionResource)?.setStateSubscriptions(newSub, chatSub);
 
-		// Start syncing the chat model's pending requests to the protocol
+		// Start syncing the chat model's pending requests and input to the protocol.
 		this._ensurePendingMessageSubscription(sessionResource, session);
+		this._ensureDraftSyncSubscription(sessionResource, session, chatURI);
 
 		// Start watching for server-initiated turns on this session
 		this._watchForServerInitiatedTurns(session, sessionResource);
