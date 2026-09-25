@@ -2358,7 +2358,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _catalogChatsFromState(state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): ICatalogChat[] {
 		return state.chats
-			.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool)
+			.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && !isSubagentChatUri(chat.resource))
 			.map(chat => ({
 				uri: chat.resource,
 				kind: state.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
@@ -8106,16 +8106,22 @@ export class AgentService extends Disposable implements IAgentService {
 		const enrichedEntries = entries.map(entry => entry.workingDirectories === undefined && cachedWorkingDirectories.get(entry.uri) !== undefined
 			? { ...entry, workingDirectories: cachedWorkingDirectories.get(entry.uri) }
 			: entry);
-		if (enrichedEntries.some((entry, index) => entry !== entries[index])) {
-			await this._peerChatStore.replace(session, enrichedEntries);
+		const toolChatUris = new Set([
+			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(entry.uri)).map(entry => entry.uri),
+			...cached?.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.uri) ?? [],
+			...this._stateManager.getSessionState(session.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource) ?? [],
+		]);
+		const restoredEntries = enrichedEntries.filter(entry => !toolChatUris.has(entry.uri));
+		if (restoredEntries.length !== entries.length || restoredEntries.some((entry, index) => entry !== entries[index])) {
+			await this._peerChatStore.replace(session, restoredEntries);
 		}
-		const restoredPeerUris = new Set(enrichedEntries.map(entry => entry.uri));
+		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			if (!isDefaultChatUri(chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, enrichedEntries, cached);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
@@ -8130,7 +8136,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(defaultChatWorkingDirectories !== undefined ? { workingDirectories: defaultChatWorkingDirectories } : {}),
 					kind: 'default',
 				},
-				...peers.map(peer => ({
+				...peers.filter(peer => !isSubagentChatUri(peer.uri) && peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
@@ -8342,11 +8348,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const session = this._stateManager.getSessionState(sessionStr);
-		if (this._disposingPeerChats.has(e.chat.toString()) || !session?.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
+		const chat = session?.chats.find(chat => chat.resource.toString() === e.chat.toString());
+		if (this._disposingPeerChats.has(e.chat.toString()) || isSubagentChatUri(e.chat) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
 			return;
 		}
 		this._stateManager.updateChatProviderData(e.chat.toString(), e.providerData);
-		void this._peerChatStore.upsert(URI.parse(sessionStr), e.chat, e.providerData)
+		void this._peerChatStore.upsert(URI.parse(sessionStr), e.chat, e.providerData, chat.origin)
 			.catch(err => this._logService.error(err, `[AgentService] Failed to persist peer-chat backing for ${e.chat.toString()}`));
 	}
 
