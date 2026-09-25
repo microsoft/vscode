@@ -1767,6 +1767,42 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('modal editor sashes hide grips without changing resize affordances', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-sash-hoverBorder', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const workbenchSash = appendElement(root, 'monaco-sash vertical');
+		const modal = appendElement(root, 'monaco-modal-editor-block');
+		const resizable = appendElement(modal, 'modal-editor-resizable');
+		const verticalSash = appendElement(resizable, 'monaco-sash vertical');
+		const horizontalSash = appendElement(resizable, 'monaco-sash horizontal');
+		const sashes = [verticalSash, horizontalSash];
+		const targetWindow = getWindow(root);
+		const restingGrips = sashes.map(sash => targetWindow.getComputedStyle(sash, '::after').content);
+
+		verticalSash.classList.add('hover');
+		horizontalSash.classList.add('active');
+
+		assert.deepStrictEqual({
+			workbenchGrip: targetWindow.getComputedStyle(workbenchSash, '::after').content,
+			restingGrips,
+			interactiveGrips: sashes.map(sash => targetWindow.getComputedStyle(sash, '::after').content),
+			pointerEvents: sashes.map(sash => targetWindow.getComputedStyle(sash).pointerEvents),
+			cursors: sashes.map(sash => targetWindow.getComputedStyle(sash).cursor),
+			highlights: sashes.map(sash => targetWindow.getComputedStyle(sash, '::before').backgroundColor),
+		}, {
+			workbenchGrip: '""',
+			restingGrips: ['none', 'none'],
+			interactiveGrips: ['none', 'none'],
+			pointerEvents: ['auto', 'auto'],
+			cursors: ['ew-resize', 'ns-resize'],
+			highlights: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+		});
+	});
+
 	test('compact density hides sash grips', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact';

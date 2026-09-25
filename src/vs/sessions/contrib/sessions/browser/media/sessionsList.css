@@ -8,6 +8,44 @@
 	height: 100%;
 	min-height: 0;
 
+	.monaco-tree-sticky-container {
+		--vscode-sideBar-background: var(--vscode-agents-background);
+	}
+
+	.monaco-list .monaco-tree-sticky-row.monaco-list-row {
+		background-color: var(--vscode-agents-background) !important;
+
+		&:hover:not(.selected):not(.focused) {
+			background-image: linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground));
+		}
+
+		&.focused {
+			background-image: linear-gradient(var(--vscode-list-inactiveFocusBackground, transparent), var(--vscode-list-inactiveFocusBackground, transparent));
+		}
+
+		&.selected {
+			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+
+		&.focused.selected {
+			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+	}
+
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row {
+		&.focused {
+			background-image: linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent));
+		}
+
+		&.selected {
+			background-image: linear-gradient(var(--vscode-list-activeSelectionBackground, transparent), var(--vscode-list-activeSelectionBackground, transparent));
+		}
+
+		&.focused.selected {
+			background-image: linear-gradient(var(--vscode-list-activeSelectionBackground, transparent), var(--vscode-list-activeSelectionBackground, transparent));
+		}
+	}
+
 	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
 		left: var(--vscode-spacing-size40);
 		right: var(--vscode-spacing-size40);
@@ -132,6 +170,8 @@
 		position: relative;
 		height: 16px;
 		display: none;
+		flex-shrink: 0;
+		margin-left: auto;
 
 		.monaco-toolbar {
 			position: relative;
@@ -495,10 +535,6 @@
 
 			.session-title {
 				flex: 0 1 auto;
-			}
-
-			.session-title-toolbar {
-				margin-left: auto;
 			}
 		}
 
