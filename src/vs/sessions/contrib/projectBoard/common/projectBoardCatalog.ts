@@ -36,6 +36,8 @@ export interface IProjectBoardCatalogService {
 	selectBoard(boardId: string): void;
 	updateBoard(boardId: string, update: (configuration: IProjectBoardConfiguration) => IProjectBoardConfiguration): void;
 	removeCardPlacements(cardIds: readonly string[]): void;
+	/** Preserve each board's latest placement when a provisional chat graduates. */
+	replaceCardPlacements(from: string, to: string): void;
 	/** Explicit recovery of an unreadable Hub collection. */
 	reset(): void;
 }

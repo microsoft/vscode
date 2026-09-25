@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { autorun, constObservable } from '../../../../base/common/observable.js';
+import { autorun, disposableObservableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -45,7 +45,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { IProjectBoardCard } from '../common/projectBoardModel.js';
 
 export const PROJECT_BOARD_CHAT_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.kanbanChat';
@@ -281,9 +281,10 @@ export class ProjectBoardChatContent extends Disposable {
 	private readonly model = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly loadCancellation = this._register(new CancellationTokenSource());
 	private dimensions: { height: number; width: number } | undefined;
+	private chatResourceChanged = false;
 
 	constructor(
-		private readonly card: ProjectBoardChat,
+		private card: ProjectBoardChat,
 		private readonly viewStates: LRUCache<string, IChatWidgetViewState>,
 		private readonly pendingInputs: LRUCache<string, IChatModelInputState>,
 		readonly onClose: () => void,
@@ -292,20 +293,26 @@ export class ProjectBoardChatContent extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IHoverService hoverService: IHoverService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
+		const currentSession = sessionsManagementService.getSession(card.session.resource);
+		if (currentSession?.providerId === card.session.providerId) {
+			this.card = this.replacementCard(currentSession);
+		}
 		this._register(toDisposable(() => this.element.remove()));
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		ProjectBoardChatFocusContext.bindTo(scopedContextKeyService).set(true);
-		const session = this._register(new VisibleSession(card.session, card.chat));
+		const session = this._register(disposableObservableValue(this, new VisibleSession(this.card.session, this.card.chat)));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
-			[ISessionContext, new SessionContext(constObservable(session))],
+			[ISessionContext, new SessionContext(session)],
 		)));
-		this._register(autorun(reader => setActiveSessionContextKeys(session, scopedContextKeyService, reader)));
+		this._register(autorun(reader => setActiveSessionContextKeys(session.read(reader), scopedContextKeyService, reader)));
 		const title = append(this.header, $('h2.project-board-chat-title'));
 		this._register(autorun(reader => {
-			title.textContent = card.chat.title.read(reader);
+			title.textContent = session.read(reader).activeChat.read(reader).title.read(reader);
 			this.element.setAttribute('aria-label', localize('kanban.chatLabel', "Agents Hub chat: {0}", title.textContent));
 			reader.store.add(hoverService.setupDelayedHover(title, { content: title.textContent }));
 		}));
@@ -331,7 +338,37 @@ export class ProjectBoardChatContent extends Disposable {
 			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 		}));
 		this.widget.render(this.widgetContainer);
-		this._register(autorun(reader => this.widget.setReadOnly(card.chat.interactivity.read(reader) !== ChatInteractivity.Full)));
+		this._register(autorun(reader => {
+			const chat = session.read(reader).activeChat.read(reader);
+			this.widget.setReadOnly(this.chatResourceChanged || chat.interactivity.read(reader) !== ChatInteractivity.Full);
+		}));
+		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			if (this.chatResourceChanged || from.providerId !== this.card.session.providerId || from.sessionId !== this.card.session.sessionId) {
+				return;
+			}
+			const previousChat = this.card.chat;
+			this.card = this.replacementCard(to);
+			this.chatResourceChanged = !isEqual(previousChat.resource, this.card.chat.resource);
+			session.set(new VisibleSession(this.card.session, this.card.chat), undefined);
+			if (this.chatResourceChanged) {
+				const liveInput = this.widget.getInputState();
+				const input = liveInput && (liveInput.inputText || liveInput.attachments.length)
+					? liveInput : this.pendingInputs.get(getComparisonKey(previousChat.resource));
+				if (input) {
+					this.pendingInputs.set(getComparisonKey(this.card.chat.resource), input);
+				}
+				// Never leave the old model writable under a different session's context.
+				this.loadCancellation.cancel();
+				this.onClose();
+				notificationService.info(localize('kanban.chatReplaced', "The chat's address changed. Open its Agents Hub card again to continue; your draft has been preserved."));
+			}
+		}));
+	}
+
+	private replacementCard(session: ISession): ProjectBoardChat {
+		const chat = session.chats.get().find(chat => isEqual(chat.resource, this.card.chat.resource))
+			?? (isEqual(this.card.chat.resource, this.card.session.mainChat.get().resource) ? session.mainChat.get() : this.card.chat);
+		return { session, chat };
 	}
 
 	async load(token: CancellationToken): Promise<void> {
@@ -410,7 +447,7 @@ export class ProjectBoardChatContent extends Disposable {
 		}
 		this.loadCancellation.cancel();
 		if (this.model.value) {
-			this.viewStates.set(getComparisonKey(this.card.chat.resource), this.widget.getViewState());
+			this.viewStates.set(getComparisonKey(this.model.value.object.sessionResource), this.widget.getViewState());
 			this.widget.setModel(undefined);
 		} else {
 			const input = this.widget.getInputState();
