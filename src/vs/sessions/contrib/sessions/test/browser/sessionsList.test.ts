@@ -412,6 +412,8 @@ suite('Sessions - SessionsList', () => {
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
+			const customizationsCount = observableValue(disposables, 7);
+			const customizationMigrationsAvailable = observableValue(disposables, true);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
@@ -441,6 +443,8 @@ suite('Sessions - SessionsList', () => {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => showNavigationShortcuts,
+				customizationsCount,
+				customizationMigrationsAvailable,
 				findWidgetContainer,
 				sessionsHeader,
 				sessionsHeaderContainer,
@@ -464,6 +468,11 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = sessionsHeader.closest('.sessions-list-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			const customizationsPresentation = {
+				count: customizationsSection?.querySelector('.session-section-count')?.textContent,
+				hasMigrationIndicator: customizationsSection?.querySelector('.session-section-label')?.classList.contains('has-customization-migrations'),
+				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
@@ -485,6 +494,7 @@ suite('Sessions - SessionsList', () => {
 				shortcutActionTargets,
 				shortcutCollapseStates,
 				headerInTreatment,
+				customizationsPresentation,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				headerRestoredToControl: sessionsHeader.parentElement === sessionsHeaderContainer,
@@ -494,13 +504,18 @@ suite('Sessions - SessionsList', () => {
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
 				treatmentNavigationLabels: ['Automations', 'Customizations'],
-				treatmentAriaLabels: ['Automations', 'Customizations', 'Sessions'],
+				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
 				shortcutActionTargets: [0, 0],
 				shortcutCollapseStates: [
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
 				headerInTreatment: true,
+				customizationsPresentation: {
+					count: '7',
+					hasMigrationIndicator: true,
+					hasExtensionsIcon: true,
+				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
 				headerRestoredToControl: true,

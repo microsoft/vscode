@@ -898,6 +898,17 @@
 		white-space: nowrap;
 	}
 
+	.session-section-label.has-customization-migrations::after {
+		content: '';
+		display: inline-block;
+		width: var(--vscode-spacing-size60);
+		height: var(--vscode-spacing-size60);
+		margin-left: var(--vscode-spacing-size40);
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
+		vertical-align: middle;
+	}
+
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
@@ -914,6 +925,11 @@
 		opacity: 0.7;
 		margin-left: 4px;
 		margin-right: 4px;
+	}
+
+	&.session-section-customizations .session-section-count {
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
 	}
 
 	.session-section-new-badge {
