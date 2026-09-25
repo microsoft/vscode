@@ -32,6 +32,7 @@ export class ChatSessionHandoffController {
 			&& isEqual(widget.viewModel.sessionResource, sessionResource)
 		);
 		if (this.openedSessions.has(sessionResource) && existingWidget && !existingWidget.visible) {
+			// Window routing focuses the target workbench before sending this IPC handoff.
 			return;
 		}
 
