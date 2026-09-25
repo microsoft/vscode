@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IObservableWithChange, mapObservableArrayCached, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
@@ -26,7 +28,10 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 		super();
 
 		const onModelAdded = observableSignalFromEvent(this, this._textModelService.onModelAdded);
-		const onModelRemoved = observableSignalFromEvent(this, this._textModelService.onModelRemoved);
+		// Closing a multi-diff releases many models in the same microtask checkpoint.
+		const onModelRemoved = observableSignalFromEvent(this, Event.debounce(
+			this._textModelService.onModelRemoved, () => undefined, MicrotaskDelay, false, false, undefined, this._store
+		));
 
 		const models = derived(this, reader => {
 			onModelAdded.read(reader);
