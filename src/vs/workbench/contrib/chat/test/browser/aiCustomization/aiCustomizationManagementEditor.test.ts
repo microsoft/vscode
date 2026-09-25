@@ -14,6 +14,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -26,12 +27,14 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
+import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
@@ -50,6 +53,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { isResourceEditorInput } from '../../../../../common/editor.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -144,12 +148,20 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectLabel: ISettableObservable<string>;
 		};
 		editorDisplayMode: 'preview' | 'raw';
-		currentSkillDetail: boolean;
+		currentCustomizationDetail: boolean;
 		currentEditingUri: URI | undefined;
 		editorModeButton: HTMLButtonElement | undefined;
 		editorPreviewContainer: HTMLElement | undefined;
 		embeddedEditorContainer: HTMLElement | undefined;
+		editorItemDescriptionElement: HTMLElement;
+		editorPreviewIssuesContainer: HTMLElement | undefined;
+		editorPreviewFrontMatterSection: HTMLElement | undefined;
+		editorPreviewFrontMatterTitle: HTMLElement | undefined;
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
+		editorPreviewBodySection: HTMLElement | undefined;
+		editorPreviewBodyTitle: HTMLElement | undefined;
+		editorPreviewBodyContainer: HTMLElement | undefined;
+		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
@@ -184,6 +196,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationBannerDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		editorService: Pick<IEditorService, 'openEditor'>;
+		agentPluginService: IAgentPluginService;
 		mcpWorkbenchService: Pick<IMcpWorkbenchService, 'local'>;
 		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'> & {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
@@ -211,6 +224,12 @@ suite('aiCustomizationManagementEditor', () => {
 		getEditorModeButtonTooltip(): string;
 		updateEditorDisplayMode(): void;
 		openCurrentCustomizationFile(): Promise<void>;
+		renderEditorPreview(parsedPromptFile: ReturnType<PromptFileParser['parse']>, promptType: PromptsType): void;
+		handleEditorActionButton(): Promise<void>;
+		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
+		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
+		goBackToList(): void;
+		showWelcomePage(): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
@@ -289,12 +308,21 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationFlowId = undefined;
 		editor.migrationWorkspaceSkipped = false;
 		editor.editorDisplayMode = 'preview';
-		editor.currentSkillDetail = false;
+		editor.currentCustomizationDetail = false;
 		editor.currentEditingUri = undefined;
 		editor.editorModeButton = document.createElement('button');
 		editor.editorPreviewContainer = document.createElement('div');
 		editor.embeddedEditorContainer = document.createElement('div');
+		editor.editorItemDescriptionElement = document.createElement('div');
+		editor.editorPreviewIssuesContainer = document.createElement('div');
+		editor.editorPreviewFrontMatterSection = document.createElement('section');
+		editor.editorPreviewFrontMatterTitle = document.createElement('h2');
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
+		editor.editorPreviewFrontMatterSection.append(editor.editorPreviewFrontMatterTitle, editor.editorPreviewFrontMatterContainer);
+		editor.editorPreviewBodySection = document.createElement('section');
+		editor.editorPreviewBodyTitle = document.createElement('h2');
+		editor.editorPreviewBodyContainer = document.createElement('div');
+		editor.editorPreviewBodySection.append(editor.editorPreviewBodyTitle, editor.editorPreviewBodyContainer);
 		editor.editorPreviewDisposables = new DisposableStore();
 		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.customizationMigrationRefreshSequence = 0;
@@ -320,6 +348,13 @@ suite('aiCustomizationManagementEditor', () => {
 		} as unknown as IHoverService;
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
+		editor.markdownRendererService = {
+			render: markdown => {
+				const element = document.createElement('div');
+				element.textContent = markdown.value;
+				return { element, dispose() { } };
+			},
+		};
 		editor.migrationListContainer = undefined;
 		editor.migrationSectionLists = [];
 		editor.migrationMigrateButton = undefined;
@@ -790,13 +825,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('skill details show only the preview and open their source in the host editor', async () => {
+	test('customization details show only the preview and open their source in the host editor', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
 		}));
 		const uri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const opened: object[] = [];
-		editor.currentSkillDetail = true;
+		editor.currentCustomizationDetail = true;
 		editor.currentEditingPromptType = PromptsType.skill;
 		editor.currentEditingUri = uri;
 		editor.editorService = {
@@ -821,6 +856,113 @@ suite('aiCustomizationManagementEditor', () => {
 			opened: [{ resource: uri, options: { pinned: true } }],
 		});
 
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('customization details use frontmatter descriptions and hide empty or unlabeled sections', () => {
+		const editor = createTestEditor();
+		const parser = new PromptFileParser();
+		editor.currentCustomizationDetail = true;
+
+		editor.renderEditorPreview(parser.parse(URI.file('/workspace/review.agent.md'), [
+			'---',
+			'name: review',
+			'description: Reviews code',
+			'model: fast',
+			'---',
+			'Review the current changes.',
+		].join('\n')), PromptsType.agent);
+
+		const withDescription = {
+			description: editor.editorItemDescriptionElement.textContent,
+			detailTitle: editor.editorPreviewFrontMatterTitle?.style.display,
+			detailKeys: [...editor.editorPreviewFrontMatterContainer?.querySelectorAll<HTMLElement>('.editor-preview-row-key') ?? []].map(element => element.textContent),
+			instructionsTitle: editor.editorPreviewBodyTitle?.style.display,
+		};
+
+		editor.renderEditorPreview(parser.parse(URI.file('/workspace/minimal.instructions.md'), [
+			'---',
+			'name: minimal',
+			'---',
+			'Follow the workspace conventions.',
+		].join('\n')), PromptsType.instructions);
+
+		assert.deepStrictEqual({
+			withDescription,
+			withoutDescription: {
+				descriptionDisplay: editor.editorItemDescriptionElement.style.display,
+				detailsDisplay: editor.editorPreviewFrontMatterSection?.style.display,
+				instructionsDisplay: editor.editorPreviewBodySection?.style.display,
+				instructionsTitle: editor.editorPreviewBodyTitle?.style.display,
+			},
+		}, {
+			withDescription: {
+				description: 'Reviews code',
+				detailTitle: '',
+				detailKeys: ['model'],
+				instructionsTitle: '',
+			},
+			withoutDescription: {
+				descriptionDisplay: 'none',
+				detailsDisplay: 'none',
+				instructionsDisplay: '',
+				instructionsTitle: 'none',
+			},
+		});
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('customization detail back action restores its navigation origin', async () => {
+		const editor = createTestEditor();
+		let backInvocations = 0;
+		editor.currentCustomizationDetail = true;
+		editor.goBackToList = () => backInvocations++;
+
+		await editor.handleEditorActionButton();
+
+		assert.strictEqual(backInvocations, 1);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('opens plugin-provided skills in the owning plugin detail', async () => {
+		const editor = createTestEditor();
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = pluginUri;
+			override readonly label = 'Example Plugin';
+		};
+		editor.agentPluginService = new class extends mock<IAgentPluginService>() {
+			override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', [plugin]);
+		};
+		editor.selectedSection = AICustomizationManagementSection.Skills;
+		editor.viewMode = 'list';
+		let opened: IAgentPluginItem | undefined;
+		editor.showEmbeddedPluginDetail = async item => {
+			opened = item;
+		};
+
+		await editor.openCustomizationItem({
+			id: skillUri.toString(),
+			uri: skillUri,
+			name: 'Review',
+			filename: 'SKILL.md',
+			source: AICustomizationSources.plugin,
+			promptType: PromptsType.skill,
+			disabled: false,
+			pluginUri,
+		});
+
+		assert.deepStrictEqual(opened && {
+			kind: opened.kind,
+			name: opened.name,
+			pluginUri: opened.kind === AgentPluginItemKind.Installed ? opened.plugin.uri.toString() : undefined,
+		}, {
+			kind: AgentPluginItemKind.Installed,
+			name: 'Example Plugin',
+			pluginUri: pluginUri.toString(),
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 

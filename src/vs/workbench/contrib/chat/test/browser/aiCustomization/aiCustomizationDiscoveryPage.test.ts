@@ -133,7 +133,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly onDidChange = installChanges.event;
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				if (installedIdentifiers.includes(resource.identifier)) {
-					return { kind: 'installed' as const };
+					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
 				}
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
@@ -615,8 +615,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			marketplace: fixture.openedDetails,
 			installed: fixture.openedInstalled.map(target => ({
 				section: target.section,
-				name: target.skillDetail?.name,
-				uri: target.skillDetail?.uri.toString(),
+				name: target.promptDetail?.name,
+				uri: target.promptDetail?.uri.toString(),
 			})),
 		}, {
 			marketplace: [],

@@ -76,7 +76,7 @@ import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
+import { IHeaderAttribute, IValue, ParsedPromptFile, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
@@ -104,6 +104,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
@@ -350,6 +351,15 @@ interface IMigrationItemTemplateData {
 	hasFileActions: boolean;
 }
 
+type CustomizationDetailBaseOrigin =
+	| { readonly kind: 'discover'; readonly marketplaceOrigin?: ICustomizationMarketplaceOrigin }
+	| { readonly kind: 'section'; readonly section: AICustomizationManagementSection }
+	| { readonly kind: 'migration' };
+
+type CustomizationDetailOrigin =
+	| CustomizationDetailBaseOrigin
+	| { readonly kind: 'pluginDetail'; readonly item: IAgentPluginItem; readonly origin: CustomizationDetailBaseOrigin };
+
 class MigrationItemDelegate implements IListVirtualDelegate<CustomizationMigrationCandidate> {
 	getHeight(): number {
 		return MIGRATION_ITEM_HEIGHT;
@@ -544,7 +554,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorPreviewContainer: HTMLElement | undefined;
 	private editorPreviewScrollContainer: HTMLElement | undefined;
 	private editorPreviewIssuesContainer: HTMLElement | undefined;
+	private editorPreviewFrontMatterSection: HTMLElement | undefined;
+	private editorPreviewFrontMatterTitle: HTMLElement | undefined;
 	private editorPreviewFrontMatterContainer: HTMLElement | undefined;
+	private editorPreviewBodySection: HTMLElement | undefined;
+	private editorPreviewBodyTitle: HTMLElement | undefined;
 	private editorPreviewBodyContainer: HTMLElement | undefined;
 	private embeddedEditorContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
@@ -553,8 +567,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorModeButton: HTMLButtonElement | undefined;
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
-	private currentSkillDetail = false;
+	private currentCustomizationDetail = false;
 	private editorItemNameElement!: HTMLElement;
+	private editorItemDescriptionElement!: HTMLElement;
 	private editorItemPathElement!: HTMLAnchorElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
@@ -571,6 +586,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingPromptType: PromptsType | undefined;
 	private currentEditingReadOnly = false;
 	private editorReturnViewMode: 'list' | 'migration' = 'list';
+	private customizationDetailOrigin: CustomizationDetailOrigin | undefined;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
@@ -612,9 +628,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	// Embedded MCP server detail view
 	private mcpDetailContainer: HTMLElement | undefined;
 	private embeddedMcpDetail: EmbeddedMcpServerDetail | undefined;
+	private mcpDetailScrollable: DomScrollableElement | undefined;
 	private mcpDetailInput: IMcpServerDetailInput | undefined;
 	private mcpDetailBackButton: HTMLButtonElement | undefined;
-	private mcpDetailReturnViewMode: 'list' | 'migration' = 'list';
+	private mcpDetailBackHover: IManagedHover | undefined;
+	private mcpDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 	private readonly mcpDetailDisposables = this._register(new DisposableStore());
 
 	private marketplaceDetailContainer: HTMLElement | undefined;
@@ -631,13 +649,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailBackButton: HTMLButtonElement | undefined;
 	private pluginDetailBackHover: IManagedHover | undefined;
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
-	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
-	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
+	private pluginDetailInput: IAgentPluginItem | undefined;
+	private pluginDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 
 	// Embedded tool-contributing extension detail view
 	private toolsDetailContainer: HTMLElement | undefined;
 	private embeddedToolDetail: EmbeddedExtensionToolsDetail | undefined;
 	private readonly toolsDetailDisposables = this._register(new DisposableStore());
+	private toolDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
@@ -714,6 +733,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1151,13 +1171,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 				selectSection: (section) => this.selectSection(section),
 				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
 				openInstalled: target => {
+					const origin: CustomizationDetailBaseOrigin = { kind: 'discover' };
 					this.selectSection(target.section);
-					if (target.skillDetail) {
-						void this.openCustomizationItem(target.skillDetail);
+					if (target.promptDetail) {
+						void this.openCustomizationItem(target.promptDetail, origin);
 					} else if (target.pluginDetail) {
-						void this.showEmbeddedPluginDetail(target.pluginDetail);
+						void this.showEmbeddedPluginDetail(target.pluginDetail, origin);
 					} else if (target.mcpDetail) {
-						void this.showEmbeddedMcpDetail(target.mcpDetail);
+						void this.showEmbeddedMcpDetail(target.mcpDetail, origin);
 					} else if (target.uri) {
 						void this.revealCustomizationByUri(target.uri);
 					}
@@ -1454,7 +1475,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.createEmbeddedPluginDetail();
 
 			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
-				this.pluginDetailReturnSection = undefined;
 				this.showEmbeddedPluginDetail(item);
 			}));
 		}
@@ -3325,6 +3345,87 @@ export class AICustomizationManagementEditor extends EditorPane {
 			section === AICustomizationManagementSection.Hooks;
 	}
 
+	private getCurrentDetailBaseOrigin(): CustomizationDetailBaseOrigin {
+		if (this.viewMode === 'migration') {
+			return { kind: 'migration' };
+		}
+		if (this.selectedSection !== undefined) {
+			return { kind: 'section', section: this.selectedSection };
+		}
+		return { kind: 'discover' };
+	}
+
+	private getDetailOriginLabel(origin: CustomizationDetailOrigin | undefined): string {
+		if (!origin || origin.kind === 'discover') {
+			return localize('backToCustomizationDiscovery', "Back to Discover");
+		}
+		if (origin.kind === 'migration') {
+			return this.getActiveMigrationCategory()?.backLabel ?? localize('backToCustomizationMigration', "Back to migration");
+		}
+		if (origin.kind === 'pluginDetail') {
+			return localize('backToPluginDetail', "Back to plugin details");
+		}
+		const sectionLabel = this.allSections.find(section => section.id === origin.section)?.label;
+		return sectionLabel
+			? localize('backToCustomizationSection', "Back to {0}", sectionLabel)
+			: localize('backToList', "Back to list");
+	}
+
+	private async restoreDetailOrigin(origin: CustomizationDetailOrigin | undefined): Promise<void> {
+		if (!origin || origin.kind === 'discover') {
+			this.viewMode = 'list';
+			this.selectedSection = undefined;
+			this.activeMigrationStorage = undefined;
+			this.sectionContextKey.set('');
+			this.storageService.remove(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE);
+			this.welcomePage?.reset();
+			this.updateContentVisibility();
+			this.ensureSectionsListReflectsActiveSection(undefined);
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+			if (origin?.marketplaceOrigin) {
+				this.welcomePage?.restoreMarketplaceItemFocus(origin.marketplaceOrigin);
+			} else {
+				this.welcomePage?.focus();
+			}
+			return;
+		}
+
+		if (origin.kind === 'migration') {
+			this.viewMode = 'migration';
+			this.updateContentVisibility();
+			this.renderCustomizationMigrationPage();
+			void this.refreshCustomizationMigrationInfo();
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+			this.focusCustomizationMigrationPage();
+			return;
+		}
+
+		if (origin.kind === 'pluginDetail') {
+			await this.showEmbeddedPluginDetail(origin.item, origin.origin);
+			return;
+		}
+
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+		this.selectSection(origin.section);
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		if (this.isPromptsSection(origin.section)) {
+			this.listWidget?.focusSearch();
+		} else if (origin.section === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.focusSearch();
+		} else if (origin.section === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.focusSearch();
+		} else if (origin.section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
+		}
+	}
+
 	//#region Section Counts
 
 	/**
@@ -4091,9 +4192,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
+		this.editorItemDescriptionElement = DOM.append(itemInfo, $('.editor-item-description'));
 		this.editorItemPathElement = DOM.append(itemInfo, $('a.editor-item-path')) as HTMLAnchorElement;
 		this.editorDisposables.add(DOM.addDisposableListener(this.editorItemPathElement, DOM.EventType.CLICK, event => {
-			if (!this.currentSkillDetail || !this.currentEditingUri) {
+			if (!this.currentCustomizationDetail || !this.currentEditingUri) {
 				return;
 			}
 			event.preventDefault();
@@ -4117,13 +4219,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.editorPreviewIssuesContainer = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-issues'));
 
-		const frontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
-		DOM.append(frontMatterSection, $('h2.editor-preview-section-title')).textContent = localize('previewDetailsTitle', "Details");
-		this.editorPreviewFrontMatterContainer = DOM.append(frontMatterSection, $('.editor-preview-frontmatter-list'));
+		this.editorPreviewFrontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
+		this.editorPreviewFrontMatterTitle = DOM.append(this.editorPreviewFrontMatterSection, $('h2.editor-preview-section-title'));
+		this.editorPreviewFrontMatterTitle.textContent = localize('previewDetailsTitle', "Details");
+		this.editorPreviewFrontMatterContainer = DOM.append(this.editorPreviewFrontMatterSection, $('.editor-preview-frontmatter-list'));
 
-		const bodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
-		DOM.append(bodySection, $('h2.editor-preview-section-title')).textContent = localize('previewInstructionsTitle', "Instructions");
-		this.editorPreviewBodyContainer = DOM.append(bodySection, $('.editor-preview-body-content'));
+		this.editorPreviewBodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
+		this.editorPreviewBodyTitle = DOM.append(this.editorPreviewBodySection, $('h2.editor-preview-section-title'));
+		this.editorPreviewBodyTitle.textContent = localize('previewInstructionsTitle', "Instructions");
+		this.editorPreviewBodyContainer = DOM.append(this.editorPreviewBodySection, $('.editor-preview-body-content'));
 
 		this.embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
 		const overflowWidgetsDomNode = DOM.append(this.editorContentContainer, $('.embedded-editor-overflow-widgets.monaco-editor'));
@@ -4151,23 +4255,34 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateEditorDisplayMode();
 	}
 
-	private async openCustomizationItem(item: IAICustomizationListItem): Promise<void> {
+	private async openCustomizationItem(item: IAICustomizationListItem, origin: CustomizationDetailOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
+		if (item.promptType === PromptsType.skill && item.pluginUri) {
+			const plugin = this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri));
+			if (plugin) {
+				await this.showEmbeddedPluginDetail({
+					kind: AgentPluginItemKind.Installed,
+					name: plugin.label,
+					description: plugin.fromMarketplace?.description ?? '',
+					marketplace: plugin.fromMarketplace?.marketplace,
+					plugin,
+				}, origin.kind === 'pluginDetail' ? origin.origin : origin);
+			}
+			return;
+		}
+
 		const source = item.source;
 		const isWorkspaceFile = source === AICustomizationSources.local;
 		const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-		if (item.promptType === PromptsType.skill) {
-			await this.showSkillDetail(item.uri, item.name, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
-		} else {
-			await this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
-		}
+		await this.showCustomizationDetail(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly, origin);
 	}
 
-	private async showSkillDetail(uri: URI, displayName: string, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean): Promise<void> {
+	private async showCustomizationDetail(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, origin: CustomizationDetailOrigin): Promise<void> {
 		if (!hasReadableCustomizationContent(uri)) {
 			return;
 		}
 
-		this.prepareCustomizationView(uri, displayName, PromptsType.skill, source, isWorkspaceFile, isReadOnly, true);
+		this.customizationDetailOrigin = origin;
+		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, true);
 		this.embeddedEditor?.setModel(null);
 
 		try {
@@ -4184,7 +4299,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this.editorItemPathElement.focus();
 		} catch (error) {
-			console.error('Failed to load skill details:', error);
+			console.error('Failed to load customization details:', error);
 			if (isEqual(this.currentEditingUri, uri)) {
 				this.goBackToList();
 			}
@@ -4274,7 +4389,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, skillDetail: boolean): void {
+	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, customizationDetail: boolean): void {
 		this.editorReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
@@ -4286,17 +4401,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingSource = source;
 		this.currentEditingPromptType = promptType;
 		this.currentEditingReadOnly = isReadOnly;
-		this.editorDisplayMode = this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
-		this.currentSkillDetail = skillDetail;
+		this.editorDisplayMode = customizationDetail || this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
+		this.currentCustomizationDetail = customizationDetail;
 		this.viewMode = 'editor';
-		this.editorContentContainer?.classList.toggle('skill-detail-mode', skillDetail);
+		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
 
 		this.editorItemNameElement.textContent = displayName;
+		this.editorItemDescriptionElement.textContent = '';
+		this.editorItemDescriptionElement.style.display = 'none';
 		this.editorItemPathElement.textContent = basename(uri);
-		this.editorItemPathElement.classList.toggle('source-link', skillDetail);
-		if (skillDetail) {
+		this.editorItemPathElement.classList.toggle('source-link', customizationDetail);
+		if (customizationDetail) {
 			this.editorItemPathElement.href = '#';
-			this.editorItemPathElement.setAttribute('aria-label', localize('openSkillSourceAriaLabel', "Open {0} in the editor", basename(uri)));
+			this.editorItemPathElement.setAttribute('aria-label', localize('openCustomizationSourceAriaLabel', "Open {0} in the editor", basename(uri)));
 		} else {
 			this.editorItemPathElement.removeAttribute('href');
 			this.editorItemPathElement.removeAttribute('aria-label');
@@ -4320,7 +4437,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private goBackToList(): void {
 		const returnViewMode = this.editorReturnViewMode;
+		const detailOrigin = this.currentCustomizationDetail ? this.customizationDetailOrigin : undefined;
 		this.editorReturnViewMode = 'list';
+		this.customizationDetailOrigin = undefined;
 		const fileUri = this.currentEditingUri;
 		const backgroundSaveRequest = this.createExistingCustomizationSaveRequest();
 		if (backgroundSaveRequest) {
@@ -4341,7 +4460,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingSource = undefined;
 		this.currentEditingPromptType = undefined;
 		this.currentEditingReadOnly = false;
-		this.currentSkillDetail = false;
+		this.currentCustomizationDetail = false;
+		this.editorContentContainer?.classList.remove('customization-detail-mode');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
@@ -4351,24 +4471,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateEditorActionButton();
 		this.updateEditorDisplayMode();
 		this.embeddedEditor?.setModel(null);
-		this.viewMode = returnViewMode;
-		this.updateContentVisibility();
-
-		if (returnViewMode === 'migration') {
-			this.renderCustomizationMigrationPage();
-			void this.refreshCustomizationMigrationInfo();
+		if (detailOrigin) {
+			void this.restoreDetailOrigin(detailOrigin);
 		} else {
-			// Refresh the list to pick up newly created/edited files
-			void this.listWidget?.refresh();
-		}
+			this.viewMode = returnViewMode;
+			this.updateContentVisibility();
+			if (returnViewMode === 'migration') {
+				this.renderCustomizationMigrationPage();
+				void this.refreshCustomizationMigrationInfo();
+			} else {
+				// Refresh the list to pick up newly created/edited files
+				void this.listWidget?.refresh();
+			}
 
-		if (this.dimension) {
-			this.layout(this.dimension);
-		}
-		if (returnViewMode === 'migration') {
-			this.focusCustomizationMigrationPage();
-		} else {
-			this.listWidget?.focusSearch();
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+			if (returnViewMode === 'migration') {
+				this.focusCustomizationMigrationPage();
+			} else {
+				this.listWidget?.focusSearch();
+			}
 		}
 
 		if (backgroundSaveRequest) {
@@ -4514,6 +4637,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
+		if (this.currentCustomizationDetail) {
+			this.goBackToList();
+			return;
+		}
 		if (this.editorActionButtonInProgress) {
 			return;
 		}
@@ -4571,12 +4698,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? localize('saveBuiltinCopyAndChooseLocation', "Save override")
 			: this.editorReturnViewMode === 'migration'
 				? (this.getActiveMigrationCategory()?.backLabel ?? localize('backToCustomizationMigration', "Back to migration"))
-				: localize('backToList', "Back to list"));
+				: this.currentCustomizationDetail
+					? this.getDetailOriginLabel(this.customizationDetailOrigin)
+					: localize('backToList', "Back to list"));
 		this.editorActionButton.title = shouldShowBuiltinSaveAction
 			? localize('saveBuiltinCopyAndChooseLocationTooltip', "Save override (choose Workspace, User, or Cancel)")
 			: this.editorReturnViewMode === 'migration'
 				? (this.getActiveMigrationCategory()?.backLabel ?? localize('backToCustomizationMigration', "Back to migration"))
-				: localize('backToList', "Back to list");
+				: this.currentCustomizationDetail
+					? this.getDetailOriginLabel(this.customizationDetailOrigin)
+					: localize('backToList', "Back to list");
 	}
 
 	private shouldShowBuiltinSaveAction(): boolean {
@@ -4648,7 +4779,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode !== 'editor') {
 			return;
 		}
-		if (this.currentSkillDetail) {
+		if (this.currentCustomizationDetail) {
 			this.renderCurrentEditorPreview();
 			this.updateEditorDisplayMode();
 			return;
@@ -4704,10 +4835,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateEditorDisplayMode(): void {
 		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
-		const showPreview = this.currentSkillDetail || (supportsStructuredPreview && this.editorDisplayMode === 'preview');
+		const showPreview = this.currentCustomizationDetail
+			? this.isCustomizationDetailPreviewSupported(this.currentEditingPromptType)
+			: supportsStructuredPreview && this.editorDisplayMode === 'preview';
 
 		if (this.editorModeButton) {
-			this.editorModeButton.style.display = supportsStructuredPreview && !this.currentSkillDetail ? '' : 'none';
+			this.editorModeButton.style.display = supportsStructuredPreview && !this.currentCustomizationDetail ? '' : 'none';
 			this.editorModeButton.textContent = this.getEditorModeButtonLabel();
 			this.editorModeButton.setAttribute('aria-label', this.getEditorModeButtonTooltip());
 			this.editorModeButton.setAttribute('aria-pressed', String(this.editorDisplayMode === 'raw'));
@@ -4719,8 +4852,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.embeddedEditorContainer) {
-			this.embeddedEditorContainer.style.display = showPreview ? 'none' : '';
+			this.embeddedEditorContainer.style.display = this.currentCustomizationDetail || showPreview ? 'none' : '';
 		}
+	}
+
+	private isCustomizationDetailPreviewSupported(promptType: PromptsType | undefined): boolean {
+		return promptType !== undefined && promptType !== PromptsType.hook;
 	}
 
 	private getEditorModeButtonLabel(): string {
@@ -4776,7 +4913,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private renderCurrentEditorPreview(): void {
 		const model = this.getCurrentEditingModel();
 		const promptType = this.currentEditingPromptType;
-		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
+		const previewSupported = this.currentCustomizationDetail
+			? this.isCustomizationDetailPreviewSupported(promptType)
+			: this.isStructuredPreviewSupported(promptType);
+		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !previewSupported) {
 			this.clearEditorPreview();
 			return;
 		}
@@ -4786,7 +4926,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private renderEditorPreview(parsedPromptFile: ParsedPromptFile, promptType: PromptsType): void {
-		if (!this.editorPreviewIssuesContainer || !this.editorPreviewFrontMatterContainer || !this.editorPreviewBodyContainer) {
+		if (!this.editorPreviewIssuesContainer || !this.editorPreviewFrontMatterSection || !this.editorPreviewFrontMatterTitle || !this.editorPreviewFrontMatterContainer || !this.editorPreviewBodySection || !this.editorPreviewBodyTitle || !this.editorPreviewBodyContainer) {
 			return;
 		}
 
@@ -4796,9 +4936,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		DOM.clearNode(this.editorPreviewBodyContainer);
 
 		const target = getTarget(promptType, parsedPromptFile.header ?? parsedPromptFile.uri);
+		const description = parsedPromptFile.header?.description?.trim();
+		this.editorItemDescriptionElement.textContent = description ?? '';
+		this.editorItemDescriptionElement.style.display = description ? '' : 'none';
 		this.renderPreviewIssues(parsedPromptFile);
-		this.renderPreviewFrontMatter(parsedPromptFile, promptType, target);
-		this.renderPreviewBody(parsedPromptFile);
+		const hasDetails = this.renderPreviewFrontMatter(parsedPromptFile, promptType, target);
+		const hasInstructions = this.renderPreviewBody(parsedPromptFile);
+		this.editorPreviewBodyTitle.textContent = this.currentCustomizationDetail
+			? localize('customizationDetailPreviewTitle', "Preview")
+			: localize('previewInstructionsTitle', "Instructions");
+		this.editorPreviewFrontMatterSection.style.display = hasDetails ? '' : 'none';
+		this.editorPreviewBodySection.style.display = hasInstructions ? '' : 'none';
+		const showSectionTitles = !this.currentCustomizationDetail || !!description;
+		this.editorPreviewFrontMatterTitle.style.display = hasDetails && showSectionTitles ? '' : 'none';
+		this.editorPreviewBodyTitle.style.display = hasInstructions && showSectionTitles ? '' : 'none';
 	}
 
 	private renderPreviewIssues(parsedPromptFile: ParsedPromptFile): void {
@@ -4815,20 +4966,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private renderPreviewFrontMatter(parsedPromptFile: ParsedPromptFile, promptType: PromptsType, target: Target): void {
+	private renderPreviewFrontMatter(parsedPromptFile: ParsedPromptFile, promptType: PromptsType, target: Target): boolean {
 		if (!this.editorPreviewFrontMatterContainer) {
-			return;
+			return false;
 		}
 
-		const attributes = parsedPromptFile.header?.attributes ?? [];
+		const attributes = (parsedPromptFile.header?.attributes ?? []).filter(attribute =>
+			!this.currentCustomizationDetail
+			|| (attribute.key !== PromptHeaderAttributes.name && attribute.key !== PromptHeaderAttributes.description));
 		if (!attributes.length) {
-			DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No metadata found in this file.");
-			return;
+			if (!this.currentCustomizationDetail) {
+				DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No metadata found in this file.");
+			}
+			return !this.currentCustomizationDetail;
 		}
 
 		for (const attribute of attributes) {
 			this.renderPreviewAttribute(attribute, promptType, target);
 		}
+		return true;
 	}
 
 	private renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void {
@@ -4864,21 +5020,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 		valueElement.classList.toggle('multiline', valueText.includes('\n'));
 	}
 
-	private renderPreviewBody(parsedPromptFile: ParsedPromptFile): void {
+	private renderPreviewBody(parsedPromptFile: ParsedPromptFile): boolean {
 		if (!this.editorPreviewBodyContainer) {
-			return;
+			return false;
 		}
 
 		const bodyContent = parsedPromptFile.body?.getContent() ?? '';
 		if (!bodyContent.trim()) {
-			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No markdown body found in this file.");
-			return;
+			if (!this.currentCustomizationDetail) {
+				DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No markdown body found in this file.");
+			}
+			return !this.currentCustomizationDetail;
 		}
 
 		const markdown = new MarkdownString(bodyContent, { supportThemeIcons: true });
 		markdown.baseUri = parsedPromptFile.uri;
 		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
 		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
+		return true;
 	}
 
 	private stringifyPreviewValue(value: IValue): string {
@@ -4985,8 +5144,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.marketplaceDetailResource = resource;
 			this.marketplaceDetailOrigin = origin;
 			this.embeddedMarketplaceDetail?.setInput(resource);
-			this.updatePluginDetailBackButton(true);
-			this.showEmbeddedPluginDetail(pluginItem);
+			this.showEmbeddedPluginDetail(pluginItem, { kind: 'discover', marketplaceOrigin: origin });
 			return;
 		}
 		this.showGenericMarketplaceDetail(resource, origin);
@@ -5085,7 +5243,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
+		const detailBody = $('.mcp-detail-editor-container');
+		this.mcpDetailScrollable = this.editorDisposables.add(new DomScrollableElement(detailBody, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const scrollableNode = this.mcpDetailScrollable.getDomNode();
+		scrollableNode.classList.add('mcp-detail-editor-scrollable');
+		this.mcpDetailContainer.appendChild(scrollableNode);
+		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.mcpDetailScrollable',
+			() => this.mcpDetailScrollable?.scanDomNode(),
+			DOM.getWindow(detailBody),
+		));
+		this.editorDisposables.add(resizeObserver.observe(detailBody));
 
 		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody, {
 			openMigrationPage: () => void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers),
@@ -5095,8 +5267,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
 		this.mcpDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
-		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
+		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
+		this.mcpDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Discover")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
@@ -5104,7 +5276,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedMcpDetail(server: IMcpServerDetailInput): Promise<void> {
+	private async showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
 		if (!this.embeddedMcpDetail) {
 			this.createEmbeddedMcpDetail();
 		}
@@ -5112,13 +5284,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.mcpDetailReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
+		this.mcpDetailOrigin = origin;
 		this.viewMode = 'mcpDetail';
 		this.mcpDetailInput = server;
 		this.updateContentVisibility();
 
 		this.mcpDetailDisposables.clear();
 		this.embeddedMcpDetail.setInput(server);
+		this.mcpDetailScrollable?.setScrollPosition({ scrollTop: 0 });
+		this.mcpDetailScrollable?.scanDomNode();
+		const label = this.getDetailOriginLabel(origin);
+		this.mcpDetailBackButton?.setAttribute('aria-label', label);
+		this.mcpDetailBackHover?.update(label);
 		this.refreshMcpDetailMigrationState();
 		void this.refreshCustomizationMigrationInfo();
 
@@ -5129,20 +5306,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private goBackFromMcpDetail(): void {
+		const origin = this.mcpDetailOrigin;
+		this.mcpDetailOrigin = undefined;
 		this.mcpDetailDisposables.clear();
 		this.mcpDetailInput = undefined;
 		this.embeddedMcpDetail?.clearInput();
-		this.viewMode = this.mcpDetailReturnViewMode;
-		this.updateContentVisibility();
-
-		if (this.dimension) {
-			this.layout(this.dimension);
-		}
-		if (this.viewMode === 'migration') {
-			this.migrationFirstFocusableElement?.focus();
-		} else {
-			this.mcpListWidget?.focusSearch();
-		}
+		void this.restoreDetailOrigin(origin);
 	}
 
 	private refreshMcpDetailMigrationState(): void {
@@ -5201,8 +5370,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const backButton = DOM.append(this.embeddedPluginDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
 		this.pluginDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
-		backButton.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
-		this.pluginDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
+		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
+		this.pluginDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Discover")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
@@ -5210,7 +5379,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 		this.editorDisposables.add(DOM.addDisposableListener(detailBody, DOM.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.keyCode === KeyCode.Escape && this.marketplaceDetailOrigin && !event.defaultPrevented) {
+			if (keyboardEvent.keyCode === KeyCode.Escape && !event.defaultPrevented) {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				this.goBackFromPluginDetail();
@@ -5257,15 +5426,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void> {
+	private async showEmbeddedPluginDetail(item: IAgentPluginItem, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
 		if (!this.embeddedPluginDetail) {
 			return;
 		}
 
+		this.pluginDetailInput = item;
+		this.pluginDetailOrigin = origin;
 		this.viewMode = 'pluginDetail';
-		if (!this.marketplaceDetailOrigin) {
-			this.updatePluginDetailBackButton(false);
-		}
+		this.updatePluginDetailBackButton();
 		this.updateContentVisibility();
 
 		this.pluginDetailDisposables.clear();
@@ -5277,10 +5446,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private updatePluginDetailBackButton(toDiscovery: boolean): void {
-		const label = toDiscovery
-			? localize('backToCustomizationDiscovery', "Back to Discover")
-			: localize('backToPluginList', "Back to plugins");
+	private updatePluginDetailBackButton(): void {
+		const label = this.getDetailOriginLabel(this.pluginDetailOrigin);
 		this.pluginDetailBackButton?.setAttribute('aria-label', label);
 		this.pluginDetailBackHover?.update(label);
 	}
@@ -5290,9 +5457,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async openPromptsItemFromPluginDetail(section: AICustomizationManagementSection, uri: URI): Promise<void> {
-		this.pluginDetailDisposables.clear();
-		this.embeddedPluginDetail?.clearInput();
-		this.pluginDetailReturnSection = undefined;
+		const pluginItem = this.pluginDetailInput;
+		const pluginOrigin = this.pluginDetailOrigin;
+		if (!pluginItem || !pluginOrigin) {
+			return;
+		}
 		this.viewMode = 'list';
 		this.selectedSection = section;
 		this.sectionContextKey.set(section);
@@ -5308,7 +5477,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
 			if (item) {
-				void this.openCustomizationItem(item);
+				void this.openCustomizationItem(item, { kind: 'pluginDetail', item: pluginItem, origin: pluginOrigin });
 			}
 		}
 		this.ensureSectionsListReflectsActiveSection(section);
@@ -5320,7 +5489,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private openSectionFromPluginDetail(section: AICustomizationManagementSection): void {
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginDetail?.clearInput();
-		this.pluginDetailReturnSection = undefined;
+		this.pluginDetailInput = undefined;
+		this.pluginDetailOrigin = undefined;
 		this.viewMode = 'list';
 		this.updateContentVisibility();
 		this.selectSectionById(section);
@@ -5331,49 +5501,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Saves the current section so the back button returns the user to it.
 	 */
 	public async showPluginDetail(item: IAgentPluginItem): Promise<void> {
-		if (this.selectedSection !== AICustomizationManagementSection.Plugins) {
-			this.pluginDetailReturnSection = this.selectedSection ?? AICustomizationManagementSection.Agents;
-		}
 		await this.showEmbeddedPluginDetail(item);
 	}
 
 	private goBackFromPluginDetail(): void {
+		const origin = this.pluginDetailOrigin;
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginDetail?.clearInput();
-		const marketplaceOrigin = this.marketplaceDetailOrigin;
-		if (marketplaceOrigin) {
-			this.marketplaceDetailOrigin = undefined;
-			this.marketplaceDetailResource = undefined;
-			this.embeddedMarketplaceDetail?.clearInput();
-			this.pluginDetailReturnSection = undefined;
-			this.viewMode = 'list';
-			this.updateContentVisibility();
-			if (this.dimension) {
-				this.layout(this.dimension);
-			}
-			this.welcomePage?.restoreMarketplaceItemFocus(marketplaceOrigin);
-			return;
-		}
-
-		const returnSection = this.pluginDetailReturnSection;
-		this.pluginDetailReturnSection = undefined;
-
-		if (returnSection) {
-			// Return to the section the user was on before opening the plugin detail.
-			// selectSection may early-return when the section hasn't changed, so always
-			// ensure viewMode and content visibility are updated.
-			this.viewMode = 'list';
-			this.updateContentVisibility();
-			this.selectSection(returnSection);
-		} else {
-			this.viewMode = 'list';
-			this.updateContentVisibility();
-			this.pluginListWidget?.focusSearch();
-		}
-
-		if (this.dimension) {
-			this.layout(this.dimension);
-		}
+		this.pluginDetailInput = undefined;
+		this.pluginDetailOrigin = undefined;
+		this.marketplaceDetailOrigin = undefined;
+		this.marketplaceDetailResource = undefined;
+		this.embeddedMarketplaceDetail?.clearInput();
+		void this.restoreDetailOrigin(origin);
 	}
 
 	//#endregion
@@ -5407,6 +5547,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
+		this.toolDetailOrigin = this.getCurrentDetailBaseOrigin();
 		this.viewMode = 'toolsDetail';
 		this.updateContentVisibility();
 
@@ -5419,15 +5560,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private goBackFromToolDetail(): void {
+		const origin = this.toolDetailOrigin;
+		this.toolDetailOrigin = undefined;
 		this.toolsDetailDisposables.clear();
 		this.embeddedToolDetail?.clearInput();
-		this.viewMode = 'list';
-		this.updateContentVisibility();
-
-		if (this.dimension) {
-			this.layout(this.dimension);
-		}
-		this.toolsListWidget?.focusSearch();
+		void this.restoreDetailOrigin(origin);
 	}
 
 	//#endregion

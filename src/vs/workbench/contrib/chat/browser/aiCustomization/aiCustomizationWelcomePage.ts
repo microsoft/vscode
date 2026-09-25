@@ -41,7 +41,7 @@ export interface IWelcomePageCallbacks {
 	openInstalled?(target: {
 		readonly section: AICustomizationManagementSection;
 		readonly uri?: URI;
-		readonly skillDetail?: IAICustomizationListItem;
+		readonly promptDetail?: IAICustomizationListItem;
 		readonly pluginDetail?: IAgentPluginItem;
 		readonly mcpDetail?: IMcpServerDetailInput;
 	}): void;

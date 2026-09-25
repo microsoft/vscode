@@ -82,7 +82,7 @@ interface IInstalledDiscoveryItem {
 	readonly mcpServerId?: string;
 	readonly disabled?: boolean;
 	readonly catalogResource?: ICustomizationMarketplaceResource;
-	readonly skillDetail?: IAICustomizationListItem;
+	readonly promptDetail?: IAICustomizationListItem;
 	readonly pluginDetail?: IAgentPluginItem;
 	readonly mcpDetail?: IMcpServerDetailInput;
 }
@@ -255,7 +255,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		private readonly onInstall: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onRepair: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onUninstall: (item: IInstalledDiscoveryItem) => void,
-		private readonly onOpenExternal: (resource: URI | string) => void,
+		private readonly onOpen: (resource: URI | string) => void,
 		private readonly onOpenDetails: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
@@ -330,7 +330,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
-		const hasInstalledDetail = installed && !!(element.skillDetail || element.pluginDetail || element.mcpDetail);
+		const hasInstalledDetail = installed && !!(element.promptDetail || element.pluginDetail || element.mcpDetail);
 		templateData.primaryAction.setAttribute('aria-label', installed && (hasInstalledDetail || !element.catalogResource)
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
@@ -339,7 +339,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		if (installed) {
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
-				if (element.skillDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
+				if (element.promptDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
 					this.onOpenInstalled(element);
 				} else {
 					this.onOpenDetails(element.catalogResource);
@@ -624,7 +624,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		this._register(this.resultList.onDidOpen(event => {
 			if (event.element?.kind === 'installed') {
-				if (event.element.skillDetail || event.element.pluginDetail || event.element.mcpDetail || !event.element.catalogResource) {
+				if (event.element.promptDetail || event.element.pluginDetail || event.element.mcpDetail || !event.element.catalogResource) {
 					this.openInstalledItem(event.element);
 				} else {
 					this.openMarketplaceItem(event.element.catalogResource, 'search');
@@ -966,7 +966,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					source: item.source,
 					promptType: item.promptType,
 					itemId: item.id,
-					skillDetail: type === 'skill' ? item : undefined,
+					promptDetail: item,
 					removable: !item.isBuiltin && item.source !== 'extension' && item.source !== 'builtin',
 					disabled: item.disabled,
 				});
@@ -1653,7 +1653,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.callbacks.openInstalled?.({
 			section: item.section,
 			uri: item.uri,
-			skillDetail: item.skillDetail,
+			promptDetail: item.promptDetail,
 			pluginDetail: item.pluginDetail,
 			mcpDetail: item.mcpDetail,
 		});
