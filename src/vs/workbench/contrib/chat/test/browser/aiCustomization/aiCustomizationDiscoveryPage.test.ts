@@ -803,11 +803,12 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 		fixture.marketplaceChanges.fire();
 		await timeout(0);
+		const resetRequest = fixture.requests.at(-1)!;
 		const beforeNewResults = {
-			requests: fixture.requests.map(request => request.options.cursor),
+			resetCursor: resetRequest.options.cursor,
 			previousResultVisible: fixture.page.getAccessibilityContent().includes('old-review'),
 		};
-		await fixture.requests[1].result.complete({
+		await resetRequest.result.complete({
 			items: [resource('new-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
 		});
 		await timeout(0);
@@ -815,7 +816,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			beforeNewResults,
 			newResultVisible: fixture.page.getAccessibilityContent().includes('new-review'),
 		}, {
-			beforeNewResults: { requests: [undefined, undefined], previousResultVisible: false },
+			beforeNewResults: { resetCursor: undefined, previousResultVisible: false },
 			newResultVisible: true,
 		});
 	});
