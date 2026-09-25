@@ -22,6 +22,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IAllowedMcpServersService, IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { getCopilotGlobalMcpConfigurationError } from '../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { McpResourceFormat } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -31,7 +32,7 @@ import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, Workbenc
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, WorkspaceMcpConfigKind } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IMcpWorkspaceInstallTargetService } from '../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -39,7 +40,8 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { allDiscoverySources, ExternalDiscoverySource, mcpDiscoverySection, mcpStdioServerSchema, mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
+import { allDiscoverySources, ExternalDiscoverySource, mcpDiscoverySection, mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
+import { getMcpGenerationSchema, McpGeneratedConfiguration, normalizeMcpGeneratedConfiguration } from '../common/mcpConfigurationGeneration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -127,17 +129,11 @@ type AddServerCompletedClassification = {
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target of the MCP server configuration' };
 };
 
-type AssistedServerConfiguration = {
-	type?: 'assisted';
-	name?: string;
-	server: Omit<IMcpStdioServerConfiguration, 'type'>;
-	inputs?: IMcpServerVariable[];
-	inputValues?: Record<string, string>;
-} | {
-	type: 'mapped';
-	name?: string;
-	server: Omit<IMcpStdioServerConfiguration, 'type'>;
-	inputs?: IMcpServerVariable[];
+type McpSetupDestination = {
+	installTarget: McpInstallTarget;
+	format: McpResourceFormat;
+	workspaceConfig?: WorkspaceMcpConfigKind;
+	resource?: URI;
 };
 
 export class McpAddConfigurationCommand {
@@ -365,7 +361,35 @@ export class McpAddConfigurationCommand {
 		return session;
 	}
 
-	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name?: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
+	private async getSetupDestination(): Promise<McpSetupDestination | undefined> {
+		const installTarget = await this.getInstallTarget();
+		if (!installTarget) {
+			return undefined;
+		}
+		if (installTarget.kind === 'local') {
+			if (installTarget.target === ConfigurationTarget.USER_LOCAL) {
+				const resource = await this._copilotGlobalConfigurationService.getConfigurationResource();
+				if (resource) {
+					const selected = await this._quickInputService.pick([
+						{ id: 'copilot', label: localize('mcp.target.copilotGlobal', "Copilot Global"), description: this._label.getUriLabel(resource) },
+						{ id: 'vscode', label: localize('mcp.target.userConfigurationDeprecated', "User Configuration (deprecated)"), description: this._label.getUriLabel(this._userDataProfileService.currentProfile.mcpResource) },
+					], {
+						title: localize('mcp.target.title', "Add MCP Server"),
+						placeHolder: localize('mcp.target.global.placeholder', "Select the global configuration"),
+					});
+					if (!selected) {
+						return undefined;
+					}
+					if (selected.id === 'copilot') {
+						return { installTarget, format: McpResourceFormat.CopilotGlobal, resource };
+					}
+				}
+			}
+		}
+		return { installTarget, format: McpResourceFormat.Vscode };
+	}
+
+	private async getAssistedConfig(type: AssistedConfigurationType, format: McpResourceFormat): Promise<McpGeneratedConfiguration | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: AssistedTypes[type].title,
@@ -400,17 +424,8 @@ export class McpAddConfigurationCommand {
 			{
 				type: packageType,
 				name: packageName,
-				targetConfig: {
-					...mcpStdioServerSchema,
-					properties: {
-						...mcpStdioServerSchema.properties,
-						name: {
-							type: 'string',
-							description: 'Suggested name of the server, alphanumeric and hyphen only',
-						}
-					},
-					required: [...(mcpStdioServerSchema.required || []), 'name'],
-				},
+				targetFormat: format,
+				targetConfig: getMcpGenerationSchema(format),
 			}
 		).then(result => {
 			if (!result || result.state === 'error') {
@@ -444,6 +459,10 @@ export class McpAddConfigurationCommand {
 				];
 			}
 			loadingQuickPick.busy = false;
+		}, () => {
+			loadingQuickPick.title = localize('mcp.package.loadFailed', "Unable to load MCP package details. Try again.");
+			loadingQuickPick.items = [{ id: LoadAction.Retry, label: localize('mcp.error.retry', 'Try a different package') }, { id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }];
+			loadingQuickPick.busy = false;
 		});
 
 		const loadingAction = await new Promise<{ id: LoadAction; helpUri?: URI } | undefined>(resolve => {
@@ -454,7 +473,7 @@ export class McpAddConfigurationCommand {
 
 		switch (loadingAction?.id) {
 			case LoadAction.Retry:
-				return this.getAssistedConfig(type);
+				return this.getAssistedConfig(type, format);
 			case LoadAction.OpenUri:
 				if (loadingAction.helpUri) { this._openerService.open(loadingAction.helpUri); }
 				return undefined;
@@ -465,7 +484,7 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		const config = await this._commandService.executeCommand<AssistedServerConfiguration>(
+		const config = await this._commandService.executeCommand<McpGeneratedConfiguration | undefined>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{
 				name: packageName,
@@ -473,17 +492,7 @@ export class McpAddConfigurationCommand {
 			}
 		);
 
-		if (config?.type === 'mapped') {
-			return {
-				name: config.name,
-				server: config.server,
-				inputs: config.inputs,
-			};
-		} else if (config?.type === 'assisted' || !config?.type) {
-			return config;
-		} else {
-			assertNever(config?.type);
-		}
+		return config;
 	}
 
 	/** Shows the location of a server config once it's discovered. */
@@ -532,6 +541,7 @@ export class McpAddConfigurationCommand {
 		let suggestedName: string | undefined;
 		let inputs: IMcpServerVariable[] | undefined;
 		let inputValues: Record<string, string> | undefined;
+		let destination: McpSetupDestination | undefined;
 		switch (serverType) {
 			case AddConfigurationType.Stdio:
 				config = await this.getStdioConfig();
@@ -543,8 +553,21 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.NuGetPackage:
 			case AddConfigurationType.DockerImage: {
-				const r = await this.getAssistedConfig(serverType);
-				config = r?.server ? { ...r.server, type: McpServerType.LOCAL } : undefined;
+				destination = await this.getSetupDestination();
+				if (!destination) {
+					return;
+				}
+				const installTarget = destination.installTarget;
+				if (installTarget.kind === 'local' && isWorkspaceFolder(installTarget.target)) {
+					const workspaceConfig = await this._instantiationService.createInstance(McpConfigurationDestination).selectForAdd(installTarget.target, undefined, this.configurationTarget?.kind);
+					if (workspaceConfig === undefined) {
+						return;
+					}
+					destination.workspaceConfig = workspaceConfig;
+					destination.format = workspaceConfig === WorkspaceMcpConfigKind.Root ? McpResourceFormat.WorkspaceRoot : McpResourceFormat.Vscode;
+				}
+				const r = await this.getAssistedConfig(serverType, destination.format);
+				config = r ? normalizeMcpGeneratedConfiguration(r, destination.format) : undefined;
 				suggestedName = r?.name;
 				inputs = r?.inputs;
 				inputValues = r?.inputValues;
@@ -565,45 +588,51 @@ export class McpAddConfigurationCommand {
 		}
 
 		// Step 4: Choose configuration target
-		const installTarget = await this.getInstallTarget();
-		if (!installTarget) {
+		destination ??= await this.getSetupDestination();
+		if (!destination) {
 			return;
 		}
+		const { installTarget } = destination;
 
 		if (installTarget.kind === 'agentHost') {
+			if (Object.hasOwn(AssistedTypes, serverType) && (inputs?.length || JSON.stringify(config).includes('${input:'))) {
+				throw new Error(localize('mcp.agentHost.inputsUnsupported', "This server requires VS Code input variables. Add it to a VS Code configuration file instead of the current agent session."));
+			}
 			this._agentHostCustomizations.addMcpServer(installTarget.session, name, config);
 			return;
 		}
 
 		const { target } = installTarget;
 		const installable = { name, config, inputs };
-		if (target === ConfigurationTarget.USER_LOCAL && (serverType === AddConfigurationType.Stdio || serverType === AddConfigurationType.HTTP)) {
-			const resource = await this._copilotGlobalConfigurationService.getConfigurationResource();
-			if (resource) {
-				const selected = await this._quickInputService.pick([
-					{ id: 'copilot', label: localize('mcp.target.copilotGlobal', "Copilot Global"), description: this._label.getUriLabel(resource) },
-					{ id: 'vscode', label: localize('mcp.target.userConfigurationDeprecated', "User Configuration (deprecated)"), description: this._label.getUriLabel(this._userDataProfileService.currentProfile.mcpResource) },
-				], {
-					title: localize('mcp.target.title', "Add MCP Server"),
-					placeHolder: localize('mcp.target.global.placeholder', "Select the global configuration"),
-				});
-				if (!selected) {
+		if (destination.format === McpResourceFormat.CopilotGlobal && destination.resource) {
+			const resource = destination.resource;
+			const error = getCopilotGlobalMcpConfigurationError(installable);
+			if (error) {
+				if (!Object.hasOwn(AssistedTypes, serverType)) {
+					throw new Error(error);
+				}
+				const fallback = await this._quickInputService.pick([{
+					label: localize('mcp.target.userConfigurationDeprecated', "User Configuration (deprecated)"),
+					detail: error,
+				}], { placeHolder: localize('mcp.target.vscodeRequired', "This server requires VS Code configuration"), ignoreFocusLost: true });
+				if (!fallback) {
 					return;
 				}
-				if (selected.id === 'copilot') {
-					const allowed = this._allowedMcpServersService.isAllowed(installable);
-					if (allowed !== true) {
-						throw new Error(allowed.value);
-					}
-					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
-					await this._editorService.openEditor({ resource });
-					this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
-					return;
+			} else {
+				const allowed = this._allowedMcpServersService.isAllowed(installable);
+				if (allowed !== true) {
+					throw new Error(allowed.value);
 				}
+				await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+				await this._editorService.openEditor({ resource });
+				this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
+				return;
 			}
 		}
 		const workspaceConfig = isWorkspaceFolder(target)
-			? await this._instantiationService.createInstance(McpConfigurationDestination).selectForAdd(target, installable, this.configurationTarget?.kind)
+			? destination.workspaceConfig === undefined
+				? await this._instantiationService.createInstance(McpConfigurationDestination).selectForAdd(target, installable, this.configurationTarget?.kind)
+				: await this._instantiationService.createInstance(McpConfigurationDestination).checkGenerated(target, installable, destination.workspaceConfig, !!this.configurationTarget)
 			: undefined;
 		if (isWorkspaceFolder(target) && workspaceConfig === undefined) {
 			return;
