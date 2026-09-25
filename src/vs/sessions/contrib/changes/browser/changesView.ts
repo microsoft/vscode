@@ -93,7 +93,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
@@ -674,13 +674,22 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<string | undefined> {
-	return derivedObservableWithCache<string | undefined>(owner, (reader, lastValue) => {
+interface IChangesPickerLabel {
+	readonly label: string;
+	readonly isNonDefault: boolean;
+}
+
+function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<IChangesPickerLabel | undefined> {
+	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
 		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
 		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
 			return lastValue;
 		}
-		return changeset?.label;
+		if (!changeset) {
+			return undefined;
+		}
+		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
+		return { label: changeset.label, isNonDefault: changeset.id !== defaultChangeset?.id };
 	});
 }
 
@@ -2192,7 +2201,7 @@ export class ChangesPickerSummary extends Disposable {
 }
 
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
@@ -2202,7 +2211,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	constructor(
 		action: MenuItemAction,
 		private readonly _summary: ChangesPickerSummary | undefined,
-		labelObs: IObservable<string | undefined> | undefined,
+		labelObs: IObservable<IChangesPickerLabel | undefined> | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -2314,12 +2323,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 	private updatePickerLabel(): void {
 		if (this._labelElement) {
-			this._labelElement.textContent = this._labelObs.get() ?? this.action.label;
+			const label = this._labelObs.get();
+			this._labelElement.textContent = label?.label ?? this.action.label;
+			this._labelElement.classList.toggle('non-default', label?.isNonDefault ?? false);
 		}
 	}
 
 	protected override getTooltip(): string {
-		const label = this._labelObs.get();
+		const label = this._labelObs.get()?.label;
 		const title = super.getTooltip() || this.action.label;
 		if (!label) {
 			return title;
