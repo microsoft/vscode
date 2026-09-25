@@ -1357,7 +1357,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// Special case, this fetch will call an internal tool 'vscode_fetchWebPage_internal'
 			return true;
 		}
-		if (toolIdsThatCannotBeAutoApproved.has(toolData.id) || toolIdsThatAlwaysRequireConfirmation.has(toolData.id)) {
+		if (toolIdsThatCannotBeAutoApproved.has(toolData.id)) {
 			return false;
 		}
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);

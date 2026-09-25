@@ -2362,6 +2362,30 @@ suite('LanguageModelToolsService', () => {
 		await resultPromise;
 	});
 
+	test('create and run task rejection does not require confirmation', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store);
+		const tool = registerToolForTest(testService, store, TerminalToolId.CreateAndRunTask, {
+			prepareToolInvocation: async () => ({
+				invocationMessage: 'Task already exists.',
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'Task already exists.' }] })
+		});
+
+		const sessionId = 'test-create-task-rejection';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		const result = await testService.invokeTool(
+			tool.makeDto({ task: { label: 'build', command: 'npm run build' } }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(result, { content: [{ kind: 'text', value: 'Task already exists.' }] });
+	});
+
 	test('shouldAutoConfirm with basic configuration', async () => {
 		// Test basic shouldAutoConfirm behavior with simple configuration
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {

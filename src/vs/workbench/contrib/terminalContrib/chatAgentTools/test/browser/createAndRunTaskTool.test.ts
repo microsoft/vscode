@@ -100,6 +100,23 @@ suite('CreateAndRunTaskTool', () => {
 		});
 	});
 
+	test('rejects an active task without writing or running', async () => {
+		const activeTask = { _label: parameters.task.label } as Task;
+		const { tool, fileOperations, getRunCount } = createTool({ activeTasks: [activeTask] });
+
+		const result = await tool.invoke(invocation(), async () => 0, { report: () => { } }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.content[0],
+			fileOperations,
+			runCount: getRunCount(),
+		}, {
+			message: { kind: 'text', value: 'Task \'build\' is already running.' },
+			fileOperations: [],
+			runCount: 0,
+		});
+	});
+
 	test('rejects a workspace folder outside the invocation working directory', async () => {
 		const { tool, fileOperations, getRunCount } = createTool();
 		const outsideParameters = { ...parameters, workspaceFolder: '/outside' };
