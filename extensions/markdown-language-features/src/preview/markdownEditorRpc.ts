@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isResponse, type IMessageTransport, type JsonRpcMessage } from '@vscode/hubrpc';
-import { z } from 'zod';
+import * as z from 'zod/mini';
 
 interface IDisposable {
 	dispose(): void;
@@ -13,9 +13,9 @@ interface IDisposable {
 const requestId = z.union([z.string(), z.number()]);
 const envelope = z.object({ channel: z.literal('markdownEditor'), messageSecret: z.string(), message: z.unknown() });
 const rpcMessage = z.union([
-	z.object({ jsonrpc: z.literal('2.0'), id: requestId.optional(), method: z.string(), params: z.json().optional() }),
-	z.object({ jsonrpc: z.literal('2.0'), id: requestId.nullable(), result: z.json() }),
-	z.object({ jsonrpc: z.literal('2.0'), id: requestId.nullable(), error: z.object({ code: z.number(), message: z.string(), data: z.json().optional() }) }),
+	z.object({ jsonrpc: z.literal('2.0'), id: z.optional(requestId), method: z.string(), params: z.optional(z.json()) }),
+	z.object({ jsonrpc: z.literal('2.0'), id: z.nullable(requestId), result: z.json() }),
+	z.object({ jsonrpc: z.literal('2.0'), id: z.nullable(requestId), error: z.object({ code: z.number(), message: z.string(), data: z.optional(z.json()) }) }),
 ]);
 
 /**

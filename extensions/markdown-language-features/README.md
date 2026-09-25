@@ -14,6 +14,11 @@ the extension host and webview. Shared runtime-validated interfaces in
 diff markers, highlighting, rich links, and embedded-editor routing. No global
 Hub or capability service is required.
 
+The interfaces use `zod/mini` to retain runtime validation and schema hashing
+without bundling Zod's full API and locale tables. HubRPC and Zod are development
+dependencies: the desktop extension, browser extension, and rich-editor builds
+bundle the runtime code they use.
+
 The `TextDocument` remains authoritative: local edits use the existing epoch
 queue and `WorkspaceEdit`, external changes replace the renderer mirror, and
 history commands drain accepted edits before invoking host undo/redo. Each
