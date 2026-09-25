@@ -15,7 +15,7 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -229,9 +229,23 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	test('runtime MCP: tools execute after their server is stopped and restarted', async function () {
 		this.timeout(180_000);
 		const { sessionUri, pluginUri, calls } = await createPluginSession();
+		const server = await serverState(sessionUri, pluginUri);
+		// Materialize an empty chat so the recorded first tool call cannot race MCP startup.
+		const chatUri = buildChatUri(sessionUri, 'runtime-mcp-restart');
+		await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/mcpServerStateChanged')) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(n);
+			return channel === sessionUri
+				&& action.type === ActionType.SessionMcpServerStateChanged
+				&& action.id === server.id
+				&& action.state.kind === McpServerStatus.Ready;
+		}, 30_000);
 		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-restart', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 2);
 		assert.deepStrictEqual(probeResults(sessionUri), ['MCP_PROBE:before']);
-		const server = await serverState(sessionUri, pluginUri);
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 10,
