@@ -3893,8 +3893,17 @@ suite('Sessions - SessionsList', () => {
 			};
 			list.setSessionArchivedChatsVisible(first, false);
 			const hidden = chatRowTitles(container).sort();
+			list.setExcludeArchived(false);
+			const globallyShown = chatRowTitles(container).sort();
+			list.setSessionArchivedChatsVisible(second, false);
+			const secondHidden = chatRowTitles(container).sort();
+			const globalVisibility = {
+				first: list.isSessionArchivedChatsVisible(first),
+				second: list.isSessionArchivedChatsVisible(second),
+				empty: list.isSessionArchivedChatsVisible(empty),
+			};
 
-			assert.deepStrictEqual({ initial, shown, visibility, hidden }, {
+			assert.deepStrictEqual({ initial, shown, visibility, hidden, globallyShown, secondHidden, globalVisibility }, {
 				initial: ['Second active'],
 				shown: ['First active', 'First archived', 'Second active'],
 				visibility: {
@@ -3905,6 +3914,13 @@ suite('Sessions - SessionsList', () => {
 					firstExpanded: 'true',
 				},
 				hidden: ['First active', 'Second active'],
+				globallyShown: ['First active', 'First archived', 'Second active', 'Second archived'],
+				secondHidden: ['First active', 'First archived', 'Second active'],
+				globalVisibility: {
+					first: true,
+					second: false,
+					empty: true,
+				},
 			});
 		});
 

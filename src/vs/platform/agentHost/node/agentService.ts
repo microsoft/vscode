@@ -6956,7 +6956,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const origin = { clientId, clientSeq };
 		const chatState = action.type === ActionType.ChatIsArchivedChanged ? this._stateManager.getChatState(channel) : undefined;
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (isDefaultChatUri(channel) || !chatState || chatState.origin?.kind === ChatOriginKind.Tool)) {
+			&& (isDefaultChatUri(channel) || !chatState || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
 			return;
 		}

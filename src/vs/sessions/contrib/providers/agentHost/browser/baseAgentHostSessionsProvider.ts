@@ -967,6 +967,11 @@ class AdditionalChat extends Disposable {
 		const interactivity = derived(reader => effectiveChatInteractivity(
 			this._isArchived.read(reader) || sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
 			this._interactivity.read(reader)));
+		const capabilities = summary.origin?.kind === ProtocolChatOriginKind.Tool
+			? constObservable<IChatCapabilities>({ canRename: false, canArchive: false, canDelete: false })
+			: summary.origin?.kind === ProtocolChatOriginKind.SideChat
+				? constObservable<IChatCapabilities>({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: false })
+				: derived<IChatCapabilities>(reader => ({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: canArchive.read(reader) }));
 		this.chat = {
 			resource,
 			createdAt: modifiedAt,
@@ -982,7 +987,7 @@ class AdditionalChat extends Disposable {
 			modelId: this._withDetails(this._modelId),
 			modelSource: this._withDetails(this._modelSource),
 			mode: this._withDetails(this._mode),
-			isArchived: this._withDetails(this._isArchived),
+			isArchived: this._isArchived,
 			isRead: constObservable(true),
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity,
@@ -994,10 +999,7 @@ class AdditionalChat extends Disposable {
 				...((summary.origin.kind === ProtocolChatOriginKind.Fork || summary.origin.kind === ProtocolChatOriginKind.SideChat) ? { turnId: summary.origin.turnId } : {}),
 				...(summary.origin.kind === ProtocolChatOriginKind.SideChat && summary.origin.selection ? { selection: toSessionSideChatSelection(summary.origin.selection) } : {}),
 			} : undefined,
-			// Tool-origin worker chats are not independently manageable.
-			capabilities: summary.origin?.kind === ProtocolChatOriginKind.Tool
-				? constObservable<IChatCapabilities>({ canRename: false, canArchive: false, canDelete: false })
-				: derived<IChatCapabilities>(reader => ({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: canArchive.read(reader) })),
+			capabilities,
 		};
 	}
 

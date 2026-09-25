@@ -203,13 +203,17 @@ suite('Sessions list context menus', () => {
 
 		dispatchContextMenu(sessionRow);
 		contextMenuService.delegate?.onHide?.(false);
-		list.setSessionArchivedChatsVisible(session, true);
+		list.setExcludeArchived(false);
+		dispatchContextMenu(sessionRow);
+		contextMenuService.delegate?.onHide?.(false);
+		list.setSessionArchivedChatsVisible(session, false);
 		dispatchContextMenu(sessionRow);
 		contextMenuService.delegate?.onHide?.(false);
 
 		assert.deepStrictEqual(sessionMenuContexts, [
 			{ showsArchivedChats: false },
 			{ showsArchivedChats: true },
+			{ showsArchivedChats: false },
 		]);
 	});
 

@@ -3232,7 +3232,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly archiveOnboardingSession = observableValue<ISession | undefined>(this, undefined);
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
-	private readonly sessionsWithVisibleArchivedChats = new Set<string>();
+	private readonly sessionArchivedChatVisibilityOverrides = new Map<string, boolean>();
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
 	private _showEmptyGroups: boolean;
@@ -3957,10 +3957,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		for (const sessionId of this.sessionsWithVisibleArchivedChats) {
+		for (const sessionId of this.sessionArchivedChatVisibilityOverrides.keys()) {
 			const session = this.sessions.find(candidate => candidate.sessionId === sessionId);
 			if (!session) {
-				this.sessionsWithVisibleArchivedChats.delete(sessionId);
+				this.sessionArchivedChatVisibilityOverrides.delete(sessionId);
 			}
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -5024,7 +5024,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
-			[SessionShowsArchivedChatsContext.key, this.sessionsWithVisibleArchivedChats.has(element.sessionId)],
+			[SessionShowsArchivedChatsContext.key, this.isSessionArchivedChatsVisible(element)],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
@@ -5391,6 +5391,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Archived / Read filtering --
 
 	setExcludeArchived(exclude: boolean): void {
+		if (this._excludeArchived !== exclude) {
+			this.sessionArchivedChatVisibilityOverrides.clear();
+		}
 		this._excludeArchived = exclude;
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
 		this.update();
@@ -5401,17 +5404,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	setSessionArchivedChatsVisible(session: ISession, visible: boolean): void {
-		const changed = visible
-			? !this.sessionsWithVisibleArchivedChats.has(session.sessionId)
-			: this.sessionsWithVisibleArchivedChats.has(session.sessionId);
-		if (!changed) {
+		if (this.isSessionArchivedChatsVisible(session) === visible) {
 			return;
 		}
-		if (visible) {
-			this.sessionsWithVisibleArchivedChats.add(session.sessionId);
-		} else {
-			this.sessionsWithVisibleArchivedChats.delete(session.sessionId);
-		}
+		this.sessionArchivedChatVisibilityOverrides.set(session.sessionId, visible);
 		this.update();
 		if (visible && this.tree.hasElement(session)) {
 			this.tree.expand(session);
@@ -5419,7 +5415,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	isSessionArchivedChatsVisible(session: ISession): boolean {
-		return !this._excludeArchived || this.sessionsWithVisibleArchivedChats.has(session.sessionId);
+		return this.sessionArchivedChatVisibilityOverrides.get(session.sessionId) ?? !this._excludeArchived;
 	}
 
 	setExcludeRead(exclude: boolean): void {
@@ -5448,7 +5444,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.excludedStatuses.clear();
 		this.saveExcludedStatuses();
 		this._excludeArchived = true;
-		this.sessionsWithVisibleArchivedChats.clear();
+		this.sessionArchivedChatVisibilityOverrides.clear();
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
