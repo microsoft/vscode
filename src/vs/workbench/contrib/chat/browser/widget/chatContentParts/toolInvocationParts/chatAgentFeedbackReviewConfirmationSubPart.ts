@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -140,6 +141,12 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			) ?? [];
 		} catch (error) {
 			this.logService.warn('[AgentFeedbackReview] Failed to fetch unreviewed comments', error);
+			if (!this._store.isDisposed) {
+				const message = localize('agentFeedback.loadFailed', "Could not load review comments. Cancel this request and try again.");
+				listElement.append(dom.$('.chat-agent-feedback-review-empty', undefined, message));
+				alert(message);
+			}
+			return;
 		}
 
 		if (this._store.isDisposed) {
