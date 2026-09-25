@@ -18499,6 +18499,54 @@ Use the attached image as context.
 			]);
 		});
 
+		for (const copilotHome of [undefined, '/custom/copilot']) {
+			test(`publishes user MCP definition locations with ${copilotHome ? 'custom' : 'default'} Copilot home`, async () => {
+				const previousCopilotHome = process.env['COPILOT_HOME'];
+				if (copilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
+				} else {
+					process.env['COPILOT_HOME'] = copilotHome;
+				}
+				try {
+					const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+						getUserMcpServerNames: async () => new Set(['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server']),
+						configureMockSession: m => {
+							m.mcpListResult = {
+								servers: [
+									{ name: 'explicit-user', status: 'connected', source: 'user' },
+									{ name: 'inferred-user', status: 'connected' },
+									{ name: 'workspace-server', status: 'connected', source: 'workspace' },
+									{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+									{ name: 'builtin-server', status: 'connected', source: 'builtin' },
+									{ name: 'unknown-server', status: 'connected' },
+								],
+							};
+						},
+					});
+					await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+					const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
+						id: server.id, uri: server.uri,
+					}));
+					const initial = snapshot();
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'explicit-user', status: 'stopped' });
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'inferred-user', status: 'failed', error: 'Connection failed' });
+
+					const userUri = URI.file(join(copilotHome ?? join('/mock-home', '.copilot'), 'mcp-config.json')).toString();
+					const expected = ['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server', 'unknown-server'].map(name => {
+						const id = `mcp-top-level:copilot:test-session-1:${name}`;
+						return { id, uri: name.endsWith('-user') ? userUri : id };
+					});
+					assert.deepStrictEqual({ initial, afterLifecycle: snapshot() }, { initial: expected, afterLifecycle: expected });
+				} finally {
+					if (previousCopilotHome === undefined) {
+						delete process.env['COPILOT_HOME'];
+					} else {
+						process.env['COPILOT_HOME'] = previousCopilotHome;
+					}
+				}
+			});
+		}
+
 		test('keeps a ready server ready across repeated loaded inventory invalidations', async () => {
 			const serverName = 'workiq';
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
