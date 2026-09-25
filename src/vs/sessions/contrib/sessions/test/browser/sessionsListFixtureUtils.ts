@@ -17,10 +17,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { IMenu, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, IChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -236,22 +236,66 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 	}
 }
 
-/** Production menus, plus the header's New Session action, which the fixture bundle does not register. */
+type MenuActionGroups = [string, Array<MenuItemAction | SubmenuItemAction>][];
+
+/** The wording the shared archive action registrations use; each fixture's menus show its own wording. */
+const REGISTERED_ARCHIVE_WORDING = ChatSessionArchiveActionWording.Archive;
+
+/**
+ * Production menus, plus the header's New Session action, which the fixture
+ * bundle does not register. Archive actions show in this fixture's wording.
+ */
 class SessionsListFixtureMenuService extends MenuService {
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(commandService, keybindingService, storageService);
 	}
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
-		if (id !== Menus.SidebarSessionsHeader) {
-			return super.createMenu(id, contextKeyService, options);
+		if (id === Menus.SidebarSessionsHeader) {
+			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
+			return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
 		}
-		const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
-		return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
+		const menu = super.createMenu(id, contextKeyService, options);
+		return {
+			onDidChange: menu.onDidChange,
+			getActions: actionOptions => this.applyArchiveWording(menu.getActions(actionOptions), contextKeyService, actionOptions),
+			dispose: () => menu.dispose(),
+		};
+	}
+
+	override getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): MenuActionGroups {
+		return this.applyArchiveWording(super.getMenuActions(id, contextKeyService, options), contextKeyService, options);
+	}
+
+	/**
+	 * Shows the shared archive action registrations in this fixture's wording.
+	 * Production actions take their title and icon from the wording's
+	 * presentation, so the registered presentation's title identifies them.
+	 */
+	private applyArchiveWording(groups: MenuActionGroups, contextKeyService: IContextKeyService, options: IMenuActionOptions | undefined): MenuActionGroups {
+		const wording = getChatSessionArchiveActionWording(this.configurationService);
+		if (wording === REGISTERED_ARCHIVE_WORDING) {
+			return groups;
+		}
+		const registered = getChatSessionArchiveActionPresentation(REGISTERED_ARCHIVE_WORDING);
+		const presentation = getChatSessionArchiveActionPresentation(wording);
+		const kinds = Object.keys(registered) as (keyof IChatSessionArchiveActionPresentation)[];
+		return groups.map(([group, actions]) => [group, actions.map(action => {
+			if (!(action instanceof MenuItemAction)) {
+				return action;
+			}
+			const kind = kinds.find(kind => registered[kind].title === action.item.title);
+			if (!kind) {
+				return action;
+			}
+			const { title, icon } = presentation[kind];
+			return new MenuItemAction({ ...action.item, title, icon }, action.alt?.item, options, action.hideActions, action.menuKeybinding, contextKeyService, this.commandService);
+		})]);
 	}
 }
 
@@ -336,26 +380,19 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 }
 
-let archiveActions: { readonly configurationService: TestConfigurationService; readonly contribution: SessionsArchiveActionsContribution; refs: number } | undefined;
+let archiveActions: { readonly contribution: SessionsArchiveActionsContribution; refs: number } | undefined;
 
 /**
- * Registers the production archive actions once for all mounted fixtures. Both
- * wordings share command ids, so a different wording switches the registration
- * through the contribution's settings listener, as a settings change would.
+ * Registers the production archive actions while any fixture is mounted. Both
+ * wordings share command ids, so they are registered once and never switched:
+ * {@link SessionsListFixtureMenuService} shows them in each fixture's wording,
+ * which keeps concurrently mounted fixtures independent.
  */
-function acquireArchiveActions(wording: ChatSessionArchiveActionWording): IDisposable {
-	if (!archiveActions) {
-		const configurationService = new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording });
-		archiveActions = { configurationService, contribution: new SessionsArchiveActionsContribution(configurationService), refs: 0 };
-	} else if (getChatSessionArchiveActionWording(archiveActions.configurationService) !== wording) {
-		archiveActions.configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, wording);
-		archiveActions.configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ChatSessionArchiveActionWordingSettingId]),
-			change: { keys: [ChatSessionArchiveActionWordingSettingId], overrides: [] },
-			affectsConfiguration: configuration => configuration === ChatSessionArchiveActionWordingSettingId,
-		});
-	}
+function acquireArchiveActions(): IDisposable {
+	archiveActions ??= {
+		contribution: new SessionsArchiveActionsContribution(new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: REGISTERED_ARCHIVE_WORDING })),
+		refs: 0,
+	};
 	const acquired = archiveActions;
 	acquired.refs++;
 	return toDisposable(() => {
@@ -529,7 +566,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
 	}
-	disposableStore.add(acquireArchiveActions(getChatSessionArchiveActionWording(configurationService)));
+	disposableStore.add(acquireArchiveActions());
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
