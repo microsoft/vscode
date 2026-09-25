@@ -1741,6 +1741,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
 			})),
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),

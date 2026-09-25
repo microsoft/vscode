@@ -49,7 +49,7 @@ import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbe
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -61,7 +61,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -3175,6 +3175,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(title),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(status),
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -3809,6 +3810,214 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows archived nested chats when archived items are included', () => {
+			const main = createChat('Main chat');
+			const isArchived = observableValue('peer-is-archived', false);
+			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session);
+			const before = chatRowTitles(container);
+
+			isArchived.set(true, undefined);
+			const hidden = chatRowTitles(container);
+			list.setExcludeArchived(false);
+			const archivedRow = container.querySelector<HTMLElement>('.session-chat-item');
+			const shown = {
+				titles: chatRowTitles(container),
+				archivedClass: archivedRow?.classList.contains('archived'),
+				archivedIcon: !!archivedRow?.querySelector('.codicon-pass-filled'),
+				ariaLabel: archivedRow?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			};
+			isArchived.set(false, undefined);
+
+			assert.deepStrictEqual({ before, hidden, shown, restored: chatRowTitles(container) }, {
+				before: ['Peer chat'],
+				hidden: [],
+				shown: {
+					titles: ['Peer chat'],
+					archivedClass: true,
+					archivedIcon: true,
+					ariaLabel: 'Peer chat, chat, updated now, State: Completed, archived',
+				},
+				restored: ['Peer chat'],
+			});
+		});
+
+		test('shows archived chats for only the requested session', () => {
+			const createSessionWithChats = (title: string): ISession => {
+				const main = createChat(`${title} main`);
+				const active = createChat(`${title} active`, ChatOriginKind.User);
+				const archived: IChat = {
+					...createChat(`${title} archived`, ChatOriginKind.User),
+					isArchived: constObservable(true),
+					capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+				};
+				return {
+					...createTestSession(title).session,
+					chats: constObservable([main, active, archived]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+			};
+			const first = createSessionWithChats('First');
+			const second = createSessionWithChats('Second');
+			const empty = createTestSession('Empty').session;
+			const harness = createListHarness(disposables, [first, second, empty]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			setSessionChatsExpanded(container, false, 'First');
+
+			const initial = chatRowTitles(container).sort();
+			list.setSessionArchivedChatsVisible(first, true);
+			list.setSessionArchivedChatsVisible(empty, true);
+			const shown = chatRowTitles(container).sort();
+			const visibility = {
+				globalArchiveFilterUnchanged: list.isExcludeArchived(),
+				first: list.isSessionArchivedChatsVisible(first),
+				second: list.isSessionArchivedChatsVisible(second),
+				empty: list.isSessionArchivedChatsVisible(empty),
+				firstExpanded: [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'First')
+					?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+			};
+			list.setSessionArchivedChatsVisible(first, false);
+			const hidden = chatRowTitles(container).sort();
+			list.setExcludeArchived(false);
+			const globallyShown = chatRowTitles(container).sort();
+			list.setSessionArchivedChatsVisible(second, false);
+			const secondHidden = chatRowTitles(container).sort();
+			const globalVisibility = {
+				first: list.isSessionArchivedChatsVisible(first),
+				second: list.isSessionArchivedChatsVisible(second),
+				empty: list.isSessionArchivedChatsVisible(empty),
+			};
+
+			assert.deepStrictEqual({ initial, shown, visibility, hidden, globallyShown, secondHidden, globalVisibility }, {
+				initial: ['Second active'],
+				shown: ['First active', 'First archived', 'Second active'],
+				visibility: {
+					globalArchiveFilterUnchanged: true,
+					first: true,
+					second: false,
+					empty: true,
+					firstExpanded: 'true',
+				},
+				hidden: ['First active', 'Second active'],
+				globallyShown: ['First active', 'First archived', 'Second active', 'Second archived'],
+				secondHidden: ['First active', 'First archived', 'Second active'],
+				globalVisibility: {
+					first: true,
+					second: false,
+					empty: true,
+				},
+			});
+		});
+
+		test('shows the primary archive action for manageable chat rows', async () => {
+			const main = createChat('Main chat');
+			const isArchived = observableValue('peer-is-archived', false);
+			const capabilities = observableValue('peer-capabilities', { canRename: true, canArchive: true, canDelete: true });
+			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived, capabilities };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			let invokedTarget: ISessionChatItem | undefined;
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				const markAsDoneAction = instantiationService.createInstance(class extends MenuItemAction {
+					override async run(...args: unknown[]): Promise<void> {
+						invokedTarget = args[0] as ISessionChatItem;
+					}
+				}, {
+					id: ARCHIVE_CHAT_COMMAND_ID,
+					title: 'Mark as Done',
+					icon: Codicon.check,
+				}, undefined, undefined, undefined, undefined);
+				const restoreAction = instantiationService.createInstance(MenuItemAction, {
+					id: UNARCHIVE_CHAT_COMMAND_ID,
+					title: 'Restore',
+					icon: Codicon.redo,
+				}, undefined, undefined, undefined, undefined);
+				instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
+						const menuStore = new DisposableStore();
+						const onDidChange = menuStore.add(new Emitter<IMenuChangeEvent>());
+						const menu: IMenu = {
+							onDidChange: onDidChange.event,
+							getActions: () => {
+								if (menuId !== Menus.SessionChatItemToolbar || !contextKeyService.getContextKeyValue<boolean>(SessionChatItemCanArchiveContext.key)) {
+									return [];
+								}
+								return [['navigation', [contextKeyService.getContextKeyValue<boolean>(SessionChatItemIsArchivedContext.key) ? restoreAction : markAsDoneAction]]];
+							},
+							dispose: () => menuStore.dispose(),
+						};
+						menuStore.add(contextKeyService.onDidChangeContext(() => onDidChange.fire({
+							menu,
+							isStructuralChange: true,
+							isEnablementChange: false,
+							isToggleChange: false,
+						})));
+						return menu;
+					}
+				}());
+			});
+			harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.setExcludeArchived(false);
+			list.layout(300, 400);
+			setSessionChatsExpanded(container, true);
+			await timeout(0);
+
+			const chatRow = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
+			const actionState = () => ({
+				markAsDone: !!chatRow()?.querySelector('.codicon-check'),
+				restore: !!chatRow()?.querySelector('.codicon-redo'),
+			});
+
+			const initial = actionState();
+			chatRow()?.querySelector<HTMLElement>('.codicon-check')?.closest<HTMLElement>('.action-label')?.click();
+			await timeout(0);
+			isArchived.set(true, undefined);
+			await timeout(0);
+			const archived = actionState();
+			capabilities.set({ canRename: true, canArchive: false, canDelete: true }, undefined);
+			await timeout(0);
+			const unsupported = actionState();
+
+			assert.deepStrictEqual({
+				initial,
+				invokedChat: invokedTarget?.chat.resource.toString(),
+				archived,
+				unsupported,
+			}, {
+				initial: { markAsDone: true, restore: false },
+				invokedChat: peer.resource.toString(),
+				archived: { markAsDone: false, restore: true },
+				unsupported: { markAsDone: false, restore: false },
+			});
+		});
+
 		test('hides the main chat even when its title matches the session title', () => {
 			const main = createChat('Session');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -3867,6 +4076,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -3939,6 +4149,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
+				isArchived: constObservable(false),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -4086,6 +4297,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5288,6 +5500,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(id),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
