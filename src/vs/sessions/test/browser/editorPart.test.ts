@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { mainWindow } from '../../../base/browser/window.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { renderSessionsEmptyState } from '../../browser/parts/sessionsEmptyState.js';
+import '../../browser/media/workbench.css';
 import '../../browser/parts/media/editorPart.css';
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
@@ -19,7 +25,71 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 }
 
 suite('Sessions - EditorPart', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	for (const singlePane of [false, true]) {
+		test(`keeps the expanded ${singlePane ? 'single-pane' : 'classic'} editor gutter and content size in sync`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench noauxiliarybar');
+			store.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('dock-detail-panel', singlePane);
+			workbench.style.width = '800px';
+			workbench.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			const grid = appendElement(workbench, 'monaco-grid-view');
+			grid.style.width = '796px';
+			const editor = appendElement(grid, 'part editor');
+			const content = appendElement(editor, 'content');
+			const baseLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+				content.style.width = `${width}px`;
+				content.style.height = `${height}px`;
+			});
+			const states = [
+				{ name: 'split', sidebar: true, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'sidebar hidden', sidebar: false, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'expanded', sidebar: false, sessions: false, phone: false, leftGap: 4, contentWidth: 790 },
+				{ name: 'restored', sidebar: false, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'phone', sidebar: false, sessions: false, phone: true, leftGap: 0, contentWidth: 794 },
+				{ name: 'desktop restored', sidebar: false, sessions: false, phone: false, leftGap: 4, contentWidth: 790 },
+				{ name: 'sidebar restored', sidebar: true, sessions: false, phone: false, leftGap: 0, contentWidth: 794 },
+			];
+			const actual = states.map(state => {
+				workbench.classList.toggle('nosidebar', !state.sidebar);
+				workbench.classList.toggle('nosessionspart', !state.sessions);
+				workbench.classList.toggle('phone-layout', state.phone);
+				const part = {
+					layoutService: {
+						mainContainer: workbench,
+						isSinglePaneLayoutEnabled: singlePane,
+						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+							|| (partId === Parts.SIDEBAR_PART && state.sidebar)
+							|| (partId === Parts.SESSIONS_PART && state.sessions),
+					},
+				};
+				const layout = MainEditorPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+				layout.call(part, 796, 600, 36, 0);
+
+				return {
+					name: state.name,
+					leftGap: editor.getBoundingClientRect().left - grid.getBoundingClientRect().left,
+					rightGap: workbench.getBoundingClientRect().right - editor.getBoundingClientRect().right,
+					contentWidth: content.clientWidth,
+					editorContentWidth: editor.clientWidth,
+					layout: baseLayout.lastCall.args,
+				};
+			});
+
+			assert.deepStrictEqual(actual, states.map(state => ({
+				name: state.name,
+				leftGap: state.leftGap,
+				rightGap: 4,
+				contentWidth: state.contentWidth,
+				editorContentWidth: state.contentWidth,
+				layout: [state.contentWidth, 598, 36, 0],
+			})));
+		});
+	}
 
 	test('constrains the Browser navbar to the editor header height', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench dock-detail-panel');

@@ -127,6 +127,10 @@
 	border-bottom-right-radius: 8px;
 }
 
+.agent-sessions-workbench.nosidebar.nosessionspart:not(.phone-layout) .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+}
+
 /* Floating content card. Shared by every full-surface content part (the
 	sessions grid and the custom view grid) so they are visually identical. */
 .agent-sessions-workbench .agents-part-card {
