@@ -22,8 +22,9 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
+import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../../chat/browser/sessionsTasksService.js';
 import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -33,6 +34,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
+import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -72,6 +74,12 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly requestSentPayloads: unknown[] = [];
 	readonly sessionCounts: ISessionCountsTelemetry[] = [];
 	readonly sessionSummaries: unknown[] = [];
+	readonly workspaceFileCounts: number[] = [];
+
+	constructor(telemetryLevel: TelemetryLevel) {
+		super();
+		Object.defineProperty(this, 'telemetryLevel', { value: telemetryLevel });
+	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
 		if (eventName === 'agents/sessionSummary') {
@@ -79,6 +87,10 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		}
 		if (eventName === 'agents/requestSent' && isRequestSentTelemetry(data)) {
 			this.requestSentPayloads.push(data);
+			const workspaceFileCount = Reflect.get(data, 'workspaceFileCount');
+			if (typeof workspaceFileCount === 'number') {
+				this.workspaceFileCounts.push(workspaceFileCount);
+			}
 			this.requestSentEvents.push({
 				isNewSession: data.isNewSession,
 				isNewChat: data.isNewChat,
@@ -105,10 +117,12 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 const chat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),
@@ -131,8 +145,6 @@ const session = {
 	title: constObservable('Session'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
-	changesets: constObservable([]),
-	changes: constObservable([]),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	loading: constObservable(false),
@@ -158,15 +170,34 @@ function createWorkspace(uri: URI, folders: ISessionFolder[] = []): ISessionWork
 
 const workspace = createWorkspace(URI.parse('file:///repo'));
 
+/** Simulates folders with known file counts; any other folder is larger than every search limit, like a home folder. */
+class TestFileCountSearchService extends mock<ISearchService>() {
+	readonly requests: { folders: string[]; maxResults: number | undefined }[] = [];
+
+	constructor(private readonly _fileCounts: ReadonlyMap<string, number> = new Map()) {
+		super();
+	}
+
+	override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+		const folders = query.folderQueries.map(folderQuery => folderQuery.folder.path);
+		this.requests.push({ folders, maxResults: query.maxResults });
+		const available = folders.reduce((sum, folder) => sum + (this._fileCounts.get(folder) ?? 100_000), 0);
+		const resultCount = Math.min(available, query.maxResults ?? available);
+		const resource = URI.file('/file');
+		return { results: Array.from({ length: resultCount }, () => ({ resource })), messages: [], limitHit: resultCount < available };
+	}
+}
+
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = []): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+		const onWillSendRequest = disposables.add(new Emitter<ISession>());
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
 		const onModelAdded = disposables.add(new Emitter<ITextModel>());
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
-			override readonly onWillSendRequest = Event.None;
+			override readonly onWillSendRequest = onWillSendRequest.event;
 			override readonly onDidSendRequest = onDidSendRequest.event;
 			override readonly onDidArchiveSession = onDidArchiveSession.event;
 			override readonly onDidUnarchiveSession = Event.None;
@@ -182,7 +213,7 @@ suite('SessionsTelemetryContribution', () => {
 			override readonly activeSession = activeSession ?? constObservable(undefined);
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestTelemetryService(options.telemetryLevel ?? TelemetryLevel.NONE);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commandService = new class extends mock<ICommandService>() {
 			override readonly onDidExecuteCommand = Event.None;
@@ -218,7 +249,7 @@ suite('SessionsTelemetryContribution', () => {
 				override readonly extUri = extUri;
 			}(),
 			storageService,
-			new class extends mock<ISearchService>() {
+			options.searchService ?? new class extends mock<ISearchService>() {
 				override async fileSearch() { return { results: [], messages: [], limitHit: false }; }
 			}(),
 			new TestConfigurationService(),
@@ -234,7 +265,7 @@ suite('SessionsTelemetryContribution', () => {
 			}(),
 		));
 
-		return { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded };
+		return { telemetryService, storageService, onWillSendRequest, onDidSendRequest, onDidArchiveSession, onModelAdded };
 	}
 
 	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
@@ -259,6 +290,23 @@ suite('SessionsTelemetryContribution', () => {
 			{ isNewSession: false, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: false, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
 		]);
+	});
+
+	test('requestSent includes editor usage without incrementing it for Agents messages', async () => {
+		const { telemetryService, storageService, onDidSendRequest } = setup([session]);
+		const usage = new EditorChatUsage(storageService);
+		usage.recordSubmission('local', true, true, false, Date.now() - 5000);
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'agents message' } });
+		await Promise.resolve();
+		const payload = telemetryService.requestSentPayloads[0];
+		assert.ok(payload && typeof payload === 'object');
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(payload).filter(([key]) => key.startsWith('editor'))), {
+			editorSessionsByProvider: '{"local":1}',
+			editorMessages: 1,
+			editorMessagesWithOtherSessionInProgress: 1,
+			editorMessagesWithOtherSessionInProgressAcrossWindows: 1,
+			editorLastMessageSecondsAgo: 5,
+		});
 	});
 
 	test('requestSent snapshots the non-archived Sessions list count independently of visible grid slots', async () => {
@@ -357,6 +405,50 @@ suite('SessionsTelemetryContribution', () => {
 			allWorkspacesWaitingForInput: 0,
 			allWorkspacesNotDone: 2,
 		}]);
+	});
+
+	test('workspace file count search is bounded and runs once per set of workspace folders', async () => {
+		const searchService = new TestFileCountSearchService(new Map([['/project', 5]]));
+		const homeFolder: ISessionFolder = { root: URI.file('/home'), workingDirectory: URI.file('/home'), name: 'home', description: undefined };
+		const projectFolder: ISessionFolder = { root: URI.file('/project'), workingDirectory: URI.file('/project'), name: 'project', description: undefined };
+		const home = { ...session, workspace: constObservable(createWorkspace(URI.file('/home'), [homeFolder])) };
+		const otherHome = { ...home, sessionId: 'other-home', resource: URI.parse('test:///other-home') };
+		const project = { ...session, sessionId: 'project', resource: URI.parse('test:///project'), workspace: constObservable(createWorkspace(URI.file('/project'), [projectFolder])) };
+		// Same workspace URI after the session gained an additional folder.
+		const projectAndHome = { ...project, workspace: constObservable(createWorkspace(URI.file('/project'), [projectFolder, homeFolder])) };
+		const { telemetryService, onWillSendRequest, onDidSendRequest } = setup([home, otherHome, project], undefined, [], { searchService, telemetryLevel: TelemetryLevel.USAGE });
+
+		for (const target of [home, home, otherHome, project, projectAndHome]) {
+			onWillSendRequest.fire(target);
+			onDidSendRequest.fire({ session: target, chat, isNewSession: false, isNewChat: false, options: { query: 'hi' } });
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ requests: searchService.requests, workspaceFileCounts: telemetryService.workspaceFileCounts }, {
+			requests: [
+				{ folders: ['/home'], maxResults: 20_000 },
+				{ folders: ['/project'], maxResults: 20_000 },
+				{ folders: ['/project'], maxResults: 20_000 },
+				{ folders: ['/home'], maxResults: 19_995 },
+			],
+			workspaceFileCounts: [20_000, 20_000, 20_000, 5, 20_000],
+		});
+	});
+
+	test('workspace file count is not computed without usage telemetry', async () => {
+		const searchService = new TestFileCountSearchService();
+		const homeFolder: ISessionFolder = { root: URI.file('/home'), workingDirectory: URI.file('/home'), name: 'home', description: undefined };
+		const target = { ...session, workspace: constObservable(createWorkspace(URI.file('/home'), [homeFolder])) };
+		const { telemetryService, onWillSendRequest, onDidSendRequest } = setup([target], undefined, [], { searchService, telemetryLevel: TelemetryLevel.ERROR });
+
+		onWillSendRequest.fire(target);
+		onDidSendRequest.fire({ session: target, chat, isNewSession: false, isNewChat: false, options: { query: 'hi' } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ requests: searchService.requests, workspaceFileCounts: telemetryService.workspaceFileCounts }, {
+			requests: [],
+			workspaceFileCounts: [-1],
+		});
 	});
 
 	test('sessionSummary counts characters and distinct files typed in the active session working directory only', () => {

@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
@@ -40,7 +42,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		_options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
+		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -65,7 +67,9 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
+			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			inputVisible: _options.inputVisible,
+			hostVisible: _options.hostVisible,
 			canSendRequest,
 			loading: constObservable(false),
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
@@ -184,7 +188,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;
@@ -198,9 +202,14 @@ export class NewChatInSessionWidget extends Disposable {
 				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
 			}
 
-			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext, background });
+			userInteraction?.handoff(activeSession, activeChat);
+			await this.sessionsManagementService.sendRequest(activeSession, activeChat, {
+				query, attachedContext, background,
+				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
+			});
 			return true;
 		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			this.logService.error('Failed to send secondary chat request:', e);
 			return false;
 		}

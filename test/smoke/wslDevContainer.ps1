@@ -44,9 +44,104 @@ function Invoke-Wsl([string] $Command) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 2 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	curl.exe --fail --location --retry 5 --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
+	}
+}
+
+function Test-KernelPackageSignature([string] $Path) {
+	$signature = Get-AuthenticodeSignature -LiteralPath $Path
+	return $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'CN=Microsoft Corporation,'
+}
+
+function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
+	"--- $Name ---"
+	try {
+		$output = & $Action 2>&1 | Out-String -Width 4096
+		$output.TrimEnd()
+	} catch {
+		"WARNING: Failed to collect ${Name}: $_"
+	}
+}
+
+function Write-WslDiagnostics([datetime] $ImportStartTime, [string] $InstallPath) {
+	'=== WSL diagnostics after failed import ==='
+	"Import started (UTC): $($ImportStartTime.ToUniversalTime().ToString('o'))"
+	Write-DiagnosticSection 'Windows and WSL versions' {
+		Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
+		"wsl.exe file version: $((Get-Item -LiteralPath $wsl).VersionInfo.FileVersion)"
+		$output = & $wsl --version 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | Select-Object -First 20 | ForEach-Object { "$_" -replace "`0", '' }
+		"wsl --version exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'wsl --status' {
+		$output = & $wsl --status 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | ForEach-Object { "$_" -replace "`0", '' }
+		"Exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'wsl --list --verbose' {
+		$output = & $wsl --list --verbose 2>&1
+		$exitCode = $LASTEXITCODE
+		$output | ForEach-Object { "$_" -replace "`0", '' }
+		"Exit code: $exitCode"
+	}
+	Write-DiagnosticSection 'Partial import files' {
+		$files = @(Get-ChildItem -LiteralPath $InstallPath -Force)
+		if ($files.Count) {
+			$files | Select-Object Name, Length, LastWriteTimeUtc | Format-List
+		} else {
+			'No files created.'
+		}
+	}
+	Write-DiagnosticSection 'Virtualization' {
+		Get-CimInstance -ClassName Win32_ComputerSystem |
+			Select-Object Manufacturer, Model, HypervisorPresent
+	}
+	Write-DiagnosticSection 'Windows optional features' {
+		foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+			Get-WindowsOptionalFeature -Online -FeatureName $featureName |
+				Select-Object FeatureName, State
+		}
+	}
+	Write-DiagnosticSection 'WSL services' {
+		foreach ($serviceName in @('LxssManager', 'WslService', 'vmcompute', 'hns')) {
+			$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+			if ($service) {
+				$service | Select-Object Name, Status, StartType
+			} else {
+				[pscustomobject]@{ Name = $serviceName; Status = 'NotFound'; StartType = $null }
+			}
+		}
+	}
+	Write-DiagnosticSection 'Pending reboot indicators' {
+		$pendingFileRenames = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations
+		[pscustomobject]@{
+			ComponentBasedServicing = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+			WindowsUpdate           = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+			PendingFileRenames      = $null -ne $pendingFileRenames
+		}
+	}
+
+	$eventStartTime = $ImportStartTime.AddMinutes(-1)
+	$eventEndTime = Get-Date
+	$wslEventLogs = @()
+	try {
+		$wslEventLogs = @(Get-WinEvent -ListLog '*Lxss*' -ErrorAction Stop | Select-Object -ExpandProperty LogName)
+	} catch {
+		"WARNING: Failed to discover WSL event logs: $_"
+	}
+	Write-DiagnosticSection 'Available WSL event logs' {
+		if ($wslEventLogs.Count) { $wslEventLogs } else { 'No Lxss event logs available.' }
+	}
+	foreach ($eventLogName in @($wslEventLogs + @('Microsoft-Windows-Host-Compute-Service-Admin', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Hyper-V-VMMS-Admin') | Select-Object -Unique)) {
+		$action = {
+			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime; EndTime = $eventEndTime } -MaxEvents 20 -ErrorAction Stop |
+				Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-List
+		}.GetNewClosure()
+		Write-DiagnosticSection "Recent events: $eventLogName" $action
 	}
 }
 
@@ -91,12 +186,38 @@ Write-SmokeOutput 'root' $Root
 Write-SmokeOutput 'distro' $Distribution
 
 $kernelPackage = Join-Path $Root 'wsl_update_x64.msi'
-Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
-$signature = Get-AuthenticodeSignature -LiteralPath $kernelPackage
-if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation,') {
+$kernelCachePath = $env:WSL_KERNEL_CACHE_PATH
+$usedKernelCache = $false
+if ($kernelCachePath -and (Test-Path -LiteralPath $kernelCachePath -PathType Leaf)) {
+	if (Test-KernelPackageSignature $kernelCachePath) {
+		Copy-Item -LiteralPath $kernelCachePath -Destination $kernelPackage
+		$usedKernelCache = $true
+		Write-Host 'Using verified cached WSL2 kernel installer.'
+	} else {
+		Write-Warning 'Cached WSL2 kernel installer has an invalid Microsoft signature; downloading a fresh copy.'
+	}
+}
+if (-not $usedKernelCache) {
+	Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
+}
+if (-not (Test-KernelPackageSignature $kernelPackage)) {
 	throw 'The WSL2 kernel package does not have a valid Microsoft signature.'
 }
+if (-not $usedKernelCache) {
+	if ($kernelCachePath) {
+		New-Item -ItemType Directory -Force -Path (Split-Path -Parent $kernelCachePath) | Out-Null
+		Copy-Item -LiteralPath $kernelPackage -Destination $kernelCachePath -Force
+	}
+}
+if ($usedKernelCache -and $env:WSL_KERNEL_CACHE_RESULT -ne 'true') {
+	$refreshPath = Join-Path (Split-Path -Parent $kernelCachePath) "wsl_update_x64.$([guid]::NewGuid().ToString('N')).msi"
+	$refreshJob = Start-ThreadJob -ArgumentList $refreshPath, ${function:Save-Download} -ScriptBlock {
+		param([string] $Destination, [scriptblock] $Download)
+		& $Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $Destination
+	}
+}
 $installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
+Write-Host "WSL2 kernel installer exit code: $($installer.ExitCode)"
 if ($installer.ExitCode -ne 0) {
 	throw "WSL2 kernel installation failed or requires a reboot (exit code $($installer.ExitCode)). No reboot will be attempted."
 }
@@ -108,10 +229,19 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 }
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
-& $wsl --import $Distribution $install $archive --version 2
-if ($LASTEXITCODE -ne 0) {
-	throw "Explicit WSL2 import failed with exit code $LASTEXITCODE. WSL1 is not supported by this test."
+$importStartTime = Get-Date
+$importOutput = & $wsl --import $Distribution $install $archive --version 2 2>&1
+$importExitCode = $LASTEXITCODE
+if ($importExitCode -ne 0) {
+	$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
+	New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution.log"
+	@("WSL2 kernel installer exit code: $($installer.ExitCode)", "Import exit code: $importExitCode", 'Import output:') + @($importOutput | ForEach-Object { "$_" -replace "`0", '' }) |
+		Tee-Object -FilePath $diagnosticsPath
+	Write-WslDiagnostics $importStartTime $install | Tee-Object -FilePath $diagnosticsPath -Append
+	throw "Explicit WSL2 import failed with exit code $importExitCode. WSL1 is not supported by this test."
 }
+$importOutput | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
 Invoke-Wsl 'uname -a; cat /etc/os-release'
 
 # The frontend is built from this PR; the unchanged backend uses a pinned published server.
@@ -181,3 +311,24 @@ if ($guestAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 New-NetFirewallRule -Name $Distribution -DisplayName $Distribution -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress $guestAddress | Out-Null
 Write-SmokeOutput 'serverPath' '/opt/vscode-smoke-server'
 Write-Host "WSL Docker is ready in $Distribution with Linux server $serverCommit."
+if ($refreshJob) {
+	try {
+		Receive-Job -Job $refreshJob -Wait -ErrorAction Stop | Out-Host
+		if (-not (Test-KernelPackageSignature $refreshPath)) {
+			throw 'The refreshed WSL2 kernel package does not have a valid Microsoft signature.'
+		}
+		if ((Get-FileHash -LiteralPath $refreshPath -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $kernelCachePath -Algorithm SHA256).Hash) {
+			[IO.File]::Move($refreshPath, $kernelCachePath, $true)
+			Write-Host 'Updated the WSL2 kernel installer cache for the next build.'
+		} else {
+			Write-Host 'The cached WSL2 kernel installer is current.'
+		}
+	} catch {
+		Write-Warning "Unable to refresh the cached WSL2 kernel installer: $_"
+	} finally {
+		Remove-Job -Job $refreshJob -Force
+		if (Test-Path -LiteralPath $refreshPath) {
+			Remove-Item -LiteralPath $refreshPath -Force
+		}
+	}
+}

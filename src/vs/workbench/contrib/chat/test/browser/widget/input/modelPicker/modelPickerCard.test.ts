@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
-import { getModelConfigSummary, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigurationAccess, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -41,6 +41,28 @@ function createModel(metadata: Partial<ILanguageModelChatMetadata> = {}): ILangu
 			},
 			...metadata,
 		}),
+	};
+}
+
+function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		...createModel({
+			id: 'auto',
+			name: 'Auto',
+			detail: '10% discount',
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string', title: 'Optimize for', group: 'navigation',
+						enum: ['efficiency', 'balance', 'intelligence'],
+						enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
+						default: 'balance',
+					},
+				},
+			},
+		}),
+		identifier: 'copilot/auto',
 	};
 }
 
@@ -123,6 +145,198 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	for (const activation of ['pointer', 'Enter', 'Space'] as const) {
+		for (const [index, tier] of [[0, 'efficiency'], [1, 'balance']] as const) {
+			test(`Auto details accept the ${tier} tier via ${activation}, including its current value`, async () => {
+				const result = createCard({ tier: 'balance' }, { model: createAutoModel() });
+				const choice = result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[index];
+				choice.focus();
+				if (activation === 'pointer') {
+					choice.click();
+				} else {
+					choice.dispatchEvent(new KeyboardEvent('keydown', { key: activation === 'Space' ? ' ' : 'Enter', keyCode: activation === 'Space' ? 32 : 13, bubbles: true }));
+				}
+				await timeout(0);
+				assert.deepStrictEqual({
+					writes: result.writes,
+					values: result.values,
+					changes: result.changes,
+					selectedModels: result.selectedModels,
+					selected: selectedOptions(result.card),
+					focused: document.activeElement?.textContent,
+				}, {
+					writes: [{ tier }],
+					values: { tier },
+					changes: tier === 'balance' ? [] : [['navigation', 'tier', 'balance', 'efficiency']],
+					selectedModels: ['copilot/auto'],
+					selected: [index === 0 ? 'Efficiency' : 'Balance'],
+					focused: index === 0 ? 'Efficiency' : 'Balance',
+				});
+			});
+		}
+	}
+
+	test('Auto details preserve arrow focus without activating a tier', async () => {
+		const result = createCard({ tier: 'balance' }, { model: createAutoModel() });
+		const choices = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+		choices()[1].focus();
+		const focused: number[] = [];
+		for (const [key, keyCode] of [['ArrowRight', 39], ['ArrowDown', 40], ['ArrowLeft', 37], ['ArrowUp', 38]] as const) {
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			result.card.refresh();
+			focused.push(choices().findIndex(choice => document.activeElement === choice));
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ focused, writes: result.writes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
+			focused: [2, 0, 2, 1], writes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('Auto is selected only after its tier saves without stealing focus moved elsewhere', async () => {
+		const pending = new DeferredPromise<void>();
+		const values = { tier: 'balance' };
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => { await pending.p; Object.assign(values, next); },
+			},
+		});
+		const outside = mainWindow.document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add(toDisposable(() => outside.remove()));
+		result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
+		await timeout(0);
+		const beforeSave = { values: { ...values }, selectedModels: [...result.selectedModels] };
+		outside.focus();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ beforeSave, values, selectedModels: result.selectedModels, outsideFocused: document.activeElement === outside }, {
+			beforeSave: { values: { tier: 'balance' }, selectedModels: [] },
+			values: { tier: 'intelligence' }, selectedModels: ['copilot/auto'], outsideFocused: true,
+		});
+	});
+
+	test('failed Auto tier saves report the error and restore the remembered tier without selecting Auto', async () => {
+		const failure = new Error('Cannot save tier');
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => ({ tier: 'balance' }),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async () => { throw failure; },
+			},
+		});
+		const reported: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error));
+		try {
+			result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual({ reported, changes: result.changes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
+			reported: [failure], changes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('rapid Auto tier activations save in order and select Auto once', async () => {
+		const pending = new DeferredPromise<void>();
+		const values = { tier: 'balance' };
+		const writes: unknown[] = [];
+		const result = createCard({}, {
+			model: createAutoModel(),
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => {
+					writes.push(next.tier);
+					if (writes.length === 1) {
+						await pending.p;
+					}
+					Object.assign(values, next);
+				},
+			},
+		});
+		const choices = result.card.element.querySelectorAll<HTMLElement>('[role="radio"]');
+		choices[0].click();
+		choices[2].click();
+		await timeout(0);
+		const pendingWrites = [...writes];
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ pendingWrites, writes, values, selectedModels: result.selectedModels, changes: result.changes, selected: selectedOptions(result.card) }, {
+			pendingWrites: ['efficiency'], writes: ['efficiency', 'intelligence'], values: { tier: 'intelligence' },
+			selectedModels: ['copilot/auto'],
+			changes: [['navigation', 'tier', 'balance', 'efficiency'], ['navigation', 'tier', 'efficiency', 'intelligence']],
+			selected: ['Intelligence'],
+		});
+	});
+
+	for (const menuFirst of [false, true]) {
+		test(`configuration writes from ${menuFirst ? 'a menu then Details' : 'Details then a menu'} share one transaction`, async () => {
+			const model = createModel();
+			const pending = new DeferredPromise<void>();
+			const values = { effort: 'medium' };
+			const writes: IStringDictionary<unknown>[] = [];
+			const result = createCard({}, {
+				model,
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					getModelConfigurationActions: () => [],
+					setModelConfiguration: async (_id, next) => {
+						writes.push(next);
+						await pending.p;
+						Object.assign(values, next);
+					},
+				},
+			});
+			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
+				(...change) => result.changes.push(change));
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Thinking Effort"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			let menuSave: Promise<void>;
+			if (menuFirst) {
+				menuSave = menuEdit();
+				cardEdit();
+			} else {
+				cardEdit();
+				menuSave = menuEdit();
+			}
+			await timeout(0);
+			const before = [...writes];
+			await pending.complete();
+			await menuSave;
+			await timeout(0);
+			assert.deepStrictEqual({ before, writes, values, changes: result.changes }, {
+				before: [{ effort: 'high' }], writes: [{ effort: 'high' }, { effort: 'low' }], values: { effort: 'low' },
+				changes: [['navigation', 'effort', 'medium', 'high'], ['navigation', 'effort', 'high', 'low']],
+			});
+		});
+	}
+
+	test('an external header retains its actions and focus through updates and reset', async () => {
+		const result = createCard({ effort: 'high' }, { externalHeader: true, onTogglePin: () => { } });
+		const header = result.card.headerElement;
+		document.body.appendChild(header);
+		disposables.add(toDisposable(() => header.remove()));
+		element(header, '[aria-label="Pin Model"]').focus();
+		result.update({ isPinned: true });
+		const focusedAfterPin = document.activeElement?.getAttribute('aria-label');
+		element(header, '[aria-label="Reset to Default"]').focus();
+		element(header, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			external: !result.card.element.contains(header),
+			sameHeader: result.card.headerElement === header,
+			focusedAfterPin,
+			focusedAfterReset: document.activeElement?.getAttribute('aria-label'),
+			reset: !!header.querySelector('[aria-label="Reset to Default"]'),
+			selected: selectedOptions(result.card),
+		}, { external: true, sameHeader: true, focusedAfterPin: 'Unpin Model', focusedAfterReset: 'Unpin Model', reset: false, selected: ['Medium', '264K'] });
+	});
+
 	async function createAnimatedCard(options: Partial<IModelCardOptions> = {}) {
 		const result = createCard({}, options);
 		result.card.element.classList.remove('monaco-reduce-motion');
@@ -170,6 +384,28 @@ suite('ModelCard', () => {
 		paint(getWindow(badge).getComputedStyle(badge).color);
 		return background.getContrastRatio(readColor());
 	}
+
+	test('cards and hovers use the declared context window with a legacy fallback', () => {
+		const results = [
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 50_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 0, maxOutputTokens: 0, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 0 },
+		].map(limits => {
+			const model = createModel({ ...limits, configurationSchema: undefined });
+			const { card } = createCard({}, { model });
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return [
+				card.element.querySelector('.chat-model-card-section-value')?.textContent,
+				hover.element.querySelector('.chat-model-hover-context-value')?.textContent,
+			];
+		});
+
+		assert.deepStrictEqual(results, [['100K', '100K'], ['100K', '100K'], ['100K', '100K'], ['120K', '120K'], [undefined, undefined]]);
+	});
 
 	for (const theme of [
 		{ name: 'Dark', className: 'vs-dark', foreground: '#cccccc', background: '#1f1f1f', description: '#9d9d9d', warning: '#cca700' },
@@ -597,11 +833,33 @@ suite('ModelCard', () => {
 			accepted: 1,
 			selectedModels: ['copilot/test-model'],
 			selected: ['Medium', '264K'],
-			summary: undefined,
+			summary: 'Medium · 264K',
 			reset: false,
 			pinned: 'true',
 			focused: true,
 		});
+	});
+
+	test('model descriptions are available without configurable settings', () => {
+		const result = createCard({}, { model: createModel({ configurationSchema: undefined, tooltip: 'A model for **careful reasoning**.', maxContextWindowTokens: 200000 }) });
+		assert.deepStrictEqual({
+			description: result.card.element.querySelector('.chat-model-card-description')?.textContent?.trim(),
+			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
+			settings: result.card.element.querySelectorAll('[role="radiogroup"]').length,
+		}, { description: 'A model for careful reasoning.', context: '200K', settings: 0 });
+	});
+
+	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
+		const result = createCard({}, {
+			model: createModel({
+				id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview',
+				configurationSchema: undefined, maxContextWindowTokens: 200000,
+			})
+		});
+		assert.deepStrictEqual({
+			badge: result.card.element.querySelector('.chat-model-card-header .chat-model-card-badge')?.textContent,
+			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
+		}, { badge: 'Research preview', context: undefined });
 	});
 
 	test('reset uses the provider defaults and returns focus to a setting when pinning is unavailable', async () => {

@@ -35,6 +35,8 @@ import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessi
 export const SESSION_ARCHIVE_NUDGE_SETTING = 'chat.agentSessions.archiveNudge.enabled';
 
 const DISMISSED_STORAGE_KEY_PREFIX = 'sessions.archiveNudge.dismissed.';
+const ARCHIVE_COUNT_STORAGE_KEY = 'sessions.archiveNudge.archiveCount';
+const COMPACT_AFTER_ARCHIVE_COUNT = 3;
 
 interface ISessionArchiveNudgeState {
 	readonly session: ISession;
@@ -45,6 +47,7 @@ interface ISessionArchiveNudgeState {
 export interface ISessionArchiveNudgeService {
 	readonly _serviceBrand: undefined;
 	isDismissed(session: ISession, reader: IReader | undefined): boolean;
+	shouldShowCompact(reader: IReader | undefined): boolean;
 	markShown(state: ISessionArchiveNudgeState): void;
 	dismiss(state: ISessionArchiveNudgeState): void;
 	showArchiveOnboarding(session: ISession): Promise<void>;
@@ -74,6 +77,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 
 	private readonly _shown = new Set<string>();
 	private readonly _dismissalChanged: IObservable<void>;
+	private readonly _archiveCountChanged: IObservable<void>;
 	private readonly _onboardingStore = this._register(new MutableDisposable<DisposableStore>());
 	private _onboardingInFlight: Promise<void> | undefined;
 
@@ -91,6 +95,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 			this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
 			event => event.key.startsWith(DISMISSED_STORAGE_KEY_PREFIX),
 		));
+		this._archiveCountChanged = observableSignalFromEvent(this, this._storageService.onDidChangeValue(StorageScope.PROFILE, ARCHIVE_COUNT_STORAGE_KEY, this._store));
 		this._register(this._sessionsManagementService.onDidArchiveSession(session => this._clear(session)));
 		this._register(this._sessionsManagementService.onDidUnarchiveSession(session => this._clear(session)));
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._clear(session)));
@@ -112,6 +117,11 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 		return this._storageService.getBoolean(`${DISMISSED_STORAGE_KEY_PREFIX}${session.sessionId}`, StorageScope.PROFILE, false);
 	}
 
+	shouldShowCompact(reader: IReader | undefined): boolean {
+		this._archiveCountChanged.read(reader);
+		return this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0) >= COMPACT_AFTER_ARCHIVE_COUNT;
+	}
+
 	markShown(state: ISessionArchiveNudgeState): void {
 		if (!this._shown.has(state.session.sessionId)) {
 			this._shown.add(state.session.sessionId);
@@ -129,6 +139,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 		if (!state.session.isArchived.get()) {
 			throw new Error(localize('sessionArchiveNudge.updateFailed', "The session could not be updated. Check its connection and try again."));
 		}
+		const archiveCount = this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0);
+		this._storageService.store(ARCHIVE_COUNT_STORAGE_KEY, Math.min(archiveCount + 1, COMPACT_AFTER_ARCHIVE_COUNT), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._log(state, 'archived');
 	}
 
@@ -309,9 +321,10 @@ export class SessionArchiveNudge extends Disposable {
 				pullRequestCount,
 			};
 		});
-		this.options = this._state.map(state => state && ({
+		this.options = this._state.map((state, reader) => state && ({
 			hasWorktree: state.hasWorktree,
 			pullRequestCount: state.pullRequestCount,
+			compact: this._nudgeService.shouldShowCompact(reader),
 			onDismiss: () => this._nudgeService.dismiss(state),
 			onOpenCleanupSettings: () => commandService.executeCommand('workbench.action.openSettings', AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY),
 			onArchive: async () => {

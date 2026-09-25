@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
+import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
 import '../../browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -23,9 +23,124 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 	};
 	_register<T extends IDisposable>(disposable: T): T;
 }) => void;
+const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
+	readonly sessionsHeaders: ReadonlySet<{
+		readonly row: HTMLElement;
+		readonly label: HTMLElement;
+		readonly actions: HTMLElement;
+		readonly treeHeader: boolean;
+	}>;
+	readonly sessionsContent: HTMLElement | undefined;
+	readonly customizationsPresentation: string;
+	readonly layoutService: { readonly mainContainer: HTMLElement };
+	readonly isFindWidgetOpen: boolean;
+	updateFindHeaderPosition(): void;
+}) => void;
+const updateFindHeaderPosition = Reflect.get(SessionsView.prototype, 'updateFindHeaderPosition') as (this: {
+	readonly sessionsHeaders: ReadonlySet<{ readonly row: HTMLElement; readonly treeHeader: boolean }>;
+	readonly sessionsContent: HTMLElement | undefined;
+	readonly sessionsHeaderContainer: HTMLElement | undefined;
+	readonly sessionsControlContainer: HTMLElement | undefined;
+	readonly customizationsPresentation: string;
+	readonly isFindWidgetOpen: boolean;
+}) => void;
 
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects control and treatment presentations only when AI UI is visible on desktop', () => {
+		assert.deepStrictEqual({
+			control: getCustomizationsPresentation(false, true, false, false),
+			treatment: getCustomizationsPresentation(false, true, false, true),
+			phone: getCustomizationsPresentation(true, true, false, true),
+			aiDisabled: getCustomizationsPresentation(false, false, false, true),
+			aiHidden: getCustomizationsPresentation(false, true, true, true),
+		}, {
+			control: 'control',
+			treatment: 'treatment',
+			phone: 'hidden',
+			aiDisabled: 'hidden',
+			aiHidden: 'hidden',
+		});
+	});
+
+	test('preserves Customizations and Automations focus while switching presentations', () => {
+		const updatePresentation = Reflect.get(SessionsView.prototype, 'updateCustomizationsPresentation') as
+			(this: ReturnType<typeof createHost>, presentation: 'hidden' | 'control' | 'treatment') => void;
+
+		function createHost(
+			presentation: 'hidden' | 'control' | 'treatment',
+			focused: 'customizations' | 'automations',
+		) {
+			const calls: string[] = [];
+			const widget = {
+				hasFocus: () => presentation === 'control' && focused === 'customizations',
+				focus: () => calls.push('focusControlCustomizations'),
+			};
+			const sessionsControl = {
+				isCustomizationsFocused: () => presentation === 'treatment' && focused === 'customizations',
+				isAutomationsFocused: () => focused === 'automations',
+				updateNavigationVisibility: () => calls.push('updateTreeNavigation'),
+				focusCustomizations: () => calls.push('focusTreatmentCustomizations'),
+				focusAutomations: () => calls.push('focusControlAutomations'),
+				focus: () => calls.push('focusSessions'),
+			};
+			const host = {
+				customizationsPresentation: presentation,
+				customizationsNavigationVisible: { set: () => { } },
+				_customizationsWidget: presentation === 'control' ? widget : undefined,
+				sessionsControl,
+				updateHeaderLayout: () => calls.push('updateHeader'),
+				removeCustomizationsPane: () => {
+					calls.push('removePane');
+					host._customizationsWidget = undefined;
+				},
+				updateCustomizationsPane: () => {
+					calls.push('createPane');
+					host._customizationsWidget = widget;
+				},
+				layoutSidebarSplitView: () => calls.push('layout'),
+				calls,
+			};
+			return host;
+		}
+
+		const controlCustomizations = createHost('control', 'customizations');
+		updatePresentation.call(controlCustomizations, 'treatment');
+		const treatmentAutomations = createHost('treatment', 'automations');
+		updatePresentation.call(treatmentAutomations, 'control');
+		const hiddenCustomizations = createHost('treatment', 'customizations');
+		updatePresentation.call(hiddenCustomizations, 'hidden');
+
+		assert.deepStrictEqual({
+			controlCustomizations: controlCustomizations.calls,
+			treatmentAutomations: treatmentAutomations.calls,
+			hiddenCustomizations: hiddenCustomizations.calls,
+		}, {
+			controlCustomizations: [
+				'updateHeader',
+				'updateTreeNavigation',
+				'removePane',
+				'focusTreatmentCustomizations',
+				'layout',
+			],
+			treatmentAutomations: [
+				'updateHeader',
+				'updateTreeNavigation',
+				'removePane',
+				'createPane',
+				'focusControlAutomations',
+				'layout',
+			],
+			hiddenCustomizations: [
+				'updateHeader',
+				'updateTreeNavigation',
+				'removePane',
+				'focusSessions',
+				'layout',
+			],
+		});
+	});
 
 	test('does not reserve customization space on phones and restores the pane on desktop', () => {
 		const mainContainer = mainWindow.document.createElement('div');
@@ -61,11 +176,21 @@ suite('Sessions - SessionsViewPane', () => {
 			sidebarSplitView: splitView,
 			customizationsPaneDisposables,
 			_customizationsWidget: undefined as AICustomizationShortcutsWidget | undefined,
+			customizationsPresentation: 'control',
 			currentBodyWidth: 300,
 			currentBodyHeight: 600,
 			didInitializePaneSizes: false,
 			getCustomizationsPaneHeight: () => 200,
 			layoutSidebarSplitView: (): void => layoutPane.call(host),
+			removeCustomizationsPane: (): void => {
+				if (!host._customizationsWidget) {
+					return;
+				}
+				splitView.removeView(1, Sizing.Distribute);
+				host._customizationsWidget = undefined;
+				customizationsPaneDisposables.clear();
+				host.didInitializePaneSizes = false;
+			},
 		};
 		const updatePane = Reflect.get(SessionsView.prototype, 'updateCustomizationsPane') as (this: typeof host) => void;
 		const layoutPane = Reflect.get(SessionsView.prototype, 'layoutSidebarSplitView') as (this: typeof host) => void;
@@ -147,15 +272,135 @@ suite('Sessions - SessionsViewPane', () => {
 				defaultHeight,
 				compactHeight,
 				restoredHeight,
+				flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
 				hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
 			}, {
 				defaultHeight: '32px',
 				compactHeight: '28px',
 				restoredHeight: '32px',
+				flexShrink: '0',
 				hasCompactClass: false,
 			});
 		} finally {
 			workbench.remove();
 		}
+	});
+
+	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {
+		const mainContainer = mainWindow.document.createElement('div');
+		const headerRow = mainWindow.document.createElement('div');
+		const headerLabel = mainWindow.document.createElement('div');
+		const headerActions = mainWindow.document.createElement('div');
+		const sessionsContent = mainWindow.document.createElement('div');
+		headerLabel.style.display = 'none';
+		headerRow.append(headerLabel, headerActions);
+		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
+		Object.defineProperty(headerLabel, 'clientWidth', { configurable: true, value: 0 });
+		const host = {
+			sessionsHeaders: new Set([{
+				row: headerRow,
+				label: headerLabel,
+				actions: headerActions,
+				toolbar: undefined,
+				treeHeader: true,
+			}]),
+			sessionsContent,
+			customizationsPresentation: 'treatment',
+			layoutService: { mainContainer },
+			isFindWidgetOpen: false,
+			updateFindHeaderPosition: () => { },
+		};
+
+		updateHeaderLayout.call(host);
+		const transientDisplay = headerLabel.style.display;
+		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 200 });
+		updateHeaderLayout.call(host);
+
+		assert.deepStrictEqual({
+			transientDisplay,
+			narrowDisplay: headerLabel.style.display,
+		}, {
+			transientDisplay: '',
+			narrowDisplay: 'none',
+		});
+	});
+
+	test('aligns Find with the visible Sessions header and follows the sticky handoff', () => {
+		const sessionsContent = mainWindow.document.createElement('div');
+		const sessionsHeaderContainer = mainWindow.document.createElement('div');
+		const sessionsControlContainer = mainWindow.document.createElement('div');
+		const stableHeaderRow = mainWindow.document.createElement('div');
+		const sourceHeader = mainWindow.document.createElement('div');
+		const stickyRow = mainWindow.document.createElement('div');
+		const stickyHeader = mainWindow.document.createElement('div');
+		stickyRow.classList.add('monaco-tree-sticky-row');
+		stickyRow.appendChild(stickyHeader);
+		sessionsHeaderContainer.appendChild(stableHeaderRow);
+
+		const setVerticalBounds = (element: HTMLElement, top: number, bottom: number) => {
+			Object.defineProperty(element, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => ({ top, bottom, height: bottom - top }),
+			});
+		};
+		setVerticalBounds(sessionsContent, 100, 600);
+		setVerticalBounds(sessionsHeaderContainer, 100, 140);
+		setVerticalBounds(stableHeaderRow, 101, 133);
+		setVerticalBounds(sessionsControlContainer, 110, 500);
+		setVerticalBounds(sourceHeader, 180, 212);
+		setVerticalBounds(stickyHeader, 120, 152);
+
+		const host = {
+			sessionsContent,
+			sessionsHeaderContainer,
+			sessionsControlContainer,
+			sessionsHeaders: new Set([
+				{ row: stableHeaderRow, treeHeader: false },
+				{ row: sourceHeader, treeHeader: true },
+				{ row: stickyHeader, treeHeader: true },
+			]),
+			customizationsPresentation: 'treatment',
+			isFindWidgetOpen: true,
+		};
+
+		updateFindHeaderPosition.call(host);
+		const stickyPosition = sessionsHeaderContainer.style.top;
+		setVerticalBounds(stickyHeader, 600, 632);
+		updateFindHeaderPosition.call(host);
+		const sourcePosition = sessionsHeaderContainer.style.top;
+		setVerticalBounds(sourceHeader, 600, 632);
+		updateFindHeaderPosition.call(host);
+
+		assert.deepStrictEqual({
+			stickyPosition,
+			sourcePosition,
+			retainedPositionWithoutVisibleHeader: sessionsHeaderContainer.style.top,
+		}, {
+			stickyPosition: '19px',
+			sourcePosition: '79px',
+			retainedPositionWithoutVisibleHeader: '79px',
+		});
+	});
+
+	test('positions the Find header only while open in treatment', () => {
+		const sessionsContent = mainWindow.document.createElement('div');
+		const host = {
+			sessionsHeaders: new Set<{ readonly row: HTMLElement; readonly label: HTMLElement; readonly actions: HTMLElement; readonly treeHeader: boolean }>(),
+			sessionsContent,
+			customizationsPresentation: 'treatment',
+			layoutService: { mainContainer: mainWindow.document.createElement('div') },
+			isFindWidgetOpen: true,
+			updateFindHeaderPosition: () => { },
+		};
+
+		updateHeaderLayout.call(host);
+		const findOpen = sessionsContent.classList.contains('sessions-find-header-open');
+		host.isFindWidgetOpen = false;
+		updateHeaderLayout.call(host);
+
+		assert.deepStrictEqual([
+			findOpen,
+			sessionsContent.classList.contains('sessions-find-header-open'),
+		], [true, false]);
 	});
 });

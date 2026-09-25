@@ -201,8 +201,8 @@ export class ChatResponseAutoModeResolutionPart {
 }
 
 export class ChatResponseAutoModeTierPart {
-	autoTier: 'efficiency' | 'balance' | 'intelligence' | 'fast' | undefined;
-	constructor(autoTier?: 'efficiency' | 'balance' | 'intelligence' | 'fast') {
+	autoTier: vscode.ChatResponseAutoModeTierPart['autoTier'];
+	constructor(autoTier?: vscode.ChatResponseAutoModeTierPart['autoTier']) {
 		this.autoTier = autoTier;
 	}
 }

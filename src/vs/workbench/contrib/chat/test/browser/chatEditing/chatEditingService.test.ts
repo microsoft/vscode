@@ -49,6 +49,7 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
@@ -95,6 +96,7 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
+		collection.set(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() { });
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		const contextKeyService = store.add(new MockContextKeyService());
 		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
@@ -320,9 +322,15 @@ suite('ChatEditingService', function () {
 					undefined, undefined, 'copilot/auto',
 				);
 				const streaming = waitForState(session.state.map(state => state === ChatEditingSessionState.StreamingEdits), Boolean);
-				for (const autoTier of ['efficiency', 'intelligence', undefined] as const) {
+				for (const [autoTier, metadata] of [
+					['efficiency', undefined],
+					['efficiency', { autoTier: 'fast' }],
+					['efficiency', {}],
+					['intelligence', undefined],
+					[undefined, undefined],
+				] as const) {
 					model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier });
-					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false });
+					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false }, undefined, metadata);
 				}
 				request.response!.complete();
 				const later = model.addRequest({ text: 'later', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/another-model');
@@ -331,7 +339,7 @@ suite('ChatEditingService', function () {
 				await streaming;
 				await waitForState(session.state.map(state => state === ChatEditingSessionState.Idle), Boolean);
 
-				assert.deepStrictEqual(sources, ['efficiency', 'intelligence', undefined].map(autoTier => ({
+				assert.deepStrictEqual(sources, ['efficiency', 'fast', undefined, 'intelligence', undefined].map(autoTier => ({
 					source: inline ? 'inlineChat.applyEdits' : 'Chat.applyEdits',
 					modelId: 'copilot|auto',
 					requestId: request.id,

@@ -277,7 +277,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				if (entry instanceof ChatEditingModifiedNotebookEntry) {
 					await entry.restoreModifiedModelFromSnapshot(content);
 				} else {
-					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined);
+					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined, {});
 				}
 
 				if (state !== ModifiedFileEntryState.Modified) {
@@ -553,21 +553,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushText: (edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
+			pushText: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebookCellText: (cell, edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
+			pushNotebookCellText: (cell, edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(cell, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebook: (edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
+			pushNotebook: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
@@ -1058,6 +1058,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					return 'inlineChat';
 				}
 				return undefined;
+			}
+
+			// The fields above are getters on the prototype, so they are NOT own enumerable
+			// properties and would be dropped by `JSON.stringify` when this object is persisted
+			// as part of the checkpoint timeline. Snapshot the current values into a plain object
+			// so `sessionResource` (and the other fields) survive serialization and revival.
+			toJSON(): IModifiedEntryTelemetryInfo {
+				return {
+					agentId: this.agentId,
+					modelId: this.modelId,
+					modeId: this.modeId,
+					command: this.command,
+					sessionResource: this.sessionResource,
+					requestId: this.requestId,
+					result: undefined,
+					applyCodeBlockSuggestionId: this.applyCodeBlockSuggestionId,
+					feature: this.feature,
+				};
 			}
 		};
 	}

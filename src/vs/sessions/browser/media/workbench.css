@@ -127,6 +127,10 @@
 	border-bottom-right-radius: 8px;
 }
 
+.agent-sessions-workbench.nosidebar.nosessionspart:not(.phone-layout) .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+}
+
 /* Floating content card. Shared by every full-surface content part (the
 	sessions grid and the custom view grid) so they are visually identical. */
 .agent-sessions-workbench .agents-part-card {
@@ -135,6 +139,10 @@
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
+}
+
+.agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .agent-sessions-workbench.noeditorpane .agents-part-card {
@@ -268,9 +276,9 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
-	--part-background: var(--vscode-editor-background);
-	--vscode-sideBar-background: var(--vscode-editor-background);
-	background: var(--vscode-editor-background);
+	--part-background: var(--vscode-agentsDetail-background);
+	--vscode-sideBar-background: var(--vscode-agentsDetail-background);
+	background: var(--vscode-agentsDetail-background);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
@@ -305,7 +313,15 @@
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list-rows {
-	background-color: var(--vscode-editor-background);
+	background-color: var(--vscode-agentsDetail-background);
+}
+
+.agent-sessions-workbench .explorer-folders-view .monaco-list-row,
+.agent-sessions-workbench .changes-file-list .monaco-list-row {
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {

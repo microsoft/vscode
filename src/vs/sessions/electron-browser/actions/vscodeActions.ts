@@ -8,14 +8,16 @@ import { getWindowId } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { URI } from '../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../editor/common/editorContextKeys.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
@@ -59,29 +61,25 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const folderUri = this.getFolderUriToOpen(sessionsService, sessionsProvidersService, remoteAgentHostService);
-		if (!folderUri) {
-			return nativeHostService.openWindow();
-		}
+		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService);
+	}
+}
 
-		const chatSessionToOpen = getChatSessionToOpenInEditor(sessionsService.activeSession.get());
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
+export async function openSessionInVSCode(
+	nativeHostService: INativeHostService,
+	session: IActiveSession | undefined,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): Promise<void> {
+	const folderUris = session?.activeChat.get().workspace.get()?.folders.map(folder =>
+		resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService)
+	);
+	if (!folderUris?.length) {
+		return nativeHostService.openWindow();
 	}
 
-	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
-			return undefined;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const rawFolderUri = workspace?.folders[0]?.workingDirectory;
-		if (!rawFolderUri) {
-			return undefined;
-		}
-
-		return resolveRemoteFolderUri(rawFolderUri, activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-	}
+	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
+	return nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
 }
 
 /**
@@ -102,6 +100,8 @@ export class OpenVSCodeWindowAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
+				// On Linux, Ctrl+Shift+A is Toggle Block Comment, so defer to it in a focused writable editor.
+				when: ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly),
 			},
 		});
 	}

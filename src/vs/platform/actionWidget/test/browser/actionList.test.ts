@@ -197,6 +197,133 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps shared badges borderless and sized without workbench size tokens', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('model'), badge: 'Preview' }],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.classList.add('action-widget');
+		const badge = widget.domNode.querySelector<HTMLElement>('.action-item-badge')!;
+		for (const token of ['--vscode-spacing-size60', '--vscode-cornerRadius-circle', '--vscode-fontSize-label2', '--vscode-strokeThickness']) {
+			badge.style.setProperty(token, 'initial');
+		}
+		badge.style.setProperty('--vscode-contrastBorder', '#ffffff');
+		const style = mainWindow.getComputedStyle(badge);
+		const defaultStyle = {
+			padding: style.padding,
+			borderWidth: style.borderWidth,
+			borderRadius: style.borderRadius,
+			fontSize: style.fontSize,
+			height: badge.getBoundingClientRect().height,
+		};
+		badge.style.lineHeight = '16px';
+
+		assert.deepStrictEqual({ defaultStyle, customizedHeight: badge.getBoundingClientRect().height }, {
+			defaultStyle: {
+				padding: '0px 6px',
+				borderWidth: '0px',
+				borderRadius: '9999px',
+				fontSize: '11px',
+				height: 18,
+			},
+			customizedHeight: 16,
+		});
+	});
+
+	test('includes primary and additional badges in accessible labels and clears them on reuse', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('Assisted permissions'),
+				badge: 'Experimental',
+				additionalBadges: [{ label: 'Org default', className: 'organization-default', tooltip: 'Default for new chats.' }],
+				detail: 'Evaluates risk before running tools',
+			}],
+			listOptions: { showFilter: false },
+		});
+		const readRow = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+			return {
+				label: row.ariaLabel,
+				badge: badge.textContent,
+				badgeHidden: badge.ariaHidden,
+				badgeVisible: badge.style.display !== 'none',
+				afterTitle: badge.previousElementSibling?.classList.contains('title'),
+				additionalBadges: Array.from(row.querySelectorAll('.action-item-additional-badges .action-item-badge'), element => ({
+					text: element.textContent, className: element.className,
+				})),
+			};
+		};
+		const initial = readRow();
+		widget.updateItems([action('Manual permissions')]);
+
+		assert.deepStrictEqual({ initial, updated: readRow() }, {
+			initial: {
+				label: 'Assisted permissions, Experimental, Org default, Evaluates risk before running tools',
+				badge: 'Experimental',
+				badgeHidden: 'true',
+				badgeVisible: true,
+				afterTitle: true,
+				additionalBadges: [{ text: 'Org default', className: 'action-item-badge organization-default' }],
+			},
+			updated: {
+				label: 'Manual permissions',
+				badge: '',
+				badgeHidden: 'true',
+				badgeVisible: false,
+				afterTitle: true,
+				additionalBadges: [],
+			},
+		});
+	});
+
+	test('toolbar labels remain actionable and revert to icons when a row is reused', () => {
+		const selected: string[] = [];
+		let configured = 0;
+		const configure = toAction({ id: 'configure', label: 'Medium', tooltip: 'Configure Model, Medium', class: 'codicon-settings-gear', run: () => { configured++; } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Model'), toolbarLabels: true, toolbarActions: [configure] }],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false, stopToolbarPointerPropagation: true },
+		});
+		const read = () => {
+			const button = widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+			return { label: button.textContent, ariaLabel: button.getAttribute('aria-label'), icon: button.classList.contains('codicon') };
+		};
+		const initial = read();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		widget.updateItems([{ ...action('Model'), toolbarActions: [configure] }]);
+		assert.deepStrictEqual({ initial, updated: read(), configured, selected }, {
+			initial: { label: 'Medium', ariaLabel: 'Configure Model, Medium', icon: false },
+			updated: { label: '', ariaLabel: 'Configure Model, Medium', icon: true },
+			configured: 1,
+			selected: [],
+		});
+	});
+
+	test('visible toolbar labels are searchable without searching icon-only action labels', () => {
+		const readout = toAction({ id: 'configure', label: 'Medium · 264K', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('Model with readout'), toolbarLabels: true, toolbarActions: [readout] },
+				{ ...action('Model with icon'), toolbarActions: [readout] },
+			],
+		});
+		typeFilter(widget, '264k');
+		assert.deepStrictEqual(getVisibleRowText(widget), ['Model with readoutMedium · 264K']);
+	});
+
+	test('section badges are rendered and cleared on reuse', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...separator('Optimize for'), additionalBadges: [{ label: 'Org default', tooltip: 'Default for new chats.' }] }, action('Balance')],
+			listOptions: { showFilter: false },
+		});
+		const read = () => Array.from(widget.domNode.querySelectorAll('.separator .action-item-badge'), badge => badge.textContent);
+		const initial = read();
+		widget.updateItems([separator('Models'), action('A model')]);
+		assert.deepStrictEqual({ initial, updated: read() }, { initial: ['Org default'], updated: [] });
+	});
+
 	test('recycled action icons do not retain a previous fallback or theme color', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [action('fallback')],
@@ -1552,6 +1679,149 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('submenu rows do not duplicate labels as descriptions', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('chat'),
+				submenuActions: [
+					toAction({ id: 'local', label: 'Local', run: () => { } }),
+					toAction({ id: 'remote', label: 'Test Remote B', run: () => { } }),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const rows = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => ({
+			label: row.querySelector<HTMLElement>('.title')?.textContent,
+			description: row.querySelector<HTMLElement>('.description')?.textContent?.trim() || undefined,
+		}));
+
+		assert.deepStrictEqual(rows, [
+			{ label: 'Local', description: undefined },
+			{ label: 'Test Remote B', description: undefined },
+		]);
+	});
+
+	test('mousedown on submenu remove toolbar keeps focus in the picker', async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [
+					Object.assign(toAction({ id: 'remove', label: 'Test Remote A', run: () => { } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		removeButton.dispatchEvent(mousedown);
+
+		assert.deepStrictEqual({
+			defaultPrevented: mousedown.defaultPrevented,
+			focusInsidePicker: widget.domNode.contains(document.activeElement),
+		}, {
+			defaultPrevented: true,
+			focusInsidePicker: true,
+		});
+	});
+
+	test('clicking submenu remove toolbar does not select the row', async () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [
+					Object.assign(toAction({ id: 'remove', label: 'Test Remote A', run: () => { selected.push('submenu-select'); } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			selected,
+			panelVisible: panel.style.display !== 'none',
+		}, {
+			selected: [],
+			panelVisible: true,
+		});
+	});
+
+	test('clicking remove in a wrapped submenu group keeps the submenu open', async () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', [
+					Object.assign(toAction({ id: 'remove', label: 'Manage Provider remote-a', run: () => { selected.push('submenu-select'); } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				])],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			selected,
+			panelVisible: panel.style.display !== 'none',
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			selected: [],
+			panelVisible: true,
+			focusInsidePanel: true,
+		});
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -1617,6 +1887,59 @@ suite('ActionListWidget', () => {
 			footer: panel.querySelector('.action-list-footer')?.textContent,
 			listHeight: panel.querySelector<HTMLElement>('.actionList')?.style.height,
 		}, { footer: 'Remote footer', listHeight: '0px' });
+	});
+
+	test('refreshing parent items while removing a nested row keeps the submenu open', async () => {
+		let hidden = 0;
+		const widgetRef: { current: ActionListWidget<ITestActionItem> | undefined } = { current: undefined };
+		const remaining = toAction({ id: 'beta', label: 'Beta', run: () => { } });
+		const removed = Object.assign(
+			toAction({ id: 'alpha', label: 'Alpha', run: () => { } }),
+			{
+				onRemove: () => widgetRef.current?.updateItems([{
+					...action('remote'),
+					submenuActions: [remaining],
+					submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+				}], undefined, { preserveHover: true }),
+			},
+		);
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [removed, remaining],
+				submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+			}],
+			listOptions: { showFilter: false },
+			onHide: () => hidden++,
+		});
+		widgetRef.current = widget;
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		filter.value = 'a';
+		filter.dispatchEvent(new Event('input'));
+		const removeButton = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'Alpha')!
+			.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.focus();
+		removeButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hidden,
+			panelDisplay: panel.style.display,
+			filterValue: filter.value,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			hidden: 0,
+			panelDisplay: '',
+			filterValue: 'a',
+			rows: ['Beta'],
+			focusInsidePanel: true,
+		});
 	});
 
 	test('a filtered submenu near the viewport bottom shifts enough to show all rows', () => withWindowInnerHeight(300, () => {
@@ -1910,6 +2233,7 @@ suite('ActionListWidget', () => {
 			items: [item],
 			listOptions: { showFilter: false, reserveSubmenuSpace: false },
 		});
+
 		const press = (key: string, shiftKey = false) =>
 			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
 		const focusedToolbarLabel = () => document.activeElement?.closest('.action-list-item-toolbar') ? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent : undefined;
@@ -1926,6 +2250,24 @@ suite('ActionListWidget', () => {
 			firstReverseTarget: 'Remove',
 			secondReverseTarget: 'Copy',
 		});
+	});
+
+	test('mouse removal from a row toolbar does not select the row', async () => {
+		const selected: string[] = [];
+		let removed = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('reference'),
+				toolbarActions: [toAction({ id: 'remove-reference', label: 'Remove Reference from Session', run: () => { removed++; } })],
+			}],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ removed, selected }, { removed: 1, selected: [] });
 	});
 
 	test('Ctrl/Meta/Alt+Tab bubble to the keybinding service instead of driving panel traversal', () => {
@@ -2352,6 +2694,32 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	test('opens a submenu immediately when the hover delay is zero', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('permissions'),
+				label: 'Permissions',
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
+			}],
+			listOptions: { showFilter: false, submenuHoverDelay: 0 },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+
+		assert.deepStrictEqual({
+			display: panel.style.display,
+			label: panel.querySelector('.title')?.textContent,
+			expanded: row.getAttribute('aria-expanded'),
+		}, {
+			display: '',
+			label: 'Manual',
+			expanded: 'true',
+		});
+	});
+
 	test('cancels a submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
@@ -2758,6 +3126,109 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('hover actions use the standard hover footer', () => {
+		const content = document.createElement('div');
+		content.textContent = 'Rich reference metadata';
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('active'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [
+						{ commandId: 'copy', label: 'Copy URL', run: () => runs.push('copy') },
+						{ commandId: 'remove', label: 'Remove', run: () => runs.push('remove') },
+					],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const footer = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .hover-row.status-bar')!;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const footerActions = footer.querySelector<HTMLElement>('.actions')!;
+		const actions = [...footer.querySelectorAll<HTMLElement>('.action-container')];
+		actions[1].click();
+		const panelRect = panel.getBoundingClientRect();
+		const footerRect = footerActions.getBoundingClientRect();
+		const panelStyle = mainWindow.getComputedStyle(panel);
+		const panelInnerEdges = {
+			left: panelRect.left + parseFloat(panelStyle.borderLeftWidth),
+			right: panelRect.right - parseFloat(panelStyle.borderRightWidth),
+			bottom: panelRect.bottom - parseFloat(panelStyle.borderBottomWidth),
+		};
+
+		assert.deepStrictEqual({
+			footerClassName: footer.className,
+			actions: actions.map(action => action.textContent),
+			panelPadding: panelStyle.padding,
+			panelOverflow: panelStyle.overflow,
+			footerFlush: {
+				left: Math.abs(footerRect.left - panelInnerEdges.left) < 1,
+				right: Math.abs(footerRect.right - panelInnerEdges.right) < 1,
+				bottom: Math.abs(footerRect.bottom - panelInnerEdges.bottom) < 1,
+			},
+			runs,
+		}, {
+			footerClassName: 'hover-row status-bar',
+			actions: ['Copy URL', 'Remove'],
+			panelPadding: '4px',
+			panelOverflow: 'hidden',
+			footerFlush: {
+				left: true,
+				right: true,
+				bottom: true,
+			},
+			runs: ['remove'],
+		});
+	});
+
+	test('the initially focused row opens its interactive hover and tabs to the footer action', () => {
+		const content = document.createElement('div');
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('image'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [{ commandId: 'copyRelativePath', label: 'Copy relative path', run: () => runs.push('copy') }],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const footerAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const arrowRightFocused = document.activeElement === footerAction;
+		footerAction.click();
+		footerAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const reopenedFooterAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const tabFocused = document.activeElement === reopenedFooterAction;
+		reopenedFooterAction.click();
+
+		assert.deepStrictEqual({
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+			arrowRightFocused,
+			tabFocused,
+			runs,
+		}, {
+			panelVisible: true,
+			arrowRightFocused: true,
+			tabFocused: true,
+			runs: ['copy', 'copy'],
+		});
+	});
+
 	test('refresh does not reopen a dismissed tab-through hover', () => {
 		const content = document.createElement('div');
 		const control = document.createElement('button');
@@ -2781,6 +3252,75 @@ suite('ActionListWidget', () => {
 		}, {
 			focused: 'active',
 			panelVisible: false,
+		});
+	});
+
+	test('refresh disposes a rejected hover preservation candidate', () => {
+		const currentContent = document.createElement('div');
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent, expandable: true } }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		let descriptorDisposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+				disposable: { dispose: () => descriptorDisposeCount++ },
+				expandable: true,
+			},
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			descriptorDisposeCount,
+			replacementConnected: replacementContent.isConnected,
+		}, {
+			disposeCount: 1,
+			descriptorDisposeCount: 0,
+			replacementConnected: false,
+		});
+	});
+
+	test('refresh disposes a rejected hover candidate while preserving a submenu', () => {
+		const currentContent = document.createElement('div');
+		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent }, submenuActions: [submenuAction] }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+			},
+			submenuActions: [submenuAction],
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			submenuVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, {
+			disposeCount: 1,
+			submenuVisible: true,
 		});
 	});
 

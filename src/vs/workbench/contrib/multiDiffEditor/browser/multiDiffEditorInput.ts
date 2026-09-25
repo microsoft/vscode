@@ -106,7 +106,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					throw new CancellationError();
 				}
 
-				const vm = store.add(new MultiDiffEditorViewModel(model, this._instantiationService));
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
 				await raceTimeout(vm.waitForDiffOr1s(), 1000);
 				if (this._store.isDisposed) {
 					throw new CancellationError();

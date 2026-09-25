@@ -11,6 +11,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
+import type { IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
@@ -50,7 +51,7 @@ suite('StandardChatInputPillSources', () => {
 		return {
 			inputPills,
 			visibility,
-			labels: () => [...inputPills.element.querySelectorAll('.chat-pill-label')].map(element => element.textContent),
+			labels: () => [...inputPills.element.querySelectorAll('.chat-pill-label, .changes-stats-files')].map(element => element.textContent),
 			openContextMenu: (target: HTMLElement, keyboard = false) => {
 				menuActions = [];
 				target.dispatchEvent(keyboard
@@ -137,11 +138,11 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('offers single PR removal directly for mouse and keyboard but not on the toolbar background', async () => {
+	test('groups single PR removal with options for mouse and keyboard but not on the toolbar background', async () => {
 		let removed = 0;
 		const entry: IChatPullRequestPillEntry = {
 			...pullRequestEntry('#1', 'open'),
-			removeAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
+			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Reference from Session', run: () => { removed++; } }),
 		};
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
 		const pills = createPills({ pullRequests: data });
@@ -149,21 +150,93 @@ suite('StandardChatInputPillSources', () => {
 		const mouseMenu = pills.openContextMenu(target);
 		const keyboardMenu = pills.openContextMenu(target, true);
 		const backgroundMenu = pills.openContextMenu(pills.inputPills.element);
-		await mouseMenu[0].run();
-		await keyboardMenu[0].run();
+		await mouseMenu.find(action => action.id === 'remove-pr')?.run();
+		await keyboardMenu.find(action => action.id === 'remove-pr')?.run();
 
 		assert.deepStrictEqual({
-			mouse: mouseMenu.slice(0, 6).map(action => action.label),
-			keyboard: keyboardMenu.slice(0, 6).map(action => action.label),
+			mouse: mouseMenu.slice(0, 5).map(action => action.label),
+			keyboard: keyboardMenu.slice(0, 5).map(action => action.label),
 			backgroundRemoval: backgroundMenu.some(action => action.id === 'remove-pr'),
 			removed,
 		}, {
-			mouse: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', '', 'Pull Requests Options', ''],
-			keyboard: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', '', 'Pull Requests Options', ''],
+			mouse: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
+			keyboard: ['Hide Pull Requests', '', 'Remove Pull Request Reference from Session', 'Pull Requests Options', ''],
 			backgroundRemoval: false,
 			removed: 2,
 		});
 	});
+
+	test('restores focus to a live pill after a context menu action removes an entry', async () => {
+		const sections = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', []);
+		sections.set([{
+			title: 'Pull Requests', entries: [{
+				...pullRequestEntry('#1', 'open'),
+				promotedAction: toAction({
+					id: 'remove-pr',
+					label: 'Remove Pull Request from Session',
+					run: async () => {
+						await timeout(0);
+						sections.set([], undefined);
+					},
+				}),
+			}]
+		}], undefined);
+		const pills = createPills({
+			pullRequests: createSessionPullRequestPillData(sections, createPullRequestVisibility()),
+			artifacts: { sections: constObservable([{ title: 'Artifacts', entries: [{ id: 'report', label: 'Report', open: () => { } }] }]) },
+		});
+		const target = pills.inputPills.getPillElements()[0];
+		target.focus();
+		const menu = pills.openContextMenu(target, true);
+		// The real context menu widget holds focus while it is open, so the pill is no longer focused
+		// by the time the promoted action resolves.
+		target.blur();
+		const removeAction = menu.find(action => action.id === 'remove-pr');
+		assert.ok(removeAction);
+		await removeAction.run();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			action: removeAction.label,
+			labels: pills.labels(),
+			focusedLivePill: document.activeElement === pills.inputPills.getPillElements().at(0),
+		}, {
+			action: 'Remove Pull Request from Session',
+			labels: ['1 Artifact'],
+			focusedLivePill: true,
+		});
+	});
+
+	for (const state of ['open', 'closed'] as const) {
+		test(`restores focus after filtering when the target pill ${state === 'open' ? 'remains visible' : 'disappears'}`, async () => {
+			const data = createSessionPullRequestPillData(constObservable([{
+				title: 'Pull Requests', entries: [pullRequestEntry('#1', state)],
+			}]), createPullRequestVisibility());
+			const pills = createPills({
+				changes: {
+					stats: constObservable({ files: 1, insertions: 1, deletions: 0 }),
+					label: constObservable('Changes'),
+					open: () => { },
+				},
+				pullRequests: data,
+			});
+			const target = pills.inputPills.getPillElements()[1];
+			target.focus();
+			const submenu = pills.openContextMenu(target, true).find(action => action instanceof SubmenuAction);
+			assert.ok(submenu instanceof SubmenuAction);
+			target.blur();
+			await submenu.actions[1].run();
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				labels: pills.labels(),
+				focused: document.activeElement === pills.inputPills.getPillElements()[state === 'open' ? 1 : 0],
+			}, {
+				labels: state === 'open' ? ['1 File', '#1'] : ['1 File'],
+				focused: true,
+			});
+		});
+	}
 
 	test('lets other pills contribute options without changing the visibility menu', async () => {
 		let invoked = false;
@@ -186,19 +259,19 @@ suite('StandardChatInputPillSources', () => {
 		const changesMenu = pills.openContextMenu(changes);
 		const artifactsMenu = pills.openContextMenu(artifacts);
 		const referencesMenu = pills.openContextMenu(references);
-		const submenu = artifactsMenu[1];
+		const submenu = artifactsMenu[2];
 		assert.ok(submenu instanceof SubmenuAction);
 		await submenu.actions[0].run();
 
 		assert.deepStrictEqual({
 			changes: changesMenu.slice(0, 2).map(action => action.label),
-			artifacts: artifactsMenu.slice(0, 3).map(action => action.label),
+			artifacts: artifactsMenu.slice(0, 4).map(action => action.label),
 			references: referencesMenu.slice(0, 2).map(action => action.label),
 			referencesHaveOptions: referencesMenu.some(action => action instanceof SubmenuAction),
 			invoked,
 		}, {
 			changes: ['Changes Options', ''],
-			artifacts: ['Hide Artifacts', 'Artifacts Options', ''],
+			artifacts: ['Hide Artifacts', '', 'Artifacts Options', ''],
 			references: ['Hide References', ''],
 			referencesHaveOptions: false,
 			invoked: true,
@@ -246,6 +319,54 @@ suite('StandardChatInputPillSources', () => {
 				{ state: 'merged', first: ['1 Reference'], second: [], fallbackOptions: true },
 				{ state: undefined, first: ['#1', '1 Reference'], second: ['#1'], fallbackOptions: false },
 			],
+		});
+	});
+
+	test('keeps options for multiple filtered pill kinds reachable without special handling', async () => {
+		const visibility = createPullRequestVisibility();
+		visibility.setShowAll(false);
+		const artifactSections = observableValue<readonly IChatPillSection[]>('artifacts', []);
+		const hasArtifacts = observableValue('hasArtifacts', true);
+		const pills = createPills({
+			pullRequests: createSessionPullRequestPillData(constObservable([{
+				title: 'Pull Requests', entries: [pullRequestEntry('#1', 'closed')],
+			}]), visibility),
+			artifacts: {
+				sections: artifactSections,
+				hasData: hasArtifacts,
+				getContextMenuActions: () => [toAction({
+					id: 'artifacts.showAll',
+					label: 'Show All',
+					run: () => artifactSections.set([{ title: 'Artifacts', entries: [{ id: 'report', label: 'Report', open: () => { } }] }], undefined),
+				})],
+			},
+			references: { sections: constObservable([{ title: 'References', entries: [{ id: 'docs', label: 'Docs', open: () => { } }] }]) },
+		});
+		const references = pills.inputPills.getPillElements()[0];
+		const getOptions = (target: HTMLElement, keyboard = false) => pills.openContextMenu(target, keyboard)
+			.filter(action => action instanceof SubmenuAction);
+		const mouse = getOptions(references);
+		const keyboard = getOptions(references, true);
+		const row = pills.inputPills.element.querySelector<HTMLElement>('.chat-pills-row-content');
+		assert.ok(row);
+		const background = getOptions(row);
+		await keyboard[1].actions[0].run();
+		const restored = { labels: pills.labels(), options: getOptions(pills.inputPills.getPillElements()[1]).map(action => action.label) };
+		artifactSections.set([], undefined);
+		hasArtifacts.set(false, undefined);
+
+		assert.deepStrictEqual({
+			mouse: mouse.map(action => action.label),
+			keyboard: keyboard.map(action => action.label),
+			background: background.map(action => action.label),
+			restored,
+			cleared: getOptions(pills.inputPills.getPillElements()[0]).map(action => action.label),
+		}, {
+			mouse: ['Pull Requests Options', 'Artifacts Options'],
+			keyboard: ['Pull Requests Options', 'Artifacts Options'],
+			background: ['Pull Requests Options', 'Artifacts Options'],
+			restored: { labels: ['1 Artifact', '1 Reference'], options: ['Pull Requests Options'] },
+			cleared: ['Pull Requests Options'],
 		});
 	});
 

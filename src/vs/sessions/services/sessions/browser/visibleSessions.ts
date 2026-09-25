@@ -250,13 +250,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changesets() { return this._session.changesets; }
-	get changes() { return this._session.changes; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -302,13 +301,12 @@ class ResourceOverrideSession implements ISession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changes() { return this._session.changes; }
-	get changesets() { return this._session.changesets; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }

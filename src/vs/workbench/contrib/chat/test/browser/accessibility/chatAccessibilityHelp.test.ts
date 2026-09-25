@@ -14,6 +14,31 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
+		});
+
+		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
+				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
+				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				preserve: help.includes('An existing draft in the Agents Window is kept'),
+				ignore: help.includes('Ignore turns off future invitations'),
+				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
+			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+		});
+	}
+
 	test('documents accepting the selected confirmation primary action', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -32,15 +57,40 @@ suite('Chat Accessibility Help', () => {
 		}, { finished: true, subagentTail: true, parentTail: true });
 	});
 
+	test('documents the Copilot tab switch and independent provider navigation', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			switch: help.includes('active Copilot tab has an Auto switch beside the provider name'),
+			keyboardTargets: help.includes('provider button and switch are separate keyboard targets'),
+			providers: help.includes('provider tabs and search remain available'),
+			restored: help.includes('Turn Auto off to restore the previous manual Copilot model'),
+			noImplicitSelection: help.includes('Browsing another provider does not change the selected model'),
+		}, { switch: true, keyboardTargets: true, providers: true, restored: true, noImplicitSelection: true });
+	});
+
+	test('explains organization-managed defaults separately from this chat selection', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			managedDefault: help.includes('Org default identifies the model your organization sets for new chats'),
+			perChatChoice: help.includes('the checkmark identifies your current selection'),
+			auto: help.includes('Auto section carries the same label when Auto is the organization default'),
+		}, { managedDefault: true, perChatChoice: true, auto: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			details: help.includes('selected model\'s details open beside the list'),
-			immediatePreview: help.includes('updates the details immediately without selecting a model'),
-			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
-			mutedPreferences: help.includes('They look muted while off but remain interactive'),
-			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
+			details: help.includes('Tab to reach its configuration button'),
+			inspection: help.includes('configuration page without selecting it'),
+			inputShortcut: help.includes('opens the same page for the current model'),
+			defaults: help.includes('Known values are shown even at their defaults'),
+			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
+			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
+			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
+			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
+			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
+			noAutoDetails: help.includes('Auto has no separate details page'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, activation: true, autoEntry: true, noAutoDetails: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -59,8 +109,8 @@ suite('Chat Accessibility Help', () => {
 			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
 			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
-			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
-			dismissal: help.includes('Escape again to close the picker'),
+			pinning: help.includes('Pinning or unpinning updates the model list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape closes the picker from any page'),
 		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 
@@ -233,6 +283,34 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents full terminal output in chat surfaces that render terminal tools', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'Open Full Output (Read-Only) action';
+		const agentViewText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: agentViewText.includes(expectedText),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
+			previewClick: agentViewText.includes('click the output preview'),
+			outputEnter: agentViewText.includes('focus the output region and press Enter'),
+			readonly: agentViewText.includes('read-only editor'),
+			accessibleView: agentViewText.includes('terminal output Accessible View'),
+		}, {
+			panelChat: true,
+			quickChat: true,
+			agentView: true,
+			inlineChat: false,
+			editsView: false,
+			previewClick: true,
+			outputEnter: true,
+			readonly: true,
+			accessibleView: true,
 		});
 	});
 

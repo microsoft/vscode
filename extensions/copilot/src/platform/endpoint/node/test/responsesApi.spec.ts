@@ -1276,6 +1276,29 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.prompt_cache_options).toBeUndefined();
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
+
+	it('does not leak markers through opaque content into subsequent implicit or unsupported requests', () => {
+		const inputText = { type: 'input_text', text: 'replayed user input' };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Opaque, value: inputText },
+				cacheBreakpoint(),
+			],
+		}];
+
+		expect(buildBody(messages).input?.[0]).toMatchObject({
+			content: [{ ...inputText, prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+		expect(inputText).not.toHaveProperty('prompt_cache_breakpoint');
+		for (const body of [buildBody(messages, cacheBreakpointEndpoint, false), buildBody(messages, testEndpoint)]) {
+			expect(body.input?.[0]).toEqual({
+				type: 'message',
+				role: 'user',
+				content: [{ type: 'input_text', text: 'replayed user input' }],
+			});
+		}
+	});
 });
 
 describe('processResponseFromChatEndpoint telemetry', () => {

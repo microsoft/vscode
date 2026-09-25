@@ -10,7 +10,7 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { AutoChatEndpoint, isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpoint/node/automodeService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -294,6 +294,9 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
 		if (!baseLmModel) {
 			return request;
+		}
+		if (request.model.id === AutoChatEndpoint.pseudoModelId) {
+			stream.push(new vscode.ChatResponseAutoModeTierPart());
 		}
 		request = { ...request, model: baseLmModel };
 		if (request.subAgentInvocationId === undefined) {

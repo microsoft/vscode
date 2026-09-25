@@ -10,6 +10,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
@@ -26,6 +28,8 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
+	readonly hostVisible?: IObservable<boolean>;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -75,6 +79,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	focusWorkspacePicker(): void {
+		// no-op by default
+	}
+
+	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
@@ -104,6 +116,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return 'notReady';
+	}
+
+	applyDraft(_draft: IAgentsWindowDraft, _folderUri: URI | undefined, _options: ISelectWorkspaceOptions, _token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return Promise.resolve('notReady');
 	}
 
 	selectNoWorkspace(): void {
@@ -161,10 +177,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it occupies the first group in the chat grid.
-	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 * Notifies the view of its position and whether the chat grid is split.
+	 * Session-scoped UI can use this to avoid repeating across split groups and adapt its layout.
 	 */
-	setPrimary(_primary: boolean): void {
+	setPrimary(_primary: boolean, _split = false): void {
 		// no-op by default
 	}
 

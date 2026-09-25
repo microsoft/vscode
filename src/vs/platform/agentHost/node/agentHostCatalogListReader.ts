@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
-import { SessionStatus, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
+import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
+import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
@@ -23,7 +25,7 @@ export type AgentHostCatalogListResult =
 /**
  * Eligibility boundary between the `sessions_v2` catalog and the session list:
  * it checks that a stored row still describes the registered session, then
- * hands the payload's own decoded data to the caller without re-parsing it.
+ * hands sanitized decoded data to every catalog consumer.
  */
 export class AgentHostCatalogListReader {
 
@@ -58,7 +60,11 @@ export class AgentHostCatalogListReader {
 			if (decoded.value.data.isChatBacking) {
 				return { eligible: false, chatBacking: true };
 			}
-			const data = reviveAgentHostCatalogData(decoded.value.data);
+			const revivedData = reviveAgentHostCatalogData(decoded.value.data);
+			const data = {
+				...revivedData,
+				chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
+			};
 			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 		} catch (error) {
 			return {
@@ -73,7 +79,8 @@ export class AgentHostCatalogListReader {
 	private _toSessionMetadata(registered: IRegisteredSession, data: AgentHostCatalogRevivedData): IAgentSessionMetadata {
 		let status = withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsRead, data.isRead);
 		status = withSessionStatusFlag(status, SessionStatus.IsArchived, data.isArchived);
-		const meta = withSessionExternal(data._meta, registered.external);
+		// Payloads written by earlier versions record the session folder's GitHub state on its own.
+		const meta = withSessionExternal(withMigratedSessionGitHubState(data._meta, data.workingDirectories[0]?.toString()), registered.external);
 		return {
 			session: registered.session,
 			startTime: registered.startTime,
@@ -85,6 +92,14 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			chats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: fromCatalogChatOrigin(chat.origin),
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
+			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}

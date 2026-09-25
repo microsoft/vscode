@@ -142,8 +142,8 @@ suite('Edit Source Tracking Windows', () => {
 					{ text: 'dddd', autoTier: 'intelligence' },
 					{ text: 'ee', autoTier: 'fast' },
 					{ text: 'fff', autoTier: undefined },
-					{ text: 'gg', autoTier: 'invalid' },
-					{ text: 'hh', autoTier: 'balance', modelId: 'copilot/gpt-5' },
+					{ text: 'gg', autoTier: undefined },
+					{ text: 'hh', autoTier: undefined, modelId: 'copilot/gpt-5' },
 				];
 				for (const [index, edit] of edits.entries()) {
 					context.document.applyEdit(StringEditWithReason.replace(
@@ -255,29 +255,19 @@ suite('Edit Source Tracking Windows', () => {
 
 				const details = context.allDetails.filter(event => event.mode === mode);
 				const groupSum = cap * (cap + 1) / 2;
-				assert.deepStrictEqual({
-					rows: details.map(event => ({
-						sourceKey: event.sourceKey,
-						autoTier: event.autoTier,
-						modifiedCount: event.modifiedCount,
-						deltaModifiedCount: event.deltaModifiedCount,
-						totalModifiedCount: event.totalModifiedCount,
-					})),
-					count: details.length,
-					generated: details.reduce((sum, event) => sum + event.deltaModifiedCount, 0),
-					retained: details.reduce((sum, event) => sum + event.modifiedCount, 0),
-				}, {
-					rows: Array.from({ length: cap }, (_, i) => cap - i).flatMap(group => tiers.map(autoTier => ({
-						sourceKey: `source:Chat.applyEdits-$modelId:copilot|auto${autoTier ? `-$autoTier:${autoTier}` : ''}-$extensionId:test.extension-${group}-$extensionVersion:1.0.0`,
-						autoTier,
-						modifiedCount: autoTier === undefined ? 0 : group,
-						deltaModifiedCount: group,
-						totalModifiedCount: 4 * groupSum + 4,
-					}))),
-					count: cap * 5,
-					generated: 5 * groupSum,
-					retained: 4 * groupSum,
-				});
+				assert.deepStrictEqual(details.map(event => ({
+					sourceKey: event.sourceKey,
+					autoTier: event.autoTier,
+					modifiedCount: event.modifiedCount,
+					deltaModifiedCount: event.deltaModifiedCount,
+					totalModifiedCount: event.totalModifiedCount,
+				})), Array.from({ length: cap }, (_, i) => cap - i).flatMap(group => tiers.map(autoTier => ({
+					sourceKey: `source:Chat.applyEdits-$modelId:copilot|auto${autoTier ? `-$autoTier:${autoTier}` : ''}-$extensionId:test.extension-${group}-$extensionVersion:1.0.0`,
+					autoTier,
+					modifiedCount: autoTier === undefined ? 0 : group,
+					deltaModifiedCount: group,
+					totalModifiedCount: 4 * groupSum + 4,
+				}))));
 			} finally {
 				context.disposables.dispose();
 			}

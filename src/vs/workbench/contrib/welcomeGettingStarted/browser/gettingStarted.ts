@@ -70,7 +70,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
@@ -938,20 +938,19 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
 		const footerChildren: HTMLElement[] = [];
-		if (canShowAgentsBanner(this.chatEntitlementService)) {
-			const agentsBanner = createAgentsBanner(
-				{
-					cssClass: 'getting-started-category.agents-banner',
-					source: 'welcomePage',
-				},
-				this.commandService,
-				this.telemetryService,
-				this.configurationService,
-				this.defaultAccountService,
-			);
-			this.categoriesSlideDisposables.add(agentsBanner.disposables);
-			footerChildren.push(agentsBanner.element);
-		}
+		const agentsBanner = createAgentsBanner(
+			{
+				cssClass: 'getting-started-category.agents-banner',
+				source: 'welcomePage',
+			},
+			this.commandService,
+			this.telemetryService,
+			this.configurationService,
+			this.chatEntitlementService,
+			this.defaultAccountService,
+		);
+		this.categoriesSlideDisposables.add(agentsBanner.disposables);
+		footerChildren.push(agentsBanner.element);
 		footerChildren.push($('p.showOnStartup', {},
 			showOnStartupCheckbox.domNode,
 			showOnStartupLabel,

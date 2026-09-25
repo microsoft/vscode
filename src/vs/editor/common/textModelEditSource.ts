@@ -115,7 +115,7 @@ export const EditSources = {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
-			$autoTier: getAutoTier(data.modelId, data.autoTier),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
@@ -177,7 +177,7 @@ export const EditSources = {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
-			$autoTier: getAutoTier(data.modelId, data.autoTier),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$$sessionId: data.sessionId,
@@ -219,21 +219,6 @@ function toProperties(version: ProviderId | undefined) {
 type Values<T> = T[keyof T];
 export type ITextModelEditSourceMetadata = Values<{ [TKey in keyof typeof EditSources]: ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
 type ITextModelEditSourceMetadataKeys = Values<{ [TKey in keyof typeof EditSources]: keyof ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
-
-function getAutoTier(modelId: string | undefined, autoTier: string | undefined) {
-	if (modelId !== 'copilot/auto') {
-		return undefined;
-	}
-	switch (autoTier) {
-		case 'efficiency':
-		case 'balance':
-		case 'intelligence':
-		case 'fast':
-			return autoTier;
-		default:
-			return undefined;
-	}
-}
 
 
 function avoidPathRedaction(str: string | undefined): string | undefined {
