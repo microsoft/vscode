@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
@@ -36,6 +37,26 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('chat input state', () => {
+		test('validates restrictions and optional error fields', () => {
+			const states = [undefined, null, [], {}, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 1, message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', stack: 1 } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', _meta: [] } }];
+			assert.deepStrictEqual(states.map(state => readChatInputState({ _meta: { 'vscode.chatInputState': { chat: state } } }, 'chat')), [
+				undefined, undefined, undefined, undefined, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } }, undefined, undefined, undefined,
+			]);
+		});
+
+		test('clearing one chat preserves its sibling and unrelated metadata', () => {
+			const first = withChatInputState({ _meta: { unrelated: true } }, 'first', { kind: 'checking' });
+			const second = withChatInputState({ _meta: first }, 'second', { kind: 'checking' });
+			assert.deepStrictEqual(withChatInputState({ _meta: second }, 'first', undefined), {
+				unrelated: true, 'vscode.chatInputState': { second: { kind: 'checking' } },
+			});
+		});
+	});
 
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {

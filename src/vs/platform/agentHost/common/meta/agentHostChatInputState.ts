@@ -16,7 +16,9 @@ function isMetadataRecord(value: unknown): value is Record<string, unknown> {
 
 function isChatInputState(value: unknown): value is AgentChatInputState {
 	return isMetadataRecord(value) && (value.kind === 'checking'
-		|| (value.kind === 'blocked' && isMetadataRecord(value.error) && typeof value.error.errorType === 'string' && typeof value.error.message === 'string'));
+		|| (value.kind === 'blocked' && isMetadataRecord(value.error) && typeof value.error.errorType === 'string' && typeof value.error.message === 'string'
+			&& (value.error.stack === undefined || typeof value.error.stack === 'string')
+			&& (value.error._meta === undefined || isMetadataRecord(value.error._meta))));
 }
 
 /** Reads only the addressed chat's input restriction from session metadata. */
