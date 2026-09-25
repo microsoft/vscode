@@ -21,7 +21,7 @@
 	.monaco-list .monaco-tree-sticky-row.monaco-list-row {
 		background-color: var(--vscode-agents-background) !important;
 
-		&:hover:not(.selected):not(.focused) {
+		&:is(:hover, .hovered):not(.selected):not(.focused) {
 			background-image: linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground));
 		}
 
