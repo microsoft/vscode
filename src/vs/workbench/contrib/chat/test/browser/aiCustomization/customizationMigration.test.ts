@@ -20,7 +20,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveClosestMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -743,6 +743,67 @@ suite('customizationMigration', () => {
 			migratedUris: [migratedUri.path],
 			originalExists: true,
 			migratedExists: true,
+		});
+	});
+
+	test('keeps a workspace prompt in its own workspace folder of a multi-root workspace', async () => {
+		const customization: IPromptPath = {
+			uri: URI.file('/workspace-b/.github/prompts/review.prompt.md'),
+			name: 'Review',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const availableFolders: ICustomizationSourceFolder[] = [
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+		];
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(customization.uri, VSBuffer.fromString('Review the change.'));
+
+		const result = await migrateCustomizations(
+			[customization],
+			new Map([[PromptsType.skill, new Map([[PromptsStorage.local, availableFolders[0]]])]]),
+			fileService,
+			undefined,
+			{
+				resolveTargetFolder: migrated => resolveClosestMigrationTargetFolder(migrated.uri, availableFolders[0], availableFolders),
+			},
+		);
+
+		assert.deepStrictEqual({
+			migratedCount: result.migratedCount,
+			migratedUris: result.migratedCustomizations.map(item => item.uri.path),
+			sourceExists: await fileService.exists(customization.uri),
+		}, {
+			migratedCount: 1,
+			migratedUris: [createSkillFileUri(availableFolders[1].uri, 'review').path],
+			sourceExists: false,
+		});
+	});
+
+	test('resolves the closest migration target folder', () => {
+		const workspaceFolders: ICustomizationSourceFolder[] = [
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-b/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+		];
+		const resolve = (customization: URI, target: ICustomizationSourceFolder) =>
+			resolveClosestMigrationTargetFolder(customization, target, workspaceFolders).uri.path;
+
+		assert.deepStrictEqual({
+			otherWorkspaceFolder: resolve(URI.file('/workspace-b/.github/prompts/review.prompt.md'), workspaceFolders[0]),
+			preservedDestination: resolve(URI.file('/workspace-b/.github/prompts/review.prompt.md'), { uri: URI.file('/workspace-a/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local }),
+			sameWorkspaceFolder: resolve(URI.file('/workspace-a/.github/prompts/review.prompt.md'), workspaceFolders[0]),
+			unrelatedTarget: resolve(URI.file('/workspace-c/.github/prompts/review.prompt.md'), workspaceFolders[0]),
+		}, {
+			otherWorkspaceFolder: '/workspace-b/.github/skills',
+			preservedDestination: '/workspace-b/.claude/skills',
+			sameWorkspaceFolder: '/workspace-a/.github/skills',
+			unrelatedTarget: '/workspace-a/.github/skills',
 		});
 	});
 });

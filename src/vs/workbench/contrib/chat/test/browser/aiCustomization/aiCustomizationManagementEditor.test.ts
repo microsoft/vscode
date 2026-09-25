@@ -227,6 +227,10 @@ suite('aiCustomizationManagementEditor', () => {
 			availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
 			sessionResource: URI,
 		): Promise<ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>> | undefined>;
+		getEffectiveCustomizationMigrationTargetFolder(
+			customization: MigratableConfiguration,
+			targetFolders: ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>,
+		): ICustomizationSourceFolder | undefined;
 		getCustomizationMigrationDashboardDestinations(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationDashboardDestination[];
 		getDashboardFileMigrationCandidates(): readonly MigratableConfiguration[];
 		getMigrationCandidates(category: ICustomizationMigrationCategory, storage?: PromptsStorage): readonly CustomizationMigrationCandidate[];
@@ -2857,6 +2861,42 @@ suite('aiCustomizationManagementEditor', () => {
 				pickerInvocationCount: 1,
 				agentTarget: '/home/test/.copilot/agents',
 				instructionsTarget: '/home/test/.claude/rules',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('migrates workspace customizations into their own workspace folder', async () => {
+		const editor = createTestEditor();
+		const workspaceFolders: ICustomizationSourceFolder[] = [
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+		];
+		editor.customizationMigrationTargetFoldersByType = new Map([[PromptsType.skill, workspaceFolders]]);
+		const targetFolders = new Map<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>([
+			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceFolders[0]]])],
+		]);
+		const promptIn = (root: string): MigratableConfiguration => ({
+			uri: URI.file(`${root}/.github/prompts/review.prompt.md`),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		});
+		const customFolder: ICustomizationSourceFolder = { uri: URI.file('/custom/skills'), label: '/custom/skills', source: PromptsStorage.local };
+
+		try {
+			assert.deepStrictEqual({
+				firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
+				otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
+				customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
+					promptIn('/workspace-b'),
+					new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
+				)?.uri.path,
+			}, {
+				firstWorkspaceFolder: '/workspace-a/.github/skills',
+				otherWorkspaceFolder: '/workspace-b/.github/skills',
+				customFolder: '/custom/skills',
 			});
 		} finally {
 			editor.editorPreviewDisposables.dispose();
