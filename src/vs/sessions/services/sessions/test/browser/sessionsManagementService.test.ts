@@ -697,6 +697,29 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
 	});
 
+	test('routes chat archive changes to the owning provider', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const chat = { ...stubChat, resource: URI.parse('test-chat:/peer') };
+		const calls: { sessionId: string; chat: string; archived: boolean }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: true });
+			}
+			override async unarchiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: false });
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.archiveChat(session, chat);
+		await service.unarchiveChat(session, chat);
+
+		assert.deepStrictEqual(calls, [
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: true },
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: false },
+		]);
+	});
+
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);

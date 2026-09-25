@@ -136,18 +136,42 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
 
-		const setSelection = (text: string, selectionTop?: number) => {
+		const setSelectionWithoutEvent = (text: string, selectionTop?: number) => {
 			activeRange = range;
 			selectionText = text;
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
 			}
+		};
+		const setSelection = (text: string, selectionTop?: number) => {
+			setSelectionWithoutEvent(text, selectionTop);
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const setSelectionOutsideTranscript = (text: string) => {
 			activeRange = outsideRange;
 			selectionText = text;
 			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const beginPointerSelection = (target: HTMLElement = markdown, pointerId = 1) => {
+			target.dispatchEvent(new targetWindow.PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId }));
+			target.dispatchEvent(new targetWindow.MouseEvent('mousedown', { bubbles: true, button: 0, cancelable: true }));
+		};
+		const releasePointerSelection = (pointerId = 1) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId }));
+		};
+		const cancelPointerSelection = (pointerId: number, isPrimary: boolean) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointercancel', { bubbles: true, isPrimary, pointerId }));
+		};
+		const waitForAnimationFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, resolve));
+		const finishPointerSelection = async (pointerId = 1) => {
+			releasePointerSelection(pointerId);
+			await waitForAnimationFrame();
+		};
+		const createPreventedMarkdownControl = () => {
+			const control = doc.createElement('button');
+			markdown.appendChild(control);
+			store.add(dom.addDisposableListener(control, 'mousedown', event => event.preventDefault()));
+			return control;
 		};
 		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
 		/**
@@ -217,8 +241,16 @@ suite('ResponseSelectionSideChatController', () => {
 
 		return {
 			controller,
+			transcriptDomNode,
 			setSelection,
+			setSelectionWithoutEvent,
 			setSelectionOutsideTranscript,
+			beginPointerSelection,
+			releasePointerSelection,
+			cancelPointerSelection,
+			finishPointerSelection,
+			waitForAnimationFrame,
+			createPreventedMarkdownControl,
 			setTranscriptRect,
 			detachSelectedRow,
 			scroll,
@@ -325,6 +357,233 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
 			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+		});
+	});
+
+	test('shows the enhanced action menu after pointer selection settles', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			setSelectionWithoutEvent,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+		setSelectionOutsideTranscript('unrelated text');
+		setSelectionWithoutEvent('hello world');
+		const visibleAfterTransientSelection = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterTransientSelection,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			actions: menuActionLabels(controller),
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterTransientSelection: false,
+			visibleAfterRelease: true,
+			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('suppresses intermediate selection updates when the pointer starts outside markdown', async () => {
+		const {
+			controller,
+			transcriptDomNode,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(transcriptDomNode);
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('pressing a prevented markdown control preserves the focused question draft', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			createPreventedMarkdownControl,
+			finishPointerSelection,
+			setSelection,
+			focusResponseItemCalls,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		setSelection('hello world');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'keep this draft';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		beginPointerSelection(createPreventedMarkdownControl());
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			draft: textArea.value,
+			inputFocused: textArea.ownerDocument.activeElement === textArea,
+			focusResponseItemCalls,
+			telemetryEvents,
+		}, {
+			inputVisible: true,
+			draft: 'keep this draft',
+			inputFocused: true,
+			focusResponseItemCalls: [],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
+			],
+		});
+	});
+
+	test('keeps the enhanced action menu dismissed when pointer selection settles outside a response', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			autoScrollHolds,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		setSelectionOutsideTranscript('unrelated text');
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			autoScrollHolds: autoScrollHolds(),
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			autoScrollHolds: 0,
+			telemetryEvents: [],
+		});
+	});
+
+	test('ignores pointer cancellation from a secondary pointer', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			cancelPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		cancelPointerSelection(2, false);
+
+		await waitForAnimationFrame();
+		const menuVisibleAfterSecondaryCancel = menuDomNode(controller).style.display !== 'none';
+
+		releasePointerSelection(1);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleAfterSecondaryCancel,
+			menuVisibleAfterPrimaryRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleAfterSecondaryCancel: false,
+			menuVisibleAfterPrimaryRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('new pointer selection cancels pending release reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		releasePointerSelection(1);
+		beginPointerSelection(undefined, 2);
+
+		await waitForAnimationFrame();
+		const menuVisibleDuringSecondDrag = menuDomNode(controller).style.display !== 'none';
+
+		setSelection('hello world');
+		releasePointerSelection(2);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleDuringSecondDrag,
+			menuVisibleAfterSecondRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleDuringSecondDrag: false,
+			menuVisibleAfterSecondRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('chat navigation cancels pending pointer selection reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		releasePointerSelection();
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			telemetryEvents: [],
 		});
 	});
 

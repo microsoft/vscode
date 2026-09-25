@@ -8,6 +8,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
@@ -26,10 +27,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionShowsArchivedChatsContext } from './sessionsList.js';
+import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -1081,6 +1082,146 @@ class RestoreArchivedSessionAction extends BaseUnarchiveSessionAction {
 	}
 }
 
+abstract class BaseArchiveChatAction extends Action2 {
+	constructor(wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).archive;
+		const when = ContextKeyExpr.and(ChatContextKeys.enabled, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext.negate());
+		super({
+			id: ARCHIVE_CHAT_COMMAND_ID,
+			title: action.title,
+			icon: action.icon,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 3,
+				when,
+			}, {
+				id: Menus.SessionChatItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || context.chat.isArchived.get() || !getChatCapabilities(context.chat, context.session, undefined).canArchive) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		await sessionsManagementService.archiveChat(context.session, context.chat);
+
+		const activeSession = sessionsService.activeSession.get();
+		if (activeSession?.sessionId === context.session.sessionId) {
+			const openChat = activeSession.openChats.get().find(chat => isEqual(chat.resource, context.chat.resource));
+			if (openChat) {
+				await sessionsService.closeChat(activeSession, openChat);
+			}
+		}
+	}
+}
+
+class ArchiveChatAction extends BaseArchiveChatAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+class MarkChatAsDoneAction extends BaseArchiveChatAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
+abstract class BaseUnarchiveChatAction extends Action2 {
+	constructor(wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).unarchive;
+		const when = ContextKeyExpr.and(ChatContextKeys.enabled, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext);
+		super({
+			id: UNARCHIVE_CHAT_COMMAND_ID,
+			title: action.title,
+			icon: action.icon,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 3,
+				when,
+			}, {
+				id: Menus.SessionChatItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !context.chat.isArchived.get() || !getChatCapabilities(context.chat, context.session, undefined).canArchive) {
+			return;
+		}
+		await accessor.get(ISessionsManagementService).unarchiveChat(context.session, context.chat);
+	}
+}
+
+class UnarchiveChatAction extends BaseUnarchiveChatAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+class RestoreArchivedChatAction extends BaseUnarchiveChatAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
+export const SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID = 'sessionsViewPane.showArchivedChats';
+
+abstract class BaseToggleSessionArchivedChatsAction extends Action2 {
+	constructor(wording: ChatSessionArchiveActionWording) {
+		super({
+			id: SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID,
+			title: wording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize2('showDoneChats', "Show Done Chats")
+				: localize2('showArchivedChats', "Show Archived Chats"),
+			toggled: SessionShowsArchivedChatsContext,
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_newChat',
+				order: 1,
+			}],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
+		const sessionsControl = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
+		if (!sessionsControl) {
+			return;
+		}
+		const sessions = getSessionActionTargets(accessor, context);
+		if (sessions.length === 0) {
+			return;
+		}
+		const visible = !sessionsControl.isSessionArchivedChatsVisible(sessions[0]);
+		for (const session of sessions) {
+			sessionsControl.setSessionArchivedChatsVisible(session, visible);
+		}
+	}
+}
+
+export class ShowArchivedChatsAction extends BaseToggleSessionArchivedChatsAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+class ShowDoneChatsAction extends BaseToggleSessionArchivedChatsAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
 registerAction2(class RenameSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -1367,14 +1508,20 @@ function getSessionsArchiveActionConstructors(wording: ChatSessionArchiveActionW
 			MarkSectionSessionsDoneAction,
 			MarkAllSessionsInGroupAsDoneAction,
 			MarkSessionAsDoneAction,
+			MarkChatAsDoneAction,
+			ShowDoneChatsAction,
 			RestoreArchivedSessionAction,
+			RestoreArchivedChatAction,
 			RestoreActiveSessionAction,
 		]
 		: [
 			ArchiveSectionAction,
 			ArchiveSessionsInGroupAction,
 			ArchiveSessionAction,
+			ArchiveChatAction,
+			ShowArchivedChatsAction,
 			UnarchiveSessionAction,
+			UnarchiveChatAction,
 			UnarchiveActiveSessionAction,
 		];
 }

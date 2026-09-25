@@ -285,6 +285,30 @@
 #### sessions/chat/view/chatView/RequestAttachmentBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b143a14c0a785fd33a98619f34607323a542186bbaef728e4cacef566686d013)
 
+#### sessions/sessionsList/SessionsList_ArchivedNestedChat/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9b866051fa29ffce7e6d6a996f06793b2edf7ba40fe9826047ad5b5d1b3265c5)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChat/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2536fb86e0abd8eb7ffd92b324ef8d5c070cb8dd67a29acc3f505ce2a6e63d87)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChat/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/53a09553890e7575809cf1ffb157341bf7fce482020ca6f30ab513ae6f800815)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChat/LightHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1dba96d26546609e86fabfb1291192654a01a7ff46463cf4f8ece7fc9035678c)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b453e5c379f4648a9f22663e809a5600c8b07b7d586a8d75b36e4f6e1dad55d0)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/bdf05b127fcf4b3a8c5b7181424148a8817186e644822b29d63eaeaa633dbb85)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c889da2400347ec85aa1a7b38ecbb61bb04bb2b2cae47e19aba2869828a00f54)
+
+#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/LightHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/302ee7c3f7cacc748f9ab65e2e2c7751838cf1ab057af0dfa2c92d35beb87718)
+
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/f2a8889645a6c83d38ffcd6f4a168142063e56bb2b5f7b5407aa6276e86abf17)
 

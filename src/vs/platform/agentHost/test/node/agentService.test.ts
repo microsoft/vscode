@@ -3417,6 +3417,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects independent archive actions for the default chat', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(defaultChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				sessionArchived: ((getStateManager(svc).getSessionState(session.toString())?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+				sessionArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for tool chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const toolChat = buildChatUri(session, 'tool');
+			getStateManager(svc).addChat(session.toString(), toolChat, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(toolChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(toolChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for side chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const sideChat = buildChatUri(session, 'side');
+			getStateManager(svc).addChat(session.toString(), sideChat, {
+				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(sideChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(sideChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
 		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');

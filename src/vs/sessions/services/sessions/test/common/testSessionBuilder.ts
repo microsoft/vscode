@@ -106,7 +106,7 @@ function buildTestChat(resource: URI, title: string, status: SessionStatus, inte
 		interactivity: constObservable(interactivity),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		capabilities: constObservable({ canRename: true, canDelete: true }),
+		capabilities: constObservable({ canRename: true, canArchive: false, canDelete: true }),
 	};
 	return { chat, title: titleValue, status: statusValue };
 }
