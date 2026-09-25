@@ -99,6 +99,11 @@ function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
 	return { type: 'user', message: { content } } as Extract<SDKMessage, { type: 'user' }>;
 }
 
+/** The `isReplay` twin of {@link userMessage}: transcript history the SDK re-emits on resume. */
+function replayedUserMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
+	return { type: 'user', isReplay: true, message: { content } } as Extract<SDKMessage, { type: 'user' }>;
+}
+
 suite('ClaudeSdkMessageRouter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,6 +138,32 @@ suite('ClaudeSdkMessageRouter', () => {
 		const p1 = router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		assert.ok(p1 instanceof Promise);
 		await p1;
+	});
+
+	test('a replayed user envelope never reaches the file edit observer', async () => {
+		const chatChannelUri = URI.parse(buildDefaultChatUri('claude:/sess-1'));
+		const attributionService = new RecordingAgentEditAttributionService();
+		const { router, fileService, signals } = createRouter(disposables, chatChannelUri, attributionService);
+		const file = URI.file('/work/a.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'tu-1', name: 'Write', input: { file_path: file.fsPath, content: 'after' } },
+		]), 'turn-1');
+		await fileService.writeFile(file, VSBuffer.fromString('after'));
+		const signalsBeforeReplay = signals.length;
+		await router.handle(replayedUserMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-1', content: 'ok' },
+		]), 'turn-1');
+		router.dispose();
+
+		assert.deepStrictEqual({
+			recordedSessionUris: attributionService.recordedSessionUris,
+			signalsFromReplay: signals.length - signalsBeforeReplay,
+		}, {
+			recordedSessionUris: [],
+			signalsFromReplay: 0,
+		});
 	});
 
 	test('tracks and flushes peer chat edits by their chat channel URI', async () => {

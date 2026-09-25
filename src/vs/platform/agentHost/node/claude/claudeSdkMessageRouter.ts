@@ -12,8 +12,9 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { hydrateAttribution, type IClaudeAttributionSeed } from './claudeAttributionResolver.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, isReplayedUserMessage, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
@@ -45,6 +46,9 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
+	/** Pending replay hydration, awaited once by {@link handle} and cleared afterwards. */
+	private _attributionSeed: Promise<void> | undefined;
+
 	constructor(
 		private readonly _chatChannelUri: URI,
 		resource: URI,
@@ -65,7 +69,42 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
+	/** Drop pending tool-call attribution and foreground subagent spawns at a protocol turn boundary; the pipeline decides when that is. */
+	clearPendingTurnState(): void {
+		this._mapperState.clearPendingToolCalls(this._logService);
+		for (const orphan of this._subagents.drainForegroundSpawns()) {
+			this._logService.warn(`[ClaudeSdkMessageRouter] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
+		}
+	}
+
+	/**
+	 * Seed live attribution from a restored transcript. The synchronous mapper cannot
+	 * wait, so {@link handle} awaits this once before it maps the first SDK message.
+	 */
+	seedReplayAttribution(seed: Promise<IClaudeAttributionSeed | undefined>): void {
+		this._attributionSeed = this._applyReplayAttribution(seed);
+	}
+
+	private async _applyReplayAttribution(seed: Promise<IClaudeAttributionSeed | undefined>): Promise<void> {
+		try {
+			const resolved = await seed;
+			if (resolved) {
+				hydrateAttribution(this._mapperState, this._subagents, resolved);
+			}
+		} catch (err) {
+			this._logService.warn(`[ClaudeSdkMessageRouter] replay attribution seed failed, continuing unhydrated: ${err}`);
+		}
+	}
+
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
+		if (this._attributionSeed) {
+			await this._attributionSeed;
+			this._attributionSeed = undefined;
+		}
+		// Replayed transcript history: neither the file-edit observer nor the mapper may re-attribute it.
+		if (message.type === 'user' && isReplayedUserMessage(message)) {
+			return;
+		}
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {

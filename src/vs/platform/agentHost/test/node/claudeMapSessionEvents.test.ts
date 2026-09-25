@@ -29,6 +29,7 @@ import {
 	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
+	makeReplayedUserToolResultMessage,
 	makeTextDelta,
 	makeThinkingDelta,
 	makeUserToolResultMessage,
@@ -659,6 +660,80 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 		assert.strictEqual(log.warns.length, 1);
 		assert.ok(log.warns[0].includes('tool_result for unknown tool_use_id unknown-id'));
+	});
+
+	/**
+	 * Seeds one hydrated (restored) tool call the way
+	 * `hydrateAttribution` does after a session resume.
+	 */
+	function hydrateReadToolCall(state: ClaudeMapperState, toolUseId: string, turnId: string): void {
+		state.toolCalls.hydrate({
+			toolUseId,
+			turnId,
+			toolName: 'Read',
+			isClientTool: false,
+			parsedInput: { file_path: '/tmp/x' },
+			isSubagentSpawn: false,
+			resultSeen: false,
+		});
+	}
+
+	test('tool_result for a hydrated tool_use owned by a committed turn emits no completion and does not warn as unknown', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		hydrateReadToolCall(state, 'tu_restored', 'u1');
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_restored', 'late content'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			r(),
+		);
+
+		assert.deepStrictEqual({ signals, warns: log.warns, stillTracked: state.lookupToolCall('tu_restored') }, { signals: [], warns: [], stillTracked: undefined });
+	});
+
+	test('tool_result for a hydrated tool_use whose turn IS the in-flight turn still completes normally', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		hydrateReadToolCall(state, 'tu_restored_live', TURN_ID);
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_restored_live', 'file contents'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			r(),
+		);
+
+		assert.deepStrictEqual({
+			completes: signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete ? [{ turnId: s.action.turnId, toolCallId: s.action.toolCallId }] : []),
+			warns: log.warns,
+		}, {
+			completes: [{ turnId: TURN_ID, toolCallId: 'tu_restored_live' }],
+			warns: [],
+		});
+	});
+
+	test('a replayed user envelope re-attributes nothing, even for a live tool_use', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_live', 'Read')), SESSION, TURN_ID, state, log, resolver);
+		const signals = mapSDKMessageToAgentSignals(
+			makeReplayedUserToolResultMessage(SESSION_ID, 'tu_live', 'history'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+
+		assert.deepStrictEqual({ signals, warns: log.warns, stillTracked: state.lookupToolCall('tu_live')?.turnId }, { signals: [], warns: [], stillTracked: TURN_ID });
 	});
 
 	test('tool_result with is_error: true reports success=false', () => {
