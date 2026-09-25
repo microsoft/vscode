@@ -514,6 +514,90 @@ suite('ActionListWidget', () => {
 		});
 	}
 
+	for (const activation of ['click', 'tap', 'keyboard'] as const) {
+		test(`${activation} opens opted-in live details and preserves them through refresh`, () => {
+			const selected: string[] = [];
+			const content = document.createElement('div');
+			content.textContent = 'Running, Attached, 1s';
+			const item = (): IActionListItem<ITestActionItem> => ({
+				...action('shell'),
+				hover: { content, expandable: true },
+				openSubmenuOnClick: true,
+			});
+			const widget = createActionListWidget(disposables, {
+				items: [item()],
+				onSelect: entry => selected.push(entry.id),
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+			if (activation === 'keyboard') {
+				widget.acceptSelected();
+			} else if (activation === 'tap') {
+				row.dispatchEvent(Object.assign(new CustomEvent(TouchEventType.Tap, { bubbles: true }), { initialTarget: row }));
+			} else {
+				row.click();
+			}
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const opened = panel.style.display !== 'none' && panel.contains(content);
+			const keyboardFocused = activation !== 'keyboard' || document.activeElement === panel;
+			content.textContent = 'Running, Attached, 2s';
+			widget.updateItems([item()], undefined, { preserveHover: true });
+			const retained = panel.style.display !== 'none' && panel.contains(content);
+			const elapsed = panel.textContent?.includes('Running, Attached, 2s');
+			widget.updateItems([], undefined, { preserveHover: true });
+
+			assert.deepStrictEqual({ selected, opened, keyboardFocused, retained, elapsed, closedOnCompletion: panel.style.display === 'none' }, {
+				selected: [], opened: true, keyboardFocused: true, retained: true, elapsed: true, closedOnCompletion: true,
+			});
+		});
+	}
+
+	for (const zoom of [1, 1.25]) {
+		for (const contentHeight of [80, 800]) {
+			test(`bottom-aligned details remain above the input boundary at ${zoom} zoom with ${contentHeight}px content`, async () => {
+				const content = document.createElement('div');
+				content.style.cssText = `width: 200px; height: ${contentHeight}px;`;
+				content.textContent = 'Background shell details';
+				const item = (): IActionListItem<ITestActionItem> => ({
+					...action('shell'),
+					hover: { content, expandable: true, alignToParentBottom: true },
+					openSubmenuOnClick: true,
+				});
+				const widget = createActionListWidget(disposables, {
+					items: [item()],
+					listOptions: { showFilter: false },
+				});
+				const popup = document.createElement('div');
+				popup.className = 'action-widget';
+				popup.style.cssText = `position: fixed; top: 160px; left: 40px; zoom: ${zoom};`;
+				document.body.appendChild(popup);
+				disposables.add({ dispose: () => popup.remove() });
+				popup.appendChild(widget.domNode);
+				widget.layout(24, 240);
+				widget.focus();
+				widget.acceptSelected();
+				await settleLayout();
+				const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+				const initial = panel.getBoundingClientRect();
+				for (let i = 0; i < 3; i++) {
+					widget.updateItems([item()], undefined, { preserveHover: true });
+					await settleLayout();
+				}
+				const updated = panel.getBoundingClientRect();
+				const bottom = popup.getBoundingClientRect().bottom;
+
+				assert.deepStrictEqual({
+					initialAbove: initial.bottom <= bottom + 1,
+					updatedAbove: updated.bottom <= bottom + 1,
+					withinViewport: updated.top >= -1,
+					stableHeight: Math.abs(updated.height - initial.height) < 1,
+					visible: updated.height > 0,
+				}, { initialAbove: true, updatedAbove: true, withinViewport: true, stableHeight: true, visible: true });
+			});
+		}
+	}
+
 	test('keyboard activation on an opted-in submenu row focuses its filter without selecting it', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {

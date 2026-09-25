@@ -38,6 +38,11 @@ export interface ChatState {
 	status: SessionStatus;
 	/** Human-readable description of what the chat is currently doing */
 	activity?: string;
+	/**
+	 * Work running outside the current turn that will resume this chat when it
+	 * finishes, such as background shells and subagents. Independent of turn state.
+	 */
+	backgroundWork?: BackgroundWork[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/** How this chat came into existence */
@@ -130,6 +135,8 @@ export interface ChatSummary {
 	status: SessionStatus;
 	/** Human-readable description of what the chat is currently doing */
 	activity?: string;
+	/** Background work, mirrored from {@link ChatState.backgroundWork}. */
+	backgroundWork?: BackgroundWork[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/** How this chat came into existence */
@@ -148,6 +155,93 @@ export interface ChatSummary {
 	 */
 	workingDirectories?: URI[];
 }
+
+/**
+ * Kind of {@link BackgroundWork}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Background Work
+ * @nonexhaustive
+ */
+export const enum BackgroundWorkKind {
+	/** A shell command that continues after its initiating tool call returns. */
+	Shell = 'shell',
+	/** A subagent running in the background. */
+	Subagent = 'subagent',
+}
+
+/**
+ * Activity of background work that has not finished.
+ *
+ * @category Background Work
+ * @nonexhaustive
+ */
+export const enum BackgroundWorkStatus {
+	Running = 'running',
+	/** Not making progress on its own, for example a shell waiting for input. */
+	Idle = 'idle',
+}
+
+/**
+ * Fields common to every {@link BackgroundWork} variant.
+ *
+ * @category Background Work
+ */
+interface BackgroundWorkBase {
+	/**
+	 * Identifier of this entry, unique within the owning chat across all kinds.
+	 * The host derives it however it likes (for example from the kind plus the
+	 * agent's own task id); consumers MUST treat it as opaque. It is the key for
+	 * the `chat/backgroundWorkSet` / `chat/backgroundWorkRemoved` upsert
+	 * convention.
+	 */
+	id: string;
+	/** Human-readable label, such as the command's purpose or the subagent's name. */
+	label: string;
+	/** Current activity of the unfinished work. */
+	status: BackgroundWorkStatus;
+	/** ISO 8601 timestamp when the work started. */
+	startedAt: string;
+	/** Provider-specific metadata, such as how a shell's lifetime is tied to its agent. */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * A shell command continuing outside its initiating tool call.
+ *
+ * @category Background Work
+ */
+export interface BackgroundShellWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Shell;
+	/** Command line, displayed as plain text. */
+	command: string;
+	/** Terminal channel carrying this shell's output, when the host provides one. */
+	terminal?: URI;
+}
+
+/**
+ * A subagent running in the background. Its own state lives in its chat.
+ *
+ * @category Background Work
+ */
+export interface BackgroundSubagentWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Subagent;
+	/** The subagent's chat. */
+	chat: URI;
+}
+
+/**
+ * Work running outside the current turn that will resume the owning chat when
+ * it finishes. Clients that don't recognize a `kind` should keep the entry and
+ * may render it from the common fields.
+ *
+ * @category Background Work
+ */
+export type BackgroundWork =
+	| BackgroundShellWork
+	| BackgroundSubagentWork;
 
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.

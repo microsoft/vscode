@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
+import { BackgroundWorkKind, BackgroundWorkStatus, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
@@ -95,6 +96,44 @@ suite('AgentHostStateManager', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
 		assert.strictEqual(snapshot, undefined);
+	});
+
+	test('background work mirrors into the session catalog and survives turn completion with chat-scoped IDs', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer);
+		const shell: BackgroundShellWork = {
+			kind: BackgroundWorkKind.Shell, id: 'shared-id', label: 'Run tests', command: 'npm test',
+			status: BackgroundWorkStatus.Running, startedAt: new Date(0).toISOString(),
+		};
+		const updates: string[] = [];
+		disposables.add(manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatUpdated && envelope.action.changes.backgroundWork) {
+				updates.push(envelope.action.chat);
+			}
+		}));
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatBackgroundWorkSet, work: shell });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatBackgroundWorkSet, work: { ...shell, command: 'npm run build' } });
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
+			message: { text: 'Follow-up', origin: { kind: MessageKind.User } },
+		});
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		const afterTurn = manager.getChatState(sessionChatUri)?.backgroundWork;
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatBackgroundWorkRemoved, id: shell.id });
+
+		assert.deepStrictEqual({
+			afterTurn,
+			catalog: manager.getSessionState(sessionUri)?.chats.map(chat => ({ resource: chat.resource, work: chat.backgroundWork })),
+			updates,
+		}, {
+			afterTurn: [shell],
+			catalog: [
+				{ resource: sessionChatUri, work: [] },
+				{ resource: peer, work: [{ ...shell, command: 'npm run build' }] },
+			],
+			updates: [sessionChatUri, peer, sessionChatUri],
+		});
 	});
 
 	test('getSnapshot returns root snapshot', () => {

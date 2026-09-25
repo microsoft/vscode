@@ -52,7 +52,8 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
-import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, BackgroundWorkStatus, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
+import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -1395,6 +1396,209 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('background work', () => {
+		function shell(id: string): Extract<BackgroundTasks[number], { type: 'shell' }> {
+			return {
+				type: 'shell', id, description: `Run ${id}`, command: 'npm test',
+				status: 'running', startedAt: new Date(0).toISOString(),
+				attachmentMode: 'attached', executionMode: 'background',
+			};
+		}
+
+		function agent(id: string): Extract<BackgroundTasks[number], { type: 'agent' }> {
+			return {
+				type: 'agent', id, toolCallId: `tc-${id}`, description: `Research ${id}`,
+				status: 'running', agentType: 'explore', prompt: 'Investigate',
+				startedAt: new Date(0).toISOString(), executionMode: 'background',
+			};
+		}
+
+		function workActions(signals: readonly AgentSignal[]) {
+			return getActions(signals).filter(action => action.type === ActionType.ChatBackgroundWorkSet || action.type === ActionType.ChatBackgroundWorkRemoved);
+		}
+
+		function publishedIds(signals: readonly AgentSignal[]) {
+			return workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet ? [action.work.id] : []);
+		}
+
+		test('lists silent background shells across steering and removes completed commands', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('original-turn');
+			mockSession.backgroundTasks = [shell('silent')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			session.resetTurnState('steered-turn');
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterSteering = workActions(signals);
+			mockSession.backgroundTasks = [{ ...shell('silent'), status: 'completed' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+
+			const work: BackgroundWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:silent', label: 'Run silent', command: 'npm test',
+				status: BackgroundWorkStatus.Running, startedAt: new Date(0).toISOString(),
+				_meta: toCopilotBackgroundShellMeta('silent', 'attached'),
+			};
+			assert.deepStrictEqual({
+				afterSteering,
+				finished: workActions(signals),
+			}, {
+				afterSteering: [{ type: ActionType.ChatBackgroundWorkSet, work }],
+				finished: [
+					{ type: ActionType.ChatBackgroundWorkSet, work },
+					{ type: ActionType.ChatBackgroundWorkRemoved, id: 'shell:silent' },
+				],
+			});
+		});
+
+		test('publishes attached and detached active shells but not foreground or finished tasks', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [
+				shell('attached'),
+				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached' },
+				{ ...shell('foreground'), executionMode: 'sync' },
+				{ ...shell('completed'), status: 'completed' },
+				{ ...shell('failed'), status: 'failed' },
+				{ ...shell('cancelled'), status: 'cancelled' },
+			];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet
+				? [{ id: action.work.id, status: action.work.status, attachment: readCopilotShellAttachment(action.work) }]
+				: []), [
+				{ id: 'shell:attached', status: BackgroundWorkStatus.Running, attachment: 'attached' },
+				{ id: 'shell:detached', status: BackgroundWorkStatus.Idle, attachment: 'detached' },
+			]);
+		});
+
+		test('publishes running background subagents that point at their chats', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [
+				{ ...agent('running'), displayName: 'Reviewer' },
+				{ ...agent('idle'), status: 'idle' },
+				{ ...agent('sync'), executionMode: 'sync' },
+				{ ...agent('done'), status: 'completed' },
+			];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(workActions(signals), [{
+				type: ActionType.ChatBackgroundWorkSet,
+				work: {
+					kind: BackgroundWorkKind.Subagent, id: 'subagent:running', label: 'Reviewer',
+					status: BackgroundWorkStatus.Running, startedAt: new Date(0).toISOString(),
+					chat: buildSubagentChatUri(session.ownerSessionUri.toString(), 'tc-running'),
+				},
+			}]);
+		});
+
+		test('shows a synchronous command once the runtime moves it to the background', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{ ...shell('timed-out'), executionMode: 'sync' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const whileForeground = workActions(signals);
+			mockSession.backgroundTasks = [shell('timed-out')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			assert.deepStrictEqual({
+				whileForeground,
+				afterTimeout: publishedIds(signals),
+			}, { whileForeground: [], afterTimeout: ['shell:timed-out'] });
+		});
+
+		test('refreshes and republishes background work when a restored chat is observed again', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [shell('restored')]; },
+			});
+			const first = disposables.add(session.observeBackgroundWork());
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			first.dispose();
+			disposables.add(session.observeBackgroundWork());
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				publishedIds: publishedIds(signals),
+				refreshes: mockSession.backgroundTaskRefreshCalls,
+			}, { publishedIds: ['shell:restored', 'shell:restored'], refreshes: 2 });
+		});
+
+		test('does not publish a stale snapshot after a newer change', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTasks = [shell('stale')];
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.backgroundTasks = [shell('current')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await gate.complete();
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			assert.deepStrictEqual(publishedIds(signals), ['shell:current']);
+		});
+
+		test('preserves the list on failed reads and reconciles on the next change', async () => {
+			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [shell('running')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			mockSession.backgroundTaskListError = new Error('temporary task-list failure');
+			mockSession.backgroundTasks = [];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterFailure = workActions(signals).map(action => action.type);
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: workActions(signals).map(action => action.type),
+			}, {
+				afterFailure: [ActionType.ChatBackgroundWorkSet],
+				afterRetry: [ActionType.ChatBackgroundWorkSet, ActionType.ChatBackgroundWorkRemoved],
+			});
+		});
+
+		test('does not publish a read that finishes after disposal', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTasks = [shell('late')];
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			session.dispose();
+			await gate.complete();
+			await timeout(0);
+			assert.deepStrictEqual(workActions(signals), []);
+		});
+
+		test('refreshes detached shell completion without SDK events and stops polling when unobserved', () => runWithFakedTimers({}, async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{ ...shell('detached'), attachmentMode: 'detached' }];
+			const observer = disposables.add(session.observeBackgroundWork());
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			mockSession.backgroundTasks = [];
+			await timeout(5001);
+			observer.dispose();
+			const refreshes = mockSession.backgroundTaskRefreshCalls;
+			await timeout(5001);
+
+			assert.deepStrictEqual({
+				actions: workActions(signals).map(action => action.type),
+				refreshes,
+				afterUnobserve: mockSession.backgroundTaskRefreshCalls,
+			}, {
+				actions: [ActionType.ChatBackgroundWorkSet, ActionType.ChatBackgroundWorkRemoved],
+				refreshes: 2,
+				afterUnobserve: 2,
+			});
+		}));
+	});
 
 	test('initializes customization enablement before launching the SDK session', async () => {
 		let initialized = false;

@@ -2124,11 +2124,19 @@ export class AgentHostStateManager extends Disposable {
 		// SessionState subscribers (the per-chat tabs) reflect this chat's
 		// progress — not just the aggregated session summary. Status changes
 		// at most a couple of times per turn, so this won't flood the channel.
+		const summaryChanges: Partial<ChatSummary> = {};
 		if (prevEntry?.status !== nextEntry.status) {
+			summaryChanges.status = nextEntry.status;
+			summaryChanges.activity = nextEntry.activity;
+		}
+		if (prevEntry?.backgroundWork !== nextEntry.backgroundWork) {
+			summaryChanges.backgroundWork = nextEntry.backgroundWork;
+		}
+		if (Object.keys(summaryChanges).length > 0) {
 			this.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionChatUpdated,
 				chat: chatUri,
-				changes: { status: nextEntry.status, activity: nextEntry.activity },
+				changes: summaryChanges,
 			});
 		}
 
