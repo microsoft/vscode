@@ -205,6 +205,92 @@
       "type": "function"
     },
     {
+      "name": "list_canvas_capabilities",
+      "description": "Inspect a canvas *type* to discover its open input schema and supported actions (action names + input schemas). Takes a canvasId from the <canvases> section — not a running instanceId.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "extensionId": {
+            "type": "string",
+            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
+          },
+          "canvasId": {
+            "type": "string",
+            "description": "Canvas type to inspect (not a running instance). Must be a canvasId from the <canvases> section."
+          }
+        },
+        "required": [
+          "canvasId"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
+      "name": "open_canvas",
+      "description": "Open or focus a declared canvas. canvasId selects the canvas type (from the <canvases> section); instanceId is a handle you choose for this specific panel and reuse in later invoke_canvas_action calls. Re-opening the same instanceId focuses the existing panel; using a new instanceId opens an additional panel of the same canvas type.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "extensionId": {
+            "type": "string",
+            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
+          },
+          "canvasId": {
+            "type": "string",
+            "description": "Canvas type to open. Must be a canvasId from the <canvases> section — do not invent one."
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller-chosen handle for this panel. Free-form (slug or UUID), unrelated to canvasId. Reuse it in invoke_canvas_action to address the same panel; pick a new value to open another panel of the same type."
+          },
+          "input": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Canvas open input matching the canvas input schema. Send a JSON object, or null when the canvas takes no input, and never JSON-encoded text"
+          }
+        },
+        "required": [
+          "canvasId",
+          "instanceId"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
+      "name": "invoke_canvas_action",
+      "description": "Invoke an action on an open canvas instance. Identify the panel by the instanceId you passed to open_canvas — do not pass canvasId or extensionId here. Action names and schemas come from list_canvas_capabilities for the canvas type.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "The instanceId from a prior open_canvas — the panel handle, NOT canvasId or extensionId."
+          },
+          "actionName": {
+            "type": "string",
+            "description": "Action name to invoke. See list_canvas_capabilities for the actions a canvas supports."
+          },
+          "input": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Action input matching the action input schema. Send a JSON object, or null when the action takes no input, and never JSON-encoded text"
+          }
+        },
+        "required": [
+          "instanceId",
+          "actionName"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
       "name": "sql",
       "description": "Query the session SQLite database for structured workflows. `todos` and `todo_deps` already exist—do not recreate them; create other tables as needed. Supports SQLite SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, and DROP.",
       "parameters": {

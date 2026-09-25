@@ -243,6 +243,9 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	async resolveCanvasSource(): Promise<{ url: string }> {
+		return { url: 'https://example.test/canvas' };
+	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = [...this.listedSessions];
 		this.afterListSessionsSnapshot?.();

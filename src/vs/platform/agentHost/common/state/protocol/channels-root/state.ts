@@ -103,6 +103,10 @@ export interface AgentInfo {
  */
 export interface AgentCapabilities {
 	/**
+	 * The agent can expose live canvases opened by its model tools.
+	 */
+	canvases?: CanvasCapability;
+	/**
 	 * The agent can host more than one concurrent chat per session. When absent,
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
 	 * session starts with. An empty object `{}` advertises multi-chat without
@@ -122,6 +126,9 @@ export interface AgentCapabilities {
 	 */
 	multipleWorkingDirectories?: MultipleWorkingDirectoriesCapability;
 }
+
+/** Presence-only capability for agent-owned canvases. */
+export interface CanvasCapability { }
 
 /**
  * Options for the {@link AgentCapabilities.multipleChats} capability.

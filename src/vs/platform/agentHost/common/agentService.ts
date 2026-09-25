@@ -20,7 +20,7 @@ import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveCanvasSourceParams, ResolveCanvasSourceResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
@@ -823,6 +823,9 @@ export interface IAgentService {
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
 
+	/** Resolve the current source of a live canvas owned by a chat. */
+	resolveCanvasSource(params: ResolveCanvasSourceParams): Promise<ResolveCanvasSourceResult>;
+
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
@@ -1186,6 +1189,8 @@ export interface IAgentConnection {
 	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
+	/** Resolve the current source of a live canvas owned by a chat. */
+	resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<ResolveCanvasSourceResult>;
 
 	// ---- Terminal lifecycle -------------------------------------------------
 	createTerminal(params: CreateTerminalParams): Promise<void>;

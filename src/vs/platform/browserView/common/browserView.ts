@@ -228,6 +228,13 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	awaitNextPaint?: boolean;
 }
 
+/** Bounded semantic text from Chromium for user accessibility. */
+export interface IBrowserViewAccessibilitySnapshot {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly scope: 'main-frame';
+}
+
 /** Identifies who controls a browser view. */
 export type IBrowserViewOwner =
 	| { readonly type: 'user' }
@@ -262,6 +269,11 @@ export interface IBrowserViewHost {
 	readonly sessionId?: string;
 }
 
+export const enum BrowserViewPresentation {
+	Listed = 'listed',
+	Unlisted = 'unlisted',
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
@@ -270,6 +282,7 @@ export interface IBrowserViewInfo {
 	readonly id: string;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
+	readonly presentation: BrowserViewPresentation;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
@@ -297,6 +310,8 @@ export interface IBrowserViewCreationContext {
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
+	/** Controls whether the workbench registers this view as a normal integrated-browser page. */
+	readonly presentation?: BrowserViewPresentation;
 	/** Grants automation clients access before the view is announced to other processes. */
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
 }
@@ -505,6 +520,8 @@ export interface IBrowserDeviceProfile {
 export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
+	/** Read-only accessibility snapshot that does not grant agent access. */
+	getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot>;
 	/**
 	 * Fires when a new browser view is created.
 	 */

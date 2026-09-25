@@ -27,6 +27,7 @@ registerOpenAgentsWindowCommand();
 
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
+import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
 
 //#endregion
 

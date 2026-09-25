@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -41,7 +42,7 @@ import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHos
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, CanvasAvailability as ProtocolCanvasAvailability, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasInstance, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -65,11 +66,11 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
-import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, LOCAL_AGENT_HOST_PROVIDER_ID, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCanvas, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionCanvasAvailability, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -87,6 +88,7 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
+const AGENT_HOST_CANVAS_SCHEME = 'agent-host-canvas';
 
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
 	const changes = new Map<string, { added?: ISession; removed?: ISession; changed?: ISession }>();
@@ -871,10 +873,51 @@ function toChatInteractivity(interactivity: ProtocolChatInteractivity | undefine
 interface IChatOutputObs {
 	readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]>;
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
+	readonly canvases: IObservable<readonly ISessionCanvas[]>;
 	/** Resolves the GitHub info each folder of the chat's workspace reports. */
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
 	readonly getScopeGitState: (reader: IReader, workingDirectories: readonly string[] | undefined) => ISessionGitState | undefined;
+}
+
+class AgentHostSessionCanvas implements ISessionCanvas {
+	readonly resource: URI;
+	readonly instanceId: string;
+	readonly title: string;
+	readonly status: string | undefined;
+	readonly revision: number;
+	readonly availability: SessionCanvasAvailability;
+
+	constructor(
+		private readonly _chat: URI,
+		canvas: CanvasInstance,
+		private readonly _getConnection: () => IAgentConnection | undefined,
+	) {
+		this.resource = URI.from({
+			scheme: AGENT_HOST_CANVAS_SCHEME,
+			path: `/${encodeURIComponent(_chat.toString())}/${encodeURIComponent(canvas.instanceId)}`,
+		});
+		this.instanceId = canvas.instanceId;
+		this.title = canvas.title ?? canvas.extensionName ?? canvas.canvasId;
+		this.status = canvas.status;
+		this.revision = canvas.revision;
+		this.availability = canvas.availability === ProtocolCanvasAvailability.Ready
+			? SessionCanvasAvailability.Ready
+			: SessionCanvasAvailability.Unavailable;
+	}
+
+	async resolveSource(): Promise<URI> {
+		const connection = this._getConnection();
+		if (!connection) {
+			throw new Error(localize('agentHostCanvas.disconnected', "The canvas runtime is disconnected."));
+		}
+		const result = await connection.resolveCanvasSource(this._chat, this.instanceId, this.revision);
+		const source = URI.parse(result.url, true);
+		if (source.scheme !== Schemas.http && source.scheme !== Schemas.https) {
+			throw new Error(localize('agentHostCanvas.invalidSource', "The canvas returned an unsupported source."));
+		}
+		return source;
+	}
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -987,6 +1030,7 @@ class AdditionalChat extends Disposable {
 			changesets,
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
+			canvases: output?.canvases,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
 			modelSource: this._withDetails(this._modelSource),
@@ -1462,6 +1506,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				const chatUri = defaultChatUriObs.read(reader);
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
+			canvases: this._createChatCanvasesObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
 			modelSource: this.modelSource,
@@ -1494,6 +1539,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
+				supportsCanvases: this.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && agentCapabilities?.canvases !== undefined,
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -1717,6 +1763,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
+			canvases: this._createChatCanvasesObservable(backendUri),
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 		};
@@ -2379,6 +2426,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return undefined;
 			}
 			return this._sessionOutput.getLastTurnChanges(chatUri).read(reader).filter(change => !change.isOutsideWorkspace);
+		});
+	}
+
+	private _createChatCanvasesObservable(chatUriOrObservable: URI | IObservable<URI | undefined>): IObservable<readonly ISessionCanvas[]> {
+		const chatUriObs = URI.isUri(chatUriOrObservable) ? constObservable(chatUriOrObservable) : chatUriOrObservable;
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			this._options,
+			this.isActiveSessionObs,
+			StateComponents.Chat,
+			chatUriObs,
+		);
+		const canvases = derivedOpts<readonly CanvasInstance[]>({ equalsFn: structuralEquals }, reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			return !chatState || chatState instanceof Error ? [] : chatState.canvases ?? [];
+		});
+		return derived(reader => {
+			const chatUri = chatUriObs.read(reader);
+			return chatUri ? canvases.read(reader).map(canvas => new AgentHostSessionCanvas(chatUri, canvas, this._options.getConnection)) : [];
 		});
 	}
 

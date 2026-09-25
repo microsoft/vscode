@@ -22,7 +22,7 @@ import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/bro
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveCanvasSourceResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -303,6 +303,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	disposeChat(chat: URI): Promise<void> {
 		return this._requireClient().disposeChat(chat);
+	}
+
+	resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<ResolveCanvasSourceResult> {
+		return this._requireClient().resolveCanvasSource(chat, instanceId, revision);
 	}
 
 	createTerminal(params: CreateTerminalParams): Promise<void> {

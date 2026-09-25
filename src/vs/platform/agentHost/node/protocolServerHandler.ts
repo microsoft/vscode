@@ -1655,6 +1655,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			await this._agentService.disposeChat(URI.parse(parsed.session), chat);
 			return null;
 		},
+		resolveCanvasSource: async (_client, params) => {
+			return this._agentService.resolveCanvasSource(params);
+		},
 		resourceWrite: async (_client, params) => {
 			return this._agentService.resourceWrite(params);
 		},

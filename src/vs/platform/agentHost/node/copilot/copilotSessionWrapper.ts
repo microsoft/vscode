@@ -426,6 +426,31 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
 	}
 
+	private _onExtensionsLoaded: Event<SessionEventPayload<'session.extensions_loaded'>> | undefined;
+	get onExtensionsLoaded(): Event<SessionEventPayload<'session.extensions_loaded'>> {
+		return this._onExtensionsLoaded ??= this._sdkEvent('session.extensions_loaded');
+	}
+
+	private _onCanvasRegistryChanged: Event<SessionEventPayload<'session.canvas.registry_changed'>> | undefined;
+	get onCanvasRegistryChanged(): Event<SessionEventPayload<'session.canvas.registry_changed'>> {
+		return this._onCanvasRegistryChanged ??= this._sdkEvent('session.canvas.registry_changed');
+	}
+
+	private _onCanvasOpened: Event<SessionEventPayload<'session.canvas.opened'>> | undefined;
+	get onCanvasOpened(): Event<SessionEventPayload<'session.canvas.opened'>> {
+		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
+	}
+
+	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;
+	get onCanvasClosed(): Event<SessionEventPayload<'session.canvas.closed'>> {
+		return this._onCanvasClosed ??= this._sdkEvent('session.canvas.closed');
+	}
+
+	private _onCanvasUnavailable: Event<SessionEventPayload<'session.canvas.unavailable'>> | undefined;
+	get onCanvasUnavailable(): Event<SessionEventPayload<'session.canvas.unavailable'>> {
+		return this._onCanvasUnavailable ??= this._sdkEvent('session.canvas.unavailable');
+	}
+
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
 	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
 		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');

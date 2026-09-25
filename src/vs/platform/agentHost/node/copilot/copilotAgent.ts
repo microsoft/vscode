@@ -13,6 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -102,6 +103,7 @@ import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecis
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
+import { resolveCopilotRuntimePaths } from './copilotRuntimePaths.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
@@ -232,15 +234,6 @@ const COPILOT_NO_PROXY_ENV_KEYS = ['no_proxy', 'NO_PROXY'] as const;
  */
 const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
 
-async function fileExists(filePath: string): Promise<boolean> {
-	try {
-		await fs.access(filePath);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
 async function validateCopilotRuntimePath(runtimePath: string): Promise<void> {
 	if (!isAbsolute(runtimePath)) {
 		throw new Error(`Invalid chat.agentHost.copilot.runtimePath: expected an absolute path, got '${runtimePath}'`);
@@ -263,53 +256,6 @@ async function validateCopilotRuntimePath(runtimePath: string): Promise<void> {
 		}
 	}
 }
-
-function isLinuxMuslRuntime(): boolean {
-	if (process.platform !== 'linux') {
-		return false;
-	}
-
-	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
-	return !report?.header?.glibcVersionRuntime;
-}
-
-function getCopilotPlatformPackageCandidates(): string[] {
-	const platformArch = `${process.platform}-${process.arch}`;
-	if (process.platform !== 'linux') {
-		return [platformArch];
-	}
-
-	const linuxCandidates = [`linux-${process.arch}`, `linuxmusl-${process.arch}`];
-	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
-}
-
-interface ICopilotRuntimePaths {
-	readonly runtimePath: string;
-	readonly sdkPath: string;
-}
-
-async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilotRuntimePaths> {
-	const tried: string[] = [];
-	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
-		const packageUri = URI.joinPath(nodeModulesUri, '@github', `copilot-sdk-${platformPackage}`);
-		const prebuildsUri = URI.joinPath(packageUri, 'prebuilds', platformPackage);
-		const runtimePath = URI.joinPath(prebuildsUri, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
-		const nativePath = URI.joinPath(prebuildsUri, 'runtime.node').fsPath;
-		const sdkPath = URI.joinPath(packageUri, 'copilot-sdk', 'index.js').fsPath;
-		tried.push(`${runtimePath} with ${nativePath} and ${sdkPath}`);
-		const [runtimeExists, nativeExists, sdkExists] = await Promise.all([
-			fileExists(runtimePath),
-			fileExists(nativePath),
-			fileExists(sdkPath),
-		]);
-		if (runtimeExists && nativeExists && sdkExists) {
-			return { runtimePath, sdkPath };
-		}
-	}
-
-	throw new Error(`Unable to resolve @github/copilot SDK runtime paths. Tried: ${tried.join(', ')}`);
-}
-
 /**
  * Selects the single Copilot SDK path that owns an MCP server definition. Plugin discovery is for servers declared by a materialized plugin; session config is for definitions Agent Host assembled from workspace or client-synced state.
  */
@@ -935,6 +881,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
+	private readonly _extensionLaunchRoots = new Map<string, number>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> recorded configuration scope, used for fork/restore paths that only know the chat URI. */
@@ -1429,6 +1376,64 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotClient(options);
 	}
 
+	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
+		const roots: string[] = [];
+		for (const directory of directories) {
+			if (directory.scheme !== Schemas.file) {
+				continue;
+			}
+			try {
+				roots.push(await fs.realpath(directory.fsPath));
+			} catch (error) {
+				this._logService.warn(`[Copilot] Failed to canonicalize extension launch root '${directory.fsPath}': ${getErrorMessage(error)}`);
+			}
+		}
+		for (const root of roots) {
+			this._extensionLaunchRoots.set(root, (this._extensionLaunchRoots.get(root) ?? 0) + 1);
+		}
+		return toDisposable(() => {
+			for (const root of roots) {
+				const count = this._extensionLaunchRoots.get(root);
+				if (count === undefined || count <= 1) {
+					this._extensionLaunchRoots.delete(root);
+				} else {
+					this._extensionLaunchRoots.set(root, count - 1);
+				}
+			}
+		});
+	}
+
+	private async _resolveExtensionLaunch(extensionId: string, modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
+		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
+			return {};
+		}
+		if (source === 'project') {
+			let canonicalModulePath: string;
+			try {
+				canonicalModulePath = await fs.realpath(modulePath);
+			} catch {
+				return {};
+			}
+			if (resourceBasename(URI.file(canonicalModulePath)) !== 'extension.mjs'
+				|| ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(URI.file(canonicalModulePath), URI.file(root)))) {
+				return {};
+			}
+		}
+		const dataDirectoryHash = new StringSHA1();
+		dataDirectoryHash.update(`${extensionId}\0${modulePath}`);
+		return {
+			launch: {
+				executable: process.execPath,
+				args: [extensionBootstrapPath],
+				env: {
+					EXTENSION_PATH: modulePath,
+					VSCODE_CANVAS_DATA_DIR: join(this._environmentService.userDataPath, 'agentHostCanvasData', dataDirectoryHash.digest()),
+					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+				},
+			},
+		};
+	}
+
 	// ---- auth ---------------------------------------------------------------
 
 	getDescriptor(): IAgentDescriptor {
@@ -1437,6 +1442,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			displayName: 'Copilot',
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
 			capabilities: {
+				canvases: {},
 				multipleChats: { fork: true, sideChat: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
 			},
@@ -1483,10 +1489,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const diagnostics = (async () => {
 			const nodeModulesUri = getAppNodeModulesUri();
 			const { sdkPath: runtimeSdkPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
-			stage = 'checking the Copilot runtime SDK';
-			if (!await fileExists(runtimeSdkPath)) {
-				throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
-			}
 			stage = 'loading the Copilot runtime SDK';
 			const runtimeSdk: unknown = await import(pathToFileURL(runtimeSdkPath).href);
 			if (!isCopilotRuntimeManagedSettingsSdk(runtimeSdk)) {
@@ -2554,7 +2556,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Keep the SDK wrapper and native module paired within the bundled platform
 			// package. Only the runtime executable can be explicitly overridden.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const { runtimePath: bundledRuntimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
+			const { runtimePath: bundledRuntimePath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 			let runtimePath = bundledRuntimePath;
 			if (startupConfig.runtimePath) {
 				await validateCopilotRuntimePath(startupConfig.runtimePath);
@@ -2610,6 +2612,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: startupConfig.sessionSync,
+				...(extensionBootstrapPath ? {
+					extensionLaunchProvider: {
+						resolve: request => this._resolveExtensionLaunch(request.id, request.modulePath, request.source, extensionBootstrapPath),
+					},
+				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
 				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
 			};
@@ -3482,6 +3489,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._changeAgent(chatUri, agent, context);
 		},
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
+		resolveCanvasSource: (chat: URI, instanceId: string, revision: number): Promise<{ url: string }> => {
+			const session = this._findChatByUri(chat);
+			if (!session) {
+				throw new Error(`Cannot resolve canvas source: chat '${chat.toString()}' has no live Copilot session`);
+			}
+			return Promise.resolve({ url: session.resolveCanvasSource(instanceId, revision) });
+		},
 	};
 
 	getTurnDiagnosticSnapshot(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot {
@@ -5788,6 +5802,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.dispose();
 			throw new CancellationError();
 		}
+		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories);
+		if (this._isShuttingDown) {
+			extensionLaunchAdmission.dispose();
+			session.dispose();
+			throw new CancellationError();
+		}
+		session.setExtensionLaunchAdmission(extensionLaunchAdmission);
 		this._sessionsPendingRegistration.add(session);
 		try {
 			await session.initializeSession();

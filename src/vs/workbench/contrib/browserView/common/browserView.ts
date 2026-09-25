@@ -59,6 +59,7 @@ import {
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
+	IBrowserViewAccessibilitySnapshot,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -332,6 +333,9 @@ export interface IBrowserViewWorkbenchService {
 	/** Creates and resolves a browser view, optionally requesting editor presentation. */
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
+	/** Creates an unlisted user-owned ephemeral view for embedding outside the browser editor. */
+	createExternalBrowserView(initialUrl: string): Promise<IBrowserViewModel>;
+
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
@@ -446,6 +450,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+	getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot>;
 	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -817,6 +822,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
+	}
+
+	async getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot> {
+		return this.browserViewService.getAccessibilitySnapshot(this.id, this.host.windowId);
 	}
 
 	async focus(force?: boolean): Promise<void> {

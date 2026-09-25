@@ -16,6 +16,7 @@ import { ActionType, StateAction } from '../../../../../platform/agentHost/commo
 import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
+import type { ResolveCanvasSourceResult } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
@@ -70,6 +71,10 @@ class MockAgentConnection implements IAgentConnection {
 
 	async disposeTerminal(terminal: URI): Promise<void> {
 		this.disposedTerminals.push(terminal);
+	}
+
+	async resolveCanvasSource(_chat: URI, _instanceId: string, _revision: number): Promise<ResolveCanvasSourceResult> {
+		return { url: 'https://example.test/canvas' };
 	}
 
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
