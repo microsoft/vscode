@@ -552,21 +552,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.setAriaLabel(label);
 	}
 
-	placeContextUsageWidget(container?: HTMLElement): void {
-		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
-	}
-
-	/** Reserves horizontal space at the trailing edge of the input editor. */
-	setInputEditorTrailingSpace(width: number): void {
-		const trailingSpace = Math.max(0, width);
-		if (this.inputEditorTrailingSpace === trailingSpace) {
-			return;
-		}
-
-		this.inputEditorTrailingSpace = trailingSpace;
-		this.layoutForToolbarChange();
-	}
-
 	get inputRowHeight(): number {
 		return this.inputAndSideToolbar.offsetHeight;
 	}
