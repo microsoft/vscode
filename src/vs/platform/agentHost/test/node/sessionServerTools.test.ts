@@ -112,7 +112,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.deepStrictEqual(
 			sessionServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
-			sessionServerToolDefinitions.map(({ name }) => ({ name, deferLoading: name !== SessionServerToolName.RenameChat })),
+			sessionServerToolDefinitions.map(({ name }) => ({ name, deferLoading: true })),
 		);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
