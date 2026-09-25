@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/aiCustomizationManagement.css';
+import './aiCustomizationColors.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';

@@ -2920,7 +2920,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-compatibility-message,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message {
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
 }
 
 .mcp-server-item .mcp-server-source-path {
@@ -2995,7 +2995,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .mcp-server-state-icon.compatibility {
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
 }
 
 .plugin-list-widget .mcp-server-state-icon.starting {
