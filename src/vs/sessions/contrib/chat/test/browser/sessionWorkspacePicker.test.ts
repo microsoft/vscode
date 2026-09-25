@@ -1276,20 +1276,25 @@ suite('WorkspacePicker - Connection Status', () => {
 			});
 			const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
 			let settled = false;
-			const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(() => settled = true);
+			const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(success => {
+				settled = true;
+				return success;
+			});
 			await timeout(0);
 			const beforeHistory = settled;
 
 			await recentlyOpened.complete({ workspaces: hasRecentWorkspace ? [{ folderUri }] : [], files: [] });
-			await restoring;
+			const restoredSuccessfully = await restoring;
 
 			assert.deepStrictEqual({
 				beforeHistory,
 				settled,
+				restoredSuccessfully,
 				selected: picker.selectedFolderUri?.toString(),
 			}, {
 				beforeHistory: false,
 				settled: true,
+				restoredSuccessfully: true,
 				selected: hasRecentWorkspace ? folderUri.toString() : undefined,
 			});
 		});
@@ -1320,19 +1325,23 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents, undefined, fileService);
 		let settled = false;
-		const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(() => settled = true);
+		const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(success => {
+			settled = true;
+			return success;
+		});
 		await timeout(0);
 
 		sessionsChanged.fire({ added: [], removed: [], changed: sessions });
 		await timeout(0);
 		const afterReplacement = settled;
 		await latestLookup.complete(true);
-		await restoring;
+		const restoredSuccessfully = await restoring;
 		await firstLookup.complete(false);
 
-		assert.deepStrictEqual({ afterReplacement, settled, selected: picker.selectedFolderUri?.toString() }, {
+		assert.deepStrictEqual({ afterReplacement, settled, restoredSuccessfully, selected: picker.selectedFolderUri?.toString() }, {
 			afterReplacement: false,
 			settled: true,
+			restoredSuccessfully: true,
 			selected: folderUri.toString(),
 		});
 	});
@@ -2292,15 +2301,17 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 				onDidChangeRecentlyOpened: Event.None,
 			});
 			const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
-			await timeout(0);
+			const restoredSuccessfully = await picker.whenWorkspaceRestored(CancellationToken.None);
 
 			assert.deepStrictEqual({
 				history: picker.selectionSnapshot.historyState,
 				state: picker.selectionSnapshot.state,
+				restoredSuccessfully,
 				errors,
 			}, {
 				history: 'error',
 				state: 'none',
+				restoredSuccessfully: false,
 				errors: [expectedError],
 			});
 		} finally {
@@ -2323,17 +2334,19 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 		try {
 			const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents);
-			await timeout(0);
+			const restoredSuccessfully = await picker.whenWorkspaceRestored(CancellationToken.None);
 
 			assert.deepStrictEqual({
 				history: picker.selectionSnapshot.historyState,
 				fallback: picker.selectionSnapshot.sessionFallbackState,
 				state: picker.selectionSnapshot.state,
+				restoredSuccessfully,
 				errors,
 			}, {
 				history: 'loaded',
 				fallback: 'error',
 				state: 'none',
+				restoredSuccessfully: false,
 				errors: [expectedError],
 			});
 		} finally {

@@ -2192,15 +2192,16 @@ export class WorkspacePicker extends Disposable {
 		return this._restoreAutomaticSelection();
 	}
 
-	/** Waits for history and the latest session-workspace lookup before choosing a workspace-less fallback. */
-	async whenWorkspaceRestored(token: CancellationToken): Promise<void> {
-		if (this._userHasPicked) {
-			return;
+	/** Waits for history and the latest session-workspace lookup and reports whether both completed successfully. */
+	async whenWorkspaceRestored(token: CancellationToken): Promise<boolean> {
+		if (!this._userHasPicked) {
+			await waitForState(this.recentWorkspacesService.historyLoadState, state => state !== 'loading', undefined, token);
+			while (!this._userHasPicked && this._sessionRestoreState.get()?.state === 'pending') {
+				await waitForState(this._sessionRestoreState, state => state?.state !== 'pending', undefined, token);
+			}
 		}
-		await waitForState(this.recentWorkspacesService.historyLoadState, state => state !== 'loading', undefined, token);
-		while (!this._userHasPicked && this._sessionRestoreState.get()?.state === 'pending') {
-			await waitForState(this._sessionRestoreState, state => state?.state !== 'pending', undefined, token);
-		}
+		return this.recentWorkspacesService.historyLoadState.get() === 'loaded'
+			&& this._sessionRestoreState.get()?.state === 'completed';
 	}
 
 	private _restoreAutomaticSelection(): boolean {

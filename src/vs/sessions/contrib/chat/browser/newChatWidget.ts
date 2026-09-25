@@ -691,8 +691,9 @@ export class NewChatWidget extends Disposable {
 		this._noWorkspaceRestore.value = lifetime;
 		try {
 			await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, cancellation.token);
-			if (!this._workspacePicker.isNoWorkspaceSelected()) {
-				await this._workspacePicker.whenWorkspaceRestored(cancellation.token);
+			if (!this._workspacePicker.isNoWorkspaceSelected()
+				&& !await this._workspacePicker.whenWorkspaceRestored(cancellation.token)) {
+				return;
 			}
 			if (cancellation.token.isCancellationRequested || this.sessionsService.activeSession.get()
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {

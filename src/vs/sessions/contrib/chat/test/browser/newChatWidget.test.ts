@@ -440,7 +440,7 @@ suite('NewChatWidget', () => {
 			let quickChatAvailable = true;
 			let noWorkspaceSelected = false;
 			let selectedFolderUri: URI | undefined;
-			let workspaceRestored = Promise.resolve();
+			let workspaceRestored = Promise.resolve(true);
 			const open = (kind: string): IActiveSession => {
 				opened.push(kind);
 				const session = upcastPartial<IActiveSession>({ sessionId: `quick-chat-${opened.length}` });
@@ -469,7 +469,7 @@ suite('NewChatWidget', () => {
 				set quickChatAvailable(value: boolean) { quickChatAvailable = value; },
 				set noWorkspaceSelected(value: boolean) { noWorkspaceSelected = value; },
 				set selectedFolderUri(value: URI | undefined) { selectedFolderUri = value; },
-				set workspaceRestored(value: Promise<void>) { workspaceRestored = value; },
+				set workspaceRestored(value: Promise<boolean>) { workspaceRestored = value; },
 				restore: () => restoreNoWorkspaceDraft.call(harness),
 			};
 		}
@@ -492,6 +492,16 @@ suite('NewChatWidget', () => {
 		});
 
 		for (const previouslySelected of [false, true]) {
+			test(`does not infer Chat from failed workspace restoration (previously selected: ${previouslySelected})`, async () => {
+				const state = createRestoreHarness();
+				state.noWorkspaceSelected = previouslySelected;
+				state.workspaceRestored = Promise.resolve(false);
+
+				await state.restore();
+
+				assert.deepStrictEqual(state.opened, previouslySelected ? ['checked'] : []);
+			});
+
 			test(`retries when a quick-chat provider becomes available (previously selected: ${previouslySelected})`, async () => {
 				const state = createRestoreHarness();
 				state.noWorkspaceSelected = previouslySelected;
@@ -509,15 +519,30 @@ suite('NewChatWidget', () => {
 			});
 		}
 
+		test('allows automatic Chat fallback after workspace restoration recovers', async () => {
+			const state = createRestoreHarness();
+			state.workspaceRestored = Promise.resolve(false);
+			await state.restore();
+			const afterFailure = [...state.opened];
+
+			state.workspaceRestored = Promise.resolve(true);
+			await state.restore();
+
+			assert.deepStrictEqual({ afterFailure, afterRecovery: state.opened }, {
+				afterFailure: [],
+				afterRecovery: ['automatic'],
+			});
+		});
+
 		test('waits for workspace discovery before selecting Chat', async () => {
 			const state = createRestoreHarness();
-			const discovery = new DeferredPromise<void>();
+			const discovery = new DeferredPromise<boolean>();
 			state.workspaceRestored = discovery.p;
 			const restoring = state.restore();
 			await timeout(0);
 			const whileDiscovering = [...state.opened];
 
-			await discovery.complete();
+			await discovery.complete(true);
 			await restoring;
 
 			assert.deepStrictEqual({ whileDiscovering, afterDiscovery: state.opened }, {
@@ -529,7 +554,7 @@ suite('NewChatWidget', () => {
 		for (const target of ['workspace', 'activeSession', 'pendingWorkspaceCreation'] as const) {
 			test(`preserves a ${target} that arrives while discovering workspaces`, async () => {
 				const state = createRestoreHarness();
-				const discovery = new DeferredPromise<void>();
+				const discovery = new DeferredPromise<boolean>();
 				state.workspaceRestored = discovery.p;
 				const restoring = state.restore();
 				await timeout(0);
@@ -541,7 +566,7 @@ suite('NewChatWidget', () => {
 				} else {
 					state.harness._newSessionCreation.value = toDisposable(() => { });
 				}
-				await discovery.complete();
+				await discovery.complete(true);
 				await restoring;
 
 				assert.deepStrictEqual(state.opened, []);
