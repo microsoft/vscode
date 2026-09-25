@@ -8,7 +8,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
@@ -656,11 +656,7 @@ export interface IActionListHeaderLink {
 	readonly uri: URI;
 }
 
-export interface IActionListCloseAnimation {
-	readonly className: string;
-	readonly duration: number;
-	readonly requiredAncestorClasses?: readonly string[];
-}
+export type IActionListCloseAnimation = IContextViewCloseAnimation;
 
 /**
  * Options for configuring the action list.

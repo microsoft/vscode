@@ -113,6 +113,10 @@ including plain, tabbed, and submenu popups. Their shared renderers enable motio
 after measuring the popup, without requiring each trigger to opt in. Updating
 items or switching tabs does not replay the entrance. This covers task, provider,
 agent, model, workspace, branch, and permission pickers.
+Menus and dropdown pickers share closing-motion eligibility: Modern UI or an
+active glass root, with motion enabled on that same root. This includes Agents
+glass overlays without the editor-only Modern UI class and preserves immediate
+dismissal when motion is reduced.
 The glass layer also follows the closing scale without fading. Submenus use the
 full theme tint while an ancestor's closing fade isolates their backdrops;
 closing pickers use the same fallback. Glass menus do not

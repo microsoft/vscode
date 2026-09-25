@@ -1311,6 +1311,11 @@ ${formatRule(Codicon.menuSubmenu)}
 			animation: frosted-glass-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
 		}
 
+		${frostedGlassMotionMenuSelector}.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS} > .monaco-scrollable-element {
+			animation: context-view-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+			pointer-events: none;
+		}
+
 		@keyframes ${FROSTED_GLASS_MENU_OPEN_ANIMATION} {
 			from {
 				transform: scale(0.97);

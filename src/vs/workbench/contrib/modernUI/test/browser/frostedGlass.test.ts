@@ -21,8 +21,8 @@ suite('Frosted glass styles', () => {
 		return createFrostedGlassOverlays(store, background);
 	}
 
-	function createNestedMenu(domPosition: ContextViewDOMPosition) {
-		const root = append(document.body, 'monaco-workbench modern-ui modern-ui-frosted-glass monaco-enable-motion');
+	function createNestedMenu(domPosition: ContextViewDOMPosition, windowClass = 'modern-ui') {
+		const root = append(document.body, `monaco-workbench ${windowClass} modern-ui-frosted-glass monaco-enable-motion`);
 		store.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-menu-background', '#242424');
 		root.style.setProperty('--modern-ui-glass-opacity', '50%');
@@ -103,6 +103,43 @@ suite('Frosted glass styles', () => {
 		const name = domPosition === ContextViewDOMPosition.FIXED_SHADOW ? 'shadow-root' : 'ordinary';
 		const supportsShadowSelectors = CSS.supports('selector(:host-context(.modern-ui))');
 		const glassMotionTest = supportsGlass(document.body) && (domPosition !== ContextViewDOMPosition.FIXED_SHADOW || supportsShadowSelectors) ? test : test.skip;
+
+		for (const windowClass of ['modern-ui', 'agent-sessions-workbench']) {
+			glassMotionTest(`closing motion scales ${name} menu contents and glass together in ${windowClass}`, () => {
+				const { root, container, surface, contextView, finishOpening } = createNestedMenu(domPosition, windowClass);
+				finishOpening();
+				contextView.hide();
+				container.getAnimations({ subtree: true }).forEach(animation => {
+					animation.pause();
+					animation.currentTime = 75;
+				});
+				const targetWindow = getWindow(container);
+				const paint = targetWindow.getComputedStyle(container, '::before');
+				const contents = targetWindow.getComputedStyle(surface);
+				const scale = (transform: string) => transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
+				const state = {
+					hasEditorMarker: root.classList.contains('modern-ui'),
+					closing: container.classList.contains(CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS),
+					inert: container.inert,
+					paintAnimation: paint.animationName,
+					contentAnimation: contents.animationName,
+					scalesTogether: scale(paint.transform) === scale(contents.transform),
+					shrinking: scale(contents.transform) < 1 && scale(contents.transform) > 0.99,
+					paintOpacity: paint.opacity,
+				};
+				contextView.hide(undefined, true);
+				assert.deepStrictEqual(state, {
+					hasEditorMarker: windowClass === 'modern-ui',
+					closing: true,
+					inert: true,
+					paintAnimation: 'frosted-glass-menu-motion-close',
+					contentAnimation: 'context-view-menu-motion-close',
+					scalesTogether: true,
+					shrinking: true,
+					paintOpacity: '1',
+				});
+			});
+		}
 
 		for (const useMenuMotionClass of [false, true]) {
 			glassMotionTest(`scales the complete ${name} ${useMenuMotionClass ? 'dropdown' : 'context'} menu without fading`, () => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { hasRequiredAncestorClasses, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
@@ -156,7 +156,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const closeAnimation = list.closeAnimation;
-		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !this._hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
 			this._closingList = list;
 			list.hide(didCancel);
 			return;
@@ -297,18 +297,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
-	}
-
-	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
-		if (!classNames?.length) {
-			return true;
-		}
-		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
-			if (classNames.every(className => candidate.classList.contains(className))) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {
