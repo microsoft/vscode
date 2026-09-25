@@ -156,7 +156,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
-		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
+		if (mouseEvent.target && mouseEvent.target.position) {
 			const newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
@@ -219,16 +219,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._dndDecorationIds.clear();
 	}
 
-	private _hitContent(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.CONTENT_TEXT ||
-			target.type === MouseTargetType.CONTENT_EMPTY;
-	}
 
-	private _hitMargin(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.GUTTER_GLYPH_MARGIN ||
-			target.type === MouseTargetType.GUTTER_LINE_NUMBERS ||
-			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
-	}
 
 	public override dispose(): void {
 		this._removeDecoration();
