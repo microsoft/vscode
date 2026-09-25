@@ -152,6 +152,7 @@ type InboxInteractionTelemetryEvent = {
 	msSinceItemFirstSeen: number | undefined;
 	msSinceSelection: number | undefined;
 	msSinceViewOpen: number;
+	actionId: string;
 	needsInput: string;
 	pullRequestStateCount: number;
 	repositoryPresent: string;
@@ -184,6 +185,7 @@ type InboxInteractionTelemetryClassification = {
 	msSinceItemFirstSeen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when the card was first shown in this view instance to this interaction (response latency); undefined when unknown.' };
 	msSinceSelection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from selecting the item to this interaction (post-focus deliberation latency); undefined when the item is not the selected one.' };
 	msSinceViewOpen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when this inbox view instance opened to this event, giving every event a precise relative client timestamp for trajectory reconstruction.' };
+	actionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Correlation id shared with the agents/inboxClick that triggered this interaction (or a fresh id for keyboard/programmatic actions), so the raw click and the semantic action can be de-duplicated.' };
 	needsInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the card had an inline needs-input widget (yes or no).' };
 	pullRequestStateCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of pull request state chips on the card; 0 when none.' };
 	repositoryPresent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification was associated with a repository (yes or no); never the repository name.' };
@@ -282,6 +284,7 @@ type InboxClickTelemetryEvent = {
 	targetKind: string;
 	relX: number;
 	relY: number;
+	actionId: string;
 	notificationKind: string;
 	priorityTier: string;
 	hasSession: string;
@@ -298,8 +301,9 @@ type InboxClickTelemetryClassification = {
 	owner: 'meganrogge';
 	comment: 'Records discrete pointer clicks within the Sessions Inbox view (never continuous mouse movement) so the raw click trajectory and coarse click location can be reconstructed. Emitted once per click, which is user-paced and adds no perceptible overhead.';
 	targetKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded category of the clicked element: card, actionButton, sortButton, filterButton, feedbackButton, sectionHeader, evidenceLink, detailPane, emptyState, listBackground, or other.' };
-	relX: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Click x position as a coarse 0-100 percentage of the view width (resolution-independent, no absolute screen coordinates).' };
-	relY: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Click y position as a coarse 0-100 percentage of the view height (resolution-independent, no absolute screen coordinates).' };
+	relX: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Coarse click x position as a 0-9 bin across the view width (a 10x10 grid; no absolute screen coordinates); -1 when unknown.' };
+	relY: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Coarse click y position as a 0-9 bin across the view height (a 10x10 grid; no absolute screen coordinates); -1 when unknown.' };
+	actionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Correlation id shared with the agents/inboxInteraction this click triggers, so the raw click and the semantic action can be de-duplicated.' };
 	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind of the card the click landed on, or none.' };
 	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier of the card the click landed on, or none.' };
 	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the clicked card had an associated session resource.' };
@@ -361,6 +365,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	/** Wall-clock time this view instance was created, for relative event timestamps. */
 	private readonly viewOpenedAtMs = Date.now();
 	private interactionSequence = 0;
+	/** The current click's correlation id, shared with any semantic interaction it triggers. */
+	private currentActionId: string | undefined;
 	/** When each notification card was first shown in this view instance, for response-latency telemetry. */
 	private readonly itemFirstSeenMs = new Map<string, number>();
 	/** When the view most recently gained focus, for dwell telemetry; undefined while blurred. */
@@ -456,15 +462,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return;
 		}
 		const rect = container.getBoundingClientRect();
-		const relX = rect.width > 0 ? clamp(Math.round(((event.clientX - rect.left) / rect.width) * 100), 0, 100) : -1;
-		const relY = rect.height > 0 ? clamp(Math.round(((event.clientY - rect.top) / rect.height) * 100), 0, 100) : -1;
+		// Coarse 0-9 bins (a 10x10 grid), not exact coordinates.
+		const relX = rect.width > 0 ? clamp(Math.floor(((event.clientX - rect.left) / rect.width) * 10), 0, 9) : -1;
+		const relY = rect.height > 0 ? clamp(Math.floor(((event.clientY - rect.top) / rect.height) * 10), 0, 9) : -1;
 		const card = target.closest<HTMLElement>('.inbox-notifications-item');
 		const item = card?.dataset.notificationId ? this.getItemById(card.dataset.notificationId) : undefined;
 		const context = item ? this.inboxNotificationsService.getInteractionTelemetryContext(item) : { agentSessionId: 'none', providerId: 'none' };
+		// Share this click's id with any semantic interaction it triggers synchronously (the capture
+		// listener runs before the control handlers), so the raw click and the semantic action can be
+		// de-duplicated downstream. Cleared on the next microtask so later actions get fresh ids.
+		const actionId = generateUuid();
+		this.currentActionId = actionId;
+		queueMicrotask(() => { if (this.currentActionId === actionId) { this.currentActionId = undefined; } });
 		this.telemetryService.publicLog2<InboxClickTelemetryEvent, InboxClickTelemetryClassification>('agents/inboxClick', {
 			targetKind: this.clickTargetKind(target),
 			relX,
 			relY,
+			actionId,
 			notificationKind: item?.kind ?? 'none',
 			priorityTier: this.priorityTierId(item),
 			hasSession: item?.sessionResource ? 'yes' : 'no',
@@ -1766,6 +1780,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			msSinceItemFirstSeen: attention.msSinceItemFirstSeen,
 			msSinceSelection: this.msSinceSelection(item),
 			msSinceViewOpen: Date.now() - this.viewOpenedAtMs,
+			actionId: this.currentActionId ?? generateUuid(),
 			needsInput: metadata.needsInput,
 			pullRequestStateCount: metadata.pullRequestStateCount,
 			repositoryPresent: metadata.repositoryPresent,
