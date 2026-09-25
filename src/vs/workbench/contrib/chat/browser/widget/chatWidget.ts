@@ -3136,6 +3136,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const interaction = this.instantiationService.createInstance(ChatUserInteraction, {
 			window: dom.getWindow(this.container),
 			visible: this.visible,
+			getSessionResource: () => sessionResource,
 			context: {
 				...(sessionResource ? getChatSessionTelemetryContext(sessionResource) : {}),
 				location: this.location,
