@@ -80,9 +80,7 @@ const $ = DOM.$;
 
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 const MCP_INSTALLED_ITEM_HEIGHT = 44;
-const MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION = 58;
 const MCP_MARKETPLACE_ITEM_HEIGHT = 58;
-const MCP_INSTALLED_ITEM_HEIGHT_WITH_ISSUE = 76;
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -1835,15 +1833,7 @@ export class McpListWidget extends Disposable {
 		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container.customization-tree-container'));
-		const delegate = new McpSectionDelegate(entry => {
-			const compatibility = this.getMcpServerCompatibilityKind(entry);
-			if (compatibility && compatibility !== 'supported') {
-				return MCP_INSTALLED_ITEM_HEIGHT_WITH_ISSUE;
-			}
-			const description = entry.type === 'server-item' ? entry.server.description?.trim() : entry.type === 'builtin-item' ? entry.description : undefined;
-			const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
-			return description && source?.open ? MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION : MCP_INSTALLED_ITEM_HEIGHT;
-		});
+		const delegate = new McpSectionDelegate(() => MCP_INSTALLED_ITEM_HEIGHT);
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>(
 			'mcpGroupHeader',
 			this.hoverService,
