@@ -263,6 +263,10 @@ class RecordingNotificationService extends TestNotificationService {
 }
 
 class DispatchingWorkspacePicker extends WorkspacePicker {
+	getItems() {
+		return this._buildItems();
+	}
+
 	dispatchFolder(folderUri: URI, providerId: string): Promise<boolean> {
 		return this._dispatchPickerItem({ folderUri, providerId });
 	}
@@ -385,7 +389,7 @@ function createMockSession(
 	provider: ISessionsProvider,
 	folderUri: URI,
 	updatedAt: number,
-	options?: { readonly worktreePending?: boolean; readonly workTreeUri?: URI },
+	options?: { readonly worktreePending?: boolean; readonly workTreeUri?: URI; readonly repositoryUri?: URI },
 ): ISession {
 	const workspace = provider.resolveWorkspace(folderUri);
 	if (!workspace) {
@@ -396,7 +400,7 @@ function createMockSession(
 		? {
 			...workspace,
 			folders: [
-				{ ...firstFolder, gitRepository: { ...firstFolder.gitRepository, workTreeUri: options.workTreeUri } },
+				{ ...firstFolder, gitRepository: { ...firstFolder.gitRepository, uri: options.repositoryUri ?? firstFolder.gitRepository.uri, workTreeUri: options.workTreeUri } },
 				...workspace.folders.slice(1),
 			],
 		}
@@ -1136,11 +1140,14 @@ suite('WorkspacePicker - Connection Status', () => {
 		const vscodeRecent = URI.file('/local/vscode-recent');
 		const sessionOnlyFirst = URI.file('/local/session-only-first');
 		const sessionOnlySecond = URI.file('/local/session-only-second');
+		const worktree = URI.file('/local/session-project.worktrees/feature');
+		const worktreeProject = URI.file('/local/session-project');
 		sessions = [
 			createMockSession(provider, agentsRecent, 5),
 			createMockSession(provider, sessionOnlyFirst, 4),
 			createMockSession(provider, sessionOnlySecond, 3),
 			createMockSession(provider, sessionOnlyFirst, 2),
+			createMockSession(provider, worktree, 1, { workTreeUri: worktree, repositoryUri: worktreeProject }),
 		];
 
 		const storage = disposables.add(new TestStorageService());
@@ -1155,11 +1162,11 @@ suite('WorkspacePicker - Connection Status', () => {
 			providersService,
 			storage,
 			undefined,
-			TestWebWorkspacePicker,
+			DispatchingWorkspacePicker,
 			undefined,
 			workspacesService,
 			recentWorkspacesService,
-		) as TestWebWorkspacePicker;
+		) as DispatchingWorkspacePicker;
 
 		assert.deepStrictEqual(
 			picker.getItems()
@@ -1171,6 +1178,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ uri: vscodeRecent.toString(), removable: true },
 				{ uri: sessionOnlyFirst.toString(), removable: false },
 				{ uri: sessionOnlySecond.toString(), removable: false },
+				{ uri: worktreeProject.toString(), removable: false },
 			],
 		);
 	});

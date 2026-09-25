@@ -70,11 +70,30 @@ export class SessionWorkspaceFallback extends Disposable {
 			.flatMap(provider => provider.getSessions())
 			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
 
-		return this._rankCandidates(sessions).map(candidate => ({
-			providerId: candidate.providerId,
-			workspace: candidate.workspace,
-			isSessionWorkspace: true,
-		}));
+		const workspaces = new Map<string, IResolvedFolderWorkspace>();
+		for (const session of sessions) {
+			const workspace = session.workspace.get();
+			if (!workspace || session.isQuickChat?.get() || session.worktreePending?.get()) {
+				continue;
+			}
+			const folder = workspace.folders[0];
+			const catalogResolved = folder?.gitRepository && (folder.gitRepository.workTreeUri || isWorktreeWorkspaceUri(folder.root))
+				? this.options.resolveWorkspace(folder.gitRepository.uri, session.providerId)
+				: { providerId: session.providerId, workspace };
+			if (!catalogResolved) {
+				continue;
+			}
+			const catalogWorkspace = catalogResolved.workspace;
+			const key = this.uriIdentityService.extUri.getComparisonKey(catalogWorkspace.folders[0]?.root ?? catalogWorkspace.uri);
+			if (!workspaces.has(key)) {
+				workspaces.set(key, {
+					providerId: catalogResolved.providerId,
+					workspace: catalogWorkspace,
+					isSessionWorkspace: true,
+				});
+			}
+		}
+		return [...workspaces.values()];
 	}
 
 	/** Returns the highest-ranked existing workspace among recent sessions. */
