@@ -45,14 +45,15 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 		if (!welcomePage) {
 			return undefined;
 		}
-		if (!welcomePage.isDiscover && this.type === AccessibleViewType.View) {
+		const isDetail = editor instanceof AICustomizationManagementEditor && editor.isCustomizationDiscoveryDetailVisible();
+		if (!welcomePage.isDiscover && !isDetail && this.type === AccessibleViewType.View) {
 			return undefined;
 		}
 		const focused = DOM.getActiveElement();
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.CustomizationDiscovery,
 			{ type: this.type, language: 'plaintext' },
-			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover ? [
+			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover || isDetail ? [
 				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),

@@ -144,6 +144,11 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectLabel: ISettableObservable<string>;
 		};
 		editorDisplayMode: 'preview' | 'raw';
+		currentSkillDetail: boolean;
+		currentEditingUri: URI | undefined;
+		editorModeButton: HTMLButtonElement | undefined;
+		editorPreviewContainer: HTMLElement | undefined;
+		embeddedEditorContainer: HTMLElement | undefined;
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
@@ -204,6 +209,8 @@ suite('aiCustomizationManagementEditor', () => {
 		isVisible(): boolean;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
+		updateEditorDisplayMode(): void;
+		openCurrentCustomizationFile(): Promise<void>;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
@@ -282,6 +289,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationFlowId = undefined;
 		editor.migrationWorkspaceSkipped = false;
 		editor.editorDisplayMode = 'preview';
+		editor.currentSkillDetail = false;
+		editor.currentEditingUri = undefined;
+		editor.editorModeButton = document.createElement('button');
+		editor.editorPreviewContainer = document.createElement('div');
+		editor.embeddedEditorContainer = document.createElement('div');
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
 		editor.editorPreviewDisposables = new DisposableStore();
 		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
@@ -760,15 +772,54 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 	}
 
-	test('uses edit copy for built-in skills that support raw overrides', () => {
+	test('uses direct source editing copy for built-in skills that support raw overrides', () => {
 		const editor = createTestEditor();
 		editor.currentEditingPromptType = PromptsType.skill;
 		editor.currentEditingSource = AICustomizationSources.builtin;
 		editor.currentEditingReadOnly = true;
 		editor.editorDisplayMode = 'preview';
 
-		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
-		assert.strictEqual(editor.getEditorModeButtonTooltip(), 'Edit the raw markdown file');
+		assert.deepStrictEqual({
+			label: editor.getEditorModeButtonLabel(),
+			tooltip: editor.getEditorModeButtonTooltip(),
+		}, {
+			label: 'Edit Source',
+			tooltip: 'Edit this skill directly in the source editor',
+		});
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('skill details show only the preview and open their source in the host editor', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
+		}));
+		const uri = URI.file('/workspace/.github/skills/review/SKILL.md');
+		const opened: object[] = [];
+		editor.currentSkillDetail = true;
+		editor.currentEditingPromptType = PromptsType.skill;
+		editor.currentEditingUri = uri;
+		editor.editorService = {
+			openEditor: async input => {
+				opened.push(input);
+				return undefined;
+			},
+		};
+
+		editor.updateEditorDisplayMode();
+		await editor.openCurrentCustomizationFile();
+
+		assert.deepStrictEqual({
+			modeButton: editor.editorModeButton?.style.display,
+			preview: editor.editorPreviewContainer?.style.display,
+			embeddedEditor: editor.embeddedEditorContainer?.style.display,
+			opened,
+		}, {
+			modeButton: 'none',
+			preview: '',
+			embeddedEditor: 'none',
+			opened: [{ resource: uri, options: { pinned: true } }],
+		});
 
 		editor.editorPreviewDisposables.dispose();
 	});

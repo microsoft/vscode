@@ -2279,89 +2279,46 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .marketplace-detail-editor-container {
 	box-sizing: border-box;
 	min-height: 100%;
-	padding: var(--vscode-spacing-size160);
-}
-
-.ai-customization-management-editor .embedded-marketplace-detail {
-	max-width: 840px;
-	margin: 0 auto;
-}
-
-.ai-customization-management-editor .marketplace-detail-body {
 	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size160);
-	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+	justify-content: center;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-subtitle {
-	margin-top: var(--vscode-spacing-size20);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-description,
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-section {
+	padding-inline-start: 0;
 }
 
-.ai-customization-management-editor .marketplace-detail-description,
-.ai-customization-management-editor .marketplace-detail-state {
+.ai-customization-management-editor .marketplace-detail-description {
 	margin: 0;
-	font-size: var(--vscode-fontSize-body1);
-	line-height: 1.4;
 }
 
-.ai-customization-management-editor .marketplace-detail-state {
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .marketplace-detail-state.unavailable {
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-status-badge.unavailable {
 	color: var(--vscode-errorForeground);
 }
 
-.ai-customization-management-editor .marketplace-detail-facts {
-	display: grid;
-	grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
-	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
-	margin: 0;
-}
-
-.ai-customization-management-editor .marketplace-detail-fact {
-	display: contents;
-}
-
-.ai-customization-management-editor .marketplace-detail-fact dt {
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .marketplace-detail-fact dd {
-	min-width: 0;
-	margin: 0;
-	overflow-wrap: anywhere;
+.ai-customization-management-editor .marketplace-detail-source-facts {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
 }
 
 .ai-customization-management-editor .marketplace-detail-sections {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	display: flex;
+	flex-direction: column;
 	gap: var(--vscode-spacing-size160);
 }
 
 .ai-customization-management-editor .marketplace-detail-section {
 	min-width: 0;
-	padding: var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.ai-customization-management-editor .marketplace-detail-section h3 {
-	margin: 0 0 var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.ai-customization-management-editor .marketplace-detail-section ul {
+.ai-customization-management-editor .marketplace-detail-list {
+	list-style-position: outside;
 	margin: 0;
-	padding-inline-start: var(--vscode-spacing-size200);
-}
-
-.ai-customization-management-editor .marketplace-detail-container.narrow .marketplace-detail-sections {
-	grid-template-columns: minmax(0, 1fr);
+	padding-inline-start: var(--vscode-spacing-size240);
+	border: none;
+	border-radius: 0;
+	overflow: visible;
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
@@ -2385,6 +2342,10 @@ per-word capitalization does not survive translation. */
 	grid-row: 2;
 	justify-content: flex-start;
 	margin-left: 0;
+}
+
+.ai-customization-management-editor .marketplace-detail-list li {
+	padding: var(--vscode-spacing-size20) 0;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-scrollable {
@@ -2666,8 +2627,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row {
 	display: grid;
 	grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
-	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	min-width: 0;
 }
 
@@ -4176,18 +4137,22 @@ per-word capitalization does not survive translation. */
 	font-family: var(--monaco-monospace-font);
 }
 
-.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link {
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link,
+.ai-customization-management-editor .skill-detail-mode .editor-item-path.source-link {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
-.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active {
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active,
+.ai-customization-management-editor .skill-detail-mode .editor-item-path.source-link:hover,
+.ai-customization-management-editor .skill-detail-mode .editor-item-path.source-link:active {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible {
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible,
+.ai-customization-management-editor .skill-detail-mode .editor-item-path.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-strokeThickness);
 }
@@ -4265,6 +4230,15 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
+}
+
+.ai-customization-management-editor .editor-preview-section-title {
+	display: none;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	line-height: 18px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .editor-preview-frontmatter-list {
@@ -4351,6 +4325,109 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .editor-preview-body-content > :last-child {
 	margin-bottom: 0;
+}
+
+.ai-customization-management-editor .editor-content-container.skill-detail-mode {
+	border: 0;
+	border-radius: 0;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-header,
+.ai-customization-management-editor .skill-detail-mode .editor-preview-scroll-container {
+	width: 100%;
+	max-width: 720px;
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-header {
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size160) var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-mode-button,
+.ai-customization-management-editor .skill-detail-mode .editor-save-indicator,
+.ai-customization-management-editor .skill-detail-mode .embedded-editor-container {
+	display: none;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-item-name {
+	font-size: var(--vscode-fontSize-heading2);
+	line-height: 22px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-container {
+	margin-top: 0;
+	background: transparent;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-scroll-container {
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	gap: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-section {
+	gap: var(--vscode-spacing-size60);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-section-title {
+	display: block;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-frontmatter-list {
+	gap: 0;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row {
+	display: grid;
+	grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row:not(:last-child) {
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-header {
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-key,
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-value {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+	font-weight: var(--vscode-fontWeight-regular);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-key {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-help {
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-row-help-icon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.ai-customization-management-editor .skill-detail-mode .editor-preview-body-content {
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
 }
 
 .ai-customization-management-editor .editor-preview-empty-state {

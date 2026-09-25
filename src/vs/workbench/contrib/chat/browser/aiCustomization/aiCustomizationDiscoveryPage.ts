@@ -46,6 +46,7 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWe
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
@@ -53,6 +54,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
+import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -80,6 +82,9 @@ interface IInstalledDiscoveryItem {
 	readonly mcpServerId?: string;
 	readonly disabled?: boolean;
 	readonly catalogResource?: ICustomizationMarketplaceResource;
+	readonly skillDetail?: IAICustomizationListItem;
+	readonly pluginDetail?: IAgentPluginItem;
+	readonly mcpDetail?: IMcpServerDetailInput;
 }
 
 interface ICatalogDiscoveryItem {
@@ -325,11 +330,22 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
-		templateData.primaryAction.setAttribute('aria-label', installed
+		const hasInstalledDetail = installed && !!(element.skillDetail || element.pluginDetail || element.mcpDetail);
+		templateData.primaryAction.setAttribute('aria-label', installed && (hasInstalledDetail || !element.catalogResource)
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
+		if (installed) {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
+				event.stopPropagation();
+				if (element.skillDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
+					this.onOpenInstalled(element);
+				} else {
+					this.onOpenDetails(element.catalogResource);
+				}
+			}));
+		}
 
 		if (!installed) {
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
@@ -581,7 +597,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			item => void this.uninstall(item),
 			resource => void this.openExternal(resource),
 			resource => this.openMarketplaceItem(resource, 'search'),
-			item => this.callbacks.openInstalled?.(item.section, item.uri),
+			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
@@ -608,7 +624,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		this._register(this.resultList.onDidOpen(event => {
 			if (event.element?.kind === 'installed') {
-				this.callbacks.openInstalled?.(event.element.section, event.element.uri);
+				if (event.element.skillDetail || event.element.pluginDetail || event.element.mcpDetail || !event.element.catalogResource) {
+					this.openInstalledItem(event.element);
+				} else {
+					this.openMarketplaceItem(event.element.catalogResource, 'search');
+				}
 			} else if (event.element?.kind === 'available') {
 				this.openMarketplaceItem(event.element.resource, 'search');
 			}
@@ -946,6 +966,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					source: item.source,
 					promptType: item.promptType,
 					itemId: item.id,
+					skillDetail: type === 'skill' ? item : undefined,
 					removable: !item.isBuiltin && item.source !== 'extension' && item.source !== 'builtin',
 					disabled: item.disabled,
 				});
@@ -966,6 +987,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					section: AICustomizationManagementSection.Plugins,
 					uri: plugin.uri,
 					removable: !!plugin.remove,
+					pluginDetail: {
+						kind: AgentPluginItemKind.Installed,
+						name,
+						description: source?.description ?? localize('customizationDiscovery.installedPluginDescription', "Installed agent plugin"),
+						marketplace: source?.marketplace,
+						plugin,
+					},
 				});
 			}
 		}
@@ -984,6 +1012,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					section: AICustomizationManagementSection.McpServers,
 					removable: true,
 					mcpServerId: server.id,
+					mcpDetail: createWorkbenchMcpServerDetailInput(server),
 				});
 			}
 		}
@@ -1620,6 +1649,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		});
 	}
 
+	private openInstalledItem(item: IInstalledDiscoveryItem): void {
+		this.callbacks.openInstalled?.({
+			section: item.section,
+			uri: item.uri,
+			skillDetail: item.skillDetail,
+			pluginDetail: item.pluginDetail,
+			mcpDetail: item.mcpDetail,
+		});
+	}
+
 	private async openExternal(resource: URI | string): Promise<void> {
 		try {
 			await this.openerService.open(resource, { openExternal: true, allowCommands: false, allowContributedOpeners: false });
@@ -1757,7 +1796,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			let index = -1;
 			for (let candidateIndex = 0; candidateIndex < this.resultList.length; candidateIndex++) {
-				if (this.resultList.element(candidateIndex).id === `available:${origin.resourceKey}`) {
+				const candidate = this.resultList.element(candidateIndex);
+				const resource = candidate.kind === 'available' ? candidate.resource : candidate.catalogResource;
+				if (resource && getCustomizationMarketplaceResourceKey(resource) === origin.resourceKey) {
 					index = candidateIndex;
 					break;
 				}

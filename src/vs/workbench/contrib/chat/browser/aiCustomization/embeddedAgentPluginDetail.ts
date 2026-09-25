@@ -41,6 +41,11 @@ import type { IContextMenuProvider } from '../../../../../base/browser/contextme
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { autorun, waitForState } from '../../../../../base/common/observable.js';
+import { detectPluginFormat, getPluginManifestComponent, parsePlugin, readMarkdownComponents, readPluginManifest, resolvePluginComponentDirs } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../../common/automations/automationBlueprint.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 const $ = DOM.$;
 const INSTALL_REGISTRATION_TIMEOUT = 10_000;
@@ -156,6 +161,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly inputStateAutorun = this._register(new MutableDisposable());
 	private readonly installWaitDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly contributionLoadDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
 	private narrowLayout = false;
@@ -179,6 +185,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IAgentPluginRepositoryService private readonly agentPluginRepositoryService: IAgentPluginRepositoryService,
+		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -256,6 +265,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	setInput(item: IAgentPluginItem): void {
 		this.installWaitDisposables.clear();
+		this.contributionLoadDisposables.clear();
 		this.current = item;
 		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
@@ -281,6 +291,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	clearInput(): void {
 		this.installWaitDisposables.clear();
+		this.contributionLoadDisposables.clear();
 		this.current = undefined;
 		this.inputStateAutorun.clear();
 		this.renderItem();
@@ -355,17 +366,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.renderDisposables.add(installButton.onDidClick(async () => {
 				installButton.label = localize('installing', "Installing...");
 				installButton.enabled = false;
-				const marketplacePlugin: IMarketplacePlugin = {
-					name: item.name,
-					description: item.description,
-					version: item.version ?? '',
-					source: item.source,
-					sourceDescriptor: item.sourceDescriptor,
-					marketplace: item.marketplace,
-					marketplaceReference: item.marketplaceReference,
-					marketplaceType: item.marketplaceType,
-					readmeUri: item.readmeUri,
-				};
+				const marketplacePlugin = toMarketplacePlugin(item);
 				try {
 					await this.pluginInstallService.installPlugin(marketplacePlugin);
 					if (this._store.isDisposed || this.current !== item) {
@@ -656,13 +657,49 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderContributions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			this.contributionsEl.style.display = '';
-			const empty = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-empty'));
-			empty.textContent = localize('pluginMarketplaceContributionsUnavailable', "Contribution details are available after install when the plugin can be inspected locally.");
+			const loading = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-empty'));
+			loading.textContent = localize('pluginMarketplaceContributionsLoading', "Loading contribution details...");
+			const loadDisposables = new DisposableStore();
+			this.contributionLoadDisposables.value = loadDisposables;
+			const cts = new CancellationTokenSource();
+			loadDisposables.add({ dispose: () => cts.dispose(true) });
+			void this.loadMarketplaceContributions(item, cts.token);
 			return;
 		}
 
-		const entries = getInstalledPluginContributionEntries(item);
+		this.renderContributionEntries(getInstalledPluginContributionEntries(item), true);
+	}
 
+	private async loadMarketplaceContributions(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>, token: CancellationToken): Promise<void> {
+		let entries: IPluginContributionEntry[];
+		try {
+			entries = await loadMarketplacePluginContributionEntries(
+				item,
+				this.agentPluginRepositoryService,
+				this.fileService,
+				this.pathService,
+				this.logService,
+				token,
+			);
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested || this._store.isDisposed || this.current !== item) {
+				return;
+			}
+			DOM.clearNode(this.contributionsListEl);
+			const failure = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-empty'));
+			failure.textContent = localize('pluginMarketplaceContributionsFailed', "Could not load contribution details. {0}", getErrorMessage(error));
+			this._onDidChangeContent.fire();
+			return;
+		}
+		if (token.isCancellationRequested || this._store.isDisposed || this.current !== item) {
+			return;
+		}
+		DOM.clearNode(this.contributionsListEl);
+		this.renderContributionEntries(entries, false);
+		this._onDidChangeContent.fire();
+	}
+
+	private renderContributionEntries(entries: readonly IPluginContributionEntry[], interactive: boolean): void {
 		this.contributionsEl.style.display = entries.length > 0 ? '' : 'none';
 		for (const entry of entries) {
 			const section = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-section'));
@@ -675,19 +712,19 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			const list = DOM.append(group, $('.plugin-detail-contribution-list'));
 			for (const contribution of entry.items) {
 				const row = DOM.append(list, $('.plugin-detail-contribution-row'));
-				if (entry.kind === 'skills' && contribution.uri) {
+				if (interactive && entry.kind === 'skills' && contribution.uri) {
 					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
 					button.type = 'button';
 					button.textContent = contribution.name;
 					button.setAttribute('aria-label', localize('openSkillContribution', "Open skill {0}", contribution.name));
 					this.renderDisposables.add(DOM.addDisposableListener(button, 'click', () => this._onDidRequestOpenSkill.fire(contribution.uri!)));
-				} else if (entry.kind === 'agents' && contribution.uri) {
+				} else if (interactive && entry.kind === 'agents' && contribution.uri) {
 					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
 					button.type = 'button';
 					button.textContent = contribution.name;
 					button.setAttribute('aria-label', localize('openAgentContribution', "Open agent {0}", contribution.name));
 					this.renderDisposables.add(DOM.addDisposableListener(button, 'click', () => this._onDidRequestOpenAgent.fire(contribution.uri!)));
-				} else if (entry.kind === 'mcp') {
+				} else if (interactive && entry.kind === 'mcp') {
 					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
 					button.type = 'button';
 					button.textContent = contribution.name;
@@ -712,6 +749,20 @@ interface IPluginContributionEntry {
 	readonly items: readonly { name: string; description?: string; uri?: URI }[];
 }
 
+function toMarketplacePlugin(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IMarketplacePlugin {
+	return {
+		name: item.name,
+		description: item.description,
+		version: item.version ?? '',
+		source: item.source,
+		sourceDescriptor: item.sourceDescriptor,
+		marketplace: item.marketplace,
+		marketplaceReference: item.marketplaceReference,
+		marketplaceType: item.marketplaceType,
+		readmeUri: item.readmeUri,
+	};
+}
+
 function getInstalledPluginContributionEntries(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): IPluginContributionEntry[] {
 	const plugin = item.plugin;
 	const entries: IPluginContributionEntry[] = [];
@@ -725,6 +776,58 @@ function getInstalledPluginContributionEntries(item: Extract<IAgentPluginItem, {
 		name: automation.blueprint.name,
 		description: automation.blueprint.description,
 	})));
+	return entries;
+}
+
+export async function loadMarketplacePluginContributionEntries(
+	item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>,
+	repositoryService: Pick<IAgentPluginRepositoryService, 'ensurePluginSource' | 'getPluginInstallUri'>,
+	fileService: IFileService,
+	pathService: { userHome(): Promise<URI> | URI },
+	logService: Pick<ILogService, 'warn'>,
+	token: CancellationToken,
+): Promise<IPluginContributionEntry[]> {
+	const marketplacePlugin = toMarketplacePlugin(item);
+	await repositoryService.ensurePluginSource(marketplacePlugin, { token });
+	if (token.isCancellationRequested) {
+		return [];
+	}
+
+	const pluginUri = repositoryService.getPluginInstallUri(marketplacePlugin);
+	const userHome = await pathService.userHome();
+	const [parsed, format] = await Promise.all([
+		parsePlugin(pluginUri, fileService, undefined, userHome, pluginUri),
+		detectPluginFormat(pluginUri, fileService),
+	]);
+	const manifest = await readPluginManifest(pluginUri, format, fileService);
+	const commandDirs = resolvePluginComponentDirs(pluginUri, format, 'commands', 'commands', getPluginManifestComponent(format, 'commands', manifest), pluginUri);
+	const automationDirs = resolvePluginComponentDirs(pluginUri, format, 'automations', 'automations', getPluginManifestComponent(format, 'automations', manifest), pluginUri);
+	const [commands, automationResources] = await Promise.all([
+		readMarkdownComponents(commandDirs, fileService, { containmentRoot: pluginUri }),
+		readMarkdownComponents(automationDirs, fileService, { containmentRoot: pluginUri }),
+	]);
+	const automations: { name: string; description?: string }[] = [];
+	for (const resource of automationResources) {
+		if (!resource.uri.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)) {
+			continue;
+		}
+		try {
+			const content = await fileService.readFile(resource.uri);
+			const blueprint = parseAutomationBlueprint(content.value.toString());
+			automations.push({ name: blueprint.name, description: blueprint.description });
+		} catch (error) {
+			logService.warn(`[EmbeddedAgentPluginDetail] Failed to inspect automation '${resource.uri.toString()}': ${getErrorMessage(error)}`);
+		}
+	}
+
+	const entries: IPluginContributionEntry[] = [];
+	appendContributionEntry(entries, 'agents', localize('pluginDetailAgents', "Agents"), parsed.agents);
+	appendContributionEntry(entries, 'skills', localize('pluginDetailSkills', "Skills"), parsed.skills);
+	appendContributionEntry(entries, 'commands', localize('pluginDetailCommands', "Commands"), commands);
+	appendContributionEntry(entries, 'instructions', localize('pluginDetailInstructions', "Instructions"), parsed.instructions);
+	appendContributionEntry(entries, 'mcp', localize('pluginDetailMcpServers', "MCP Servers"), parsed.mcpServers.map(server => ({ name: server.name })));
+	appendContributionEntry(entries, 'hooks', localize('pluginDetailHooks', "Hooks"), parsed.hooks.map(hook => ({ name: hook.originalId, description: localize('pluginDetailHookCommands', "{0} commands", hook.commands.length) })));
+	appendContributionEntry(entries, 'automations', localize('pluginDetailAutomations', "Automations"), automations);
 	return entries;
 }
 

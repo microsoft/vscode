@@ -65,6 +65,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
 		installedPlugins: readonly IAgentPlugin[] = [],
 		setupUrl?: URI,
+		installedIdentifiers: readonly string[] = [],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -131,6 +132,9 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+				if (installedIdentifiers.includes(resource.identifier)) {
+					return { kind: 'installed' as const };
+				}
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
@@ -182,16 +186,17 @@ suite('AICustomizationDiscoveryPage', () => {
 		}());
 		const creationEvents: string[] = [];
 		const openedDetails: ICustomizationMarketplaceResource[] = [];
+		const openedInstalled: NonNullable<Parameters<NonNullable<ConstructorParameters<typeof AICustomizationDiscoveryPage>[2]['openInstalled']>>[0]>[] = [];
 		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		return {
-			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, openedDetails, deletions, repairs,
+			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, repairs,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -571,7 +576,7 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('available search rows open details while setup actions stay isolated', async () => {
 		const setupUrl = URI.parse('https://example.com/setup');
-		const fixture = createPage(['agentFinder'], undefined, setupUrl);
+		const fixture = createPage(['agentFinder'], undefined, undefined, setupUrl);
 		fixture.page.setSearchQuery('@type:mcp unity');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('unity', { url: URI.parse('https://example.com/unity') })] });
@@ -592,6 +597,34 @@ suite('AICustomizationDiscoveryPage', () => {
 			titleLinks: 0,
 			openedDetails: ['unity'],
 			openedExternal: [setupUrl],
+		});
+	});
+
+	test('catalog-backed installed skills open their installed detail page', async () => {
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, ['installed-skill']);
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await timeout(0);
+		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
+			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			marketplace: fixture.openedDetails,
+			installed: fixture.openedInstalled.map(target => ({
+				section: target.section,
+				name: target.skillDetail?.name,
+				uri: target.skillDetail?.uri.toString(),
+			})),
+		}, {
+			marketplace: [],
+			installed: [{
+				section: AICustomizationManagementSection.Skills,
+				name: 'Local mail skill',
+				uri: 'file:///workspace/.github/skills/mail/SKILL.md',
+			}],
 		});
 	});
 

@@ -43,19 +43,21 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
-		this.root = DOM.append(parent, $('article.editor-content-container.ai-customization-embedded-detail.embedded-marketplace-detail'));
+		this.root = DOM.append(parent, $('article.ai-customization-embedded-detail.embedded-marketplace-detail'));
 		const header = DOM.append(this.root, $('header.embedded-detail-header.marketplace-detail-header'));
 		this.leadingSlotEl = DOM.append(header, $('.embedded-detail-leading-slot'));
 		const identity = DOM.append(header, $('.embedded-detail-header-text'));
-		this.titleEl = DOM.append(identity, $('h2.embedded-detail-name'));
-		this.subtitleEl = DOM.append(identity, $('.embedded-detail-subtitle'));
-		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
-		const body = DOM.append(this.root, $('.marketplace-detail-body'));
-		this.descriptionEl = DOM.append(body, $('p.marketplace-detail-description'));
-		this.stateEl = DOM.append(body, $('.marketplace-detail-state'));
+		const nameRow = DOM.append(identity, $('.embedded-detail-name-row'));
+		this.titleEl = DOM.append(nameRow, $('h2.embedded-detail-name'));
+		this.stateEl = DOM.append(nameRow, $('.inline-badge.embedded-detail-status-badge'));
 		this.stateEl.setAttribute('role', 'status');
-		this.factsEl = DOM.append(body, $('dl.marketplace-detail-facts'));
-		this.sectionsEl = DOM.append(body, $('.marketplace-detail-sections'));
+		this.subtitleEl = DOM.append(identity, $('.embedded-detail-scope'));
+		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
+		this.descriptionEl = DOM.append(this.root, $('p.embedded-detail-description.marketplace-detail-description'));
+		const factsSection = DOM.append(this.root, $('section.embedded-detail-section.marketplace-detail-source-facts'));
+		DOM.append(factsSection, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.details', "Details");
+		this.factsEl = DOM.append(factsSection, $('dl.embedded-detail-facts.plugin-detail-flat-list.marketplace-detail-facts'));
+		this.sectionsEl = DOM.append(this.root, $('.marketplace-detail-sections'));
 		this._register(this.installService.onDidChange(() => {
 			if (this.current) {
 				this.render();
@@ -187,18 +189,18 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	}
 
 	private appendFact(label: string, value: string): void {
-		const row = DOM.append(this.factsEl, $('.marketplace-detail-fact'));
-		DOM.append(row, $('dt')).textContent = label;
-		DOM.append(row, $('dd')).textContent = value;
+		const row = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
+		DOM.append(row, $('dt.embedded-detail-fact-label')).textContent = label;
+		DOM.append(row, $('dd.embedded-detail-fact-value')).textContent = value;
 	}
 
 	private appendListSection(label: string, values: readonly string[]): void {
 		if (!values.length) {
 			return;
 		}
-		const section = DOM.append(this.sectionsEl, $('section.marketplace-detail-section'));
-		DOM.append(section, $('h3')).textContent = label;
-		const list = DOM.append(section, $('ul'));
+		const section = DOM.append(this.sectionsEl, $('section.embedded-detail-section.marketplace-detail-section'));
+		DOM.append(section, $('h3.embedded-detail-section-title')).textContent = label;
+		const list = DOM.append(section, $('ul.plugin-detail-flat-list.marketplace-detail-list'));
 		for (const value of values) {
 			DOM.append(list, $('li')).textContent = value;
 		}
