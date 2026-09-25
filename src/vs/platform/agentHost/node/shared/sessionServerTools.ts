@@ -32,11 +32,11 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
 const maxSessionSpawnDepth = 3;
 
 /** Process-wide backstop against runaway spawning (breadth), independent of depth. */
-const maxCreatedSessions = 25;
-const maxCreatedChats = 25;
+const maxCreatedSessions = 50;
+const maxCreatedChats = 50;
 
 /** Process-wide backstop against runaway `send_message` fan-out. */
-const maxSentMessages = 50;
+const maxSentMessages = 100;
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
@@ -877,7 +877,7 @@ export interface ICreateSessionResult {
 /**
  * Creates work with the requested relationship and sends its initial prompt.
  */
-export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
+export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
@@ -915,7 +915,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 
 	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
-	if (parentDepth >= maxSessionSpawnDepth) {
+	if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
 		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
 	let workspace = args.workspace;
@@ -1612,7 +1612,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 }
 
 /**
- * Creates the session server-tool group with process-local recursion protection.
+ * Creates the session server-tool group with configurable safety limits.
  *
  * The {@link accessor} is optional so the group can also back the pure display
  * path (`getServerToolDisplay`), which only needs {@link IServerToolGroup.definitions},
@@ -1620,7 +1620,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
  * and never invokes {@link IServerToolGroup.execute}. `execute` throws when no
  * accessor was provided.
  */
-export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor): IServerToolGroup {
+export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor, areAgentOrchestrationLimitsEnabled: () => boolean = () => true): IServerToolGroup {
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
 	let sentMessageCount = 0;
@@ -1663,6 +1663,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
 			const currentChannel = context.chatUri;
+			const enforceAgentOrchestrationLimits = areAgentOrchestrationLimitsEnabled();
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					{
@@ -1679,13 +1680,13 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(currentSessionUri(currentChannel)));
-					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
+					if (enforceAgentOrchestrationLimits && relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
-					if (relationship === 'independent' && createdSessionCount >= maxCreatedSessions) {
+					if (enforceAgentOrchestrationLimits && relationship === 'independent' && createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
 					if (relationship === 'currentSession') {
 						createdChatCount++;
 					} else {
@@ -1694,7 +1695,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return formatCreateSessionResult(result);
 				}
 				case SessionServerToolName.CreateChat: {
-					if (createdChatCount >= maxCreatedChats) {
+					if (enforceAgentOrchestrationLimits && createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
 					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
@@ -1704,7 +1705,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
-					if (sentMessageCount >= maxSentMessages) {
+					if (enforceAgentOrchestrationLimits && sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
 					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
