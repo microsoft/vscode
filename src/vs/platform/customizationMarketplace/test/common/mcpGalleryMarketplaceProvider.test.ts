@@ -94,7 +94,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 		];
 		assert.deepStrictEqual(cases.map(({ configuredUrl, publicFeed }) =>
 			getCustomizationMarketplaceSourceInfos(configuration(configuredUrl, publicFeed), product).map(source => source.id)),
-		cases.map(({ sourceIds }) => sourceIds));
+			cases.map(({ sourceIds }) => sourceIds));
 	});
 
 	test('uses an item page or repository as its review link, never the registry root', async () => {
