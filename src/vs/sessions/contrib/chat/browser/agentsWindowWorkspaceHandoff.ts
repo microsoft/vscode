@@ -146,7 +146,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
-				if ((!intent.draft && (currentSession?.isCreated.get() || currentSession?.isQuickChat?.get())) || (intent.draft && this._hasDraftInput())) {
+				if ((!intent.draft && currentSession?.isCreated.get()) || (intent.draft && this._hasDraftInput())) {
 					onState('preservedSession');
 					return;
 				}
