@@ -5,13 +5,14 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { getCopilotMcpConfigurationPath } from '../../environment/common/copilotHome.js';
 import { fromCopilotMcpServerConfiguration } from './mcpCopilotConfiguration.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
 import { IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { INativeMcpDiscoveryData } from './nativeMcpDiscoveryHelper.js';
 
 export function getCopilotGlobalMcpConfigurationResource({ copilotHome, homedir }: Pick<INativeMcpDiscoveryData, 'copilotHome' | 'homedir'>): URI {
-	return URI.joinPath(copilotHome ?? URI.joinPath(homedir, '.copilot'), 'mcp-config.json');
+	return URI.file(getCopilotMcpConfigurationPath(homedir.fsPath, copilotHome ? { COPILOT_HOME: copilotHome.fsPath } : {}));
 }
 
 const supportedLocalProperties = new Set(['type', 'command', 'args', 'env', 'cwd']);

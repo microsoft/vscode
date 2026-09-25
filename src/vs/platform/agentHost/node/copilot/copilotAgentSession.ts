@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { getCopilotHomePath } from '../../common/copilotHome.js';
+import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -594,6 +594,8 @@ interface IMcpLifecycleLogInfo {
 	readonly pluginName?: string;
 	readonly pluginVersion?: string;
 }
+
+type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number];
 
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
@@ -6816,7 +6818,11 @@ export class CopilotAgentSession extends Disposable {
 				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
 			}
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
-			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
+			const server = this._toSdkMcpServer({
+				name: e.data.serverName,
+				status: e.data.status,
+				error: e.data.error,
+			});
 			if (!server) {
 				this._mcpCustomizations.remove(e.data.serverName);
 				return;
@@ -6896,8 +6902,7 @@ export class CopilotAgentSession extends Disposable {
 				this._lastMcpAuthRequirements.delete(serverName);
 			}
 		}
-		const sdkServers = servers
-			.map(s => ({ ...this._toSdkMcpServer(s.name, s.status, s.error), source: s.source }));
+		const sdkServers = servers.map(server => this._toSdkMcpServer(server));
 		this._mcpCustomizations.applyAll(sdkServers);
 	}
 
@@ -6961,7 +6966,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._lastLoggedMcpStatus.set(server.name, server.status);
 
-		const state = this._toSdkMcpServer(server.name, server.status, server.error).state;
+		const state = this._toSdkMcpServer({
+			name: server.name,
+			status: server.status,
+			error: server.error,
+		}).state;
 		const attributes: Record<string, OtelAttributeValue> = {
 			mcpEvent: server.origin,
 			mcpServer: server.name,
@@ -7026,13 +7035,24 @@ export class CopilotAgentSession extends Disposable {
 	 * Translates SDK status, preserving actionable authentication while a callback is pending.
 	 * Only a callback-free SDK `pending` update can replace a retained challenge with starting.
 	 */
-	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer {
-		const hasPendingAuthentication = this._hasPendingMcpAuthentication(name);
+	private _toSdkMcpServer(server: McpServer): ISdkMcpServer {
+		const hasPendingAuthentication = this._hasPendingMcpAuthentication(server.name);
+		const source = server.source !== undefined
+			? {
+				source: server.source,
+				sourceUri: server.source === 'user'
+					? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
+					: null,
+			}
+			: {};
 		return {
-			name,
-			state: this._translateSdkMcpStatus(name, status, error, hasPendingAuthentication),
-			...(status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: status !== 'disabled',
+			name: server.name,
+			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
+			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
+			enabled: server.status !== 'disabled',
+			...source,
+			pluginName: server.sourcePlugin,
+			pluginVersion: server.sourcePluginVersion,
 		};
 	}
 

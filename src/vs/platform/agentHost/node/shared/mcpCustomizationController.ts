@@ -27,6 +27,8 @@ export interface ISdkMcpServer {
 	/** Server name (used both as the customization name and the channel suffix). */
 	readonly name: string;
 	readonly source?: McpServerSource;
+	/** Configuration file URI. Omitted on lifecycle updates; null clears a previously known source. */
+	readonly sourceUri?: string | null;
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
 	/**
@@ -36,6 +38,9 @@ export interface ISdkMcpServer {
 	readonly allowAuthRequiredToStarting?: boolean;
 	/** Explicit runtime enablement when the SDK distinguishes disabled from stopped. */
 	readonly enabled?: boolean;
+	/** Plugin that contributed this MCP server customization. */
+	readonly pluginName?: string;
+	readonly pluginVersion?: string;
 }
 
 /**
@@ -198,7 +203,7 @@ export class McpCustomizationController extends Disposable {
 			if (entry.topLevelId === undefined) {
 				continue;
 			}
-			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.state, entry.enabled, readMcpServerSource(entry.topLevelCustomization)));
+			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.state, entry.enabled, readMcpServerSource(entry.topLevelCustomization), entry.topLevelCustomization?.uri));
 		}
 		return out;
 	}
@@ -353,7 +358,8 @@ export class McpCustomizationController extends Disposable {
 			topLevelId = published?.topLevelId ?? this._mintTopLevelId(server.name);
 		}
 		const source = server.source ?? readMcpServerSource(previous?.topLevelCustomization);
-		const customization = this._buildTopLevel(topLevelId, server.name, state, enabled, source);
+		const sourceUri = server.sourceUri !== undefined ? server.sourceUri : previous?.topLevelCustomization?.uri;
+		const customization = this._buildTopLevel(topLevelId, server.name, state, enabled, source, sourceUri);
 		const customizationChanged = force || previous?.topLevelId !== topLevelId || !equals(previous?.topLevelCustomization, customization);
 		if (customizationChanged || previous?.enabled !== enabled) {
 			this._setLiveEntry(server.name, { serverName: server.name, state, enabled, publishedId: topLevelId, topLevelId, topLevelCustomization: customization }, tx);
@@ -474,7 +480,7 @@ export class McpCustomizationController extends Disposable {
 		return buildMcpChannel(this._chatUri, serverName);
 	}
 
-	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, source?: McpServerSource): McpServerCustomization {
+	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, source?: McpServerSource, sourceUri?: string | null): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
 		const owningPluginUri = this.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
@@ -489,10 +495,12 @@ export class McpCustomizationController extends Disposable {
 			.find(customization => customization.id === id);
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
 		const meta = withMcpServerSourceMeta(existing?._meta, source);
+		const uri = (sourceUri === undefined ? existing?.uri : sourceUri) ?? this._mintTopLevelId(serverName);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
-			uri: this._mintTopLevelId(serverName),
+			uri,
+			...(uri === existing?.uri && existing.range ? { range: existing.range } : {}),
 			name: serverName,
 			state,
 			channel,
