@@ -8,7 +8,7 @@
  *
  * The SDK parses every rule it receives with a strict grammar, and a single
  * malformed rule rejects the **entire** managed permissions document rather
- * than just the offending entry. Because VS Code sends this document as part of
+ * than just the offending entry. Because JustRide sends this document as part of
  * session create/resume, an untranslatable rule derived from a user's settings
  * would fail the session outright. Everything this bridge emits therefore goes
  * through {@link buildManagedRule}, which returns `undefined` for anything the
@@ -97,7 +97,7 @@ function isValidShellArgument(argument: string): boolean {
 /**
  * Path arguments are compiled as globs with `literal_separator` enabled and
  * backslash escaping disabled. The runtime's glob engine has no negation
- * syntax, so a VS Code pattern such as `!foo/**` — legal in
+ * syntax, so a JustRide pattern such as `!foo/**` — legal in
  * `base/common/glob.ts` — must be rejected rather than passed through, where it
  * would fail `validate_glob` and reject the whole document.
  */

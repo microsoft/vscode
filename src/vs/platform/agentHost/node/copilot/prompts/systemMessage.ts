@@ -10,7 +10,7 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
  * inherit it via {@link withDefaultSections}, so it is defined in one place and
  * only a contributor that names `identity` replaces it.
  */
-export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot SDK in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot SDK in VS Code.';
+export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot SDK in JustRide. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot SDK in JustRide.';
 
 /**
  * Used as-is when no per-model override matches, and composed UNDER a matching

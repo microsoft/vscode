@@ -170,7 +170,7 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
  * Web PubSub credentials, reads environment and task records, discovers sandbox-backed sessions,
  * and replays a task's persisted AHP history.
  *
- * Runs in the renderer so the sandbox path works in VS Code Web, where no Copilot extension host is
+ * Runs in the renderer so the sandbox path works in JustRide Web, where no Copilot extension host is
  * available.
  */
 export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {

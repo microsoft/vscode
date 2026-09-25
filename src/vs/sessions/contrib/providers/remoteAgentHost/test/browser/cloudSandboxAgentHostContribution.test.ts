@@ -448,7 +448,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			reconnecting: 'Reconnecting...',
 			reconnectingIn: 'Reconnecting in 5s',
 			incompatibleTitle: 'Cannot Connect to the Environment',
-			incompatible: 'This environment is incompatible with this version of Visual Studio Code.',
+			incompatible: 'This environment is incompatible with this version of JustRide.',
 		});
 	});
 

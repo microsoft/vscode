@@ -113,7 +113,7 @@ suite('TerminalCompletionModel', function () {
 		});
 
 		test('should handle many files and folders correctly', function () {
-			// This is VS Code's root directory with some python items added that have special
+			// This is JustRide's root directory with some python items added that have special
 			// sorting
 			const items = [
 				...createFolderItems(

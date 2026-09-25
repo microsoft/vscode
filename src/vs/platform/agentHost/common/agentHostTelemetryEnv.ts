@@ -24,7 +24,7 @@ export const AgentHostDevDeviceIdEnvKey = 'VSCODE_AGENT_HOST_DEV_DEVICE_ID';
 
 /**
  * Fallback launch contract for custom SSH/WSL agent-host commands. Managed launchers pass
- * `--telemetry-level`, but custom commands are executed verbatim and may not accept VS Code CLI
+ * `--telemetry-level`, but custom commands are executed verbatim and may not accept JustRide CLI
  * arguments. The host accepts both channels and applies the more restrictive level.
  */
 export const AgentHostTelemetryLevelEnvKey = 'VSCODE_AGENT_HOST_TELEMETRY_LEVEL';

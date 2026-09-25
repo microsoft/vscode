@@ -844,7 +844,7 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 }
 
 // Register the Run split button submenu on the workbench title bar (background sessions only).
-// Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
+// Placed in the center-right toolbar, immediately before the "Open in JustRide" action (order 7).
 MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,

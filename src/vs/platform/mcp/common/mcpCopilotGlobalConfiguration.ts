@@ -17,7 +17,7 @@ export function getCopilotGlobalMcpConfigurationResource({ copilotHome, homedir 
 const supportedLocalProperties = new Set(['type', 'command', 'args', 'env', 'cwd']);
 const supportedRemoteProperties = new Set(['type', 'url', 'headers', 'transport', 'oauth']);
 
-/** Rejects configuration that cannot be written without losing VS Code-only behavior. */
+/** Rejects configuration that cannot be written without losing JustRide-only behavior. */
 export function getCopilotGlobalMcpConfigurationError({ config, inputs }: IInstallableMcpServer): string | undefined {
 	if (inputs !== undefined && (!Array.isArray(inputs) || inputs.length > 0)) {
 		return localize('unsupportedCopilotGlobalMcpInputs', "Interactive inputs are not supported in Copilot Global MCP configuration. Use environment variable references instead.");
@@ -44,7 +44,7 @@ export function getCopilotGlobalMcpConfigurationError({ config, inputs }: IInsta
 		return localize('invalidCopilotGlobalMcpServer', "The MCP server configuration is invalid.");
 	}
 	if (JSON.stringify(config).includes('${input:')) {
-		return localize('unsupportedCopilotGlobalMcpInputVariable', "VS Code input variables are not supported in Copilot Global MCP configuration. Use environment variable references instead.");
+		return localize('unsupportedCopilotGlobalMcpInputVariable', "JustRide input variables are not supported in Copilot Global MCP configuration. Use environment variable references instead.");
 	}
 	return undefined;
 }

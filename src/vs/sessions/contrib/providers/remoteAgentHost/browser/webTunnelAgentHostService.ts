@@ -132,7 +132,7 @@ class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostC
  * - **Discovery**: listing available agent host tunnels
  * - **Relay address**: obtaining the WebSocket proxy URL for connecting
  *
- * This decouples VS Code core from any specific embedder (vscode.dev,
+ * This decouples JustRide core from any specific embedder (vscode.dev,
  * github.dev, etc.). The embedder handles the actual Dev Tunnels API
  * calls and relay proxying.
  */

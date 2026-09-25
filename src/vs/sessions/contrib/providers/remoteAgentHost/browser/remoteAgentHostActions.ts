@@ -1339,7 +1339,7 @@ registerAction2(class extends Action2 {
  * Force-update a remote agent host server that rejected our protocol
  * version because it is running an old build. Connecting to such a host
  * leaves it in the `incompatible` state; when the host was spawned by a
- * VS Code CLI willing to receive upgrade signals it advertises an upgrade
+ * JustRide CLI willing to receive upgrade signals it advertises an upgrade
  * method, which this command invokes via the shared {@link runServerUpgrade}
  * flow. Exposed in the command palette so the update is reachable without
  * first opening the host's options quickpick.
@@ -1378,7 +1378,7 @@ registerAction2(class extends Action2 {
 
 		if (upgradable.length === 0) {
 			// Distinguish "nothing is incompatible" from "incompatible hosts exist
-			// but none was spawned by a VS Code CLI that can update it in place".
+			// but none was spawned by a JustRide CLI that can update it in place".
 			notificationService.info(incompatibleCount > 0
 				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
 				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));

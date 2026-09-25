@@ -56,6 +56,8 @@ fi
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
+# JustRide is a rebrand of Code - OSS; @@NAME@@ is now "justride" so this
+# legacy stable-build check would no longer match, keep it disabled.
 #if [ "@@NAME@@" != "code-oss" ]; then
 #	if [ -d "/etc/yum.repos.d" ]; then
 #		REPO_FILE=/etc/yum.repos.d/@@NAME@@.repo

@@ -691,7 +691,7 @@ export interface IBrowserViewService {
 	 */
 	clearStorage(id: string): Promise<void>;
 
-	/** Set the browser zoom index (independent from VS Code zoom). */
+	/** Set the browser zoom index (independent from JustRide zoom). */
 	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
 
 	/** Set or clear the active device profile for a browser view. */

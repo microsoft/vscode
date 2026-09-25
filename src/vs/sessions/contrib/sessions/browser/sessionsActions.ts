@@ -489,7 +489,7 @@ registerAction2(class MoveChatToNextGroupAction extends Action2 {
 });
 
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
-// Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
+// Mirrors JustRide's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
 // and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
 
 for (let index = 0; index < 9; index++) {
@@ -931,12 +931,12 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					// While a modal editor has focus, let VS Code's own
+					// While a modal editor has focus, let JustRide's own
 					// closeEditorsInGroup (same chord) act on the editor group.
 					EditorAreaFocusContext.toNegated(),
 					SessionHasMultipleOpenChatsContext
 				),
-				// Mirror VS Code's "Close All Editors in Group" chord (Ctrl/Cmd+K W):
+				// Mirror JustRide's "Close All Editors in Group" chord (Ctrl/Cmd+K W):
 				// a session is the Agents-window analogue of an editor group. Note
 				// "Close All Sessions" already owns Ctrl/Cmd+K Ctrl/Cmd+W.
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
@@ -1043,7 +1043,7 @@ registerAction2(class ReopenLastClosedItemAction extends Action2 {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Like Ctrl/Cmd+Shift+T in a browser. Outside the editor scope the
 				// chord always belongs to the sessions area (it is a no-op when
-				// nothing was closed); inside it, VS Code's own Reopen Closed
+				// nothing was closed); inside it, JustRide's own Reopen Closed
 				// Editor takes over.
 				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsEditorScopeContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,

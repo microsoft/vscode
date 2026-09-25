@@ -31,9 +31,9 @@ suite('WorkbenchThemeService', () => {
 			);
 		});
 
-		test('migrates Experimental theme IDs to VS Code themes', () => {
+		test('migrates Experimental theme IDs to JustRide themes', () => {
 			assert.deepStrictEqual(
-				['Experimental Dark', 'Experimental Light', 'VS Code Dark', 'VS Code Light'].map(migrateThemeSettingsId),
+				['Experimental Dark', 'Experimental Light', 'JustRide Dark', 'JustRide Light'].map(migrateThemeSettingsId),
 				[ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT, ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]
 			);
 		});

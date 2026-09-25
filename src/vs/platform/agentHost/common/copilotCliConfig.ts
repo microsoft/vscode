@@ -55,7 +55,7 @@ export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentC
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
-/** Enable VS Code's generated init script for the SDK built-in shell tool. */
+/** Enable JustRide's generated init script for the SDK built-in shell tool. */
 export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
@@ -209,7 +209,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
-		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
+		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core JustRide tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 		default: true,
 	}),
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
@@ -266,7 +266,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.availableTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.availableTools.title', "Available Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Patterns: bare tool names, `builtin:*` or `builtin:<name>` (Copilot runtime tools), `mcp:*` or `mcp:<name>` (MCP server tools), and `custom:*` or `custom:<name>` (every tool VS Code registers with the SDK, including the agent host's own terminal tools); a bare `*` expands to all three sources. Applied when the session launches or resumes."),
+					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Patterns: bare tool names, `builtin:*` or `builtin:<name>` (Copilot runtime tools), `mcp:*` or `mcp:<name>` (MCP server tools), and `custom:*` or `custom:<name>` (every tool JustRide registers with the SDK, including the agent host's own terminal tools); a bare `*` expands to all three sources. Applied when the session launches or resumes."),
 				},
 				excludedTools: {
 					type: 'array',

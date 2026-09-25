@@ -16,7 +16,7 @@
 // desktop changes view relies on aren't available here. We register our
 // own tokens so themes can override them, and the CSS reads them via
 // `--vscode-agentsMobileDiff-*` variables. Defaults mirror the
-// git-extension palette so they look the same as the rest of VS Code.
+// git-extension palette so they look the same as the rest of JustRide.
 //
 // The file is imported as a side-effect from the mobile diff/changes
 // views, which is enough to register the tokens with the global color

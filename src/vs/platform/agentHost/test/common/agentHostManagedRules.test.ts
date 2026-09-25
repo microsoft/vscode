@@ -41,7 +41,7 @@ suite('AgentHostManagedRules', () => {
 	});
 
 	test('rejects path patterns the runtime glob engine cannot compile', () => {
-		// Negation is legal in VS Code globs but has no equivalent in the runtime,
+		// Negation is legal in JustRide globs but has no equivalent in the runtime,
 		// where it would fail validation and reject the whole document.
 		assert.strictEqual(buildManagedRule(ManagedRuleFamily.Write, '!**/*.json'), undefined);
 		assert.strictEqual(buildManagedRule(ManagedRuleFamily.Write, '**/*.{a,b'), undefined);

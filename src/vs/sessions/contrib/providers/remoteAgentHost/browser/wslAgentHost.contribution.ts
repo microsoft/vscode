@@ -27,7 +27,7 @@ export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {
  *
  * A stopped distro fails to connect terminally, so no retry stays armed for it.
  * WSL raises no event when a distro boots, and the user may well start one
- * outside VS Code, so this poll is the only way a cached host recovers without
+ * outside JustRide, so this poll is the only way a cached host recovers without
  * a manual action or a reload.
  */
 const WSL_RUNNING_POLL_MS = 5 * 60 * 1000;

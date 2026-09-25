@@ -16,7 +16,7 @@ function getAppNodeModulesPath(): AppResourcePath {
 }
 
 /**
- * The URI of the `node_modules` root that holds VS Code's runtime modules.
+ * The URI of the `node_modules` root that holds JustRide's runtime modules.
  */
 export function getAppNodeModulesUri(injectedNodeModulesPath = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']): URI {
 	return injectedNodeModulesPath ? URI.file(injectedNodeModulesPath) : FileAccess.asFileUri(getAppNodeModulesPath());

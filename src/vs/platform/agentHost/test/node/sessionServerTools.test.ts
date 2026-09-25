@@ -743,7 +743,7 @@ suite('SessionServerTools', () => {
 		const worktree = URI.parse('file:///worktrees/pr-331525');
 		const sessions = [{
 			...sessionMeta('worktree', SessionStatus.Idle, worktree),
-			project: { uri: project, displayName: 'Visual Studio Code' },
+			project: { uri: project, displayName: 'JustRide' },
 		}];
 
 		assert.deepStrictEqual({

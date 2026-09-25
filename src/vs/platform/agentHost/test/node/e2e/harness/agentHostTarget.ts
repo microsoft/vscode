@@ -60,7 +60,7 @@ export interface IAgentHostTarget {
 }
 
 /**
- * The in-tree VS Code agent host server (`agentHostServerMain.ts`).
+ * The in-tree JustRide agent host server (`agentHostServerMain.ts`).
  */
 export const vscodeAgentHostTarget: IAgentHostTarget = {
 	id: 'vscode-agent-host',

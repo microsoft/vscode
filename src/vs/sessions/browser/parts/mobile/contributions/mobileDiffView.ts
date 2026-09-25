@@ -30,7 +30,7 @@ const $ = DOM.$;
  * returns `'unknown'` for everything except a small core set. Once the
  * agents window starts loading language services this map becomes a
  * pure fallback for the leftover `'unknown'` cases. The IDs match
- * VS Code's built-in extension `package.json` contributions. */
+ * JustRide's built-in extension `package.json` contributions. */
 const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
 	'.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
 	'.jsx': 'javascriptreact',

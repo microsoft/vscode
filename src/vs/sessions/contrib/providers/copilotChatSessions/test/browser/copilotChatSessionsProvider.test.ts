@@ -656,7 +656,7 @@ suite('CopilotChatSessionsProvider', () => {
 			}
 			override async getRepositories(query: string): Promise<readonly IGitHubRepository[]> {
 				steps.push(`search:${query}`);
-				return [{ owner: 'microsoft', name: 'vscode', fullName: 'microsoft/vscode', defaultBranch: 'main', isPrivate: true, description: 'Visual Studio Code' }];
+				return [{ owner: 'microsoft', name: 'vscode', fullName: 'microsoft/vscode', defaultBranch: 'main', isPrivate: true, description: 'JustRide' }];
 			}
 		}();
 		const provider = createProvider(disposables, model, {

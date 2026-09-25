@@ -237,7 +237,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}));
 
-		// Actions toolbar (Open in VS Code), rendered right of the command center.
+		// Actions toolbar (Open in JustRide), rendered right of the command center.
 		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			contextMenu: Menus.TitleBarContext,

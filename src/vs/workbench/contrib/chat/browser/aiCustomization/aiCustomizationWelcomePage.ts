@@ -40,7 +40,7 @@ export interface IWelcomePageCallbacks {
 	reviewMigrations(): void;
 	/**
 	 * Prefill the chat input with a query. In the sessions window this
-	 * uses the sessions chat widget; in core VS Code it opens the chat view.
+	 * uses the sessions chat widget; in core JustRide it opens the chat view.
 	 *
 	 * @param options.newChat When true, always opens a new chat instead of
 	 * reusing the active one.

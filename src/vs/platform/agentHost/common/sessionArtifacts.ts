@@ -51,7 +51,7 @@ export interface ISessionArtifact {
 
 /**
  * Reserved key under {@link SessionSummaryMeta} holding the session's agent-set
- * artifacts and references. VS Code convention layered on the protocol's
+ * artifacts and references. JustRide convention layered on the protocol's
  * generic `_meta` bag.
  */
 export const SESSION_META_ARTIFACTS_KEY = 'agentHost/sessionArtifacts';

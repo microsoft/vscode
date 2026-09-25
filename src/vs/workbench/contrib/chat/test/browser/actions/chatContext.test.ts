@@ -200,7 +200,7 @@ suite('ChatContext', () => {
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
 			workspaceContextService([
-				{ uri: repositories[0].rootUri, name: 'VS Code' },
+				{ uri: repositories[0].rootUri, name: 'JustRide' },
 				{ uri: repositories[1].rootUri, name: 'TypeScript' },
 			]),
 		);
@@ -213,7 +213,7 @@ suite('ChatContext', () => {
 			openRepositoryCalls: gitService.openRepositoryCalls,
 		}, {
 			repositoryPicks: [
-				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
+				{ label: 'JustRide', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
 				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript', folderUri: repositories[1].rootUri },
 			],
 			commandRepository: 'microsoft/vscode',
@@ -259,7 +259,7 @@ suite('ChatContext', () => {
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
 			workspaceContextService([
-				{ uri: repositoryRoot, name: 'VS Code' },
+				{ uri: repositoryRoot, name: 'JustRide' },
 				{ uri: docsRoot, name: 'Docs' },
 			]),
 		);
@@ -272,7 +272,7 @@ suite('ChatContext', () => {
 			commandRepository: commandService.command?.repository,
 		}, {
 			repositoryPicks: [
-				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositoryRoot },
+				{ label: 'JustRide', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositoryRoot },
 				{ label: 'Docs', folderUri: docsRoot },
 			],
 			commandRepository: docsRoot,

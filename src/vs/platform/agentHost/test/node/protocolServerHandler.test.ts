@@ -2859,7 +2859,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'tunnel-client',
-			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
+			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'JustRide Agents Window' },
 			_meta: {
 				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
 				'vscode.telemetryLevel': 'all',

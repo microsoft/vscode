@@ -11,7 +11,7 @@ import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
 suite('worktreePaths', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('derives the repository of a VS Code-created worktree from its path', () => {
+	test('derives the repository of a JustRide-created worktree from its path', () => {
 		const derive = (uri: URI) => getRepositoryRootFromWorktree(uri)?.toString();
 
 		assert.deepStrictEqual({

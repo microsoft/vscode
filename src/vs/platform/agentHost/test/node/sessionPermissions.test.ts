@@ -74,7 +74,7 @@ suite('SessionPermissionManager', () => {
 		// which on Windows CI is an 8.3 short path (`C:\Users\RUNNER~1\...`) that
 		// `assertPathIsSafe` rejects for its `~1` segment — which would make every
 		// write auto-approval fail. `AGENT_TEMPDIRECTORY` is set by Azure DevOps
-		// (VS Code's CI) and `RUNNER_TEMP` by GitHub Actions. Note that the JS
+		// (JustRide's CI) and `RUNNER_TEMP` by GitHub Actions. Note that the JS
 		// `fs.realpathSync` does not expand 8.3 short names to their long form, so
 		// the short-path fallback can't be repaired afterwards. `realpathSync`
 		// keeps macOS `/var` -> `/private/var` consistent so the symlink-resolution

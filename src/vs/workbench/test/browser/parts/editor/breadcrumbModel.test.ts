@@ -219,7 +219,7 @@ suite('Breadcrumb Model', function () {
 		});
 	});
 
-	test('omits workspace root in single-root VS Code workspace', function () {
+	test('omits workspace root in single-root JustRide workspace', function () {
 		const workspace = new TestContextService(new Workspace(
 			'ffff',
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })],

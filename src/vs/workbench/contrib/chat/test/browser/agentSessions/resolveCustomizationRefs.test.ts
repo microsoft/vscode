@@ -521,7 +521,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.ok(CancellationToken.None.isCancellationRequested === false);
 	});
 
-	test('bundles MCP servers configured directly in VS Code', async () => {
+	test('bundles MCP servers configured directly in JustRide', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
 			makeMcpServer({ id: 'user.my-server', collectionId: 'user', label: 'my-server', launch: stdioLaunch }),
@@ -670,7 +670,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 	});
 
-	test('publishes profile enablement despite a VS Code workspace override', async () => {
+	test('publishes profile enablement despite a JustRide workspace override', async () => {
 		const pluginUri = URI.file('/plugins/workspace-disabled');
 		const plugin = makePlugin(pluginUri, { mcpServers: 1, enablement: ContributionEnablementState.DisabledWorkspace });
 		const server = makeMcpServer({ id: 'user.workspace-disabled', collectionId: 'user', label: 'workspace-disabled', enablement: ContributionEnablementState.DisabledWorkspace, launch: stdioLaunch });

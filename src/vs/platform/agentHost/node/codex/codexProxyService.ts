@@ -233,7 +233,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 
 		if (method === 'GET' && pathname === '/v1/models') {
 			// The Codex endpoint expects its own rich `ModelsResponse` schema, not
-			// CAPI's model shape. VS Code already owns CAPI model discovery and
+			// CAPI's model shape. JustRide already owns CAPI model discovery and
 			// supplies the selected model when starting a turn, so an empty remote
 			// catalog keeps Codex's bundled model metadata while avoiding a noisy
 			// refresh failure on every proxy-backed runtime start.

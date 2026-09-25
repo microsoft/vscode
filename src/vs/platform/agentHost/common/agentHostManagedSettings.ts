@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Compatibility bridge from legacy VS Code settings to Copilot SDK managed
+ * Compatibility bridge from legacy JustRide settings to Copilot SDK managed
  * settings.
  *
  * Scope and limits, all deliberate:
@@ -15,7 +15,7 @@
  *   is not a scoping hint, since a covered request resolves to `managed_allow`,
  *   which the runtime treats as outright approval and returns without prompting.
  *   The runtime also intersects allow lists only when more than one managed
- *   source supplies one, so a lone list from VS Code would grant blanket
+ *   source supplies one, so a lone list from JustRide would grant blanket
  *   auto-approval and could relax an MDM policy rather than reinforce it.
  * - **Global layers only.** Values are read from policy, user, and application;
  *   workspace and folder values are ignored, because the agent host is shared by
@@ -73,7 +73,7 @@ export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentH
  * `policyOnly` is the default for anything that removes a capability the user
  * would otherwise have, so a personal preference is never promoted into an
  * enterprise-grade restriction the user cannot lift. `anyGlobal` exists for
- * mappings whose VS Code behavior already honors user and application values,
+ * mappings whose JustRide behavior already honors user and application values,
  * where narrowing to policy would be a regression.
  */
 type ManagedPermissionsSettingSources = 'policyOnly' | 'anyGlobal';
@@ -121,9 +121,9 @@ function managedPermissionsCompositeSetting(
 }
 
 /**
- * Translates VS Code's agent network filter into managed domain rules.
+ * Translates JustRide's agent network filter into managed domain rules.
  *
- * Only the blocking half is expressible. VS Code denies any domain outside a
+ * Only the blocking half is expressible. JustRide denies any domain outside a
  * populated allow list, but a managed `allow` entry does not block what it omits
  * — unmatched requests fall through to a prompt the user can approve — so
  * mapping the allow list would quietly downgrade a block into a prompt. The deny
@@ -137,7 +137,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 	const allowed = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
 	const denied = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 
-	// VS Code's restrictive default: with the filter on and neither list
+	// JustRide's restrictive default: with the filter on and neither list
 	// configured, every domain is blocked.
 	if (allowed.length === 0 && denied.length === 0) {
 		return { deny: [buildManagedFamilyRule(ManagedRuleFamily.Domain)] };
@@ -149,7 +149,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 			continue;
 		}
 		// Reduce the entry the way the network filter itself does before building a
-		// rule from it. VS Code matches on the hostname alone, so a denial written
+		// rule from it. JustRide matches on the hostname alone, so a denial written
 		// as a full URL or with a port blocks the whole host; passing the raw text
 		// through would emit a narrower URL pattern and leave the rest of that host
 		// reachable.
@@ -157,7 +157,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 		if (!domain) {
 			continue;
 		}
-		// VS Code accepts a bare `*` as "every domain"; the SDK expresses that as
+		// JustRide accepts a bare `*` as "every domain"; the SDK expresses that as
 		// the family rule rather than as an argument.
 		const rule = domain === '*'
 			? buildManagedFamilyRule(ManagedRuleFamily.Domain)
@@ -170,7 +170,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 }
 
 /**
- * Translates VS Code's explicit terminal auto-approve denials into managed
+ * Translates JustRide's explicit terminal auto-approve denials into managed
  * shell rules.
  *
  * A `false` entry means "require explicit approval", not "block" — the
@@ -181,7 +181,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
  *
  * Only literal sub-command denials survive. Regular-expression keys, entries
  * matched against the whole command line, and keys containing `*` are skipped:
- * VS Code escapes `*` as a literal character while the SDK reads it as a
+ * JustRide escapes `*` as a literal character while the SDK reads it as a
  * wildcard, so translating `git *` would broaden one denial into every `git`
  * command.
  */
@@ -260,10 +260,10 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 	// No SDK tool-name family exists, so a policy that marks any tool ineligible
 	// falls back to the bypass lock (see the transform).
 	managedPermissionsSetting<Record<string, boolean>>(ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, 'policyOnly', contributeEligibleForAutoApprovalRestriction),
-	// Matches VS Code, where a user or application value already suppresses
+	// Matches JustRide, where a user or application value already suppresses
 	// terminal auto-approval outright.
 	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, 'anyGlobal', value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
-	// The filter and its lists are evaluated together, and VS Code honors a user
+	// The filter and its lists are evaluated together, and JustRide honors a user
 	// or application value for all three.
 	managedPermissionsCompositeSetting(
 		AgentNetworkDomainSettingId.NetworkFilter,

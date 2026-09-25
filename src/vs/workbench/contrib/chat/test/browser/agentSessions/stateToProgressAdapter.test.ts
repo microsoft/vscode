@@ -2638,13 +2638,13 @@ suite('stateToProgressAdapter', () => {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: true,
 				pastTenseMessage: 'Read README',
-				content: [{ type: ToolResultContentType.Text, text: '# VS Code' }],
+				content: [{ type: ToolResultContentType.Text, text: '# JustRide' }],
 			});
 
 			const details = IChatToolInvocation.resultDetails(invocation);
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.input, '{"path":"README.md"}');
-			assert.deepStrictEqual(details.output, [{ type: 'embed', value: '# VS Code', isText: true, mimeType: 'text/plain' }]);
+			assert.deepStrictEqual(details.output, [{ type: 'embed', value: '# JustRide', isText: true, mimeType: 'text/plain' }]);
 			assert.strictEqual(details.isError, false);
 		});
 

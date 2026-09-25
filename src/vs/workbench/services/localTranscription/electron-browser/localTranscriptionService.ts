@@ -103,9 +103,9 @@ export class LocalTranscriptionService {
 	cancel() { return this._getProxy().cancel(); }
 
 	/**
-	 * Read VS Code's `http.proxy`/`http.noProxy`/`http.proxyStrictSSL`/
+	 * Read JustRide's `http.proxy`/`http.noProxy`/`http.proxyStrictSSL`/
 	 * `http.proxyAuthorization` settings so the utility process can honor a proxy
-	 * configured only in VS Code (not in the OS environment). Returns empty values
+	 * configured only in JustRide (not in the OS environment). Returns empty values
 	 * when unset, in which case the process's inherited environment proxy still
 	 * applies and TLS verification stays on.
 	 */

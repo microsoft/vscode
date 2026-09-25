@@ -189,7 +189,7 @@ suite('AskQuestionsTool - invoke', () => {
 
 		const invokePromise = tool.invoke({
 			parameters: {
-				questions: [{ header: 'Theme', question: 'What is your favorite theme in VS Code?' }],
+				questions: [{ header: 'Theme', question: 'What is your favorite theme in JustRide?' }],
 			},
 			context: { sessionResource: URI.parse('test://session') },
 			chatRequestId: 'request-1',

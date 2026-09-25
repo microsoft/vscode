@@ -680,7 +680,7 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 					// All other coding agents (Claude, etc.): show in the secondary toolbar.
 					// In the Agents window only, hide the worktree/branch pickers for Copilot
 					// CLI sessions because their option groups are surfaced through the CLI
-					// session UI there. They remain visible in the regular VS Code workbench.
+					// session UI there. They remain visible in the regular JustRide workbench.
 					id: MenuId.ChatInputSecondary,
 					order: 4,
 					group: 'navigation',

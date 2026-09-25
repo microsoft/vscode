@@ -215,7 +215,7 @@ export namespace PromptsConfig {
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
 	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
-		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
+		// Get the merged configuration value (JustRide automatically merges all levels: default → user → workspace → folder)
 		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
 		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {

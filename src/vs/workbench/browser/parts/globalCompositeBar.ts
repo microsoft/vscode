@@ -851,7 +851,9 @@ function simpleActivityContextMenuActions(storageService: IStorageService, isAcc
 }
 
 export function isAccountsActionVisible(storageService: IStorageService): boolean {
-	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+	// JustRide: hide the accounts (sign-in) entry by default; users can still
+	// re-enable it via the title bar context menu ("Accounts").
+	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, false);
 }
 
 function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {

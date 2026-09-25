@@ -95,8 +95,8 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			id: 'vscode-general',
 			referenceName: 'vscodeGeneral',
 			icon: Codicon.vscode,
-			description: localize('clientToolSet.vscode.description', "VS Code"),
-			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
+			description: localize('clientToolSet.vscode.description', "JustRide"),
+			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in JustRide commands."),
 			members: [
 				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
 				'toolSearch',

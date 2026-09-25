@@ -90,7 +90,7 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		this.cleanup();
 
 		// Use getDisplayMedia — on Electron desktop the main process handler
-		// auto-selects the screen containing the VS Code window via
+		// auto-selects the screen containing the JustRide window via
 		// desktopCapturer.getSources() (cached for subsequent recordings).
 		try {
 			this.mediaStream = await navigator.mediaDevices.getDisplayMedia({

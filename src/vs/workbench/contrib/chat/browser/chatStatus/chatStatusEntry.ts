@@ -38,7 +38,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 /**
  * Tracks whether Copilot is currently blocked by a reached quota limit, has
  * resumed after a limit reset, or neither. Persisted across sessions so a reset
- * that happens while VS Code is closed can still be surfaced on next launch.
+ * that happens while JustRide is closed can still be surfaced on next launch.
  */
 export type ChatQuotaResumeState = 'none' | 'blocked' | 'resumed';
 
@@ -220,7 +220,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting) || e.affectsConfiguration(ChatConfiguration.TitleBarSignInEnabled)) {
+			if (!!product.defaultChatAgent?.completionsEnablementSetting && e.affectsConfiguration(product.defaultChatAgent.completionsEnablementSetting) || e.affectsConfiguration(ChatConfiguration.TitleBarSignInEnabled)) {
 				this.update();
 			}
 		}));
@@ -301,7 +301,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private initializeQuotaResumeState(): void {
 		if (this.quotaResumeState === 'blocked') {
 			// A blocked state was recorded in a previous session: verify against fresh
-			// quota data whether the limit has since reset while VS Code was closed.
+			// quota data whether the limit has since reset while JustRide was closed.
 			this.refreshQuotaAndEvaluate();
 		} else {
 			this.evaluateQuotaResumeState();

@@ -660,7 +660,7 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
-	/** VS Code-specific metadata forwarded to Agent Host session creation. */
+	/** JustRide-specific metadata forwarded to Agent Host session creation. */
 	readonly _meta?: Record<string, unknown>;
 	/**
 	 * Marks this session as a throwaway UI surface that must not be retained or listed.

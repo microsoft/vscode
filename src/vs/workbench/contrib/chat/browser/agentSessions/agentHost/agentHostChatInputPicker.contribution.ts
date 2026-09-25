@@ -15,7 +15,7 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
 /**
  * Agent-host pickers live under `MenuId.ChatInputSecondary` group
  * `'navigation'` because non-navigation groups are routed to the overflow
- * menu by VS Code's menu/toolbar convention.
+ * menu by JustRide's menu/toolbar convention.
  *
  * Order layout in the secondary toolbar (existing items annotated):
  *   0    OpenSessionTargetPickerAction        (Copilot CLI - Agent Host)

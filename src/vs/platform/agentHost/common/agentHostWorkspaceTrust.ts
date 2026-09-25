@@ -9,7 +9,7 @@ import { SessionConfigKey } from './sessionConfigKeys.js';
 import { readSessionWorkspaceless, SessionState } from './state/sessionState.js';
 import { isWorktreeUnderRepository } from './worktreePaths.js';
 
-/** Resolves persisted trust roots, inheriting trust only for individual VS Code-created worktrees. */
+/** Resolves persisted trust roots, inheriting trust only for individual JustRide-created worktrees. */
 export async function resolveAgentHostSessionTrustFolders(
 	state: SessionState,
 	workspaceTrustService: IWorkspaceTrustManagementService,

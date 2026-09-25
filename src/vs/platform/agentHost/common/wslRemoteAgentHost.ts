@@ -84,7 +84,7 @@ export const IWSLRemoteAgentHostService = createDecorator<IWSLRemoteAgentHostSer
 /**
  * Manages WSL-bootstrapped connections to remote agent host processes.
  *
- * Each connection enters a WSL 2 distro, ensures the VS Code CLI is
+ * Each connection enters a WSL 2 distro, ensures the JustRide CLI is
  * available inside the distro, starts `code agent-host`, and creates a
  * stdio relay through the shared process.
  */

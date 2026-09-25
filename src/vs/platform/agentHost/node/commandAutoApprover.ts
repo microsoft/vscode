@@ -150,7 +150,7 @@ export interface IShouldAutoApproveOptions {
 	 */
 	readonly isWriteDestApproved?: (dest: string) => boolean;
 	/**
-	 * Effective VS Code `chat.tools.terminal.autoApprove` rules forwarded from
+	 * Effective JustRide `chat.tools.terminal.autoApprove` rules forwarded from
 	 * the renderer. When omitted, the agent host falls back to its bundled
 	 * default rules for compatibility with older clients.
 	 */
@@ -228,7 +228,7 @@ async function loadTreeSitterResources(): Promise<ITreeSitterResources> {
  *
  * Uses tree-sitter to parse compound commands (`foo && bar`) into
  * sub-commands that are individually checked against allow/deny lists.
- * The rules are normally forwarded from VS Code's
+ * The rules are normally forwarded from JustRide's
  * `chat.tools.terminal.autoApprove` setting. A bundled default table is kept
  * as a compatibility fallback for clients that have not forwarded rules yet.
  *
@@ -577,7 +577,7 @@ function convertAutoApproveEntryToRegex(value: string): RegExp {
 
 // ---- Default rules ----------------------------------------------------------
 //
-// Compatibility fallback for clients that do not forward the VS Code
+// Compatibility fallback for clients that do not forward the JustRide
 // `chat.tools.terminal.autoApprove` setting.
 // TODO: Remove this fallback once all agent-host clients are guaranteed to
 // forward `chat.tools.terminal.autoApprove` before shell approvals run.

@@ -8,7 +8,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { ISessionWorkspace } from '../common/session.js';
 
 /**
- * Auto-trusts every isolated git worktree in `workspace` that VS Code created off
+ * Auto-trusts every isolated git worktree in `workspace` that JustRide created off
  * a base repository the user already trusts, granting (and persisting) trust for
  * the worktree folder so a worktree session opens/sends without tripping the
  * untrusted-folder prompt.
@@ -17,7 +17,7 @@ import { ISessionWorkspace } from '../common/session.js';
  * - it is a worktree (`gitRepository.workTreeUri` is set);
  * - it is a strict descendant of `getWorktreesRoot(<base repo>)` — a structural
  *   provenance guard ({@link isWorktreeUnderRepository}). `workTreeUri` alone does
- *   not prove VS Code created the worktree (its contract permits an arbitrary
+ *   not prove JustRide created the worktree (its contract permits an arbitrary
  *   checkout path), so without this guard a session could silently inherit trust
  *   for an arbitrary working directory whenever its reported base repository
  *   happens to be trusted. The shared `<repo>.worktrees` container is excluded so
@@ -38,7 +38,7 @@ export async function ensureSessionWorktreesTrusted(
 	await Promise.all(workspace.folders.map(async folder => {
 		const gitRepository = folder.gitRepository;
 		// `workTreeUri` is only set for a worktree (working directory !== repository
-		// root), but on its own it does not prove VS Code created that worktree.
+		// root), but on its own it does not prove JustRide created that worktree.
 		// Require the working directory to be a strict descendant of the repository's
 		// `.worktrees` sibling before inheriting trust from the (trusted) base repo.
 		if (!gitRepository?.workTreeUri || !isWorktreeUnderRepository(folder.workingDirectory, gitRepository.uri)) {

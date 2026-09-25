@@ -190,7 +190,7 @@ export function narrowReasoningSummary(value: unknown): ReasoningSummary | undef
 
 /**
  * Map the platform-generic {@link SessionMode} (Agent Mode) to codex's native
- * collaboration {@link ModeKind}: VS Code "Plan" → codex `plan`, "Interactive"
+ * collaboration {@link ModeKind}: JustRide "Plan" → codex `plan`, "Interactive"
  * → codex `default`.
  */
 export function collaborationModeKind(value: unknown): ModeKind {

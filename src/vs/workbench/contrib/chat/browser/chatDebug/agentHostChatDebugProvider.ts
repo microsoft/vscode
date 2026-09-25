@@ -125,7 +125,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		this._register(this._chatDebugService.registerProvider(provider));
 
 		// Capture live token-usage actions to a stable client-local sidecar so
-		// per-turn/per-round metrics survive a VS Code restart and feed the Cache
+		// per-turn/per-round metrics survive a JustRide restart and feed the Cache
 		// Explorer accurately (works for local and remote hosts alike). Gated on
 		// the same agent-host setting that gates the panel for CLI sessions.
 		this._register(new AgentHostUsageRecorder(
@@ -673,7 +673,7 @@ export function convertAgentHostEventsToDebugEvents(
 
 	// Whether the session has at least one enabled hook customization. The CLI
 	// emits `preToolUse` / `postToolUse` lifecycle `hook.start` records on *every*
-	// tool call regardless of user configuration (VS Code itself uses the
+	// tool call regardless of user configuration (JustRide itself uses the
 	// `preToolUse` dispatch for tool-permission gating), and a routine successful
 	// run is byte-identical to the internal dispatch. We therefore only surface
 	// tool hooks when the user actually configured one — so the debug view can

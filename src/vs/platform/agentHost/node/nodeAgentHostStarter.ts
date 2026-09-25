@@ -68,7 +68,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		const env: Record<string, string> = {
 			...shellEnv as Record<string, string>,
 			// Announce that everything spawned below this process is driven by
-			// VS Code's agent, so `gh` inherits it. Set after the inherited
+			// JustRide's agent, so `gh` inherits it. Set after the inherited
 			// env so it wins.
 			[AiAgentEnvVar]: AiAgentEnvValue,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',

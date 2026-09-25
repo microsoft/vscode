@@ -14,11 +14,11 @@ import { Registry } from '../../registry/common/platform.js';
 /** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate Agent Host UI. */
 export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are available and AI features are enabled in this window.") });
 
-/** Hidden setting that gates the current-harness indicator for existing Agent Host sessions in the main VS Code window. */
+/** Hidden setting that gates the current-harness indicator for existing Agent Host sessions in the main JustRide window. */
 export const AgentHostExistingSessionHarnessPickerEnabledSettingId = 'chat.editor.agentHost.existingSessionHarnessPicker.enabled';
 
-/** Effective setting or experiment value for the existing-session harness indicator in the main VS Code window. */
-export const AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostExistingSessionHarnessPickerEnabled', false, { type: 'boolean', description: nls.localize('agentHostExistingSessionHarnessPickerEnabled', "Whether existing Agent Host sessions in the main VS Code window show the current harness as a disabled picker.") });
+/** Effective setting or experiment value for the existing-session harness indicator in the main JustRide window. */
+export const AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostExistingSessionHarnessPickerEnabled', false, { type: 'boolean', description: nls.localize('agentHostExistingSessionHarnessPickerEnabled', "Whether existing Agent Host sessions in the main JustRide window show the current harness as a disabled picker.") });
 
 export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
 
@@ -30,7 +30,7 @@ export interface IAgentHostEnablementService {
 	readonly enabled: IObservable<boolean>;
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
-	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
+	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; JustRide reads it
 	 * only to retire the legacy local harness for governed users, since the sandbox is implemented
 	 * by the Agent Host.
 	 *
@@ -61,7 +61,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.editor.preferCopilotHarness.policy',
-						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."),
+						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether JustRide uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."),
 					},
 				},
 			},
@@ -75,14 +75,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the JustRide local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		[AgentHostExistingSessionHarnessPickerEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.editor.agentHost.existingSessionHarnessPicker.enabled', "When enabled, existing Agent Host sessions in the main VS Code window show the current harness as a disabled picker."),
+			description: nls.localize('chat.editor.agentHost.existingSessionHarnessPicker.enabled', "When enabled, existing Agent Host sessions in the main JustRide window show the current harness as a disabled picker."),
 			default: false,
 			included: false,
 			tags: ['experimental'],

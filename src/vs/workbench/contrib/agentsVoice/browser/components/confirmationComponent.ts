@@ -45,7 +45,7 @@ function createConfirmationRow(tc: IPendingToolConfirmation, onOpenSession: Tool
 	} else {
 		const openBtn = dom.$('button');
 		openBtn.style.cssText = `${btnStyle}background:var(--vscode-button-background);`;
-		openBtn.textContent = localize('agentsVoice.openInVSCode', "Open in VS Code");
+		openBtn.textContent = localize('agentsVoice.openInVSCode', "Open in JustRide");
 		openBtn.addEventListener('click', () => onOpenSession(tc.sessionResource));
 
 		btnRow.append(openBtn);

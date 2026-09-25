@@ -27,7 +27,7 @@ export const enum CodexSessionConfigKey {
 	ReasoningSummary = 'codex.reasoningSummary',
 }
 
-/** Subset of the generated `AskForApproval` union that VS Code exposes. */
+/** Subset of the generated `AskForApproval` union that JustRide exposes. */
 export type CodexApprovalPolicy = 'never' | 'on-request' | 'untrusted';
 
 /** Mirrors the generated `SandboxMode` union. */

@@ -4747,7 +4747,7 @@ suite('VoiceSessionController', () => {
 
 	test('sends the agent session label once its model is resident too', () => {
 		// The label is emitted from two branches - model resident or not - and a
-		// session flips between them as VS Code loads and disposes models. Only
+		// session flips between them as JustRide loads and disposes models. Only
 		// covering the unloaded branch would let the loaded one lose the label
 		// silently, which is exactly when a form is on screen to disambiguate.
 		const chatService = new ControllableChatService();

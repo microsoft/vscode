@@ -1201,7 +1201,7 @@ export function registerTerminalActions() {
 			// of prompt shell binding
 			primary: 0,
 			// Technically this doesn't need to be here as it will fall back to this
-			// behavior anyway when handed to xterm.js, having this handled by VS Code
+			// behavior anyway when handed to xterm.js, having this handled by JustRide
 			// makes it easier for users to see how it works though.
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyA },
 			weight: KeybindingWeight.WorkbenchContrib,

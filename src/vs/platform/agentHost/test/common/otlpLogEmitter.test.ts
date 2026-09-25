@@ -31,7 +31,7 @@ suite('OtlpLogEmitter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('level <-> severity number mappings are inverse-ish', () => {
-		// Each VS Code level → severity number, then back, should land on
+		// Each JustRide level → severity number, then back, should land on
 		// the same level (the boundary numbers are picked to make this hold).
 		const cases: [LogLevel, number][] = [
 			[LogLevel.Trace, 1],

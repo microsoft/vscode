@@ -11,7 +11,7 @@
  * (`autoApprove` × `mode`) onto a single `permissionMode` axis matching
  * the Claude SDK's native `PermissionMode` (see
  * `@anthropic-ai/claude-agent-sdk` typings, `sdk.d.ts:1560`). The five
- * values mirror the SDK enum values that VS Code exposes, excluding
+ * values mirror the SDK enum values that JustRide exposes, excluding
  * `dontAsk`, so that the value flowing back into `query({ permissionMode })`
  * requires no translation layer.
  *

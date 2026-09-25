@@ -63,7 +63,7 @@ suite('Chat Accessibility Help', () => {
 		const editorHelp = getAccessibilityHelpText('agentView', keybindings, true, false);
 		assert.deepStrictEqual([
 			sessionsHelp.includes('Test App appears to the right of the status pills above the chat input'),
-			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
+			sessionsHelp.includes('Retest App whenever it reappears, including after restarting JustRide in the same profile'),
 			sessionsHelp.includes('testing was requested, not that tests passed'),
 			sessionsHelp.includes('App Testing Options'),
 			sessionsHelp.includes('Subagent'),
@@ -224,7 +224,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('describes the VS Code pet context menu', () => {
+	test('describes the JustRide pet context menu', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;

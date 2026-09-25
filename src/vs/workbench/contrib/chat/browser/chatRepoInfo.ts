@@ -107,7 +107,7 @@ function determineChangeType(resource: ISCMResource, groupId: string): 'added' |
  *
  * Note: This implementation has a known limitation - if the only change between
  * files is the presence/absence of a trailing newline (content otherwise identical),
- * no diff will be generated because VS Code's diff algorithm treats the lines as equal.
+ * no diff will be generated because JustRide's diff algorithm treats the lines as equal.
  */
 export async function generateUnifiedDiff(
 	fileService: IFileService,
@@ -212,7 +212,7 @@ export async function generateUnifiedDiff(
 }
 
 /**
- * Computes unified diff hunks using VS Code's diff algorithm.
+ * Computes unified diff hunks using JustRide's diff algorithm.
  * Merges adjacent/overlapping hunks to produce a valid patch.
  */
 function computeDiffHunks(

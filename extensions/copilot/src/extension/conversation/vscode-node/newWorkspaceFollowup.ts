@@ -232,7 +232,7 @@ async function updateAiGeneratedWorkspacesFile(workspaceUris: Uri) {
 }
 
 function getAiGeneratedWorkspacesFile(): Uri | undefined {
-	const vscodeFolderName = env.appName.indexOf('Insider') > 0 || env.appName.indexOf('Code - OSS Dev') >= 0 ? 'Code - Insiders' : 'Code';
+	const vscodeFolderName = env.appName.indexOf('Insider') > 0 || env.appName.indexOf('JustRide Dev') >= 0 ? 'Code - Insiders' : 'Code';
 	const homeDir = Uri.file(process.env.HOME || (process.env.USERPROFILE ? process.env.USERPROFILE : ''));
 	switch (process.platform) {
 		case 'darwin':

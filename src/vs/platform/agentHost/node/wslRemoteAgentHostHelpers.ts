@@ -276,7 +276,7 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrapScriptArgs): string {
 	const telemetryLevel = validateAgentHostTelemetryLevel(args.telemetryLevel ?? TelemetryConfiguration.OFF);
 	if (args.remoteAgentHostCommand) {
-		// The override may not be the VS Code CLI, so pass launch restrictions out-of-band.
+		// The override may not be the JustRide CLI, so pass launch restrictions out-of-band.
 		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} && ${args.remoteAgentHostCommand}`;
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);

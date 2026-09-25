@@ -721,9 +721,9 @@ function managedSettingsPipeline(rawLabel: string, raw: unknown | undefined, nor
 	content += raw === undefined ? `*${markdownText(rawUnavailableMessage ?? 'Unavailable')}*\n\n` : markdownJsonBlock(raw);
 	content += '**Normalized bag**\n\n';
 	content += markdownJsonBlock(normalized);
-	content += '**VS Code policy projection**\n\n';
+	content += '**JustRide policy projection**\n\n';
 	content += markdownJsonBlock(projected);
-	return markdownDetails('Source, normalized, and VS Code projection', content);
+	return markdownDetails('Source, normalized, and JustRide projection', content);
 }
 
 function formatDiagnosticValue(value: unknown): string {
@@ -1016,7 +1016,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Active sources (precedence order)', activeSources],
 					['Supplied keys', String(resolutions.length + suppressedTelemetry.length)],
 					[localize('telemetryBlockSource', "Selected telemetry block"), managedSettingsSourceShortLabel(telemetrySource ?? 'none')],
-					['Effective VS Code policy keys', String(effectiveKeyCount)]
+					['Effective JustRide policy keys', String(effectiveKeyCount)]
 				]
 			);
 			content += `*${localize('managedSettingsPrecedence', "Precedence is native MDM, then server, then file. Most settings resolve per key, filling gaps from lower channels. Telemetry selects one whole block: omitted leaves never inherit from weaker blocks. Empty or unknown-only server/file objects still select a block; native MDM exposes only declared flat keys. The internal telemetry presence marker is not a policy setting. For sandbox.enabled, any managed true wins regardless of channel precedence, matching the runtime sandbox floor.")}*\n\n`;
@@ -1059,7 +1059,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				);
 			}
 			content += markdownDetails('Merged normalized bag', markdownJsonBlock(pick.values));
-			content += markdownDetails('Effective VS Code policy bag', markdownJsonBlock(effective));
+			content += markdownDetails('Effective JustRide policy bag', markdownJsonBlock(effective));
 
 			content += `### Normalization and Parse Issues (${parseErrors.length})\n\n`;
 			if (parseErrors.length > 0) {
@@ -1133,13 +1133,13 @@ class PolicyDiagnosticsAction extends Action2 {
 			}
 
 			content += markdownDetails(
-				'VS Code managed-settings schema',
-				'*Only keys declared here can reach VS Code policy callbacks. Runtime-owned keys may still be enforced by the Copilot runtime even when absent from the projections above.*\n\n' +
+				'JustRide managed-settings schema',
+				'*Only keys declared here can reach JustRide policy callbacks. Runtime-owned keys may still be enforced by the Copilot runtime even when absent from the projections above.*\n\n' +
 				markdownJsonBlock(declaredDefinitions)
 			);
 
 			content += '### Agent Runtime Resolution\n\n';
-			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
+			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that JustRide does not declare as configuration policies.*\n\n';
 			if (!agentHostEnablementService.enabled.get()) {
 				summary.agentRuntime = 'Agent Host disabled';
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
@@ -1341,7 +1341,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving authentication information: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
-		const report = '# VS Code Policy Diagnostics\n\n' +
+		const report = '# JustRide Policy Diagnostics\n\n' +
 			'*WARNING: This file may contain sensitive information.*\n\n' +
 			'## Summary\n\n' +
 			markdownTable(

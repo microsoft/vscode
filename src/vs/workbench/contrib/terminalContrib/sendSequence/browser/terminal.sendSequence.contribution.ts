@@ -130,7 +130,7 @@ const enum Constants {
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
 //
-// When the clipboard contains a VS Code file resource but no text, PSReadLine
+// When the clipboard contains a JustRide file resource but no text, PSReadLine
 // cannot see it (it only reads CF_UNICODETEXT from the Win32 clipboard), so we delegate to the
 // standard paste command instead.
 if (isWindows) {

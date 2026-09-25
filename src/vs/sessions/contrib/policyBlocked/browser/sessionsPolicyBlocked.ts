@@ -231,7 +231,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		}));
 
 		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
-		button.label = localize('policyBlocked.openVSCode', "Open VS Code");
+		button.label = localize('policyBlocked.openVSCode', "Open JustRide");
 		this._register(button.onDidClick(() => this._openVSCode()));
 	}
 
@@ -316,7 +316,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		}
 
 		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
-		openVSCodeButton.label = localize('managedSettingsRefresh.openVSCode', "Open VS Code");
+		openVSCodeButton.label = localize('managedSettingsRefresh.openVSCode', "Open JustRide");
 		this._register(openVSCodeButton.onDidClick(() => this._openVSCode()));
 	}
 

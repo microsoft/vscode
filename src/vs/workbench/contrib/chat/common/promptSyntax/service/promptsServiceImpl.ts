@@ -140,7 +140,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	/**
 	 * Cache for parsed prompt files keyed by URI.
-	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
+	 * The number in the returned tuple is textModel.getVersionId(), which is an internal JustRide counter that increments every time the text model's content changes.
 	 */
 	private readonly cachedParsedPromptFromModels = new ResourceMap<[number, ParsedPromptFile]>();
 

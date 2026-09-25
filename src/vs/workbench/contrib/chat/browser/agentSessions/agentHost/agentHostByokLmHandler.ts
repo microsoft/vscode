@@ -41,7 +41,7 @@ const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokE
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
- * forwarded by the node agent host's OpenAI proxy by calling the VS Code LM
+ * forwarded by the node agent host's OpenAI proxy by calling the JustRide LM
  * API for the matching extension-registered model.
  *
  * The bridge DTOs are plain/serializable; this class is the single place that

@@ -33,7 +33,7 @@ export interface ICopilotModelCallFinishedEvent {
 
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
- * proper VS Code `Event<T>`. All subscriptions and the underlying SDK session
+ * proper JustRide `Event<T>`. All subscriptions and the underlying SDK session
  * are cleaned up on dispose.
  */
 export class CopilotSessionWrapper extends Disposable {

@@ -238,7 +238,7 @@ export const PERSIST_ENTRY_MAX_STRING_CHARS = 1 * 1024 * 1024;
  */
 export const PERSIST_ENTRY_MAX_TOTAL_CHARS = 100 * 1024 * 1024;
 
-const TRUNCATION_MARKER_PREFIX = '[VS Code: value truncated for persistence';
+const TRUNCATION_MARKER_PREFIX = '[JustRide: value truncated for persistence';
 const TRUNCATION_MARKER_TOTAL = `${TRUNCATION_MARKER_PREFIX}; entry exceeded size budget]`;
 
 /**

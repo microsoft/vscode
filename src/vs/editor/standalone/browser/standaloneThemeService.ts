@@ -405,7 +405,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		// If the OS has forced-colors active, disable forced color adjustment for
-		// Monaco editor elements so that VS Code's built-in high contrast themes
+		// Monaco editor elements so that JustRide's built-in high contrast themes
 		// (hc-black / hc-light) are used instead of the OS forcing system colors.
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { forced-color-adjust: none; }`);
 

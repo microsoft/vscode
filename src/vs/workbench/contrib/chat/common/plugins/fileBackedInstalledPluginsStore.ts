@@ -25,8 +25,8 @@ const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1
 /**
  * Minimal entry stored in `installed.json`. URIs are serialised as strings
  * so that external tools can read and write the file without depending on
- * VS Code internal URI representations. The optional `name` identifies the
- * marketplace plugin and lets VS Code re-read the full descriptor from the
+ * JustRide internal URI representations. The optional `name` identifies the
+ * marketplace plugin and lets JustRide re-read the full descriptor from the
  * marketplace when needed.
  */
 interface IInstalledJsonEntry {
@@ -56,7 +56,7 @@ export interface IStoredInstalledPlugin {
  * An observable store for installed agent plugins that is backed by a
  * `installed.json` file within the agent-plugins directory. This makes
  * the installed-plugin manifest discoverable by external tools (CLIs,
- * other editors, etc.) without depending on VS Code internals.
+ * other editors, etc.) without depending on JustRide internals.
  *
  * The on-disk format stores only the plugin URI (as a string), marketplace
  * identifier, and plugin name. Full plugin metadata (description, source

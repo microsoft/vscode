@@ -1539,7 +1539,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(result.get(service.agentToolSet), true, 'agent should be enabled');
 
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
-			assert.deepStrictEqual(fullReferenceNames, [SpecedToolAliases.agent, SpecedToolAliases.execute].sort(), 'toFullReferenceNames should return the VS Code tool names');
+			assert.deepStrictEqual(fullReferenceNames, [SpecedToolAliases.agent, SpecedToolAliases.execute].sort(), 'toFullReferenceNames should return the JustRide tool names');
 
 			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [service.agentToolSet, service.executeToolSet]);
 
@@ -1553,7 +1553,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
-			assert.deepStrictEqual(fullReferenceNames, ['github/*', 'playwright/*'], 'toFullReferenceNames should return the VS Code tool names');
+			assert.deepStrictEqual(fullReferenceNames, ['github/*', 'playwright/*'], 'toFullReferenceNames should return the JustRide tool names');
 
 			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
 
@@ -1647,7 +1647,7 @@ suite('LanguageModelToolsService', () => {
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
-			assert.deepStrictEqual(fullReferenceNames, ['github/create_branch'], 'toFullReferenceNames should return the VS Code tool names');
+			assert.deepStrictEqual(fullReferenceNames, ['github/create_branch'], 'toFullReferenceNames should return the JustRide tool names');
 
 			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [githubMcpTool1]);
 

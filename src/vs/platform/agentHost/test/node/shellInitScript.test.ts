@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createShellInitScript, isShellInitScriptList } from '../../common/shellInitScript.js';
+import { createShellInitScript, isShellInitScriptList } from '../../common/shellInitScripts.js';
 
 const execFileAsync = promisify(execFile);
 

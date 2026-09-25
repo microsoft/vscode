@@ -541,7 +541,7 @@ suite('CodexAgent prewarm eviction', () => {
 				data: [
 					{ id: 'desktop-generated', cwd: generatedWorkspace.fsPath, path: desktopGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 1, updatedAt: 2, name: 'Desktop generated' },
 					{ id: 'desktop-selected', cwd: selectedWorkspace.fsPath, path: desktopSelectedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 3, updatedAt: 4, name: 'Desktop selected' },
-					{ id: 'vscode-generated', cwd: generatedWorkspace.fsPath, path: vscodeGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 5, updatedAt: 6, name: 'VS Code generated' },
+					{ id: 'vscode-generated', cwd: generatedWorkspace.fsPath, path: vscodeGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 5, updatedAt: 6, name: 'JustRide generated' },
 				],
 				nextCursor: null,
 			}
@@ -1942,7 +1942,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const { session } = await createSession(agent, { workingDirectories: [URI.file(scope.workspace)] });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			entry.clientCustomizations.setClient('client', [{
-				synced: { customization: { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data' }, pluginDir },
+				synced: { customization: { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data' }, pluginDir },
 				parsed: { format: PluginFormat.OpenPlugin, hooks: [], agents: [], instructions: [], mcpServers: [], skills: [{ uri: skillUri, name: customization.name, customization }] },
 			}]);
 			return { session, entry, skillRoot, skillUri };

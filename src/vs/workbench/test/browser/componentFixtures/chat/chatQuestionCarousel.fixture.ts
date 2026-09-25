@@ -134,13 +134,13 @@ const markdownLinksQuestion: IChatQuestion = {
 	id: 'review-results',
 	type: 'text',
 	title: 'Review results',
-	message: new MarkdownString('**Review the [VS Code documentation](https://code.visualstudio.com/docs) before continuing.**'),
+	message: new MarkdownString('**Review the [JustRide documentation](https://code.visualstudio.com/docs) before continuing.**'),
 	detailedMessage: new MarkdownString([
 		'### [Related resources](https://code.visualstudio.com/docs)',
 		'',
 		'Read the [extension guide](https://code.visualstudio.com/api/get-started/your-first-extension) for more information.',
 		'',
-		'- **[VS Code repository](https://github.com/microsoft/vscode)**',
+		'- **[JustRide repository](https://github.com/microsoft/vscode)**',
 		'- [Extension API](https://code.visualstudio.com/api)',
 	].join('\n')),
 };

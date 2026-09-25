@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
  *
  * Shared across layers: the node agent host creates worktrees here, and the
  * browser workspace-trust gates use it as a structural provenance guard (only a
- * working directory under this root is treated as a VS Code-created worktree
+ * working directory under this root is treated as a JustRide-created worktree
  * eligible to inherit trust from its base repository).
  */
 export function getWorktreesRoot(repositoryRoot: URI): URI {
@@ -21,7 +21,7 @@ export function getWorktreesRoot(repositoryRoot: URI): URI {
 }
 
 /**
- * Whether `candidate` is an individual VS Code-created worktree of
+ * Whether `candidate` is an individual JustRide-created worktree of
  * `repositoryRoot` — a **strict descendant** of {@link getWorktreesRoot}, never
  * the shared `<repo>.worktrees` container itself.
  *
@@ -39,7 +39,7 @@ export function isWorktreeUnderRepository(candidate: URI, repositoryRoot: URI): 
 }
 
 /**
- * The repository a VS Code-created worktree belongs to, derived from its
+ * The repository a JustRide-created worktree belongs to, derived from its
  * location under the repository's {@link getWorktreesRoot} (e.g.
  * `/src/vscode.worktrees/task` → `/src/vscode`), or `undefined` when
  * `worktree` is not directly under a `<repo>.worktrees` directory. Path-based,

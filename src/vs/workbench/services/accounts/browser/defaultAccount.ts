@@ -155,7 +155,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this.defaultAccountConfig = toDefaultAccountConfig(productService.defaultChatAgent);
+		this.defaultAccountConfig = toDefaultAccountConfig(productService.defaultChatAgent ?? ({} as IDefaultChatAgent));
 	}
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
@@ -1638,7 +1638,7 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
-		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));
+		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent ?? ({} as IDefaultChatAgent))));
 		defaultAccountService.setDefaultAccountProvider(defaultAccountProvider);
 	}
 }

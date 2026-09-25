@@ -55,7 +55,7 @@ export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserIn
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
-/** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
+/** Namespaced JustRide implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
@@ -68,7 +68,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
 
-/** Standard AHP initialize response with typed VS Code-specific capability metadata. */
+/** Standard AHP initialize response with typed JustRide-specific capability metadata. */
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }

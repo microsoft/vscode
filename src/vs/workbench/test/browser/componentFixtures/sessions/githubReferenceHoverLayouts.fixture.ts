@@ -26,7 +26,7 @@ function createIssue(): IGitHubIssue {
 	return {
 		number: 335448,
 		title: 'Show rich GitHub issue previews with title and rendered body in hovers',
-		body: 'GitHub issue references currently show only a compact URL. This proposal adds enough inline context to understand the issue without leaving VS Code.',
+		body: 'GitHub issue references currently show only a compact URL. This proposal adds enough inline context to understand the issue without leaving JustRide.',
 		state: GitHubIssueState.Open,
 		stateReason: undefined,
 		author: { login: 'hediet', avatarUrl: '' },

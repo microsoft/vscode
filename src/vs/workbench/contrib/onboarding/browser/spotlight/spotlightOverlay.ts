@@ -60,7 +60,7 @@ export interface ISpotlightShowOptions {
 
 /**
  * A pure-DOM spotlight overlay: dims the window, cuts a highlight hole around a
- * target element and shows an anchored callout. It owns no VS Code services so
+ * target element and shows an anchored callout. It owns no JustRide services so
  * it can be unit-tested and reused. Scheduling and content come from the
  * spotlight presentation.
  */

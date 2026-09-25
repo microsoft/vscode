@@ -20,7 +20,7 @@ suite('RunScriptContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes run dropdown to TitleBarCenterRight before Open in VS Code', () => {
+	test('contributes run dropdown to TitleBarCenterRight before Open in JustRide', () => {
 		const items = MenuRegistry.getMenuItems(titleBarCenterRightMenu);
 
 		const runAction = items.find(item => isISubmenuItem(item) && item.submenu.id === 'AgentSessionsRunScriptDropdown');

@@ -8,7 +8,7 @@ import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup
 import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 
 
-const SAMPLE_CODE = `// Welcome to VS Code
+const SAMPLE_CODE = `// Welcome to JustRide
 function greet(name: string): string {
 	return \`Hello, \${name}!\`;
 }

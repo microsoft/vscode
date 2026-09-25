@@ -97,7 +97,7 @@ Type: <b>${this.getIssueTypeTitle()}</b>
 ${this._data.isSessionsWindow ? '\nWindow: Agents\n' : ''}
 ${this._data.issueDescription}
 ${this.getExtensionVersion()}
-VS Code version: ${this._data.versionInfo && this._data.versionInfo.vscodeVersion}
+JustRide version: ${this._data.versionInfo && this._data.versionInfo.vscodeVersion}
 OS version: ${this._data.versionInfo && this._data.versionInfo.os}
 Modes:${modes.length ? ' ' + modes.join(', ') : ''}
 ${this.getRemoteOSes()}

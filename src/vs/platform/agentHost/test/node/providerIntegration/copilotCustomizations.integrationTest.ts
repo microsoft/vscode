@@ -592,7 +592,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const pluginUserInstructionFile = join(pluginDir, 'rules', 'bundled-user.instructions.md');
 		const pluginExtensionInstructionFile = join(pluginDir, 'rules', 'bundled-extension.instructions.md');
 		const pluginUri = URI.file(pluginDir).toString();
-		const configuredCustomizations = [{ uri: pluginUri, displayName: 'VS Code Synced Data' }];
+		const configuredCustomizations = [{ uri: pluginUri, displayName: 'JustRide Synced Data' }];
 
 		await Promise.all([
 			mkdir(workspaceAgentsDir, { recursive: true }),
@@ -609,7 +609,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				'---',
 				'You are a workspace test agent.',
 			].join('\n')),
-			writeFile(pluginManifestFile, JSON.stringify({ name: 'VS Code Synced Data', description: 'Customization data synced from VS Code' }, undefined, 2)),
+			writeFile(pluginManifestFile, JSON.stringify({ name: 'JustRide Synced Data', description: 'Customization data synced from JustRide' }, undefined, 2)),
 			writeFile(pluginAgentFile, [
 				'---',
 				'name: Bundled User Agent',

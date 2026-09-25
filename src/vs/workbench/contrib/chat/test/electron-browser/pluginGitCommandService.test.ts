@@ -150,7 +150,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			warningMessages,
 		}, {
 			deleted: true,
-			debugMessages: ['[NativePluginGitCommandService] Native Git authentication failed for \'clone\'. Retrying with VS Code authentication.'],
+			debugMessages: ['[NativePluginGitCommandService] Native Git authentication failed for \'clone\'. Retrying with JustRide authentication.'],
 			warningMessages: [],
 		});
 	});
@@ -208,7 +208,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 	});
 
 	for (const status of [401, 403] as const) {
-		test(`cloneRepository retries with VS Code authentication after Git HTTP ${status}`, async () => {
+		test(`cloneRepository retries with JustRide authentication after Git HTTP ${status}`, async () => {
 			const authentications: (IGitAuthentication | undefined)[] = [];
 			const service = createService(createLocalGitStub({
 				clone: async (_operationId, _url, _path, _ref, options) => {

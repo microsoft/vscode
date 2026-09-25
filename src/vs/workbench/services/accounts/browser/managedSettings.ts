@@ -10,9 +10,9 @@ import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ER
 import { hasRawManagedSettings, normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
- * Client identity VS Code reports to the managed settings service. It names this codebase's own
+ * Client identity JustRide reports to the managed settings service. It names this codebase's own
  * managed settings implementation, which is distinct from the `copilot-runtime` implementation
- * VS Code relays a subset of these settings into.
+ * JustRide relays a subset of these settings into.
  */
 const MANAGED_SETTINGS_CLIENT_ID = 'vscode';
 

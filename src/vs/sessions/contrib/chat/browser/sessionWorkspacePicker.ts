@@ -514,7 +514,7 @@ export class WorkspacePicker extends Disposable {
 			}
 		}));
 
-		// VS Code's recent-workspace history is loaded asynchronously.
+		// JustRide's recent-workspace history is loaded asynchronously.
 		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
 			this._restoreAutomaticSelection();
 		}));
@@ -1494,7 +1494,7 @@ export class WorkspacePicker extends Disposable {
 	 * Builds the picker items list from recent workspaces.
 	 *
 	 * Items are shown in a flat recency-sorted list (most recently used first)
-	 * without source grouping. Own recents come first, followed by VS Code
+	 * without source grouping. Own recents come first, followed by JustRide
 	 * recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
@@ -1557,7 +1557,7 @@ export class WorkspacePicker extends Disposable {
 				}),
 			];
 		};
-		// Own recents first, then VS Code recents (merged and deduplicated by the service)
+		// Own recents first, then JustRide recents (merged and deduplicated by the service)
 		const recentWorkspaces = this._directPickerAttachesContext === true
 			? []
 			: this._getRecentWorkspaces()
@@ -2153,7 +2153,7 @@ export class WorkspacePicker extends Disposable {
 			};
 		}
 
-		// Agents-owned recents are ordered before VS Code's general recents.
+		// Agents-owned recents are ordered before JustRide's general recents.
 		try {
 			for (const recent of this.recentWorkspacesService.getRecentWorkspaces()) {
 				const folderUri = recent.workspace.folders[0]?.root;

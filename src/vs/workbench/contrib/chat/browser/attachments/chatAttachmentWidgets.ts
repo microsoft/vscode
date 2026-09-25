@@ -1330,7 +1330,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const hoverElement = dom.$('div.chat-attached-context-hover.chat-element-hover');
 
-		// Wrap all sections in a scrollable container for VS Code styled scrollbar
+		// Wrap all sections in a scrollable container for JustRide styled scrollbar
 		const scrollableContent = dom.$('div.chat-element-hover-content');
 		const innerScrollables: DomScrollableElement[] = [];
 

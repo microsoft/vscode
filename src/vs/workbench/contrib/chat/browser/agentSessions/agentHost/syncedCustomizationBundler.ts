@@ -27,14 +27,14 @@ import { IgnoreFile } from '../../../../../../workbench/services/search/common/i
 // Re-export so existing consumers don't need to change their import source.
 export { SYNCED_CUSTOMIZATION_SCHEME };
 
-const DISPLAY_NAME = 'VS Code Synced Data';
+const DISPLAY_NAME = 'JustRide Synced Data';
 const FILE_OPERATION_CONCURRENCY = 10;
 const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
 const bundleSequencer = new SequencerByKey<string>();
 
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
-	description: 'Customization data synced from VS Code',
+	description: 'Customization data synced from JustRide',
 }, null, '\t');
 
 /**
@@ -152,7 +152,7 @@ export interface ISyncedCustomizationOrigin {
 }
 
 /**
- * An MCP server configured directly in VS Code (i.e. not contributed by an
+ * An MCP server configured directly in JustRide (i.e. not contributed by an
  * agent plugin) that should be bundled into the synthetic plugin so the
  * agent host can launch it.
  */
@@ -179,7 +179,7 @@ interface IBundleResult {
  *
  * ```
  * .plugin/plugin.json
- * .mcp.json        ← MCP servers configured in VS Code
+ * .mcp.json        ← MCP servers configured in JustRide
  * rules/          ← instruction files
  * commands/       ← prompt files
  * agents/         ← agent files

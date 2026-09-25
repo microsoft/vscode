@@ -372,7 +372,7 @@ export class ChatSessionStore extends Disposable {
 							this.dialogService.prompt({
 								custom: true, // so text is copyable
 								title: localize('chatSessionStore.serializationError', 'Error saving chat session'),
-								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. The session will be lost if the window is closed. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
+								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. The session will be lost if the window is closed. Please report this issue to the JustRide team:\n\n{0}', e.stack || toErrorMessage(e)),
 								buttons: [
 									{ label: localize('reportIssue', 'Report Issue'), run: () => this.openerService.open('https://github.com/microsoft/vscode/issues/new?template=bug_report.md') }
 								]
@@ -836,7 +836,7 @@ interface IChatSessionIndexData {
 }
 
 // TODO if we update the index version:
-// Don't throw away index when moving backwards in VS Code version. Try to recover it. But this scenario is hard.
+// Don't throw away index when moving backwards in JustRide version. Try to recover it. But this scenario is hard.
 function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	if (typeof data !== 'object' || data === null) {
 		return false;

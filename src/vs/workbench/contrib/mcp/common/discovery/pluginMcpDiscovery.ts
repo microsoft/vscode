@@ -26,7 +26,7 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
  * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
  * MCP collections contributed by agent plugins. The remainder of the id is
  * the plugin's URI. Consumers can use this to tell plugin-sourced MCP servers
- * apart from servers configured directly in VS Code.
+ * apart from servers configured directly in JustRide.
  */
 export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 

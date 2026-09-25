@@ -962,7 +962,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!workspace?.requiresWorkspaceTrust) {
 			return true;
 		}
-		// Inherit trust for any isolated worktree VS Code created off a base
+		// Inherit trust for any isolated worktree JustRide created off a base
 		// repository the user already trusts, before checking folders — so opening
 		// a worktree session does not prompt for a folder whose provenance is
 		// already trusted. This runs here (the imperative open path) because the
@@ -973,7 +973,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// just the primary one: the agent — and its tasks, terminals and other
 		// tooling — can run against any of the session's working directories, so we
 		// make no assumptions about the non-primary folders being harmless. Check
-		// all in parallel (fast path when already trusted), then surface VS Code's
+		// all in parallel (fast path when already trusted), then surface JustRide's
 		// standard workspace-trust dialog for each untrusted folder in turn.
 		// Declining any leaves the current session (or empty new-session slot)
 		// untouched. Run from this imperative open path (not the reactive mount),

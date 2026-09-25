@@ -480,7 +480,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			usage: undefined,
 			state: TurnState.Complete,
 		});
-		const conversations = ['Implement chat move functionality in Agent Host Protocol', 'Implement VS Code chat moves', 'Another folder conversation', 'Another session conversation'];
+		const conversations = ['Implement chat move functionality in Agent Host Protocol', 'Implement JustRide chat moves', 'Another folder conversation', 'Another session conversation'];
 
 		function setupSharedFolder() {
 			const gitService = new TestGitService();

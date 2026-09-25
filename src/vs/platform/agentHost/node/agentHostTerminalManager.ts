@@ -307,7 +307,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
-		// Attribute these commands to VS Code. Already inherited from the agent
+		// Attribute these commands to JustRide. Already inherited from the agent
 		// host process; set here as defense in depth.
 		env[AiAgentEnvVar] = AiAgentEnvValue;
 		if (options?.preventShellHistory) {

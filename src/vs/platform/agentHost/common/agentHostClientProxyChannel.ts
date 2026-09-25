@@ -20,7 +20,7 @@ export const AGENT_HOST_CLIENT_PROXY_CHANNEL = 'agentHostClientProxy';
 
 /**
  * Node end of the proxy-resolution bridge: `resolveProxy()` ships the target
- * URL to the renderer and resolves with the *raw* result of VS Code's
+ * URL to the renderer and resolves with the *raw* result of JustRide's
  * `IRequestService.resolveProxy` (the Electron session PAC-style string, e.g.
  * `PROXY host:port` / `DIRECT`). The node side feeds this into
  * `@vscode/proxy-agent`'s `resolveProxyURL` to derive the final proxy URL.

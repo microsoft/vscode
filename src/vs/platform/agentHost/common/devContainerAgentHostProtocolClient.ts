@@ -10,7 +10,7 @@ import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMe
 import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 
-/** Adapts the VS Code extension RPCs to the shared-process Dev Container service contract. */
+/** Adapts the JustRide extension RPCs to the shared-process Dev Container service contract. */
 export class DevContainerAgentHostProtocolClient extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 

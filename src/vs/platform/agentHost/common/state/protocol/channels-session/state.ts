@@ -248,7 +248,7 @@ export interface SessionState extends SessionMetadata {
 export interface SessionActiveClient {
 	/** Client identifier (matches `clientId` from `initialize`) */
 	clientId: string;
-	/** Human-readable client name (e.g. `"VS Code"`) */
+	/** Human-readable client name (e.g. `"JustRide"`) */
 	displayName?: string;
 	/** Tools this client provides to the session */
 	tools: ToolDefinition[];
@@ -1072,7 +1072,7 @@ export interface PromptCustomization extends ChildCustomizationBase {
  * Mirrors the [Open Plugins rule](https://open-plugins.com/agent-builders/components/rules)
  * format: a markdown file (e.g. `.mdc`) whose body is injected into
  * context while the rule is active. This type also covers tool-specific
- * "instruction" formats (e.g. VS Code Copilot's
+ * "instruction" formats (e.g. JustRide Copilot's
  * `.github/instructions/*.md`), which differ only in naming — they
  * share the same semantics of `description`, optional always-on
  * activation, and optional glob scoping.

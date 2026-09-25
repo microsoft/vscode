@@ -217,7 +217,7 @@ interface IRenderMarkdownDocumentOptions {
 /**
  * Renders a string of markdown for use in an external document context.
  *
- * Uses VS Code's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
+ * Uses JustRide's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
  * markdown renderer.
  */
 export async function renderMarkdownDocument(

@@ -23,7 +23,7 @@ export const sashHoverBorder = registerColor('sash.hoverBorder',
 // ----- badge
 
 export const badgeBackground = registerColor('badge.background',
-	{ dark: '#4D4D4D', light: '#C4C4C4', hcDark: Color.black, hcLight: '#0F4A85' },
+	{ dark: '#127D72', light: '#C4C4C4', hcDark: Color.black, hcLight: '#0F4A85' },
 	nls.localize('badgeBackground', "Badge background color. Badges are small information labels, e.g. for search results count."));
 
 export const badgeForeground = registerColor('badge.foreground',
@@ -73,7 +73,7 @@ export const scrollbarBackground = registerColor('scrollbar.background',
 // ----- progress bar
 
 export const progressBarBackground = registerColor('progressBar.background',
-	{ dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: Color.fromHex('#1FB6A5'), light: Color.fromHex('#0D9488'), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
 // ----- chart

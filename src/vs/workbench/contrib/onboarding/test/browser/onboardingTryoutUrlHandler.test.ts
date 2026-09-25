@@ -76,7 +76,7 @@ suite('Onboarding tryout URL handler', () => {
 		});
 		const productService = upcastPartial<IProductService>({
 			urlProtocol: 'vscode',
-			nameLong: 'Visual Studio Code',
+			nameLong: 'JustRide',
 		});
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id: string, ...args: unknown[]) => {
@@ -150,7 +150,7 @@ suite('Onboarding tryout URL handler', () => {
 			confirmation: {
 				type: 'question',
 				message: 'Open \'Try Example\'?',
-				detail: 'An external link requested this feature example in Visual Studio Code.\n\nOpens a safe example without changing user resources.\n\nOnly continue if you initiated this request.',
+				detail: 'An external link requested this feature example in JustRide.\n\nOpens a safe example without changing user resources.\n\nOnly continue if you initiated this request.',
 				primaryButton: '&&Open Example',
 			},
 			commands: [{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: ['test.tryout'] }],
@@ -205,13 +205,13 @@ suite('Onboarding tryout URL handler', () => {
 			commands: [],
 			information: [{
 				message: 'Feature example unavailable',
-				detail: 'This external link does not identify a feature example available in this version of Visual Studio Code.',
+				detail: 'This external link does not identify a feature example available in this version of JustRide.',
 			}, {
 				message: 'Feature example unavailable',
-				detail: 'This external link does not identify a feature example available in this version of Visual Studio Code.',
+				detail: 'This external link does not identify a feature example available in this version of JustRide.',
 			}, {
 				message: 'Feature example unavailable',
-				detail: 'This external link does not identify a feature example available in this version of Visual Studio Code.',
+				detail: 'This external link does not identify a feature example available in this version of JustRide.',
 			}],
 		});
 	});

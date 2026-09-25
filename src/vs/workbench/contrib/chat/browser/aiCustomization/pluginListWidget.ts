@@ -1192,7 +1192,7 @@ export class PluginListWidget extends Disposable {
 		this.browseButton.enabled = browseMarketplaceAvailable;
 		const browseTitle = browseMarketplaceAvailable
 			? localize('browseMarketplace', "Browse Marketplace")
-			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web.");
+			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in JustRide for the Web.");
 		this.browseButton.setTitle(browseTitle);
 		this.browseButton.element.setAttribute('aria-label', browseTitle);
 

@@ -29,7 +29,7 @@ export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLine
 function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
 
 /**
- * Strips VS Code's custom `#settingId#` link syntax from a markdown string so the setting key
+ * Strips JustRide's custom `#settingId#` link syntax from a markdown string so the setting key
  * remains as inline code (e.g. `` `settingId` ``). Useful for contexts that don't render markdown links.
  */
 export function fixSettingLinks(text: string): string {

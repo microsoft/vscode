@@ -46,7 +46,7 @@ export function toCopilotMcpServerConfiguration(config: IMcpServerConfiguration,
 	};
 }
 
-/** Reads supported servers without requiring CLI-owned fields to be known to VS Code. */
+/** Reads supported servers without requiring CLI-owned fields to be known to JustRide. */
 export function fromCopilotMcpServerConfiguration(value: unknown): IMcpServerConfiguration | undefined {
 	if (value && typeof value === 'object' && (value as { type?: unknown }).type === 'local') {
 		return normalizeMcpServerConfiguration({ ...value, type: McpServerType.LOCAL });

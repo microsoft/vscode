@@ -7,7 +7,7 @@
 // See protocol.md for the full design rationale.
 //
 // Most types are imported from the auto-generated protocol layer
-// (synced from the agent-host-protocol repo). This file adds VS Code-specific
+// (synced from the agent-host-protocol repo). This file adds JustRide-specific
 // helpers and re-exports.
 
 import { distinct } from '../../../../base/common/arrays.js';
@@ -796,7 +796,7 @@ export function customizationId(uri: string, range?: TextRange): string {
 	return `${safeUri}#range=${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
 }
 
-// ---- VS Code-specific derived types -----------------------------------------
+// ---- JustRide-specific derived types -----------------------------------------
 
 /**
  * A tool call in a terminal state, stored in completed turns.
@@ -1372,14 +1372,14 @@ export function getDefaultChat(session: SessionState): ChatSummary | undefined {
 // ---- SessionMeta accessors -------------------------------------------------
 
 /**
- * VS Code-side alias for the protocol's open `_meta` property bag on
+ * JustRide-side alias for the protocol's open `_meta` property bag on
  * {@link SessionState}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
  * to avoid collisions; values MUST be JSON-serializable.
  */
 export type SessionMeta = Record<string, unknown>;
 
 /**
- * VS Code-side alias for the protocol's open `_meta` property bag on
+ * JustRide-side alias for the protocol's open `_meta` property bag on
  * {@link SessionSummary}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
  * to avoid collisions; values MUST be JSON-serializable.
  */
@@ -1388,7 +1388,7 @@ export type SessionSummaryMeta = Record<string, unknown>;
 /**
  * Reserved key under {@link SessionMeta} for the well-known git-state
  * payload. Value at this key, when present, MUST be shaped like
- * {@link ISessionGitState}. This is a VS Code-specific convention layered
+ * {@link ISessionGitState}. This is a JustRide-specific convention layered
  * on top of the protocol's generic `_meta` bag — the protocol itself does
  * not know about git state.
  */
@@ -1407,7 +1407,7 @@ export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectorySco
  * (see {@link readSessionGitHubStateInput}), and sessions recorded before each
  * folder had its own state are migrated from it into
  * {@link SESSION_META_GITHUB_DATA_KEY} (see {@link withMigratedSessionGitHubState}).
- * This is a VS Code-specific convention layered on top of the protocol's generic
+ * This is a JustRide-specific convention layered on top of the protocol's generic
  * `_meta` bag — the protocol itself does not know about GitHub state.
  */
 export const SESSION_META_GITHUB_KEY = 'github';
@@ -2196,7 +2196,7 @@ export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | u
 /**
  * Reserved key under {@link SessionSummaryMeta} recording how deeply a session
  * was spawned via the `create_session` host tool (0 for a top-level, user-created
- * session). Used to bound recursive session creation. VS Code-specific convention
+ * session). Used to bound recursive session creation. JustRide-specific convention
  * layered on top of the protocol's generic `_meta` bag.
  */
 export const SESSION_META_SPAWN_DEPTH_KEY = 'agentHost/sessionSpawnDepth';
@@ -2266,7 +2266,7 @@ export function withSessionCreationReference(meta: SessionSummaryMeta | undefine
  * workspace-less: a session with no workspace/folder binding (surfaced in the
  * UI as a "Quick Chat"). Carried on the summary bag (not the full state) so
  * clients can group/style such sessions in session lists without subscribing to
- * full session state. VS Code-specific convention layered on the protocol's
+ * full session state. JustRide-specific convention layered on the protocol's
  * generic `_meta` bag.
  */
 export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
@@ -2463,7 +2463,7 @@ export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undef
 // ---- RootState _meta accessors ---------------------------------------------
 
 /**
- * VS Code-side alias for the protocol's open `_meta` property bag on
+ * JustRide-side alias for the protocol's open `_meta` property bag on
  * {@link RootState}. Keys SHOULD be namespaced to avoid collisions; values MUST
  * be JSON-serializable.
  */
@@ -2472,13 +2472,13 @@ export type RootMeta = Record<string, unknown>;
 /**
  * Reserved key under {@link RootMeta} for the well-known host-build payload.
  * Value at this key, when present, MUST be shaped like {@link IHostBuildInfo}.
- * This is a VS Code-specific convention layered on top of the protocol's
+ * This is a JustRide-specific convention layered on top of the protocol's
  * generic `_meta` bag — the protocol itself does not know about build info.
  */
 export const ROOT_META_HOST_BUILD_KEY = 'hostBuild';
 
 /**
- * Build information about the program hosting the agent host (the VS Code CLI),
+ * Build information about the program hosting the agent host (the JustRide CLI),
  * carried under {@link RootMeta} at {@link ROOT_META_HOST_BUILD_KEY}. Lets a
  * client see which build is hosting it — useful when inspecting the output of a
  * remote agent host.

@@ -58,7 +58,7 @@ export function isMarketplaceReferenceAllowed(allowlist: StrictKnownMarketplaces
 function matchesAllowlistEntry(entry: IStrictMarketplaceSource, ref: IMarketplaceReference): boolean {
 	switch (entry.source) {
 		case 'github': {
-			// VS Code marketplace references do not model an in-repo path, so an
+			// JustRide marketplace references do not model an in-repo path, so an
 			// entry that pins a `path` can never match.
 			if (typeof entry.repo !== 'string' || entry.path !== undefined) {
 				return false;
@@ -81,7 +81,7 @@ function matchesAllowlistEntry(entry: IStrictMarketplaceSource, ref: IMarketplac
 			return !!candidate && candidate.canonicalId === ref.canonicalId;
 		}
 		case 'npm': {
-			// npm is not a supported marketplace source in VS Code.
+			// npm is not a supported marketplace source in JustRide.
 			return false;
 		}
 		case 'file':

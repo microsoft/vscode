@@ -308,7 +308,7 @@ suite('BrowserTunnelAgentHostService', () => {
 			resolveSelection,
 			{} as IRemoteAgentHostLocationPreferenceService,
 			{} as IDialogService,
-			'VS Code',
+			'JustRide',
 			{ token: 'token', provider: 'github' },
 			tunnel,
 			true,
@@ -316,7 +316,7 @@ suite('BrowserTunnelAgentHostService', () => {
 
 		assert.deepStrictEqual({ result, calls, completeCalls: connector.completeCalls, cancelCalls: connector.cancelCalls }, {
 			result: connection,
-			calls: [{ productName: 'VS Code', userInitiated: true }],
+			calls: [{ productName: 'JustRide', userInitiated: true }],
 			completeCalls: [{ selectionId: 'selection-id', selection: { instanceId: 'editor-id' } }],
 			cancelCalls: [],
 		});
@@ -329,7 +329,7 @@ suite('BrowserTunnelAgentHostService', () => {
 			async () => undefined,
 			{} as IRemoteAgentHostLocationPreferenceService,
 			{} as IDialogService,
-			'VS Code',
+			'JustRide',
 			{ token: 'token', provider: 'github' },
 			tunnel,
 			true,

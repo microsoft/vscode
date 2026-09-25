@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Lightweight parser for OSC 633 (VS Code shell integration) sequences in raw
+ * Lightweight parser for OSC 633 (JustRide shell integration) sequences in raw
  * PTY output. Designed for the agent host where we don't have a full xterm.js
  * instance - it scans data chunks for the sequences, extracts events, and
  * removes the sequences from the data stream.

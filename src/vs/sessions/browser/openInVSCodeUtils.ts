@@ -32,11 +32,11 @@ export function resolveDevContainerSourceWorkspace(provider: ISessionsProvider |
 }
 
 /**
- * Resolves the VS Code remote authority for the given session provider,
+ * Resolves the JustRide remote authority for the given session provider,
  * e.g. `ssh-remote+myhost` or `tunnel+myTunnel`.
  *
  * Returns `undefined` for local or WebSocket-only providers where no
- * VS Code remote extension can handle the connection.
+ * JustRide remote extension can handle the connection.
  */
 export function resolveRemoteAuthority(
 	providerId: string,
@@ -81,7 +81,7 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 	}
 }
 
-/** Resolves an Agent Host folder to the URI understood by its VS Code remote extension. */
+/** Resolves an Agent Host folder to the URI understood by its JustRide remote extension. */
 export function resolveRemoteFolderUri(
 	folderUri: URI,
 	providerId: string,

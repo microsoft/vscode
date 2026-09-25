@@ -17,7 +17,7 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 
-suite('VS Code Actions', () => {
+suite('JustRide Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('shows return action only when there is no other main window', () => {

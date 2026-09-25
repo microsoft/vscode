@@ -49,7 +49,7 @@ const CLOUD_SANDBOX_CONNECTION_LABELS: IAgentHostConnectionLabels = {
 	reconnecting: localize('cloudSandbox.reconnecting', "Reconnecting..."),
 	reconnectingIn: seconds => localize('cloudSandbox.reconnectingIn', "Reconnecting in {0}s", seconds),
 	incompatibleTitle: localize('cloudSandbox.incompatibleTitle', "Cannot Connect to the Environment"),
-	incompatible: localize('cloudSandbox.incompatible', "This environment is incompatible with this version of Visual Studio Code."),
+	incompatible: localize('cloudSandbox.incompatible', "This environment is incompatible with this version of JustRide."),
 };
 
 export interface ICloudSandboxProvisionedSession extends ICloudSandboxCreatedSession {

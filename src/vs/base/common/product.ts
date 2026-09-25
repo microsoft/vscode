@@ -273,7 +273,7 @@ export interface IProductConfiguration {
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 
-	readonly defaultChatAgent: IDefaultChatAgent;
+	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
@@ -294,7 +294,7 @@ export interface IProductConfiguration {
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
 	/**
-	 * When running as an embedded app, the parent VS Code's policy
+	 * When running as an embedded app, the parent JustRide's policy
 	 * identity (win32RegValueName / darwinBundleIdentifier) so that
 	 * enterprise policies deployed to the parent also apply here.
 	 */

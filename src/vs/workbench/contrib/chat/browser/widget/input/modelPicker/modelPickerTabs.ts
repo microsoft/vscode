@@ -51,7 +51,7 @@ export interface IModelPickerDestination {
 export interface IModelPickerUnavailableEntry {
 	readonly id: string;
 	readonly entry: IModelControlEntry;
-	/** The model exists for this account but needs a newer VS Code. */
+	/** The model exists for this account but needs a newer JustRide. */
 	readonly needsUpdate: boolean;
 }
 
@@ -195,7 +195,7 @@ export interface IModelPickerSectionsOptions {
 	readonly showSuggested: boolean;
 	/** Whether to name curated models the user cannot select yet. Off by default. */
 	readonly showUnavailable?: boolean;
-	/** This build's version, used to spot models gated behind a newer VS Code. */
+	/** This build's version, used to spot models gated behind a newer JustRide. */
 	readonly currentVSCodeVersion?: string;
 }
 
@@ -319,7 +319,7 @@ function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPi
 	return entries.sort((left, right) => left.entry.label.localeCompare(right.entry.label));
 }
 
-/** Whether the entry names a minimum VS Code version this build does not meet. */
+/** Whether the entry names a minimum JustRide version this build does not meet. */
 function isOutOfDate(entry: IModelControlEntry, currentVSCodeVersion: string | undefined): boolean {
 	return !!entry.minVSCodeVersion && !!currentVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion);
 }

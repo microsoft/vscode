@@ -1229,7 +1229,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		// Forward wheel events from the area around the chat widget (e.g. the
-		// max-width margins in the classic VS Code chat view) to the chat list.
+		// max-width margins in the classic JustRide chat view) to the chat list.
 		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
 			if (e.defaultPrevented) {
 				return;
@@ -1627,7 +1627,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
-				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {
+				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed && product.defaultChatAgent) {
 					const providers = product.defaultChatAgent.provider;
 					additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", providers.default.name, providers.default.name, product.defaultChatAgent.termsStatementUrl, product.defaultChatAgent.privacyStatementUrl), { isTrusted: true });
 				} else {
@@ -1698,7 +1698,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Start checking for instruction files immediately if not already done
 		if (!this._instructionFilesCheckPromise) {
 			this._instructionFilesCheckPromise = this._checkForAgentInstructionFiles();
-			// Use VS Code's idiomatic pattern for disposal-safe promise callbacks
+			// Use JustRide's idiomatic pattern for disposal-safe promise callbacks
 			this._register(thenIfNotDisposed(this._instructionFilesCheckPromise, hasFiles => {
 				this._instructionFilesExist = hasFiles;
 				// Only re-render if the current view still doesn't have items and we're showing the welcome message

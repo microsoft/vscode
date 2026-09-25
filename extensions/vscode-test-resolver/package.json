@@ -1,6 +1,6 @@
 {
   "name": "vscode-test-resolver",
-  "description": "Test resolver for VS Code",
+  "description": "Test resolver for JustRide",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",

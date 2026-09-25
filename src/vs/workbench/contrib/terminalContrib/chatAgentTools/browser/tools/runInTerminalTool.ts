@@ -194,7 +194,7 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
 		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
 		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
-		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
+		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. JustRide checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
 
 	if (!isNetworkAvailable) {
@@ -697,7 +697,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
 	/**
-	 * Set when VS Code is shutting down. Suppresses "terminal exited"
+	 * Set when JustRide is shutting down. Suppresses "terminal exited"
 	 * notifications that would otherwise be generated when background
 	 * terminals are disposed during shutdown and then persist as
 	 * undeliverable steering messages after restart.
@@ -893,7 +893,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		// BackgroundDetachRewriter must come after SandboxRewriter so that nohup/Start-Process
 		// wraps the entire sandbox runtime, keeping both the sandbox and the child process alive
-		// through VS Code shutdown.
+		// through JustRide shutdown.
 		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineBackgroundDetachRewriter)));
 		// PreventHistoryRewriter must be last so the leading space is applied to the final
 		// command, including any sandbox wrapping.
@@ -3275,7 +3275,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				disposeNotification();
 				return;
 			}
-			// During VS Code shutdown, terminals are disposed as part of
+			// During JustRide shutdown, terminals are disposed as part of
 			// normal cleanup. Suppress notifications so they don't persist
 			// as undeliverable steering messages after restart (#314791).
 			if (this._isShuttingDown) {

@@ -151,7 +151,7 @@ function convertChildren(node: Node): string {
 }
 
 /**
- * Reads the target of an anchor. Rendered VS Code links route clicks through `data-href`, so
+ * Reads the target of an anchor. Rendered JustRide links route clicks through `data-href`, so
  * that attribute is consulted when `href` cannot be shared — but never ahead of a usable
  * `href`, since arbitrary pages use the same attribute name and could redirect a link.
  */

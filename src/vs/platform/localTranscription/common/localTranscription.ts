@@ -113,16 +113,16 @@ export interface ILocalTranscriptionService {
 	 * selects the on-device Foundry Local model; when omitted the service default
 	 * is used. `language` optionally hints the spoken language.
 	 *
-	 * `proxyUrl`/`noProxy` bridge VS Code's `http.proxy`/`http.noProxy` settings
+	 * `proxyUrl`/`noProxy` bridge JustRide's `http.proxy`/`http.noProxy` settings
 	 * into this utility process: when set, they are applied as the standard proxy
 	 * environment variables before any download, so all provisioning legs — the
 	 * addon tarball and NuGet core libraries (our own fetches) and the native
 	 * Foundry Local *model* download — route through the proxy. When they are
 	 * omitted, the process's inherited OS environment proxy vars still apply.
 	 *
-	 * `proxyStrictSSL === false` (VS Code's `http.proxyStrictSSL`) disables TLS
+	 * `proxyStrictSSL === false` (JustRide's `http.proxyStrictSSL`) disables TLS
 	 * certificate verification for the JavaScript download legs. `proxyAuthorization`
-	 * (VS Code's `http.proxyAuthorization`, a `Basic <base64>` value) is folded into
+	 * (JustRide's `http.proxyAuthorization`, a `Basic <base64>` value) is folded into
 	 * the proxy URL's credentials so both our fetches and the native model download
 	 * authenticate to the proxy. TLS-intercepting proxies otherwise rely on the CA
 	 * being in the OS trust store (matching `@vscode/proxy-agent` and the desktop
@@ -130,7 +130,7 @@ export interface ILocalTranscriptionService {
 	 *
 	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
 	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
-	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
+	 * runtime (Foundry Local addon + core libraries) is downloaded from JustRide's
 	 * CDN for this host's target. When omitted (local dev builds), the runtime
 	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
 	 */

@@ -75,7 +75,7 @@ suite('toolSearchDeferral', () => {
 			assert.notStrictEqual(RUNTIME_TOOL_SEARCH_TOOL_NAME, CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		});
 
-		test('non-deferred client allowlist holds the core VS Code tools, not the search tool', () => {
+		test('non-deferred client allowlist holds the core JustRide tools, not the search tool', () => {
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('runTests'));
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'));
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'));

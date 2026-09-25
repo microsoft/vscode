@@ -570,7 +570,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in JustRide agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -930,7 +930,7 @@ suite('PromptValidator', () => {
 		test('vscode target agent validates normally', async () => {
 			const content = [
 				'---',
-				'description: "VS Code agent"',
+				'description: "JustRide agent"',
 				'target: vscode',
 				'model: MAE 4.1',
 				`tools: ['tool1', 'tool2']`,
@@ -938,13 +938,13 @@ suite('PromptValidator', () => {
 				'Body with #tool1',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
+			assert.deepStrictEqual(markers, [], 'JustRide target should validate normally');
 		});
 
 		test('vscode target agent marks unknown tools as unnecessary hints', async () => {
 			const content = [
 				'---',
-				'description: "VS Code agent"',
+				'description: "JustRide agent"',
 				'target: vscode',
 				`tools: ['tool1', 'unknownTool']`,
 				'---',
@@ -960,7 +960,7 @@ suite('PromptValidator', () => {
 		test('vscode target agent with mcp-servers and github-tools', async () => {
 			const content = [
 				'---',
-				'description: "VS Code agent"',
+				'description: "JustRide agent"',
 				'target: vscode',
 				`tools: ['tool1', 'edit']`,
 				`mcp-servers: {}`,
@@ -970,7 +970,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Attribute \'mcp-servers\' is ignored when running locally in JustRide.',
 				'Unknown tool \'edit\' will be ignored.',
 			]);
 		});
@@ -978,7 +978,7 @@ suite('PromptValidator', () => {
 		test('undefined target with mcp-servers and github-tools', async () => {
 			const content = [
 				'---',
-				'description: "VS Code agent"',
+				'description: "JustRide agent"',
 				`tools: ['tool1', 'shell']`,
 				`mcp-servers: {}`,
 				'---',
@@ -987,7 +987,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Attribute \'mcp-servers\' is ignored when running locally in JustRide.',
 			]);
 		});
 
@@ -1102,7 +1102,7 @@ suite('PromptValidator', () => {
 			{
 				const content = [
 					'---',
-					'description: "VS Code agent"',
+					'description: "JustRide agent"',
 					'target: vscode',
 					`tools: ['tool1']`,
 					'---',
@@ -2549,7 +2549,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
-			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files by VS Code agents.`));
+			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files by JustRide agents.`));
 		});
 
 		test('claude rules with multiple validation errors', async () => {
@@ -2757,8 +2757,8 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Unknown attributes should be silently ignored for Claude agents');
 		});
 
-		test('Claude agent tools are not validated against VS Code tool registry', async () => {
-			// Claude tool names (Edit, Grep, etc.) don't exist in VS Code's tool registry
+		test('Claude agent tools are not validated against JustRide tool registry', async () => {
+			// Claude tool names (Edit, Grep, etc.) don't exist in JustRide's tool registry
 			// but should not produce warnings for Claude target
 			const content = [
 				'---',
@@ -2768,7 +2768,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
-			assert.deepStrictEqual(markers, [], 'Claude tools should not be validated against VS Code registry');
+			assert.deepStrictEqual(markers, [], 'Claude tools should not be validated against JustRide registry');
 		});
 
 		test('Claude agent with comma-separated tools string', async () => {
@@ -2784,7 +2784,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('Claude agent does not validate handoffs or agents attributes', async () => {
-			// handoffs and agents are VS Code-specific; they shouldn't be validated for Claude
+			// handoffs and agents are JustRide-specific; they shouldn't be validated for Claude
 			const content = [
 				'---',
 				'name: test-agent',

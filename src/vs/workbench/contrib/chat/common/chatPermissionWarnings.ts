@@ -14,7 +14,7 @@ import { ASSISTED_APPROVAL_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY
 import { ChatConfiguration, ChatPermissionLevel } from './constants.js';
 
 /**
- * In-memory record of warnings already accepted in this VS Code session.
+ * In-memory record of warnings already accepted in this JustRide session.
  * Checked alongside the persisted "Don't show again" storage value so that the
  * warning isn't repeated within a session even when the user didn't tick the
  * checkbox.

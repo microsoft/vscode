@@ -77,7 +77,7 @@ export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState,
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
 }
 
-// Register the shared VS Code update entry in the Agents left titlebar actions.
+// Register the shared JustRide update entry in the Agents left titlebar actions.
 registerUpdateTitleBarMenuPlacement(Menus.TitleBarLeftLayout, {
 	group: 'navigation',
 	order: 2,

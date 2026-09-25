@@ -1,6 +1,6 @@
 {
   "name": "vscode-api-tests",
-  "description": "API tests for VS Code",
+  "description": "API tests for JustRide",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",

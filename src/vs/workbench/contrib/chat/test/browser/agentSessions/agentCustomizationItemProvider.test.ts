@@ -78,7 +78,7 @@ suite('AgentCustomizationItemProvider', () => {
 			type: CustomizationType.Plugin,
 			id: bundleUri.toString(),
 			uri: bundleUri.toString(),
-			name: 'VS Code Synced Data',
+			name: 'JustRide Synced Data',
 			nonce: '1',
 		}]));
 
@@ -276,7 +276,7 @@ suite('AgentCustomizationItemProvider', () => {
 			type: CustomizationType.Plugin,
 			id: bundleUri.toString(),
 			uri: bundleUri.toString(),
-			name: 'VS Code Synced Data',
+			name: 'JustRide Synced Data',
 			nonce: '1',
 		}]));
 

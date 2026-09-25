@@ -71,7 +71,7 @@ function pathComparisonKey(candidate: string): string {
 
 export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): void {
 	// The detached-worktree family is an AHP *extension* method set rather than
-	// part of the core protocol, so only the VS Code agent host answers it.
+	// part of the core protocol, so only the JustRide agent host answers it.
 	if (context.targetId !== vscodeAgentHostTarget.id) {
 		return;
 	}

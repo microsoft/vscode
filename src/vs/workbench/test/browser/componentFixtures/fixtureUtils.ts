@@ -264,7 +264,7 @@ class NullStorageService implements IStorageService {
 // Eagerly bundle the built-in color theme JSON files so they can be served
 // through the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
-// as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
+// as raw text (not parsed JSON) — this lets JustRide's JSONC parser handle
 // comments and trailing commas the way it does in the real product.
 /* eslint-disable local/code-import-patterns */
 import dark_2026 from '../../../../../../extensions/theme-defaults/themes/2026-dark.json' with { type: 'json' };
