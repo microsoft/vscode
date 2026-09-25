@@ -71,7 +71,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment, tokenizeSSHPathList } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
@@ -1341,7 +1341,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const rawValue = stripSSHComment(includeMatch[1]);
-			const patterns = rawValue.split(/\s+/).filter(Boolean);
+			const patterns = tokenizeSSHPathList(rawValue).map(token => token.path);
 
 			for (const rawPattern of patterns) {
 				const pattern = rawPattern.replace(/^~/, os.homedir());
