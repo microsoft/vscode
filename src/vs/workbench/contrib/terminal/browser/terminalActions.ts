@@ -37,7 +37,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalProfile, PosixShellType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -68,6 +68,46 @@ import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/sel
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
+
+/**
+ * Returns shell-specific commands to refresh environment (e.g. PATH) from the system,
+ * so that the command is visible in the terminal and users can learn from it.
+ * No native VS Code API exists to refresh an existing terminal's env; injecting is intentional.
+ */
+function getRefreshEnvironmentCommands(shellType: import('../../../../platform/terminal/common/terminal.js').TerminalShellType): string[] {
+	switch (shellType) {
+		case GeneralShellType.PowerShell: {
+			// Visible one-liner: reload Machine + User PATH (Windows)
+			return ['$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")'];
+		}
+		case WindowsShellType.CommandPrompt: {
+			// CMD: query registry for Machine and User Path so users see the approach
+			return [
+				'rem Refresh PATH from system (Machine + User)',
+				'for /f "skip=2 tokens=3*" %a in (\'reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v Path 2^>nul\') do set "Path=%b"',
+				'for /f "skip=2 tokens=3*" %a in (\'reg query "HKCU\\Environment" /v Path 2^>nul\') do set "Path=%b;%Path%"'
+			];
+		}
+		case WindowsShellType.GitBash:
+		case PosixShellType.Bash:
+		case PosixShellType.Zsh:
+		case PosixShellType.Sh: {
+			return [
+				'# Refresh PATH from system (default paths)',
+				'export PATH="$(getconf PATH 2>/dev/null || echo "/usr/local/bin:/usr/bin:/bin")"'
+			];
+		}
+		case PosixShellType.Fish: {
+			return [
+				'# Refresh PATH from system (default paths)',
+				'set -gx PATH (string split ":" (getconf PATH 2>/dev/null || echo "/usr/local/bin:/usr/bin:/bin"))'
+			];
+		}
+		default: {
+			return ['# Restart this terminal or run your shell\'s profile to refresh environment (e.g. exec $SHELL)'];
+		}
+	}
+}
 
 // Some terminal context keys get complicated. Since normalizing and/or context keys can be
 // expensive this is done once per context key and shared.
@@ -609,6 +649,26 @@ export function registerTerminalActions() {
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			await instance.sendPath(uri, true);
 			return c.groupService.showPanel();
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.RefreshEnvironment,
+		title: localize2('workbench.action.terminal.refreshEnvironment', 'Refresh Environment (All Terminals)'),
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
+		run: async (c) => {
+			const instances = c.groupService.instances;
+			if (instances.length === 0) {
+				return;
+			}
+			for (const instance of instances) {
+				const shellType = instance.shellType;
+				const lines = getRefreshEnvironmentCommands(shellType);
+				for (const line of lines) {
+					await instance.sendText(line, true);
+				}
+			}
+			await c.service.revealActiveTerminal(true);
 		}
 	});
 
