@@ -5094,11 +5094,11 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
-		for (const centralOnly of [false, true]) {
-			test(`recovers version 1 catalogue provenance without retained history${centralOnly ? ' or a session database' : ''}`, async () => {
+		for (const { centralOnly, automationOrigin } of [{ centralOnly: false, automationOrigin: true }, { centralOnly: true, automationOrigin: true }, { centralOnly: true, automationOrigin: false }]) {
+			test(`recovers version 1 catalogue ${automationOrigin ? 'provenance' : 'ordinary metadata'} before provider migration without retained history${centralOnly ? ' or a session database' : ''}`, async () => {
 				const { sessionData, database, session, origin } = await createLegacyAutomationSession();
 				await sessionData.database(session).setMetadataValues({
-					[SESSION_ORIGIN_KEY]: JSON.stringify(origin),
+					...(automationOrigin ? { [SESSION_ORIGIN_KEY]: JSON.stringify(origin) } : {}),
 					customTitle: 'Recovered title',
 					[AH_META_IS_READ_DB_KEY]: 'true',
 					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
@@ -5106,9 +5106,10 @@ suite('AgentService (node dispatcher)', () => {
 				const catalog = await database.getSessionV2(session.toString());
 				const data = catalogDataOf(catalog);
 				assert.ok(catalog && data);
+				const multiRoot = { workspaceFile: 'file:///workspace/project.code-workspace' };
 				const payload = JSON.stringify({
 					payloadVersion: 1,
-					data: { ...data, summary: 'Recovered title', titleSource: 'user', isRead: true, isArchived: true, ...(centralOnly ? { origin } : {}) },
+					data: { ...data, summary: 'Recovered title', titleSource: 'user', isRead: true, isArchived: true, _meta: { ...data._meta, [SESSION_META_MULTI_ROOT_KEY]: multiRoot }, ...(centralOnly && automationOrigin ? { origin } : {}) },
 				});
 				await database.upsertSessionV2({
 					...catalog,
@@ -5126,8 +5127,18 @@ suite('AgentService (node dispatcher)', () => {
 					},
 					openDatabase: () => { throw new Error('Migration must not create a session database'); },
 				} : sessionData.service;
+				const releaseMigration = new DeferredPromise<void>();
+				copilotAgent.listChatsToMigrate = async () => {
+					await releaseMigration.p;
+					return [];
+				};
 				const host = createHost(dataService, database);
-				const first = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+				let first: IAgentSessionMetadata | undefined;
+				try {
+					first = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+				} finally {
+					releaseMigration.complete();
+				}
 				host.markStartupComplete();
 				await host.whenDeferredWorkSettled();
 				await host.whenCatalogReconciliationIdle();
@@ -5136,12 +5147,14 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.deepStrictEqual({
 					first: { origin: first?.origin, title: first?.summary, status: first?.status },
+					multiRoot: readSessionMultiRootMetadata(first?._meta),
 					second: second?.origin,
 					catalogVersion: (await database.getSessionV2(session.toString()))?.payloadVersion,
 					databaseOpens: sessionData.databaseOpens,
 				}, {
-					first: { origin, title: 'Recovered title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived },
-					second: origin,
+					first: { origin: automationOrigin ? origin : undefined, title: 'Recovered title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived },
+					multiRoot: centralOnly ? multiRoot : undefined,
+					second: automationOrigin ? origin : undefined,
 					catalogVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 					databaseOpens: [],
 				});

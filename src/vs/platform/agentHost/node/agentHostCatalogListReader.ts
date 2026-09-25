@@ -22,7 +22,7 @@ export type AgentHostCatalogListResult = {
 		 */
 		| { readonly eligible: false; readonly chatBacking: true }
 		/** The central row is missing, stale or unusable; the caller falls back and schedules a repair. */
-		| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error }
+		| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error; readonly fallbackMetadata?: IAgentSessionMetadata }
 	);
 
 /**
@@ -50,10 +50,11 @@ export class AgentHostCatalogListReader {
 			if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
 				return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`, catalog);
 			}
-			if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			const needsMigration = catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION;
+			if (needsMigration && catalog.payloadVersion !== 1) {
 				return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`, catalog);
 			}
-			const decoded = decodeAgentHostCatalogPayload(catalog.payload);
+			const decoded = decodeAgentHostCatalogPayload(catalog.payload, { forMigration: needsMigration });
 			if (!decoded.ok) {
 				return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`, catalog);
 			}
@@ -64,7 +65,11 @@ export class AgentHostCatalogListReader {
 				return { eligible: false, chatBacking: true, catalog };
 			}
 			const data = reviveAgentHostCatalogData(decoded.value.data);
-			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data, catalog };
+			const metadata = this._toSessionMetadata(registered, data);
+			if (needsMigration) {
+				return { eligible: false, chatBacking: false, detail: `central row payload version ${catalog.payloadVersion} is outdated`, fallbackMetadata: metadata, catalog };
+			}
+			return { eligible: true, metadata, data, catalog };
 		} catch (error) {
 			return {
 				eligible: false,
