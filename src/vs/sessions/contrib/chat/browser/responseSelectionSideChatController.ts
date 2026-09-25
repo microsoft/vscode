@@ -111,7 +111,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
-	private _pointerSelectionActive = false;
+	private _pointerSelectionId: number | undefined;
 	private _pointerSelectionChanged = false;
 	private _visibleSurface: 'input' | 'menu' | undefined;
 	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
@@ -217,12 +217,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 		const window = dom.getWindow(this._widget.domNode);
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
 		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => this._beginPointerSelection(e), true));
-		this._register(dom.addDisposableListener(window, 'pointerup', e => {
-			if (e.button === 0 && e.isPrimary !== false) {
-				this._finishPointerSelection();
-			}
-		}, true));
-		this._register(dom.addDisposableListener(window, 'pointercancel', () => this._finishPointerSelection(), true));
+		this._register(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
 		this._register(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
 		// The transcript is a virtualized list that scrolls by transform, so it
 		// never fires a DOM scroll event; follow its own scroll event instead.
@@ -255,21 +251,23 @@ export class ResponseSelectionSideChatController extends Disposable {
 			|| this._input.isBusy) {
 			return;
 		}
-		this._pointerSelectionActive = true;
+		this._selectionChangeScheduler.cancel();
+		this._pointerSelectionId = event.pointerId;
 		this._pointerSelectionChanged = false;
 	}
 
-	private _finishPointerSelection(): void {
-		if (!this._pointerSelectionActive) {
+	private _finishPointerSelection(pointerId?: number): void {
+		if (this._pointerSelectionId === undefined
+			|| (pointerId !== undefined && this._pointerSelectionId !== pointerId)) {
 			return;
 		}
-		this._pointerSelectionActive = false;
+		this._pointerSelectionId = undefined;
 		this._pointerSelectionChanged = false;
 		this._selectionChangeScheduler.schedule();
 	}
 
 	private _onSelectionChange(): void {
-		if (this._pointerSelectionActive) {
+		if (this._pointerSelectionId !== undefined) {
 			this._updateAutoScrollHold();
 			if (!this._pointerSelectionChanged && !this._hasAffordanceFocus()) {
 				this._pointerSelectionChanged = true;
@@ -534,7 +532,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 		this._selectionChangeScheduler.cancel();
 		if (force) {
-			this._pointerSelectionActive = false;
+			this._pointerSelectionId = undefined;
 			this._pointerSelectionChanged = false;
 			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
 			this._generation++;

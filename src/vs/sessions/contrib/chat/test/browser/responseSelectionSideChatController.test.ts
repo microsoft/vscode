@@ -152,16 +152,19 @@ suite('ResponseSelectionSideChatController', () => {
 			selectionText = text;
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
-		const beginPointerSelection = (target: HTMLElement = markdown) => {
-			target.dispatchEvent(new targetWindow.MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+		const beginPointerSelection = (target: HTMLElement = markdown, pointerId = 1) => {
+			target.dispatchEvent(new targetWindow.PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId }));
 			target.dispatchEvent(new targetWindow.MouseEvent('mousedown', { bubbles: true, button: 0, cancelable: true }));
 		};
-		const releasePointerSelection = () => {
-			targetWindow.dispatchEvent(new targetWindow.MouseEvent('pointerup', { bubbles: true, button: 0 }));
+		const releasePointerSelection = (pointerId = 1) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId }));
+		};
+		const cancelPointerSelection = (pointerId: number, isPrimary: boolean) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointercancel', { bubbles: true, isPrimary, pointerId }));
 		};
 		const waitForAnimationFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, resolve));
-		const finishPointerSelection = async () => {
-			releasePointerSelection();
+		const finishPointerSelection = async (pointerId = 1) => {
+			releasePointerSelection(pointerId);
 			await waitForAnimationFrame();
 		};
 		const createPreventedMarkdownControl = () => {
@@ -244,6 +247,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelectionOutsideTranscript,
 			beginPointerSelection,
 			releasePointerSelection,
+			cancelPointerSelection,
 			finishPointerSelection,
 			waitForAnimationFrame,
 			createPreventedMarkdownControl,
@@ -386,7 +390,7 @@ suite('ResponseSelectionSideChatController', () => {
 			visibleDuringDrag: false,
 			visibleAfterTransientSelection: false,
 			visibleAfterRelease: true,
-			actions: ['Ask with /btw', 'Quote', 'Copy'],
+			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
 			telemetryEvents: [
 				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
 			],
@@ -434,7 +438,7 @@ suite('ResponseSelectionSideChatController', () => {
 		} = setup({ enhancedSelectionMenu: true });
 
 		setSelection('hello world');
-		triggerMenuAction(controller, 'Ask with /btw');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
 		const textArea = inputTextArea(controller);
 		textArea.value = 'keep this draft';
 		textArea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -485,6 +489,75 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: false,
 			autoScrollHolds: 0,
 			telemetryEvents: [],
+		});
+	});
+
+	test('ignores pointer cancellation from a secondary pointer', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			cancelPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		cancelPointerSelection(2, false);
+
+		await waitForAnimationFrame();
+		const menuVisibleAfterSecondaryCancel = menuDomNode(controller).style.display !== 'none';
+
+		releasePointerSelection(1);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleAfterSecondaryCancel,
+			menuVisibleAfterPrimaryRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleAfterSecondaryCancel: false,
+			menuVisibleAfterPrimaryRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('new pointer selection cancels pending release reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		releasePointerSelection(1);
+		beginPointerSelection(undefined, 2);
+
+		await waitForAnimationFrame();
+		const menuVisibleDuringSecondDrag = menuDomNode(controller).style.display !== 'none';
+
+		setSelection('hello world');
+		releasePointerSelection(2);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleDuringSecondDrag,
+			menuVisibleAfterSecondRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleDuringSecondDrag: false,
+			menuVisibleAfterSecondRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
 		});
 	});
 
