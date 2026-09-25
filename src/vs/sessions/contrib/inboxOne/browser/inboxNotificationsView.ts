@@ -144,6 +144,11 @@ type InboxInteractionTelemetryEvent = {
 	answerKind: string;
 	answerCharCount: number;
 	evidenceArtifactKind: string;
+	listIndex: number;
+	visibleItemCount: number;
+	sortMode: string;
+	filterActive: string;
+	msSinceItemFirstSeen: number | undefined;
 	commandId: string;
 	viewInstanceId: string;
 	sequence: number;
@@ -165,6 +170,11 @@ type InboxInteractionTelemetryClassification = {
 	answerKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded shape of a submitted needs-input answer: option, freeText, skip, approve, deny, or none.' };
 	answerCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character count of a submitted free-text answer (never the text itself); 0 otherwise.' };
 	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, or none.' };
+	listIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based position of the acted card among the visible cards at interaction time, or -1 when not applicable. Enables position/rank analysis of where attention was spent.' };
+	visibleItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of notification cards visible in the list at interaction time; the denominator for rank/attention-budget analysis.' };
+	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the interaction occurred: priority, recent, or none.' };
+	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied when the interaction occurred (yes or no).' };
+	msSinceItemFirstSeen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when the card was first shown in this view instance to this interaction (response latency); undefined when unknown.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Command identifier for command-backed inbox actions, or none for other interactions.' };
 	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate interaction trajectories inside a single view instance.' };
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic interaction sequence number within the inbox view instance.' };
@@ -239,6 +249,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
 	private readonly inboxViewInstanceId = generateUuid();
 	private interactionSequence = 0;
+	/** When each notification card was first shown in this view instance, for response-latency telemetry. */
+	private readonly itemFirstSeenMs = new Map<string, number>();
 	private selectionTelemetryState: ISelectionTelemetryState | undefined;
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
@@ -612,6 +624,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.renderedListDisposables.clear();
 		clearNode(list);
 
+		this.pruneAttentionTrackingMaps(items);
+
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
 
@@ -706,6 +720,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private appendCard(list: HTMLElement, item: IInboxNotificationItem): void {
+		if (!this.itemFirstSeenMs.has(item.id)) {
+			this.itemFirstSeenMs.set(item.id, Date.now());
+		}
 		const card = this.renderItem(item);
 		this.renderedCards.push(card);
 		list.appendChild(card);
@@ -1497,6 +1514,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const telemetryContext = item
 			? this.inboxNotificationsService.getInteractionTelemetryContext(item)
 			: { agentSessionId: 'none', providerId: 'none' };
+		const attention = this.itemAttentionContext(item);
 		const sequence = ++this.interactionSequence;
 		this.telemetryService.publicLog2<InboxInteractionTelemetryEvent, InboxInteractionTelemetryClassification>('agents/inboxInteraction', {
 			interaction,
@@ -1511,11 +1529,53 @@ export class InboxNotificationsView extends AbstractCustomView {
 			answerKind: options?.answerKind ?? 'none',
 			answerCharCount: options?.answerCharCount ?? 0,
 			evidenceArtifactKind: options?.evidenceArtifactKind ?? 'none',
+			listIndex: attention.listIndex,
+			visibleItemCount: attention.visibleItemCount,
+			sortMode: this.sortModeId(),
+			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
+			msSinceItemFirstSeen: attention.msSinceItemFirstSeen,
 			commandId: options?.commandId ?? 'none',
 			viewInstanceId: this.inboxViewInstanceId,
 			sequence,
 			durationMs: options?.durationMs,
 		});
+	}
+
+	/** Rank/latency context for the acted item within the currently visible list. */
+	private itemAttentionContext(item?: IInboxNotificationItem): { listIndex: number; visibleItemCount: number; msSinceItemFirstSeen: number | undefined } {
+		const cards = this.renderedCards;
+		const listIndex = item ? cards.findIndex(card => card.dataset.notificationId === item.id) : -1;
+		const firstSeen = item ? this.itemFirstSeenMs.get(item.id) : undefined;
+		return {
+			listIndex,
+			visibleItemCount: cards.length,
+			msSinceItemFirstSeen: firstSeen !== undefined ? Date.now() - firstSeen : undefined,
+		};
+	}
+
+	/** Bounded active sort-mode identifier for telemetry. */
+	private sortModeId(): 'priority' | 'recent' {
+		return this.inboxNotificationsService.sortMode.get() === InboxNotificationsSortMode.Priority ? 'priority' : 'recent';
+	}
+
+	/**
+	 * Drops attention-tracking entries for notifications that no longer exist (resolved/removed) so
+	 * the maps stay bounded over a long-lived view. Uses the full active + completed universe, not
+	 * the filtered view, so hiding a category via the filter does not reset an item's first-seen time.
+	 */
+	private pruneAttentionTrackingMaps(activeItems: readonly IInboxNotificationItem[]): void {
+		const known = new Set<string>();
+		for (const item of activeItems) {
+			known.add(item.id);
+		}
+		for (const item of this.inboxNotificationsService.dismissedNotifications.get()) {
+			known.add(item.id);
+		}
+		for (const id of this.itemFirstSeenMs.keys()) {
+			if (!known.has(id)) {
+				this.itemFirstSeenMs.delete(id);
+			}
+		}
 	}
 
 	/** Bounded priority-tier identifier for telemetry, or 'none' when there is no item. */
