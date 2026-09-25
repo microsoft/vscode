@@ -55,7 +55,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
@@ -854,7 +854,7 @@ export function getMcpStatusPresentation(state: McpStatusKind | undefined, disab
 		return undefined;
 	}
 	if (state === 'disabled') {
-		return { label: getCustomizationDisabledLabel(disabledReason), className: 'disabled' };
+		return { label: getMcpDisabledLabel(disabledReason), className: 'disabled' };
 	}
 	switch (state) {
 		case McpConnectionState.Kind.Running:
@@ -873,6 +873,16 @@ export function getMcpStatusPresentation(state: McpStatusKind | undefined, disab
 		default:
 			return { label: localize('stopped', "Stopped"), className: 'stopped' };
 	}
+}
+
+function getMcpDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'scope' && reason.scope !== CustomizationEnablementKind.Global) {
+		return getCustomizationDisabledLabel(reason);
+	}
+	if (reason?.source === 'plugin') {
+		return getCustomizationDisabledLabel(reason);
+	}
+	return localize('mcpDisabledGlobally', "Disabled (Globally)");
 }
 
 function getMcpEntryErrorMessage(entry: IMcpInstalledEntry): string | undefined {
@@ -1097,7 +1107,15 @@ function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItem
 		return entry.server.disabledReason;
 	}
 	if (entry.activeSessionServer !== undefined) {
-		return entry.activeSessionServer.disabledReason;
+		return entry.activeSessionServer.disabledReason ?? getCustomizationDisabledReason(entry.activeSessionServer);
+	}
+	if (entry.localServer) {
+		switch (entry.localServer.enablement.get()) {
+			case ContributionEnablementState.DisabledWorkspace:
+				return { source: 'scope', scope: CustomizationEnablementKind.Workspace };
+			case ContributionEnablementState.DisabledProfile:
+				return { source: 'scope', scope: CustomizationEnablementKind.Global };
+		}
 	}
 	return undefined;
 }
@@ -1203,7 +1221,7 @@ const agentHostMcpServerEnablementActionInfo = {
 	global: {
 		kind: CustomizationEnablementKind.Global,
 		enableLabel: () => localize('agentHostMcpServerEnable', "Enable"),
-		disableLabel: () => localize('agentHostMcpServerDisable', "Disable"),
+		disableLabel: () => localize('agentHostMcpServerDisable', "Disable (Globally)"),
 	},
 	workspace: {
 		kind: CustomizationEnablementKind.Workspace,
@@ -1263,6 +1281,19 @@ export function setPrimaryMcpServerEnablement(
 		);
 		return;
 	}
+	if (activeSessionServer && !activeSessionServer.enabled && enabled) {
+		const scope = activeSessionServer.disabledReason?.source === 'scope'
+			? activeSessionServer.disabledReason.scope
+			: getCustomizationEnablementDecision(activeSessionServer)?.kind ?? CustomizationEnablementKind.Global;
+		agentHostCustomizations.setCustomizationEnablement(
+			sessionResource,
+			activeSessionServer.id,
+			activeSessionServer.enablement,
+			scope,
+			true,
+		);
+		return;
+	}
 	if (localServerId) {
 		const current = mcpService.enablementModel.readEnabled(localServerId);
 		const next = getToggledMcpEnablementState(current);
@@ -1291,6 +1322,9 @@ export function isPrimaryMcpServerEnabled(
 ): boolean {
 	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
 		return getCustomizationScopeEnablement(activeSessionServer).global;
+	}
+	if (activeSessionServer && !activeSessionServer.enabled) {
+		return false;
 	}
 	if (localServerId) {
 		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
@@ -1329,7 +1363,7 @@ export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serv
 			}));
 		}
 	} else {
-		actions.push(new Action('mcpServer.builtin.disable', localize('builtinMcpServerDisable', "Disable"), undefined, true, () => {
+		actions.push(new Action('mcpServer.builtin.disable', localize('builtinMcpServerDisable', "Disable (Globally)"), undefined, true, () => {
 			mcpService.enablementModel.setEnabled(serverId, ContributionEnablementState.DisabledProfile);
 		}));
 		if (includeWorkspace && !isEmptyWorkbench) {
@@ -2160,14 +2194,18 @@ export class McpListWidget extends Disposable {
 		}
 		const label = getMcpEntryLabel(entry);
 		let enabled = this.isInstalledEntryEnabled(entry);
+		const disabledLabel = DOM.append(actions, $('.mcp-server-disabled-label'));
 		const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 		DOM.append(actions, toggle.domNode);
 		const update = () => {
 			const currentEntry = getEntry();
 			enabled = currentEntry ? this.isInstalledEntryEnabled(currentEntry) : false;
-			const blockedByPlugin = currentEntry && getMcpDisabledReason(currentEntry)?.source === 'plugin';
+			const disabledReason = currentEntry && getMcpDisabledReason(currentEntry);
+			const blockedByPlugin = disabledReason?.source === 'plugin';
 			const toggleLabel = enabled ? localize('disableMcpServerAria', "Disable {0}", label) : localize('enableMcpServerAria', "Enable {0}", label);
 			const accessibleLabel = blockedByPlugin ? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label) : toggleLabel;
+			disabledLabel.textContent = enabled ? '' : getMcpDisabledLabel(disabledReason);
+			disabledLabel.style.display = enabled ? 'none' : '';
 			toggle.disabled = !currentEntry || !!blockedByPlugin;
 			toggle.checked = enabled;
 			toggle.setAriaLabel(accessibleLabel);
@@ -2485,6 +2523,7 @@ export class McpListWidget extends Disposable {
 	private appendInstalledServerToggle(parent: HTMLElement, getEntry: () => IMcpInstalledEntry): { readonly element: HTMLElement; update(): void } {
 		const label = getMcpEntryLabel(getEntry());
 		let enabled = this.isInstalledEntryEnabled(getEntry());
+		const disabledLabel = DOM.append(parent, $('.mcp-server-disabled-label'));
 		const toggle = this.cardDisposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 		const switchElement = toggle.domNode;
 		DOM.append(parent, switchElement);
@@ -2509,7 +2548,10 @@ export class McpListWidget extends Disposable {
 		}));
 		const update = () => {
 			enabled = this.isInstalledEntryEnabled(getEntry());
-			toggle.disabled = getMcpDisabledReason(getEntry())?.source === 'plugin';
+			const disabledReason = getMcpDisabledReason(getEntry());
+			disabledLabel.textContent = enabled ? '' : getMcpDisabledLabel(disabledReason);
+			disabledLabel.style.display = enabled ? 'none' : '';
+			toggle.disabled = disabledReason?.source === 'plugin';
 			toggle.checked = enabled;
 			updateLabel();
 		};

@@ -686,9 +686,12 @@ suite('mcpListWidget', () => {
 			agentHostCalls,
 		}, {
 			localEnabled: false,
-			hostEnabled: true,
-			localCalls: [['server-1', ContributionEnablementState.EnabledProfile]],
-			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false]],
+			hostEnabled: false,
+			localCalls: [],
+			agentHostCalls: [
+				[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Session, true],
+				[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false],
+			],
 		});
 	});
 
@@ -747,12 +750,12 @@ suite('mcpListWidget', () => {
 			getMcpStatusPresentation(McpServerStatus.Ready)?.label,
 			getMcpStatusPresentation('disabled')?.label,
 		], [
-			'Disabled',
+			'Disabled (Globally)',
 			'Disabled (Workspace)',
 			'Disabled (Session)',
 			'Disabled (Plugin)',
 			'Running',
-			'Disabled',
+			'Disabled (Globally)',
 		]);
 	});
 
@@ -816,10 +819,10 @@ suite('mcpListWidget', () => {
 
 		test('offers the scoped action matrix', () => {
 			const cases: readonly [string, AgentHostMcpServer, readonly string[]][] = [
-				['no decisions', createAgentHostServer(), ['Disable', 'Disable (Workspace)', 'Disable (Session)']],
+				['no decisions', createAgentHostServer(), ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)']],
 				['global disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }), ['Enable', 'Enable (Workspace)', 'Enable (Session)']],
-				['workspace disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] }), ['Disable', 'Enable (Workspace)', 'Enable (Session)']],
-				['session disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }), ['Disable', 'Disable (Workspace)', 'Enable (Session)']],
+				['workspace disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] }), ['Disable (Globally)', 'Enable (Workspace)', 'Enable (Session)']],
+				['session disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }), ['Disable (Globally)', 'Disable (Workspace)', 'Enable (Session)']],
 			];
 			for (const [, server, expected] of cases) {
 				const { service } = createAgentHostCustomizations();
@@ -919,7 +922,7 @@ suite('mcpListWidget', () => {
 			});
 			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
 			const localActions = trackActions(disposables, [
-				new Action(DisableMcpServerGloballyAction.ID, 'Disable'),
+				new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)'),
 				new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)'),
 				new Action('unrelated', 'Unrelated'),
 			]);
@@ -933,7 +936,7 @@ suite('mcpListWidget', () => {
 			);
 
 			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
-				'Disable',
+				'Disable (Globally)',
 				'Unrelated',
 				'Enable (Workspace)',
 				'Enable (Session)',
@@ -950,7 +953,7 @@ suite('mcpListWidget', () => {
 			const localActions = trackActions(disposables, [
 				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
 				new Action(EnableMcpServerForWorkspaceAction.ID, 'Enable (Workspace)'),
-				new Action(DisableMcpServerGloballyAction.ID, 'Disable'),
+				new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)'),
 				new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)'),
 			]);
 			const actions = getServerItemContextMenuActions([localActions], undefined, undefined, []);
@@ -960,10 +963,10 @@ suite('mcpListWidget', () => {
 	});
 
 	suite('getLocalMcpServerEnablementActions', () => {
-		test('offers Disable + Disable (Workspace) when enabled and workbench has a workspace', () => {
+		test('offers Disable (Globally) + Disable (Workspace) when enabled and workbench has a workspace', () => {
 			const { service, calls } = createMcpService(ContributionEnablementState.EnabledProfile);
 			const actions = trackActions(disposables, getLocalMcpServerEnablementActions(service, 'server-def-id', false));
-			assert.deepStrictEqual(actions.map(a => a.label), ['Disable', 'Disable (Workspace)']);
+			assert.deepStrictEqual(actions.map(a => a.label), ['Disable (Globally)', 'Disable (Workspace)']);
 			runAction(actions[0]);
 			assert.deepStrictEqual(calls, [['server-def-id', ContributionEnablementState.DisabledProfile]]);
 		});
@@ -1016,7 +1019,7 @@ suite('mcpListWidget', () => {
 					agentHostCalls,
 					localCalls,
 				}, {
-					labels: ['Disable', 'Disable (Workspace)', 'Disable (Session)'],
+					labels: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
 					agentHostCalls: [[sessionResource, 'azure', undefined, CustomizationEnablementKind.Global, false]],
 					localCalls: [],
 				});
@@ -1040,7 +1043,7 @@ suite('mcpListWidget', () => {
 					agentHostCalls,
 					localCalls,
 				}, {
-					labels: ['Disable', 'Disable (Workspace)', 'Disable (Session)'],
+					labels: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
 					agentHostCalls: [],
 					localCalls: [['azure', ContributionEnablementState.DisabledProfile]],
 				});
@@ -1086,7 +1089,7 @@ suite('mcpListWidget', () => {
 						menu: disabledActions[0].label,
 					},
 				}, {
-					enabled: { status: McpServerStatus.Ready, menu: 'Disable' },
+					enabled: { status: McpServerStatus.Ready, menu: 'Disable (Globally)' },
 					disabled: { status: 'disabled', menu: 'Enable' },
 				});
 			});
@@ -1096,7 +1099,7 @@ suite('mcpListWidget', () => {
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'server-def-id', false, agentHostService, createAgentPluginService(), sessionResource, undefined));
 
-				assert.deepStrictEqual(actions.map(action => action.label), ['Disable', 'Disable (Workspace)']);
+				assert.deepStrictEqual(actions.map(action => action.label), ['Disable (Globally)', 'Disable (Workspace)']);
 				runAction(actions[1]);
 				assert.deepStrictEqual({
 					localCalls,
@@ -1134,7 +1137,7 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(labels, [
 				'Stop Server',
 				'(separator)',
-				'Disable',
+				'Disable (Globally)',
 				'Disable (Workspace)',
 				'Disable (Session)',
 				'(separator)',
@@ -1382,6 +1385,9 @@ suite('mcpListWidget', () => {
 					error: templateData.description.classList.contains('error'),
 					display: templateData.description.style.display,
 					hover: hoverContents.get(templateData.description),
+					...(templateData.actions.querySelector('.mcp-server-disabled-label')?.textContent ? {
+						disabledLabel: templateData.actions.querySelector('.mcp-server-disabled-label')?.textContent,
+					} : {}),
 					...(templateData.issue.textContent ? {
 						issue: {
 							text: templateData.issue.textContent,
@@ -1969,7 +1975,7 @@ suite('mcpListWidget', () => {
 				assert.deepStrictEqual({ before, empty, disabled, recovered: ctx.read() }, {
 					before: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('Native connection failed'), ariaLabel: 'Native, Error, Native connection failed' },
 					empty: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ...issue('The server reported an error without additional details.'), ariaLabel: 'Native, Error, The server reported an error without additional details.' },
-					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled' },
+					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled (Globally)' },
 					recovered: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: kind === 'server-item' ? 'Native, Running' : 'Native' },
 				});
 			});
@@ -2012,7 +2018,7 @@ suite('mcpListWidget', () => {
 				assert.deepStrictEqual({ error, updated, disabled, recovered, removed, recycled, afterOldUpdate: ctx.read() }, {
 					error: { ...ordinary, display: 'none', ...issue('failed to start'), ariaLabel: `${name}, Error, failed to start` },
 					updated: { ...ordinary, display: 'none', ...issue('Changed session error'), ariaLabel: `${name}, Error, Changed session error`, sameAction: true },
-					disabled: { ...ordinary, ariaLabel: `${name}, Disabled` },
+					disabled: { ...ordinary, ariaLabel: `${name}, Disabled (Globally)` },
 					recovered: { ...ordinary, ariaLabel: `${name}, Running` },
 					removed: { ...ordinary, ariaLabel: name },
 					recycled: { text: '', error: false, display: 'none', hover: '', ...issue('failed to start'), ariaLabel: 'Server Two, Error, failed to start' },

@@ -2969,6 +2969,14 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
+.plugin-list-widget .mcp-server-disabled-label {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	white-space: nowrap;
+}
+
 .mcp-server-item .mcp-server-sign-in.monaco-button,
 .mcp-server-item .mcp-server-start.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button,
