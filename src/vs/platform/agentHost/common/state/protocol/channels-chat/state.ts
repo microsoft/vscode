@@ -144,6 +144,10 @@ export interface ChatSummary {
 	interactivity?: ChatInteractivity;
 	/**
 	 * The subset of the session's working directories this chat uses.
+	 *
+	 * When omitted, the chat inherits all working directories from its parent
+	 * session. When provided, it scopes the chat to that subset.
+	 *
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
