@@ -17,6 +17,9 @@ import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../co
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationDiscoveryPage } from './aiCustomizationDiscoveryPage.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
+import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 
 const $ = DOM.$;
 
@@ -35,7 +38,13 @@ export interface ICustomizationMigrationCategorySummary {
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
-	openInstalled?(section: AICustomizationManagementSection, uri: URI | undefined): void;
+	openInstalled?(target: {
+		readonly section: AICustomizationManagementSection;
+		readonly uri?: URI;
+		readonly skillDetail?: IAICustomizationListItem;
+		readonly pluginDetail?: IAgentPluginItem;
+		readonly mcpDetail?: IMcpServerDetailInput;
+	}): void;
 	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
 	closeEditor(): void;
 	reviewMigrations(): void;
@@ -189,7 +198,12 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	restoreMarketplaceItemFocus(origin: ICustomizationMarketplaceOrigin): void {
-		this.implementation.value?.restoreMarketplaceItemFocus?.(origin);
+		const implementation = this.implementation.value;
+		if (implementation?.restoreMarketplaceItemFocus) {
+			implementation.restoreMarketplaceItemFocus(origin);
+		} else {
+			implementation?.focus();
+		}
 	}
 
 	setSearchQuery(value: string): void {

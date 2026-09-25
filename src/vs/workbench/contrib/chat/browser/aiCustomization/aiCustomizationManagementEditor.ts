@@ -7,6 +7,7 @@ import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -49,6 +50,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
@@ -553,8 +555,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorModeButton: HTMLButtonElement | undefined;
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
+	private currentSkillDetail = false;
 	private editorItemNameElement!: HTMLElement;
-	private editorItemPathElement!: HTMLElement;
+	private editorItemPathElement!: HTMLAnchorElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
 	private readonly editorPreviewDisposables = this._register(new DisposableStore());
@@ -633,6 +636,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private embeddedPluginDetail: EmbeddedAgentPluginDetail | undefined;
 	private pluginDetailScrollable: DomScrollableElement | undefined;
 	private pluginDetailBackButton: HTMLButtonElement | undefined;
+	private pluginDetailBackHover: IManagedHover | undefined;
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
 	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
 	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
@@ -1038,6 +1042,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				void this.refreshCustomizationMigrationInfo();
 			}
 		}));
+		this.editorDisposables.add(this.marketplaceInstallService.onDidChange(() => this.ensureMarketplaceDetailInstallState()));
 
 		this.createSidebarMigrationShortcut(sidebarContent);
 	}
@@ -1152,10 +1157,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			{
 				selectSection: (section) => this.selectSection(section),
 				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
-				openInstalled: (section, uri) => {
-					this.selectSection(section);
-					if (uri) {
-						void this.revealCustomizationByUri(uri);
+				openInstalled: target => {
+					this.selectSection(target.section);
+					if (target.skillDetail) {
+						void this.openCustomizationItem(target.skillDetail);
+					} else if (target.pluginDetail) {
+						void this.showEmbeddedPluginDetail(target.pluginDetail);
+					} else if (target.mcpDetail) {
+						void this.showEmbeddedMcpDetail(target.mcpDetail);
+					} else if (target.uri) {
+						void this.revealCustomizationByUri(target.uri);
 					}
 				},
 				openMarketplaceItem: (resource, origin) => {
@@ -1387,10 +1398,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				promptType: item.promptType,
 				storage: item.source ?? 'external',
 			});
-			const source = item.source;
-			const isWorkspaceFile = source === AICustomizationSources.local;
-			const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+			void this.openCustomizationItem(item);
 		}));
 
 		// Handle create actions - AI-guided creation
@@ -3656,8 +3664,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return (this.viewMode === 'list' || this.viewMode === 'marketplaceDetail' || this.marketplaceDetailOrigin !== undefined) && this.selectedSection === undefined ? this.welcomePage : undefined;
 	}
 
+	isCustomizationDiscoveryDetailVisible(): boolean {
+		return this.viewMode === 'marketplaceDetail' || this.marketplaceDetailOrigin !== undefined;
+	}
+
 	getCustomizationDiscoveryAccessibilityContent(): string {
-		return this.viewMode === 'marketplaceDetail' || this.marketplaceDetailOrigin !== undefined
+		return this.isCustomizationDiscoveryDetailVisible()
 			? this.embeddedMarketplaceDetail?.getAccessibilityContent() ?? ''
 			: this.welcomePage?.getAccessibilityContent() ?? '';
 	}
@@ -4150,7 +4162,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
-		this.editorItemPathElement = DOM.append(itemInfo, $('.editor-item-path'));
+		this.editorItemPathElement = DOM.append(itemInfo, $('a.editor-item-path')) as HTMLAnchorElement;
+		this.editorDisposables.add(DOM.addDisposableListener(this.editorItemPathElement, DOM.EventType.CLICK, event => {
+			if (!this.currentSkillDetail || !this.currentEditingUri) {
+				return;
+			}
+			event.preventDefault();
+			void this.openCurrentCustomizationFile();
+		}));
 
 		this.editorModeButton = DOM.append(editorHeader, $('button.editor-mode-button'));
 		this.editorModeButton.type = 'button';
@@ -4170,9 +4189,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorPreviewIssuesContainer = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-issues'));
 
 		const frontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
+		DOM.append(frontMatterSection, $('h2.editor-preview-section-title')).textContent = localize('previewDetailsTitle', "Details");
 		this.editorPreviewFrontMatterContainer = DOM.append(frontMatterSection, $('.editor-preview-frontmatter-list'));
 
 		const bodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
+		DOM.append(bodySection, $('h2.editor-preview-section-title')).textContent = localize('previewInstructionsTitle', "Instructions");
 		this.editorPreviewBodyContainer = DOM.append(bodySection, $('.editor-preview-body-content'));
 
 		this.embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
@@ -4201,32 +4222,52 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateEditorDisplayMode();
 	}
 
+	private async openCustomizationItem(item: IAICustomizationListItem): Promise<void> {
+		const source = item.source;
+		const isWorkspaceFile = source === AICustomizationSources.local;
+		const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
+		if (item.promptType === PromptsType.skill) {
+			await this.showSkillDetail(item.uri, item.name, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+		} else {
+			await this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+		}
+	}
+
+	private async showSkillDetail(uri: URI, displayName: string, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean): Promise<void> {
+		if (!hasReadableCustomizationContent(uri)) {
+			return;
+		}
+
+		this.prepareCustomizationView(uri, displayName, PromptsType.skill, source, isWorkspaceFile, isReadOnly, true);
+		this.embeddedEditor?.setModel(null);
+
+		try {
+			const ref = await this.textModelService.createModelReference(uri);
+			if (!isEqual(this.currentEditingUri, uri)) {
+				ref.dispose();
+				return;
+			}
+			this.currentModelRef = ref;
+			this.renderCurrentEditorPreview();
+			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.scheduleCurrentEditorPreviewRender()));
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+			this.editorItemPathElement.focus();
+		} catch (error) {
+			console.error('Failed to load skill details:', error);
+			if (isEqual(this.currentEditingUri, uri)) {
+				this.goBackToList();
+			}
+		}
+	}
+
 	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		if (!hasReadableCustomizationContent(uri)) {
 			return;
 		}
 
-		this.editorReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
-		this.currentModelRef?.dispose();
-		this.currentModelRef = undefined;
-		this.editorModelChangeDisposables.clear();
-		this.editorPreviewDisposables.clear();
-		this.editorPreviewRenderScheduler.cancel();
-		this.currentEditingUri = uri;
-		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
-		this.currentEditingSource = source;
-		this.currentEditingPromptType = promptType;
-		this.currentEditingReadOnly = isReadOnly;
-		this.editorDisplayMode = this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
-		this.viewMode = 'editor';
-
-		this.editorItemNameElement.textContent = displayName;
-		this.editorItemPathElement.textContent = basename(uri);
-		this._editorContentChanged = false;
-		this.resetEditorSaveIndicator();
-		this.updateEditorActionButton();
-		this.updateEditorDisplayMode();
-		this.updateContentVisibility();
+		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, false);
 
 		try {
 			if (source === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
@@ -4304,6 +4345,50 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
+	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, skillDetail: boolean): void {
+		this.editorReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
+		this.currentModelRef?.dispose();
+		this.currentModelRef = undefined;
+		this.editorModelChangeDisposables.clear();
+		this.editorPreviewDisposables.clear();
+		this.editorPreviewRenderScheduler.cancel();
+		this.currentEditingUri = uri;
+		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
+		this.currentEditingSource = source;
+		this.currentEditingPromptType = promptType;
+		this.currentEditingReadOnly = isReadOnly;
+		this.editorDisplayMode = this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
+		this.currentSkillDetail = skillDetail;
+		this.viewMode = 'editor';
+		this.editorContentContainer?.classList.toggle('skill-detail-mode', skillDetail);
+
+		this.editorItemNameElement.textContent = displayName;
+		this.editorItemPathElement.textContent = basename(uri);
+		this.editorItemPathElement.classList.toggle('source-link', skillDetail);
+		if (skillDetail) {
+			this.editorItemPathElement.href = '#';
+			this.editorItemPathElement.setAttribute('aria-label', localize('openSkillSourceAriaLabel', "Open {0} in the editor", basename(uri)));
+		} else {
+			this.editorItemPathElement.removeAttribute('href');
+			this.editorItemPathElement.removeAttribute('aria-label');
+		}
+		this._editorContentChanged = false;
+		this.resetEditorSaveIndicator();
+		this.updateEditorActionButton();
+		this.updateEditorDisplayMode();
+		this.updateContentVisibility();
+	}
+
+	private async openCurrentCustomizationFile(): Promise<void> {
+		if (!this.currentEditingUri) {
+			return;
+		}
+		await this.editorService.openEditor({
+			resource: this.currentEditingUri,
+			options: { pinned: true },
+		});
+	}
+
 	private goBackToList(): void {
 		const returnViewMode = this.editorReturnViewMode;
 		this.editorReturnViewMode = 'list';
@@ -4327,6 +4412,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingSource = undefined;
 		this.currentEditingPromptType = undefined;
 		this.currentEditingReadOnly = false;
+		this.currentSkillDetail = false;
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
@@ -4633,6 +4719,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode !== 'editor') {
 			return;
 		}
+		if (this.currentSkillDetail) {
+			this.renderCurrentEditorPreview();
+			this.updateEditorDisplayMode();
+			return;
+		}
 		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
 		if (!supportsStructuredPreview) {
 			this.editorDisplayMode = 'raw';
@@ -4684,10 +4775,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateEditorDisplayMode(): void {
 		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
-		const showPreview = supportsStructuredPreview && this.editorDisplayMode === 'preview';
+		const showPreview = this.currentSkillDetail || (supportsStructuredPreview && this.editorDisplayMode === 'preview');
 
 		if (this.editorModeButton) {
-			this.editorModeButton.style.display = supportsStructuredPreview ? '' : 'none';
+			this.editorModeButton.style.display = supportsStructuredPreview && !this.currentSkillDetail ? '' : 'none';
 			this.editorModeButton.textContent = this.getEditorModeButtonLabel();
 			this.editorModeButton.setAttribute('aria-label', this.getEditorModeButtonTooltip());
 			this.editorModeButton.setAttribute('aria-pressed', String(this.editorDisplayMode === 'raw'));
@@ -4713,7 +4804,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		return this.canEditCurrentRaw()
-			? localize('editorEditRawButtonLabel', "Edit")
+			? this.currentEditingPromptType === PromptsType.skill
+				? localize('editorEditSkillButtonLabel', "Edit Source")
+				: localize('editorEditRawButtonLabel', "Edit")
 			: localize('editorViewRawButtonLabel', "View Raw");
 	}
 
@@ -4727,7 +4820,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		return this.canEditCurrentRaw()
-			? localize('editorEditRawButtonTooltip', "Edit the raw markdown file")
+			? this.currentEditingPromptType === PromptsType.skill
+				? localize('editorEditSkillButtonTooltip', "Edit this skill directly in the source editor")
+				: localize('editorEditRawButtonTooltip', "Edit the raw markdown file")
 			: localize('editorViewRawButtonTooltip', "Show the raw markdown file");
 	}
 
@@ -4957,15 +5052,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
 		const pluginItem = this.resolveMarketplacePlugin(resource);
-		if (pluginItem && this.embeddedPluginDetail) {
+		if (pluginItem && this.embeddedPluginDetail && this.marketplaceInstallService.getInstallState(resource).kind !== 'unavailable') {
 			this.marketplaceDetailResource = resource;
 			this.marketplaceDetailOrigin = origin;
 			this.embeddedMarketplaceDetail?.setInput(resource);
-			this.pluginDetailBackButton?.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
+			this.updatePluginDetailBackButton(true);
 			this.showEmbeddedPluginDetail(pluginItem);
 			return;
 		}
 		this.showGenericMarketplaceDetail(resource, origin);
+	}
+
+	private ensureMarketplaceDetailInstallState(): void {
+		if (this.viewMode !== 'pluginDetail' || !this.marketplaceDetailResource || !this.marketplaceDetailOrigin) {
+			return;
+		}
+		if (this.marketplaceInstallService.getInstallState(this.marketplaceDetailResource).kind !== 'unavailable') {
+			return;
+		}
+		this.embeddedPluginDetail?.clearInput();
+		this.showGenericMarketplaceDetail(this.marketplaceDetailResource, this.marketplaceDetailOrigin);
 	}
 
 	private showGenericMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
@@ -5213,7 +5319,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.pluginDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
 		backButton.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
+		this.pluginDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
@@ -5275,7 +5381,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.viewMode = 'pluginDetail';
 		if (!this.marketplaceDetailOrigin) {
-			this.pluginDetailBackButton?.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
+			this.updatePluginDetailBackButton(false);
 		}
 		this.updateContentVisibility();
 
@@ -5286,6 +5392,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+	}
+
+	private updatePluginDetailBackButton(toDiscovery: boolean): void {
+		const label = toDiscovery
+			? localize('backToCustomizationDiscovery', "Back to Discover")
+			: localize('backToPluginList', "Back to plugins");
+		this.pluginDetailBackButton?.setAttribute('aria-label', label);
+		this.pluginDetailBackHover?.update(label);
 	}
 
 	private async openSkillFromPluginDetail(uri: URI): Promise<void> {
@@ -5311,10 +5425,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
 			if (item) {
-				const source = item.source;
-				const isWorkspaceFile = source === AICustomizationSources.local;
-				const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-				this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+				void this.openCustomizationItem(item);
 			}
 		}
 		this.ensureSectionsListReflectsActiveSection(section);

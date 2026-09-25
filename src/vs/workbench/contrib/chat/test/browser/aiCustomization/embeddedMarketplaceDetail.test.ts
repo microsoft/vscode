@@ -55,7 +55,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		assert.deepStrictEqual({
 			heading: parent.querySelector('h2')?.textContent,
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			sections: [...parent.querySelectorAll('section')].map(section => section.textContent),
+			sections: [...parent.querySelectorAll('section.marketplace-detail-section')].map(section => section.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
 		}, {
@@ -80,7 +80,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		});
 		assert.deepStrictEqual({
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			sections: parent.querySelectorAll('section').length,
+			sections: parent.querySelectorAll('section.marketplace-detail-section').length,
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
 		}, {
