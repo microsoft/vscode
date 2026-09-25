@@ -74,7 +74,7 @@ import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.j
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -1921,24 +1921,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolveSessionOrigin(session: URI, persisted: string | undefined, catalog?: IAgentHostDatabaseSessionV2 | null): Promise<SessionOrigin | undefined> {
-		const origin = readPersistedSessionOrigin(persisted);
-		if (catalog === undefined) {
-			catalog = await this._orchestratorDatabase.getSessionV2(session.toString());
-		}
-		const decoded = catalog && decodeAgentHostCatalogPayload(catalog.payload);
-		if (decoded && !decoded.ok) {
-			this._logService.warn(`[AgentService] Failed to read session origin from catalog for ${session}: ${decoded.error}`);
-		}
-		const recovered = origin ?? (decoded?.ok ? decoded.value.data.origin : undefined)
-			?? this._automationService.getLegacySessionOrigin(session.toString());
-		if (origin && (!decoded?.ok || equals(decoded.value.data.origin, origin))) {
-			return origin;
-		}
-		if (recovered) {
-			// Backfill once from durable evidence, so later history removal cannot
-			// change provenance. Share the catalogue's deletion fence and never
-			// recreate a missing session database during migration.
-			return this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
+		let recovered: SessionOrigin | undefined;
+		try {
+			const origin = readPersistedSessionOrigin(persisted);
+			recovered = origin;
+			if (catalog === undefined) {
+				catalog = await this._orchestratorDatabase.getSessionV2(session.toString());
+			}
+			const decoded = catalog && decodeAgentHostCatalogPayload(catalog.payload);
+			if (decoded && !decoded.ok) {
+				this._logService.warn(`[AgentService] Failed to read session origin from catalog for ${session}: ${decoded.error}`);
+			}
+			recovered ??= (decoded?.ok ? decoded.value.data.origin : undefined)
+				?? this._automationService.getLegacySessionOrigin(session.toString());
+			if (!recovered || (origin && (!decoded?.ok || equals(decoded.value.data.origin, origin)))) {
+				return recovered;
+			}
+			// Share the catalogue's deletion fence without recreating missing session databases.
+			return await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
 				if (await this._sessionRegistry.isTombstoned(session)) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session}`);
 				}
@@ -1960,8 +1960,13 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return origin;
 			});
+		} catch (error) {
+			if (error instanceof AgentHostCatalogDeletionFencedError || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
+				throw error;
+			}
+			this._logService.warn(`[AgentService] Failed to backfill session origin for ${session}`, error);
+			return recovered;
 		}
-		return recovered;
 	}
 
 	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession, catalog?: IAgentHostDatabaseSessionV2 | null): Promise<ILegacyRegisteredSessionMetadata | undefined> {
@@ -2079,6 +2084,9 @@ export class AgentService extends Disposable implements IAgentService {
 				ref.dispose();
 			}
 		} catch (error) {
+			if (error instanceof AgentHostCatalogDeletionFencedError || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
+				throw error;
+			}
 			this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${metadata.session}`, error);
 			return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
 		}
@@ -3519,13 +3527,20 @@ export class AgentService extends Disposable implements IAgentService {
 				if (central.eligible) {
 					catalogServed++;
 					if (!central.metadata.origin && this._automationService.getLegacySessionOrigin(session.toString())) {
-						const ref = await this._sessionDataService.tryOpenDatabase(session);
 						try {
-							const origin = await this._resolveSessionOrigin(session, await ref?.object.getMetadata(SESSION_ORIGIN_KEY), central.catalog);
-							repairSessions.add(session.toString());
-							return { ...central.metadata, origin };
-						} finally {
-							ref?.dispose();
+							const ref = await this._sessionDataService.tryOpenDatabase(session);
+							try {
+								const origin = await this._resolveSessionOrigin(session, await ref?.object.getMetadata(SESSION_ORIGIN_KEY), central.catalog);
+								repairSessions.add(session.toString());
+								return { ...central.metadata, origin };
+							} finally {
+								ref?.dispose();
+							}
+						} catch (error) {
+							if (error instanceof AgentHostCatalogDeletionFencedError || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
+								return undefined;
+							}
+							this._logService.warn(`[AgentService] listSessions: failed to read session origin for ${session}`, error);
 						}
 					}
 					return central.metadata;

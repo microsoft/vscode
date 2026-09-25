@@ -4925,12 +4925,12 @@ suite('AgentService (node dispatcher)', () => {
 	suite('automation session origin', () => {
 		const automation = 'ahp-automation:/review';
 
-		function createHost(sessionDataService: ISessionDataService, database = new TestAgentHostOrchestratorDatabase(), storageResource?: URI): AgentService {
+		function createHost(sessionDataService: ISessionDataService, database = new TestAgentHostOrchestratorDatabase(), storageResource?: URI, catalogue = true): AgentService {
 			const host = disposables.add(createTestAgentService(
 				new NullLogService(), fileService, sessionDataService, new class extends mock<IProductService>() { }(), createNoopGitService(),
 				undefined, undefined, undefined, undefined, undefined, [], undefined, storageResource, database,
 			));
-			getConfigurationService(host).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+			getConfigurationService(host).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: catalogue });
 			registerTestAgentProvider(host, copilotAgent);
 			return host;
 		}
@@ -5070,8 +5070,8 @@ suite('AgentService (node dispatcher)', () => {
 					tryOpenDatabase: async () => undefined,
 					openDatabase: () => { throw new Error('Backfill must not create a session database'); },
 				} : sessionData.service;
-				const host = createHost(dataService, database, storage);
-				getConfigurationService(host).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: catalogue, [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false });
+				const host = createHost(dataService, database, storage, catalogue);
+				getConfigurationService(host).updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false });
 				const listing = await host.listSessions();
 				const featureEnabled = getStateManager(host).rootState.config?.values[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY];
 				const catalogOrigin = catalogDataOf(await database.getSessionV2(session.toString()))?.origin;
@@ -5094,7 +5094,67 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
-		test('does not resurrect a session deleted while legacy origin is being read', async () => {
+		for (const operation of ['catalogue listing', 'legacy listing', 'restoration'] as const) {
+			test(`preserves sessions and metadata when origin backfill fails during ${operation}`, async () => {
+				let failOriginWrites = false;
+				class FailingOriginDatabase extends TestSessionDatabase {
+					override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+						if (failOriginWrites && values[SESSION_ORIGIN_KEY] && Object.keys(values).length === 1) {
+							throw new Error('origin backfill write failed');
+						}
+						return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					}
+				}
+				const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession(createPerSessionDataService(() => new FailingOriginDatabase()));
+				await sessionData.database(session).setMetadataValues({
+					customTitle: 'Persisted title',
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+					[AH_META_WORKSPACELESS_DB_KEY]: 'true',
+				});
+				const host = createHost(sessionData.service, database, storage, operation !== 'legacy listing');
+				const ordinary = await host.createSession({ provider: 'copilot' });
+				failOriginWrites = true;
+
+				if (operation === 'restoration') {
+					await host.subscribe(session, 'history-viewer');
+					const state = getStateManager(host).getSessionState(session.toString());
+					assert.deepStrictEqual({
+						title: state?.title,
+						status: state?.status,
+						workspaceless: readSessionWorkspaceless(state?._meta),
+						origin: state?.origin,
+					}, {
+						title: 'Persisted title',
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						workspaceless: true,
+						origin,
+					});
+				} else {
+					const listing = await host.listSessions();
+					const metadata = listing.find(entry => entry.session.toString() === session.toString());
+					assert.deepStrictEqual({
+						origin: metadata?.origin,
+						ordinary: listing.some(entry => entry.session.toString() === ordinary.toString()),
+						...(operation === 'legacy listing' ? {
+							title: metadata?.summary,
+							status: metadata?.status,
+							workspaceless: readSessionWorkspaceless(metadata?._meta),
+						} : {}),
+					}, {
+						origin,
+						ordinary: true,
+						...(operation === 'legacy listing' ? {
+							title: 'Persisted title',
+							status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+							workspaceless: true,
+						} : {}),
+					});
+				}
+			});
+		}
+
+		test('omits a session deleted while legacy origin is being read without rejecting the listing', async () => {
 			const readingOrigin = new DeferredPromise<void>();
 			const releaseRead = new DeferredPromise<void>();
 			let blockOriginRead = false;
@@ -5121,6 +5181,7 @@ suite('AgentService (node dispatcher)', () => {
 				},
 				deleteSessionData: async () => { deleted = true; },
 			}, database, storage);
+			const ordinary = await host.createSession({ provider: 'copilot' });
 			blockOriginRead = true;
 			const listing = host.listSessions();
 			await readingOrigin.p;
@@ -5129,17 +5190,19 @@ suite('AgentService (node dispatcher)', () => {
 			} finally {
 				releaseRead.complete();
 			}
-			await assert.rejects(listing, /Session not found/);
+			const listed = await listing;
 			assert.deepStrictEqual({
+				listed: listed.map(entry => entry.session.toString()),
 				recreated,
 				catalog: await database.getSessionV2(session.toString()),
 				origin: await sessionData.database(session).getMetadata(SESSION_ORIGIN_KEY),
-				registered: await host.getRegisteredSessions(),
+				registered: (await host.getRegisteredSessions()).map(resource => resource.toString()),
 			}, {
+				listed: [ordinary.toString()],
 				recreated: [],
 				catalog: undefined,
 				origin: undefined,
-				registered: [],
+				registered: [ordinary.toString()],
 			});
 		});
 	});
