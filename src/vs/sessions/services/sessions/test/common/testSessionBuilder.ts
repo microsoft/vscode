@@ -7,13 +7,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 
 /** A peer chat of a {@link ITestSessionSpec}. */
 export interface ITestChatSpec {
 	/** Unique within its session. */
 	readonly id: string;
 	readonly title: string;
+	readonly workspace?: string;
 	readonly status?: SessionStatus;
 	readonly interactivity?: ChatInteractivity;
 	readonly isArchived?: boolean;
@@ -28,6 +29,7 @@ export interface ITestSessionSpec {
 	readonly title: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
+	readonly workspaceFolders?: readonly string[];
 	readonly isQuickChat?: boolean;
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
@@ -76,14 +78,16 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string): ISessionWorkspace {
-	const root = URI.file(`/home/user/projects/${label}`);
-	const folder: ISessionFolder = { root, workingDirectory: root, name: label, description: undefined };
+export function buildTestWorkspace(label: string, folderLabels: readonly string[] = [label]): ISessionWorkspace {
+	const folders = folderLabels.map(folderLabel => {
+		const root = URI.file(`/home/user/projects/${folderLabel}`);
+		return { root, workingDirectory: root, name: folderLabel, description: undefined };
+	});
 	return {
-		uri: root,
+		uri: folders[0].root,
 		label,
 		icon: Codicon.folder,
-		folders: [folder],
+		folders,
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	};
@@ -96,7 +100,7 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 	const chat: IChat = {
 		resource,
 		createdAt,
-		workspace: constObservable(undefined),
+		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace) : undefined),
 		title,
 		updatedAt: constObservable(updatedAt),
 		status,
@@ -133,7 +137,7 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 		sessionType: 'local',
 		icon: Codicon.account,
 		createdAt,
-		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace) : undefined),
+		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders) : undefined),
 		isQuickChat: constObservable(spec.isQuickChat ?? false),
 		isExternal: constObservable(spec.isExternal ?? false),
 		title,

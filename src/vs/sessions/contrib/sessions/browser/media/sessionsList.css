@@ -560,6 +560,10 @@
 		.session-chat-title {
 			flex: 0 1 auto;
 		}
+
+		.session-title-toolbar {
+			margin-left: auto;
+		}
 	}
 
 	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
