@@ -149,6 +149,7 @@ function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 		override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 		override readonly onDidChangeMcpGalleryManifest = Event.None;
 		override async getMcpGalleryManifest() { return null; }
+		override async getDefaultMcpGalleryManifest() { return null; }
 	}();
 }
 
@@ -839,8 +840,7 @@ interface IRenderEditorOptions {
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly marketplaceVisibilityEnabled?: boolean;
-	readonly otherSourceEnabled?: boolean;
-	readonly togglePublicFeed?: boolean;
+	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly discoveryQuery?: string;
@@ -885,7 +885,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
+	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -984,13 +984,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
-				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceVisibilityEnabled ?? true,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
-			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true
-				|| configurationService.getValue<boolean>('test.marketplace.other.enabled') === true;
+			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -1000,8 +998,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled' },
+					{ id: 'mcpGallery', displayName: 'MCP Gallery', enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled },
 				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
@@ -1516,10 +1513,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 	editor.setVisible(true);
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
+		await Promise.resolve();
+		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
+	}
 	if (!marketplaceEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave Overview available.');
+		assert(overview !== null, 'Disabled Marketplace must retain Overview.');
+		if (!options.selectedSection) {
+			assert(overview.style.display !== 'none', 'Disabled Marketplace must show Overview on the home page.');
+		}
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
@@ -1576,10 +1580,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
-	if (options.togglePublicFeed) {
+	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
-		const setting = CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled;
-		await configuration.setUserConfiguration(setting, !agentFinderPublicFeedEnabled);
+		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+		await configuration.setUserConfiguration(setting, options.marketplaceVisibilityEnabled === false);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }
 		}());
@@ -2575,6 +2579,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tab.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+		}),
+	}),
+
 	McpServersTree: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
@@ -2971,10 +2986,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	OverviewWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
+		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when Marketplace visibility is off.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+		}),
+	}),
+
+	DiscoverWithMcpGalleryOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			agentFinderPublicFeedEnabled: false,
+			customizationMarketplaceState: 'empty',
 		}),
 	}),
 
@@ -2987,22 +3012,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	DiscoverWithOtherSourceOnly: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			agentFinderPublicFeedEnabled: false,
-			otherSourceEnabled: true,
-			customizationMarketplaceState: 'empty',
-		}),
-	}),
-
 	EnableDiscoverFromOverview: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
-			togglePublicFeed: true,
+			marketplaceVisibilityEnabled: false,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
@@ -3010,7 +3026,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			togglePublicFeed: true,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
