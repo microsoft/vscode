@@ -466,7 +466,6 @@ suite('AgentFeedbackServerTools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
-			// `deferLoading` is agent-host-local metadata and must not reach the wire.
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition));
 		});
 

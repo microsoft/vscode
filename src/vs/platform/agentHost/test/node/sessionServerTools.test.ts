@@ -110,8 +110,6 @@ suite('SessionServerTools', () => {
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
-		// Every session tool is deferred behind tool search except rename_chat, which
-		// automatic title flows request by name in a per-turn reminder.
 		assert.deepStrictEqual(
 			sessionServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
 			sessionServerToolDefinitions.map(({ name }) => ({ name, deferLoading: name !== SessionServerToolName.RenameChat })),

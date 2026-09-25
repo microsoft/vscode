@@ -95,12 +95,6 @@ export interface IAgentMergePromptSummary {
 	readonly agentMessage: string;
 }
 
-/**
- * The Agent Merge server tools the repair prompt points the model at. Kept in
- * sync with `node/shared/agentMergeServerTools.ts` (this module must not import
- * from `node/`). Named explicitly because those tools are deferred behind tool
- * search and a repair turn must be able to load them without guessing.
- */
 export const AGENT_MERGE_TOOL_NAMES: readonly string[] = ['readAgentMergeCI', 'replyToAgentMergeReviewThread', 'rerunAgentMergeWorkflow'];
 
 export function buildAgentMergePrompt(actions: readonly AgentMergeRepairAction[], context: AgentMergePromptContext): string {
