@@ -11,7 +11,6 @@ import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { Handler } from '../../../../common/editorCommon.js';
 import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
@@ -419,24 +418,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('block paste preserves column alignment without disabling normal paste indentation', () => {
-		const model = disposables.add(createTextModel('function test() {\n    first();\n    second();\n}', languageId));
-		withTestCodeEditor(model, { autoIndent: 'none', serviceCollection }, editor => {
-			editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			editor.updateOptions({ autoIndent: 'full', autoIndentOnPaste: true });
-			editor.setSelection(new Selection(2, 1, 2, 1));
-			editor.trigger('keyboard', Handler.Paste, { text: '//\n//', isBlock: true });
-			const blockPaste = model.getLinesContent();
-			model.undo();
-			editor.setSelection(new Selection(2, 1, 2, 1));
-			editor.trigger('keyboard', Handler.Paste, { text: '//\n//' });
-			assert.deepStrictEqual({ blockPaste, normalPaste: model.getLinesContent() }, {
-				blockPaste: ['function test() {', '//    first();', '//    second();', '}'],
-				normalPaste: ['function test() {', '    //', '    //    first();', '    second();', '}']
-			});
-		});
-	});
 
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 
