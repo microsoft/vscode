@@ -239,8 +239,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			...base,
 			title: defaultChat?.title || summary.title,
 			children: peerChats.length ? peerChats.map(chat => this._makeItem(rawId, {
-				...base,
 				title: chat.title || summary.title,
+				workingDirectory: base.workingDirectory,
+				createdAt: base.createdAt,
+				modifiedAt: base.modifiedAt,
 				chat,
 			})) : undefined,
 		});
@@ -272,7 +274,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			children: opts.children,
 			description,
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
-			status: mapSessionStatus(opts.status),
+			...(opts.status !== undefined ? { status: mapSessionStatus(opts.status) } : undefined),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			// Without a host-provided status there is no opinion on read state —
 			// a pending new session, or a cold one the host has no record for.

@@ -333,15 +333,19 @@
 			}
 
 		}
+	}
+
+	.agent-session-item,
+	.agent-session-chat-item {
 		.agent-session-approval-row {
 			display: none;
 			align-items: flex-end;
-			gap: 8px;
-			margin-top: 4px;
-			padding: 4px 8px;
+			gap: var(--vscode-spacing-size80);
+			margin-top: var(--vscode-spacing-size40);
+			padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 			box-sizing: border-box;
-			border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
-			border-radius: 4px;
+			border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+			border-radius: var(--vscode-cornerRadius-small);
 			background-color: var(--vscode-editor-background);
 			color: var(--vscode-editor-foreground);
 
@@ -366,7 +370,7 @@
 					overflow: hidden;
 					white-space: nowrap;
 					text-overflow: ellipsis;
-					font-size: 12px;
+					font-size: var(--vscode-fontSize-label1);
 				}
 			}
 
@@ -374,8 +378,8 @@
 				flex-shrink: 0;
 
 				.monaco-button {
-					padding: 2px 10px;
-					font-size: 12px;
+					padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+					font-size: var(--vscode-fontSize-label1);
 					white-space: nowrap;
 				}
 			}

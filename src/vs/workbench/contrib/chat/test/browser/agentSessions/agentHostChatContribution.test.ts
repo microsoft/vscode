@@ -2812,12 +2812,14 @@ suite('AgentHostChatContribution', () => {
 				children: item.children?.map(child => ({
 					label: child.label,
 					resource: child.resource.toString(),
+					status: child.status,
+					isRead: child.isRead,
 				})),
 			})), [{
 				label: 'Main chat',
 				resource: 'agent-host-copilot:/multi-chat',
 				children: [
-					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat' },
+					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat', status: undefined, isRead: undefined },
 				],
 			}]);
 		});

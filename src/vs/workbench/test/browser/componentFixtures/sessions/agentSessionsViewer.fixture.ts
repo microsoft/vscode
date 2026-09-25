@@ -38,6 +38,7 @@ function createMockSession(overrides: Partial<IAgentSession> & { label: string; 
 		override readonly resource = overrides.resource ?? URI.parse(`vscode-chat-session://${overrides.providerType}/session-${Math.random().toString(36).slice(2)}`);
 		override readonly label = overrides.label;
 		override readonly status = overrides.status;
+		override readonly statusKnown = overrides.statusKnown;
 		override readonly providerType = overrides.providerType;
 		override readonly providerLabel = overrides.providerLabel ?? overrides.providerType;
 		override readonly icon = overrides.icon ?? Codicon.vm;
@@ -161,19 +162,16 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	}));
 }
 
-function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
+function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createAgentSessionInstantiationService(ctx);
-	const sessionRenderer = disposableStore.add(
-		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
-	);
-	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer, () => true);
 	const now = Date.now();
 	const parentResource = URI.parse('vscode-chat-session://local/hierarchy');
 	const child = createMockSession({
 		resource: parentResource.with({ fragment: 'peer-chat' }),
 		label: 'Add some random comment',
 		status: AgentSessionStatus.Completed,
+		statusKnown: false,
 		providerType: AgentSessionProviders.Local,
 		parentSession: {
 			resource: parentResource,
@@ -185,6 +183,18 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
 			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
 		},
 	});
+	const approvalModel = withApproval ? createMockApprovalModel(child.resource, {
+		approvalId: child.resource.toString(),
+		kind: AgentSessionApprovalKind.Terminal,
+		label: 'npm install --save express@latest',
+		languageId: 'sh',
+		since: new Date(),
+		confirm: () => { },
+	}) : undefined;
+	const sessionRenderer = disposableStore.add(
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel, observableValue<URI | undefined>('activeSessionResource', undefined))
+	);
+	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer, () => true);
 	const parent = createMockSession({
 		resource: parentResource,
 		label: 'Hello Chat',
@@ -198,10 +208,11 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
 			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
 		},
 	});
+	const childHeight = new AgentSessionsListDelegate(approvalModel).getHeight(child);
 
 	container.classList.add('monaco-workbench', 'modern-ui');
 	container.style.width = '350px';
-	container.style.height = `${AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT + AgentSessionsListDelegate.CHAT_ITEM_HEIGHT}px`;
+	container.style.height = `${AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT + childHeight}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
 	const viewer = document.createElement('div');
@@ -232,7 +243,7 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
 	sessionRenderer.renderElement(parentNode, 0, parentTemplate);
 
 	const childNode = wrapAsTreeNode(child);
-	const childRow = createRow(AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT, AgentSessionsListDelegate.CHAT_ITEM_HEIGHT);
+	const childRow = createRow(AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT, childHeight);
 	const childTemplate = chatRenderer.renderTemplate(childRow.contents);
 	chatRenderer.renderElement(childNode, 0, childTemplate);
 
@@ -291,6 +302,11 @@ export default defineThemedFixtureGroup({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['A completed session titled "Hello Chat" has one compact peer chat child. A single uninterrupted vertical guide connects the parent to a rounded elbow ending at the child status dot, with no gap between rows.'],
 		render: renderSessionHierarchy,
+	}),
+
+	SessionWithPeerChatApproval: defineComponentFixture({
+		expectedVisualDescriptions: ['A completed session titled "Hello Chat" has one compact peer chat child with a styled approval row containing a truncated terminal command and an Allow button. The hierarchy guide remains continuous beside the expanded peer row.'],
+		render: ctx => renderSessionHierarchy(ctx, true),
 	}),
 
 	// --- Status variants ---

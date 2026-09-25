@@ -74,6 +74,7 @@ interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'childre
 	readonly resource: URI;
 
 	readonly status: AgentSessionStatus;
+	readonly statusKnown?: boolean;
 
 	readonly tooltip?: string | IMarkdownString;
 
@@ -779,6 +780,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						badge: item.badge,
 						tooltip: item.tooltip,
 						status: item.status ?? AgentSessionStatus.Completed,
+						statusKnown: item.status !== undefined,
 						archived: item.archived,
 						providerIsRead: shouldKeepOpenSessionRead ? true : item.isRead,
 						timing: item.timing,
@@ -1143,6 +1145,7 @@ interface ISerializedAgentSession {
 	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 
 	readonly status: AgentSessionStatus;
+	readonly statusKnown?: boolean;
 
 	readonly tooltip?: string | IMarkdownString;
 
@@ -1203,6 +1206,7 @@ export class AgentSessionsCache {
 			tooltip: session.tooltip,
 
 			status: isSessionInProgressStatus(session.status) ? AgentSessionStatus.Completed : session.status, // never cache sessions as in progress, this needs to be live state
+			statusKnown: session.statusKnown,
 			archived: session.archived,
 			isRead: session.providerIsRead,
 
@@ -1241,6 +1245,7 @@ export class AgentSessionsCache {
 					tooltip: session.tooltip,
 
 					status: session.status,
+					statusKnown: session.statusKnown ?? parentSession === undefined,
 					archived: session.archived,
 					providerIsRead: session.isRead,
 

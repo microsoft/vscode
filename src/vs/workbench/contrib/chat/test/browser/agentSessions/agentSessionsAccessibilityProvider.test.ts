@@ -22,6 +22,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 		label: string;
 		providerLabel: string;
 		status: ChatSessionStatus;
+		statusKnown: boolean;
 		children: readonly IAgentSession[];
 		parentSession: { readonly resource: URI; readonly label: string };
 	}> = {}): IAgentSession {
@@ -31,6 +32,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 			providerLabel: overrides.providerLabel ?? 'Test',
 			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
 			status: overrides.status ?? ChatSessionStatus.Completed,
+			statusKnown: overrides.statusKnown,
 			label: overrides.label ?? `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
@@ -99,6 +101,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 		const child = createMockSession({
 			id: 'child',
 			label: 'Peer chat',
+			statusKnown: false,
 			parentSession: { resource: URI.parse('test://session/parent'), label: 'Parent session' },
 		});
 		const parent = createMockSession({
@@ -112,7 +115,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 			child: accessibilityProvider.getAriaLabel(child),
 		}, {
 			parent: `${parent.providerLabel} session Parent session, 1 peer chat (Completed), created ${new Date(parent.timing.created).toLocaleString()}`,
-			child: 'Peer chat, chat in session Parent session (Completed)',
+			child: 'Peer chat, chat in session Parent session',
 		});
 	});
 

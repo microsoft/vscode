@@ -87,7 +87,8 @@ suite('AgentSessionsRenderer', () => {
 			providerType: 'test',
 			providerLabel: 'Test',
 			resource: URI.parse('test://session/default#peer'),
-			status: AgentSessionStatus.Completed,
+			status: AgentSessionStatus.NeedsInput,
+			statusKnown: false,
 			label: 'Peer chat',
 			icon: Codicon.terminal,
 			timing: {
@@ -125,12 +126,14 @@ suite('AgentSessionsRenderer', () => {
 			itemClasses: [...template.element.classList],
 			title: template.element.querySelector('.label-name')?.textContent,
 			hasChatIcon: !!template.element.querySelector('.agent-session-chat-icon'),
+			hasNeutralChatIcon: !!template.element.querySelector('.codicon-circle-small-filled'),
 			hasDetails: !!template.element.querySelector('.agent-session-details-row'),
 		}, {
 			rowClasses: ['monaco-list-row', 'agent-session-list-row', 'agent-session-chat-row'],
 			itemClasses: ['agent-session-chat-item', 'last-chat'],
 			title: 'Peer chat',
 			hasChatIcon: true,
+			hasNeutralChatIcon: true,
 			hasDetails: false,
 		});
 	});

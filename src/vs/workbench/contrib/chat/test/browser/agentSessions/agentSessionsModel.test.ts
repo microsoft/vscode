@@ -61,6 +61,7 @@ suite('AgentSessionsCache', () => {
 			...createSession(undefined),
 			resource: URI.parse('test:/session#peer'),
 			label: 'Peer chat',
+			statusKnown: false,
 			parentSession: { resource: session.resource, label: session.label },
 		};
 		cache.saveCachedSessions([{ ...session, children: [child] }]);
@@ -72,6 +73,7 @@ suite('AgentSessionsCache', () => {
 				label: item.label,
 				parentResource: item.parentSession?.resource.toString(),
 				parentLabel: item.parentSession?.label,
+				statusKnown: item.statusKnown,
 			})),
 		}, {
 			children: [{
@@ -79,6 +81,7 @@ suite('AgentSessionsCache', () => {
 				label: 'Peer chat',
 				parentResource: 'test:/session',
 				parentLabel: 'Session',
+				statusKnown: false,
 			}],
 		});
 	});

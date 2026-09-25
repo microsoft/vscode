@@ -140,10 +140,11 @@ class AgentSessionStatusIcon extends Disposable {
 	}
 
 	private render(session: IAgentSession): void {
-		this.container.className = `${this.containerClassName}${session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+		const statusKnown = !isAgentSessionChild(session) || session.statusKnown !== false;
+		this.container.className = `${this.containerClassName}${statusKnown && session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 		this.container.style.color = '';
 
-		if ((session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
+		if (statusKnown && (session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
 			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
 			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
 			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
@@ -187,6 +188,10 @@ class AgentSessionStatusIcon extends Disposable {
 }
 
 export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
+	if (isAgentSessionChild(session) && session.statusKnown === false) {
+		return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+	}
+
 	if (session.status === AgentSessionStatus.InProgress) {
 		return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 	}
@@ -813,7 +818,7 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 
 		template.elementDisposable.clear();
 		template.element.classList.toggle('last-chat', this.isLastVisibleChat(session));
-		template.element.classList.toggle('needs-input', session.element.status === AgentSessionStatus.NeedsInput);
+		template.element.classList.toggle('needs-input', session.element.statusKnown !== false && session.element.status === AgentSessionStatus.NeedsInput);
 		template.statusIcon.setStatus(session.element);
 
 		const label = renderAsPlaintext(new MarkdownString(session.element.label));
@@ -1140,7 +1145,9 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 		}
 
 		if (isAgentSessionChild(element)) {
-			return localize('agentSessionChatItemAriaLabel', "{0}, chat in session {1} ({2})", element.label, element.parentSession.label, toStatusLabel(element.status));
+			return element.statusKnown === false
+				? localize('agentSessionChatItemAriaLabelWithoutStatus', "{0}, chat in session {1}", element.label, element.parentSession.label)
+				: localize('agentSessionChatItemAriaLabel', "{0}, chat in session {1} ({2})", element.label, element.parentSession.label, toStatusLabel(element.status));
 		}
 		if (element.children?.length) {
 			if (element.children.length === 1) {
