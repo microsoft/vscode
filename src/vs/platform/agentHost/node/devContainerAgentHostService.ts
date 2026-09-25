@@ -14,6 +14,8 @@ import { CancellationError, getErrorMessage, isCancellationError } from '../../.
 import { Emitter } from '../../../base/common/event.js';
 import { join, posix } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -200,7 +202,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		this._disconnect(config.connectionId);
 		const tokenSource = new CancellationTokenSource();
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
-		return this._containerOperations.queue(config.workspaceFolder, async () => {
+		return this._containerOperations.queue(extUriBiasedIgnorePathCase.getComparisonKey(URI.file(config.workspaceFolder)), async () => {
 			try {
 				if (tokenSource.token.isCancellationRequested) {
 					throw new CancellationError();
@@ -216,7 +218,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _connect(config: IDevContainerAgentHostConfig, tokenSource: CancellationTokenSource): Promise<IDevContainerAgentHostConnectResult> {
-		if (this._suspendedWorkspaces.has(config.workspaceFolder) && config.resume !== true) {
+		const workspaceKey = extUriBiasedIgnorePathCase.getComparisonKey(URI.file(config.workspaceFolder));
+		if (this._suspendedWorkspaces.has(workspaceKey) && config.resume !== true) {
 			throw new Error(localize('devContainerAgentHost.containerSuspended', "Dev Container for '{0}' is stopped.", config.workspaceFolder));
 		}
 		const store = new DisposableStore();
@@ -240,8 +243,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			if (!upResult) {
 				throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
 			}
-			this._containerIds.set(config.workspaceFolder, upResult.containerId);
-			this._connectionWorkspaces.set(config.connectionId, config.workspaceFolder);
+			this._containerIds.set(workspaceKey, upResult.containerId);
+			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
 			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
 
 			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
@@ -342,7 +345,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
 			if (config.resume === true) {
-				this._suspendedWorkspaces.delete(config.workspaceFolder);
+				this._suspendedWorkspaces.delete(workspaceKey);
 			}
 
 			return {
@@ -847,27 +850,28 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	async stopContainer(workspaceFolder: string): Promise<boolean> {
-		return this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'stop'));
+		return this._containerOperations.queue(extUriBiasedIgnorePathCase.getComparisonKey(URI.file(workspaceFolder)), () => this._changeContainerState(workspaceFolder, 'stop'));
 	}
 
 	async removeContainer(workspaceFolder: string): Promise<boolean> {
-		return this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'rm'));
+		return this._containerOperations.queue(extUriBiasedIgnorePathCase.getComparisonKey(URI.file(workspaceFolder)), () => this._changeContainerState(workspaceFolder, 'rm'));
 	}
 
 	private async _changeContainerState(workspaceFolder: string, operation: 'stop' | 'rm'): Promise<boolean> {
-		const containerId = this._containerIds.get(workspaceFolder);
+		const workspaceKey = extUriBiasedIgnorePathCase.getComparisonKey(URI.file(workspaceFolder));
+		const containerId = this._containerIds.get(workspaceKey);
 		if (!containerId) {
 			return true;
 		}
-		this._suspendedWorkspaces.add(workspaceFolder);
 		const sessionIds = await this._findContainerSessionIds(containerId);
 		const foreignSessionIds = sessionIds.filter(sessionId => sessionId !== this._telemetryService.sessionId);
 		if (foreignSessionIds.length > 0) {
 			this._logService.info(`${LOG_PREFIX} Skipping container ${operation === 'rm' ? 'removal' : 'stop'} for ${workspaceFolder}: ${foreignSessionIds.length} other VS Code session(s) are active.`);
 			return false;
 		}
+		this._suspendedWorkspaces.add(workspaceKey);
 		const connectionIds = [...this._connectionWorkspaces]
-			.filter(([, workspace]) => workspace === workspaceFolder)
+			.filter(([, workspace]) => workspace === workspaceKey)
 			.map(([connectionId]) => connectionId);
 		await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
 		const args = operation === 'rm' ? ['rm', '--force', containerId] : ['stop', containerId];
@@ -876,7 +880,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			throw new Error(localize('devContainerAgentHost.containerLifecycleFailed', "Docker failed to {0} Dev Container '{1}' (exit {2}): {3}", operation === 'rm' ? 'remove' : 'stop', containerId, result.code, result.stderr.trim()));
 		}
 		if (operation === 'rm' || /No such container/i.test(result.stderr)) {
-			this._containerIds.delete(workspaceFolder);
+			this._containerIds.delete(workspaceKey);
 		}
 		return true;
 	}

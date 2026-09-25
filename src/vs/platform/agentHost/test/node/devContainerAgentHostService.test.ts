@@ -13,6 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -927,6 +928,7 @@ suite('Dev Container Agent Host Main Service', () => {
 
 		const stopped = await service.stopContainer('/workspace');
 		const removed = await service.removeContainer('/workspace');
+		await service.connect({ connectionId: 'automatic-reconnect', workspaceFolder: '/workspace', name: 'Project Dev Container' });
 
 		assert.deepStrictEqual({
 			stopped,
@@ -937,6 +939,14 @@ suite('Dev Container Agent Host Main Service', () => {
 			removed: false,
 			dockerCommands: ['exec', 'exec'],
 		});
+	});
+
+	(isLinux ? test.skip : test)('shares lifecycle state between case variants of a workspace', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+		await service.stopContainer('/WORKSPACE');
+		await assert.rejects(service.connect({ connectionId: 'automatic-reconnect', workspaceFolder: '/Workspace', name: 'Project' }), /is stopped/);
+		assert.deepStrictEqual(service.dockerCommands.map(command => command[0]), ['exec', 'stop']);
 	});
 
 	test('keeps automatic reconnects suspended when an explicit resume fails', async () => {

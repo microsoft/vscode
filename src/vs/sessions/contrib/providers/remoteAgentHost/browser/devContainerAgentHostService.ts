@@ -222,8 +222,17 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
 	}
 
-	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
-		return this._ensureConnection(workspaceUri, token).then(active => this._acquireConnection(getComparisonKey(workspaceUri), active));
+	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
+		const key = getComparisonKey(workspaceUri);
+		const active = this._activeConnections.get(key);
+		const target = active && this._acquireConnection(key, active);
+		try {
+			const connected = await this._ensureConnection(workspaceUri, token);
+			return target ?? this._acquireConnection(key, connected);
+		} catch (error) {
+			await target?.release();
+			throw error;
+		}
 	}
 
 	async showLog(workspaceUri: URI): Promise<void> {
@@ -378,6 +387,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				released = true;
 				active.references--;
 				if (active.references === 0 && this._activeConnections.get(key) === active) {
+					if (active.connector.stopContainer) {
+						return;
+					}
 					await this._disconnectActiveConnection(key, active);
 					if (active.provider.getSessions().length === 0) {
 						this._removeStoredConnection(key);
@@ -494,10 +506,18 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				return false;
 			}
 			active.state = 'stopping';
-			await this._disconnectActiveTransport(active);
 			try {
 				const stopped = await active.connector.stopContainer(active.workspaceUri);
+				if (!stopped) {
+					active.state = 'running';
+					return false;
+				}
+				await this._disconnectActiveTransport(active);
 				active.state = 'stopped';
+				if (active.references === 0 && active.provider.getSessions().length === 0) {
+					this._removeStoredConnection(key);
+					this._removeProvider(key);
+				}
 				return stopped;
 			} catch (error) {
 				await this._connectActive(active);
@@ -516,10 +536,14 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				return false;
 			}
 			active.state = 'removing';
-			await this._disconnectActiveTransport(active);
 			try {
 				const removed = await active.connector.removeContainer(active.workspaceUri);
-				active.state = removed ? 'removed' : 'stopped';
+				if (!removed) {
+					active.state = 'running';
+					return false;
+				}
+				await this._disconnectActiveTransport(active);
+				active.state = 'removed';
 				return removed;
 			} catch (error) {
 				await this._connectActive(active);
@@ -543,7 +567,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		active.state = 'connecting';
 		try {
 			const connected = await active.connector.createConnection(active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true });
-			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected);
+			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
+			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
 			this._remoteAgentHostService.reconnect(active.address, true);
 			const connectionInfo = await this._remoteAgentHostService.waitForConnection(active.address);
 			const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
