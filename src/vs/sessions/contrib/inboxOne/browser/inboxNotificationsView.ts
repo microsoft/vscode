@@ -277,6 +277,40 @@ type InboxViewStateTelemetryClassification = {
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with the other inbox events, for ordering the trajectory.' };
 };
 
+type InboxClickTelemetryEvent = {
+	targetKind: string;
+	relX: number;
+	relY: number;
+	notificationKind: string;
+	priorityTier: string;
+	hasSession: string;
+	agentSessionId: string;
+	providerId: string;
+	sortMode: string;
+	filterActive: string;
+	msSinceViewOpen: number;
+	viewInstanceId: string;
+	sequence: number;
+};
+
+type InboxClickTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Records discrete pointer clicks within the Sessions Inbox view (never continuous mouse movement) so the raw click trajectory and coarse click location can be reconstructed. Emitted once per click, which is user-paced and adds no perceptible overhead.';
+	targetKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded category of the clicked element: card, actionButton, sortButton, filterButton, feedbackButton, sectionHeader, evidenceLink, detailPane, emptyState, listBackground, or other.' };
+	relX: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Click x position as a coarse 0-100 percentage of the view width (resolution-independent, no absolute screen coordinates).' };
+	relY: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Click y position as a coarse 0-100 percentage of the view height (resolution-independent, no absolute screen coordinates).' };
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind of the card the click landed on, or none.' };
+	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier of the card the click landed on, or none.' };
+	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the clicked card had an associated session resource.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none) for the clicked card.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the clicked card, or none.' };
+	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode at click time: priority or recent.' };
+	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied at click time (yes or no).' };
+	msSinceViewOpen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when this inbox view instance opened to this click, for trajectory reconstruction.' };
+	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate clicks with the rest of the trajectory.' };
+	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with the other inbox events, for ordering the trajectory.' };
+};
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -401,6 +435,49 @@ export class InboxNotificationsView extends AbstractCustomView {
 		});
 	}
 
+	/** Logs a single discrete click with its coarse location and card context; never continuous movement. */
+	private logClick(container: HTMLElement, event: MouseEvent): void {
+		const target = isHTMLElement(event.target) ? event.target : undefined;
+		if (!target) {
+			return;
+		}
+		const rect = container.getBoundingClientRect();
+		const relX = rect.width > 0 ? clamp(Math.round(((event.clientX - rect.left) / rect.width) * 100), 0, 100) : -1;
+		const relY = rect.height > 0 ? clamp(Math.round(((event.clientY - rect.top) / rect.height) * 100), 0, 100) : -1;
+		const card = target.closest<HTMLElement>('.inbox-notifications-item');
+		const item = card?.dataset.notificationId ? this.getItemById(card.dataset.notificationId) : undefined;
+		const context = item ? this.inboxNotificationsService.getInteractionTelemetryContext(item) : { agentSessionId: 'none', providerId: 'none' };
+		this.telemetryService.publicLog2<InboxClickTelemetryEvent, InboxClickTelemetryClassification>('agents/inboxClick', {
+			targetKind: this.clickTargetKind(target),
+			relX,
+			relY,
+			notificationKind: item?.kind ?? 'none',
+			priorityTier: this.priorityTierId(item),
+			hasSession: item?.sessionResource ? 'yes' : 'no',
+			agentSessionId: context.agentSessionId,
+			providerId: context.providerId,
+			sortMode: this.sortModeId(),
+			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
+			msSinceViewOpen: Date.now() - this.viewOpenedAtMs,
+			viewInstanceId: this.inboxViewInstanceId,
+			sequence: ++this.interactionSequence,
+		});
+	}
+
+	/** Bounded category of the element a click landed on. */
+	private clickTargetKind(target: HTMLElement): string {
+		if (target.closest('.inbox-notifications-detail-evidence-link')) { return 'evidenceLink'; }
+		if (target.closest('.inbox-notifications-section-header')) { return 'sectionHeader'; }
+		if (target.closest('.inbox-notifications-filter-button')) { return 'filterButton'; }
+		if (target.closest('.inbox-notifications-feedback-button')) { return 'feedbackButton'; }
+		if (target.closest('.inbox-notifications-sort-buttons') && target.closest('.monaco-button')) { return 'sortButton'; }
+		if (target.closest('.inbox-notifications-item')) { return target.closest('.monaco-button') ? 'actionButton' : 'card'; }
+		if (target.closest('.inbox-notifications-detail-pane')) { return 'detailPane'; }
+		if (target.closest('.inbox-notifications-empty')) { return 'emptyState'; }
+		if (target.closest('.inbox-notifications-list')) { return 'listBackground'; }
+		return 'other';
+	}
+
 	async debugShowAgentMergeAlwaysSpotlight(): Promise<boolean> {
 		if (this.isShowingAgentMergeAlwaysPrompt) {
 			return false;
@@ -457,6 +534,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.logViewState('blur', dwellMs);
 		}));
 		this.logViewState('opened');
+		// Discrete click trajectory only — never mousemove/hover/scroll, which would be too frequent.
+		this._register(addDisposableListener(container, EventType.CLICK, event => this.logClick(container, event)));
 		this._register({
 			dispose: () => focusContext.reset(),
 		});
