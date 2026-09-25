@@ -78,6 +78,36 @@ suite('VSCodeWorkspace', () => {
 		});
 	});
 
+	test('exposes only cached values for a document whose model was just disposed', async () => {
+		const instantiationService = createCodeEditorServices(disposables);
+		const modelService = instantiationService.get(IModelService);
+		const model = disposables.add(modelService.createModel('content', null));
+		const workspace = disposables.add(instantiationService.createInstance(VSCodeWorkspace));
+		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: () => true });
+		const annotated = disposables.add(instantiationService.createInstance(AnnotatedDocuments, workspace));
+		const tracker = annotated.documents.get()[0];
+
+		model.dispose();
+		const stale = workspace.getDocument(model.uri)!;
+		const inWindow = {
+			listed: workspace.documents.get().length,
+			value: stale.value.get().value,
+			version: stale.version.get(),
+			languageId: stale.languageId.get(),
+			hasTextModel: Object.keys(stale).includes('textModel'),
+			trackerListed: annotated.documents.get()[0] === tracker,
+		};
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			inWindow,
+			afterWindow: { listed: workspace.documents.get().length, trackerListed: annotated.documents.get().length },
+		}, {
+			inWindow: { listed: 1, value: 'content', version: 1, languageId: 'plaintext', hasTextModel: false, trackerListed: true },
+			afterWindow: { listed: 0, trackerListed: 0 },
+		});
+	});
+
 	test('does not refresh documents after workspace disposal', async () => {
 		const instantiationService = createCodeEditorServices(disposables);
 		const modelService = instantiationService.get(IModelService);

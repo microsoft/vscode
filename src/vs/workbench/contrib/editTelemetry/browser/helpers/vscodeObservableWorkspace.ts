@@ -56,7 +56,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 }
 
 export class VSCodeDocument extends Disposable implements IObservableDocument {
-	get uri(): URI { return this.textModel.uri; }
+	get uri(): URI { return this._textModel.uri; }
 	private readonly _value;
 	private readonly _version;
 	private readonly _languageId;
@@ -65,15 +65,15 @@ export class VSCodeDocument extends Disposable implements IObservableDocument {
 	get languageId(): IObservable<string> { return this._languageId; }
 
 	constructor(
-		public readonly textModel: ITextModel,
+		private readonly _textModel: ITextModel,
 	) {
 		super();
 
-		this._value = observableValue<StringText, StringEditWithReason>(this, new StringText(this.textModel.getValue()));
-		this._version = observableValue(this, this.textModel.getVersionId());
-		this._languageId = observableValue(this, this.textModel.getLanguageId());
+		this._value = observableValue<StringText, StringEditWithReason>(this, new StringText(this._textModel.getValue()));
+		this._version = observableValue(this, this._textModel.getVersionId());
+		this._languageId = observableValue(this, this._textModel.getLanguageId());
 
-		this._register(this.textModel.onDidChangeContent((e) => {
+		this._register(this._textModel.onDidChangeContent((e) => {
 			transaction(tx => {
 				const edit = offsetEditFromContentChanges(e.changes);
 				if (e.detailedReasons.length !== 1) {
@@ -82,14 +82,14 @@ export class VSCodeDocument extends Disposable implements IObservableDocument {
 
 				const change = new StringEditWithReason(edit.replacements, e.detailedReasons[0]);
 
-				this._value.set(new StringText(this.textModel.getValue()), tx, change);
-				this._version.set(this.textModel.getVersionId(), tx);
+				this._value.set(new StringText(this._textModel.getValue()), tx, change);
+				this._version.set(this._textModel.getVersionId(), tx);
 			});
 		}));
 
-		this._register(this.textModel.onDidChangeLanguage(e => {
+		this._register(this._textModel.onDidChangeLanguage(e => {
 			transaction(tx => {
-				this._languageId.set(this.textModel.getLanguageId(), tx);
+				this._languageId.set(this._textModel.getLanguageId(), tx);
 			});
 		}));
 	}
