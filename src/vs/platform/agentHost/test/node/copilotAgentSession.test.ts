@@ -4300,6 +4300,54 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('renders expected runtime slash command validation errors as guidance', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'skills',
+				kind: 'builtin',
+				description: 'Manage skills',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Usage: /skills info <skill-name>\nExample: /skills info my-skill');
+
+		await session.send('/skills info', undefined, 'turn-skills-info');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => a.turnId),
+		}, {
+			sendRequests: [],
+			responseParts: ['Usage: `/skills info <skill-name>`\n\nExample: `/skills info my-skill`'],
+			turnComplete: ['turn-skills-info'],
+		});
+	});
+
+	test('removes the RPC wrapper from unexpected runtime slash command errors', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'skills',
+				kind: 'builtin',
+				description: 'Manage skills',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Unexpected failure');
+
+		await assert.rejects(() => session.send('/skills reload', undefined, 'turn-skills-reload'), {
+			message: 'Unexpected failure',
+		});
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+	});
+
 	test('caches runtime slash command availability across checks', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -18498,6 +18546,54 @@ Use the attached image as context.
 				{ name: 'unknown-server', source: undefined },
 			]);
 		});
+
+		for (const copilotHome of [undefined, '/custom/copilot']) {
+			test(`publishes user MCP definition locations with ${copilotHome ? 'custom' : 'default'} Copilot home`, async () => {
+				const previousCopilotHome = process.env['COPILOT_HOME'];
+				if (copilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
+				} else {
+					process.env['COPILOT_HOME'] = copilotHome;
+				}
+				try {
+					const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+						getUserMcpServerNames: async () => new Set(['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server']),
+						configureMockSession: m => {
+							m.mcpListResult = {
+								servers: [
+									{ name: 'explicit-user', status: 'connected', source: 'user' },
+									{ name: 'inferred-user', status: 'connected' },
+									{ name: 'workspace-server', status: 'connected', source: 'workspace' },
+									{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+									{ name: 'builtin-server', status: 'connected', source: 'builtin' },
+									{ name: 'unknown-server', status: 'connected' },
+								],
+							};
+						},
+					});
+					await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+					const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
+						id: server.id, uri: server.uri,
+					}));
+					const initial = snapshot();
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'explicit-user', status: 'stopped' });
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'inferred-user', status: 'failed', error: 'Connection failed' });
+
+					const userUri = URI.file(join(copilotHome ?? join('/mock-home', '.copilot'), 'mcp-config.json')).toString();
+					const expected = ['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server', 'unknown-server'].map(name => {
+						const id = `mcp-top-level:copilot:test-session-1:${name}`;
+						return { id, uri: name.endsWith('-user') ? userUri : id };
+					});
+					assert.deepStrictEqual({ initial, afterLifecycle: snapshot() }, { initial: expected, afterLifecycle: expected });
+				} finally {
+					if (previousCopilotHome === undefined) {
+						delete process.env['COPILOT_HOME'];
+					} else {
+						process.env['COPILOT_HOME'] = previousCopilotHome;
+					}
+				}
+			});
+		}
 
 		test('keeps a ready server ready across repeated loaded inventory invalidations', async () => {
 			const serverName = 'workiq';

@@ -236,7 +236,7 @@ suite('aiCustomizationManagementEditor', () => {
 		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
@@ -534,6 +534,21 @@ suite('aiCustomizationManagementEditor', () => {
 			noneEnabled: { widget: undefined, selected: undefined, disposed: 1, sections: [AICustomizationManagementSection.Agents] },
 			reenabled: { created: 2, visible: true },
 		});
+	});
+
+	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
+		const { editor, configuration } = createGatedSectionEditor();
+		const queries: string[] = [];
+		Object.assign(editor, {
+			welcomePage: {
+				setSearchQuery(query: string) { queries.push(query); },
+			},
+		});
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		assert.deepStrictEqual(queries, ['@type:plugin']);
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

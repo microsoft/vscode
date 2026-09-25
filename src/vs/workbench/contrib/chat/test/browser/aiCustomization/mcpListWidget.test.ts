@@ -14,6 +14,7 @@ import { autorun, derived, IObservable, observableSignalFromEvent, observableVal
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -457,6 +458,30 @@ suite('mcpListWidget', () => {
 			definitionPrecedence: { uri: definitionOrigin },
 			compatibilityId: 'server-1',
 			error: 'Connection failed',
+		});
+	});
+
+	test('passes host-only MCP source locations and ranges to the detail view', () => {
+		const uri = URI.file('/home/test/.copilot/mcp-config.json');
+		const detail = createInstalledMcpServerDetailInput({
+			type: 'session-server-item',
+			server: createAgentHostServer({
+				name: 'local-memory',
+				sourceUri: uri,
+				sourceRange: { start: { line: 2, character: 1 }, end: { line: 4, character: 2 } },
+			}),
+		});
+
+		assert.deepStrictEqual({
+			name: detail.name,
+			installState: detail.installState,
+			config: detail.config,
+			source: detail.source,
+		}, {
+			name: 'local-memory',
+			installState: McpServerInstallState.Installed,
+			config: undefined,
+			source: { uri, range: new Range(3, 2, 5, 3) },
 		});
 	});
 

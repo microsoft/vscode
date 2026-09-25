@@ -64,6 +64,8 @@ export const Menus = {
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
+	NewSessionWelcome: new MenuId('NewSessions.WelcomeMenu'),
+	NewSessionWelcomeContext: new MenuId('NewSessions.WelcomeContextMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 	SessionChatTabs: new MenuId('SessionsSessionChatTabs'),

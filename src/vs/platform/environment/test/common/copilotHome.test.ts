@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getCopilotHomePath, getCopilotRootPaths } from '../../common/copilotHome.js';
+import { getCopilotHomePath, getCopilotMcpConfigurationPath, getCopilotRootPaths } from '../../common/copilotHome.js';
 
 suite('copilotHome', () => {
 
@@ -31,6 +31,16 @@ suite('copilotHome', () => {
 		], [
 			[join('user-home', '.copilot')],
 			['custom-copilot', join('user-home', '.copilot')],
+		]);
+	});
+
+	test('resolves the MCP configuration path', () => {
+		assert.deepStrictEqual([
+			getCopilotMcpConfigurationPath('user-home', {}),
+			getCopilotMcpConfigurationPath('user-home', { COPILOT_HOME: 'custom-copilot' }),
+		], [
+			join('user-home', '.copilot', 'mcp-config.json'),
+			join('custom-copilot', 'mcp-config.json'),
 		]);
 	});
 });
