@@ -527,16 +527,22 @@ fn make_socket_rpc(
 		handle_serve(c, params).await
 	});
 	rpc.register_async("update", |p: UpdateParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_update(&c.http, &c.log, &c.did_update, &p).await
 	});
 	rpc.register_sync("servermsg", |m: ServerMessageParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Err(e) = handle_server_message(&c.log, &c.server_bridges, m) {
 			warning!(c.log, "error handling call: {:?}", e);
 		}
 		Ok(EmptyObject {})
 	});
-	rpc.register_sync("prune", |_: EmptyObject, c| handle_prune(&c.launcher_paths));
+	rpc.register_sync("prune", |_: EmptyObject, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_prune(&c.launcher_paths)
+	});
 	rpc.register_async("callserverhttp", |p: CallServerHttpParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		let code_server = c.code_server.lock().await.clone();
 		handle_call_server_http(code_server, p).await
 	});
@@ -579,6 +585,7 @@ fn make_socket_rpc(
 		},
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
 			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
@@ -588,6 +595,7 @@ fn make_socket_rpc(
 		Ok(EmptyObject {})
 	});
 	rpc.register_sync("httpbody", move |p: HttpBodyParams, c| {
+		ensure_auth(&c.auth_state)?;
 		let mut reqs = c.http_requests.lock().unwrap();
 		if let Some(req) = reqs.get(&p.req_id) {
 			if !p.segment.is_empty() {
@@ -1555,4 +1563,27 @@ async fn do_challenge_response_flow(
 	shutdown.open(());
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn ensure_auth_allows_only_authenticated_state() {
+		let waiting = Arc::new(std::sync::Mutex::new(AuthState::WaitingForChallenge(None)));
+		let issued = Arc::new(std::sync::Mutex::new(AuthState::ChallengeIssued(
+			"challenge".into(),
+		)));
+		let authed = Arc::new(std::sync::Mutex::new(AuthState::Authenticated));
+
+		assert_eq!(
+			[
+				ensure_auth(&waiting).is_ok(),
+				ensure_auth(&issued).is_ok(),
+				ensure_auth(&authed).is_ok(),
+			],
+			[false, false, true]
+		);
+	}
 }

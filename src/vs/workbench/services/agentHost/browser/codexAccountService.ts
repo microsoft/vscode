@@ -71,7 +71,7 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 		return [new SubmenuAction('codex.chatgptAccount', accountLabel, [signOut])];
 	}
 	if (account.status === 'downloading') {
-		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex agent…"), undefined, false)];
+		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex Agent…"), undefined, false)];
 	}
 	if (account.status === 'unknown' || account.status === 'signedOut' || account.status === 'error') {
 		return [new Action('codex.signInToChatGPT', localize('signInToChatGPT', "Sign in to ChatGPT"), undefined, true, () => service.signIn())];
@@ -80,7 +80,23 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 }
 
 export function openCodexAuthUrl(openerService: Pick<IOpenerService, 'open'>, authUrl: string): Promise<boolean> {
-	return openerService.open(authUrl, { openExternal: true, skipValidation: true });
+	let parsedAuthUrl: URL;
+	try {
+		parsedAuthUrl = new URL(authUrl);
+	} catch {
+		return Promise.resolve(false);
+	}
+	if (parsedAuthUrl.protocol !== 'https:' || !isTrustedCodexAuthHost(parsedAuthUrl.hostname)) {
+		return Promise.resolve(false);
+	}
+	return openerService.open(parsedAuthUrl.href, { openExternal: true, skipValidation: true });
+}
+
+function isTrustedCodexAuthHost(hostname: string): boolean {
+	const normalizedHostname = hostname.toLowerCase();
+	return ['openai.com', 'chatgpt.com'].some(domain =>
+		normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
+	);
 }
 
 export async function readCodexProfileImageDataUri(
@@ -102,7 +118,7 @@ export async function readCodexProfileImageDataUri(
 	}
 }
 
-class CodexAccountService extends Disposable implements ICodexAccountService {
+export class CodexAccountService extends Disposable implements ICodexAccountService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly agent = CODEX_AGENT_PROVIDER_ID;
@@ -172,7 +188,11 @@ class CodexAccountService extends Disposable implements ICodexAccountService {
 			return;
 		}
 		void readCodexProfileImageDataUri(this._agentHostService, reference).then(profileImageDataUri => {
-			if (!profileImageDataUri || request !== this._profileImageRequest || profileImageKey !== this._profileImageKey) {
+			if (request !== this._profileImageRequest || profileImageKey !== this._profileImageKey) {
+				return;
+			}
+			if (!profileImageDataUri) {
+				this._profileImageKey = undefined;
 				return;
 			}
 			this._account = { ...this._rootAccount, profileImageDataUri };

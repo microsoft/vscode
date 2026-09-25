@@ -204,7 +204,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._pluginGit.checkout(repoDir, git.sha, true, token);
+				await this._pluginGit.checkoutCommit(repoDir, git.sha, token);
 				return;
 			}
 			// git.ref is guaranteed non-nullish by the guard above

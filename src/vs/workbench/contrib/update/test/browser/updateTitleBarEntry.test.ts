@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { AnchorAlignment } from '../../../../../base/common/layout.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
@@ -48,10 +49,10 @@ class TestHoverWidget implements IHoverWidget {
 }
 
 class TestHoverService extends mock<IHoverService>() {
-	readonly showRequests: { readonly focus: boolean; readonly trapFocus: boolean }[] = [];
+	readonly showRequests: { readonly focus: boolean; readonly trapFocus: boolean; readonly anchorAlignment: AnchorAlignment | undefined }[] = [];
 
 	override showInstantHover(options: IHoverOptions, focus?: boolean): IHoverWidget {
-		this.showRequests.push({ focus: !!focus, trapFocus: !!options.trapFocus });
+		this.showRequests.push({ focus: !!focus, trapFocus: !!options.trapFocus, anchorAlignment: options.position?.anchorAlignment });
 		return new TestHoverWidget();
 	}
 }
@@ -76,6 +77,7 @@ suite('UpdateTitleBarEntry', () => {
 		const entry = store.add(new UpdateTitleBarEntry(
 			action,
 			{},
+			AnchorAlignment.LEFT,
 			new class extends mock<UpdateTooltip>() {
 				override readonly domNode = mainWindow.document.createElement('div');
 			},
@@ -101,7 +103,7 @@ suite('UpdateTitleBarEntry', () => {
 			hoverShowRequests: hoverService.showRequests,
 		}, {
 			tabDefaultPrevented: false,
-			hoverShowRequests: [{ focus: true, trapFocus: true }],
+			hoverShowRequests: [{ focus: true, trapFocus: true, anchorAlignment: AnchorAlignment.LEFT }],
 		});
 	});
 });

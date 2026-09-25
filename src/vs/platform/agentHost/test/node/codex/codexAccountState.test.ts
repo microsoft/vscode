@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import type { RateLimitWindow } from '../../../node/codex/protocol/generated/v2/RateLimitWindow.js';
 
 suite('CodexAccountState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,8 +44,8 @@ suite('CodexAccountState', () => {
 		);
 	});
 
-	test('prefers the Codex weekly rate-limit window', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+	test('preserves both Codex rate-limit windows with the weekly summary first', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
@@ -70,19 +71,25 @@ suite('CodexAccountState', () => {
 				},
 			},
 			rateLimitResetCredits: null,
-		}), {
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{
 			usedPercent: 42.4,
 			windowDurationMins: 7 * 24 * 60,
 			resetsAt: 300,
-		});
+		}, {
+			usedPercent: 21,
+			windowDurationMins: 300,
+			resetsAt: 200,
+		}]);
 	});
 
-	test('falls back to available rate-limit data and clamps percentages', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+	test('falls back to available rate-limit data', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
-				primary: { usedPercent: 125, windowDurationMins: null, resetsAt: null },
+				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
 				secondary: null,
 				credits: null,
 				individualLimit: null,
@@ -92,11 +99,29 @@ suite('CodexAccountState', () => {
 			},
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
-		}), { usedPercent: 100, windowDurationMins: undefined, resetsAt: undefined });
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{ usedPercent: 42.4, windowDurationMins: undefined, resetsAt: undefined }]);
+	});
+
+	test('rejects invalid rate-limit samples before caching', () => {
+		const window: RateLimitWindow = { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 400 };
+		const invalidWindows = [
+			...[-1, 101, NaN, Infinity].map(usedPercent => ({ ...window, usedPercent })),
+			...[-1, 0, NaN, Infinity].map(windowDurationMins => ({ ...window, windowDurationMins })),
+			...[-1, 0, NaN, Infinity].map(resetsAt => ({ ...window, resetsAt })),
+		];
+		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
+		})), invalidWindows.map(() => []));
 	});
 
 	test('falls back when the Codex bucket has no windows', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
@@ -122,6 +147,28 @@ suite('CodexAccountState', () => {
 				},
 			},
 			rateLimitResetCredits: null,
-		}), { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 });
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{ usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 }]);
+	});
+
+	test('omits missing or invalid windows without losing a valid five-hour limit', () => {
+		assert.deepStrictEqual([null, { usedPercent: 0, windowDurationMins: 300, resetsAt: null }].map(primary => codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				primary,
+				secondary: { usedPercent: NaN, windowDurationMins: 10080, resetsAt: 400 },
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		})), [[], [{ usedPercent: 0, windowDurationMins: 300, resetsAt: undefined }]]);
 	});
 });

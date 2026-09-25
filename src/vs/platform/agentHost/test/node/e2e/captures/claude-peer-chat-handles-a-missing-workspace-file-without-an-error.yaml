@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
     response:
       content:
-        - type: text
-          text: I'll read the file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,15 +16,13 @@ exchanges:
             file_path: ${workdir}/peer-missing.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file.
             - type: tool_use
               name: Read
               input:

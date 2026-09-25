@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatRequest } from 'vscode';
+import type { ChatRequest, ChatResponseStream } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { isAbortError } from '../../networking/common/fetcherService';
 import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
+import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
@@ -30,8 +29,8 @@ interface AutoModeCacheEntry {
 	sessionToken: string;
 	/** UNIX seconds at which `sessionToken` expires. */
 	expiresAt: number;
-	/** Routing profile the session was resolved with; a change re-routes. `undefined` while tiers are disabled. */
-	tier: AutoModeTier | undefined;
+	/** Routing profile the session was resolved with; a change re-routes. */
+	tier: AutoModeTier;
 	needsReEval: boolean;
 }
 
@@ -67,6 +66,30 @@ export interface AutoModePickerMetadata {
 	discountRange: { low: number; high: number };
 }
 
+/** A routing state change for one request: `endpoint` is unset while the router is still deciding. */
+export interface IAutoModeRoutingState {
+	readonly requestId: string | undefined;
+	readonly endpoint: IChatEndpoint | undefined;
+}
+
+/**
+ * Reports Auto's routing rounds into a turn's response stream. Install this
+ * before the turn resolves any endpoint — the first route happens during
+ * endpoint resolution, and a route that already finished cannot be replayed.
+ */
+export function reportAutoModeRouting(
+	request: ChatRequest,
+	stream: ChatResponseStream,
+	automodeService: IAutomodeService,
+): IDisposable {
+	return automodeService.onDidRoute(e => {
+		if (e.requestId !== request.id) {
+			return;
+		}
+		stream.push(new ChatResponseAutoModeResolutionPart(e.endpoint && { id: e.endpoint.model, name: e.endpoint.name }));
+	});
+}
+
 export interface IAutomodeService {
 	readonly _serviceBrand: undefined;
 
@@ -90,16 +113,11 @@ export interface IAutomodeService {
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata;
 
 	/**
-	 * Whether the Auto model should offer the tier picker. Changes are announced
-	 * by {@link onDidChangeAutoModeTierSupport}.
+	 * Fires when a request starts routing and again once it resolves. Only real
+	 * routing rounds fire — a cached endpoint is silent — and Auto can route
+	 * several times in a turn, e.g. after compaction.
 	 */
-	areAutoModeTiersSupported(): boolean;
-
-	/**
-	 * Fires when {@link areAutoModeTiersSupported} changes, so the Auto model's
-	 * configuration schema can be republished.
-	 */
-	readonly onDidChangeAutoModeTierSupport: Event<void>;
+	readonly onDidRoute: Event<IAutoModeRoutingState>;
 
 	/**
 	 * Marks the router cache for this conversation as needing re-evaluation.
@@ -119,26 +137,19 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	/** Upper bound on live sessions. See {@link _evictOldestSessions}. */
 	private static readonly CACHE_MAX_ENTRIES = 50;
-	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
-	readonly onDidChangeAutoModeTierSupport = this._onDidChangeAutoModeTierSupport.event;
-	/** Last announced {@link areAutoModeTiersSupported}. See {@link _updateAutoModeTierSupport}. */
-	private _tierSupportAnnounced = false;
+	private readonly _onDidRoute = this._register(new Emitter<IAutoModeRoutingState>());
+	readonly onDidRoute = this._onDidRoute.event;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExperimentationService private readonly _expService: IExperimentationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._tierSupportAnnounced = this.areAutoModeTiersSupported();
-		// Covers both the setting and its experiment treatment: a treatment
-		// refresh is published as a configuration change.
-		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateAutoModeTierSupport()));
 		// Sessions are scoped to the signed-in account, and a routing call
 		// started under the previous one must neither be joined by new callers
 		// nor survive into the new account's cache.
@@ -220,7 +231,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
 		}
 		return this._routingSingler.getOrCreate(
-			`${conversationId}|${tier ?? ''}|${hasImage(chatRequest)}`,
+			`${conversationId}|${tier}|${hasImage(chatRequest)}`,
 			() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
 		);
 	}
@@ -231,7 +242,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 */
 	private async _routeAndCache(
 		prompt: string,
-		tier: AutoModeTier | undefined,
+		tier: AutoModeTier,
+		chatRequest: IAutoModeRoutingRequest | undefined,
+		knownEndpoints: IChatEndpoint[],
+		conversationId: string,
+		entry: AutoModeCacheEntry | undefined,
+	): Promise<IChatEndpoint> {
+		// Brackets the round so every way of settling it — including the cached
+		// fallback below — reports the endpoint it settled on. A throw reports
+		// nothing, leaving the turn's row unresolved for the UI to drop.
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
+		const endpoint = await this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
+		return endpoint;
+	}
+
+	private async _route(
+		prompt: string,
+		tier: AutoModeTier,
 		chatRequest: IAutoModeRoutingRequest | undefined,
 		knownEndpoints: IChatEndpoint[],
 		conversationId: string,
@@ -313,57 +341,27 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return endpoint;
 	}
 
-	areAutoModeTiersSupported(): boolean {
-		return this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AutoModeTiersEnabled, this._expService);
-	}
-
 	/**
-	 * Announces a change in {@link areAutoModeTiersSupported}. Its input is the
-	 * tiers setting (and its experiment treatment), so this runs on every
-	 * configuration change.
+	 * Resolves the override, picker preference, or surface default, in that order.
+	 * The workbench materializes picker defaults, so only non-default selections override the inline-chat tier.
 	 */
-	private _updateAutoModeTierSupport(): void {
-		const supported = this.areAutoModeTiersSupported();
-		if (supported !== this._tierSupportAnnounced) {
-			this._tierSupportAnnounced = supported;
-			this._onDidChangeAutoModeTierSupport.fire();
-		}
-	}
-
-	/**
-	 * The routing profile to request for a turn, in precedence order: the
-	 * internal override setting, then an explicit picker selection, then the
-	 * pin inline surfaces trade routing depth for latency with.
-	 *
-	 * Returns `undefined` while tiers are disabled, which omits `tier` from the
-	 * request and leaves the routing profile to the service. The override is
-	 * honored either way, so evals can exercise tiers before the experiment
-	 * reaches them.
-	 *
-	 * The picker selection is honored on inline surfaces too. The schema is
-	 * published per model rather than per surface, so the tier chip renders in
-	 * inline chat as well; unconditionally pinning `fast` there would leave the
-	 * user a visible, persisted control that silently does nothing.
-	 *
-	 * Only a non-default selection counts as explicit: the workbench materializes
-	 * the schema default into `modelConfiguration` and strips a pick of the
-	 * default back out when storing it, so a `balanced` entry cannot be told
-	 * apart from "never picked" — reading it as a selection would make the inline
-	 * pin below unreachable.
-	 */
-	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
-		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
+	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier {
+		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
+			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if ((autoModeTiers as readonly string[]).includes(override)) {
-				return override as AutoModeTier;
+			if (isAutoModeTier(normalized)) {
+				return normalized;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
 		}
-		if (!this.areAutoModeTiersSupported()) {
-			return undefined;
+		const source = chatRequest?.modelConfiguration?.tierSource;
+		const selected = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
+		if (((source === 'managed' || source === 'managedFallback' || source === 'session') && isAutoModeTier(selected))
+			|| (source === 'explicit' && isSelectableAutoModeTier(selected))) {
+			return selected;
 		}
-		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
+		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
 			return configured;
 		}
@@ -414,7 +412,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * resolved under the same routing profile, still hold a live token, and
 	 * support vision if the turn attaches an image.
 	 */
-	private _isCacheEntryCompatible(entry: AutoModeCacheEntry, tier: AutoModeTier | undefined, chatRequest: IAutoModeRoutingRequest | undefined): boolean {
+	private _isCacheEntryCompatible(entry: AutoModeCacheEntry, tier: AutoModeTier, chatRequest: IAutoModeRoutingRequest | undefined): boolean {
 		return entry.tier === tier
 			&& !this._isSessionExpired(entry)
 			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);

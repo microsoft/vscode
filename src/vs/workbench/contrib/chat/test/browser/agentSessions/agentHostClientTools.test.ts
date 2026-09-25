@@ -19,7 +19,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
@@ -40,6 +40,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -50,12 +51,16 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ChatStateSubscription, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
+import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -67,7 +72,10 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
+import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
+import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
+import { AgentHostMcpServerDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 // =============================================================================
@@ -87,6 +95,7 @@ suite('AgentHostClientTools', () => {
 	function createActiveClientService(
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
+		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let semanticSearchEnabled = false;
@@ -100,10 +109,15 @@ suite('AgentHostClientTools', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		});
 		instantiationService.stub(IConfigurationService, {
-			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId ? semanticSearchEnabled : false,
+			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId
+				? semanticSearchEnabled
+				: section === mcpAccessConfig
+					? McpAccessValue.All
+					: false,
 			onDidChangeConfiguration: onDidChangeConfiguration.event,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: mcpOptions?.remoteAuthority });
 		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeSlashCommands = Event.None;
@@ -118,8 +132,17 @@ suite('AgentHostClientTools', () => {
 			plugins: observableValue('plugins', []),
 		});
 		instantiationService.stub(IMcpService, {
-			servers: observableValue('mcpServers', []),
+			servers: observableValue('mcpServers', mcpOptions?.servers ?? []),
+			lazyCollectionState: observableValue('mcpLazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+			enablementModel: new class extends mock<IEnablementModel>() {
+				override readProfileEnabled() { return true; }
+			}(),
 		});
+		instantiationService.stub(IMcpWorkbenchService, {
+			local: [],
+			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService);
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
@@ -145,18 +168,18 @@ suite('AgentHostClientTools', () => {
 		};
 	}
 
-	test('shares a customization scope for equivalent root sets', async () => {
+	test('lazily creates scopes and shares them for equivalent root sets', async () => {
 		const { service } = createActiveClientService();
-		const registration = disposables.add(service.registerForAgent('agent-host-claude'));
 		const rootA = URI.file('/Workspace-A');
 		const rootB = URI.file('/Workspace-B');
-		const unregisteredScope = service.acquireScope('unregistered-agent', []);
-		const unresolvedScope = registration.acquireScope([URI.file('/unresolved-workspace')]);
+		const unregisteredScope = disposables.add(service.acquireScope('unregistered-agent', []));
+		await unregisteredScope.whenResolved();
+		const unresolvedScope = service.acquireScope('agent-host-claude', [URI.file('/unresolved-workspace')]);
 		const unresolved = unresolvedScope.whenResolved();
 		unresolvedScope.dispose();
 		assert.strictEqual(await unresolved, undefined);
-		const first = registration.acquireScope([rootB, rootA, rootA]);
-		const second = registration.acquireScope([rootA, rootB]);
+		const first = service.acquireScope('agent-host-claude', [rootB, rootA, rootA]);
+		const second = service.acquireScope('agent-host-claude', [rootA, rootB]);
 		await first.whenResolved();
 
 		const sharedScopeState = {
@@ -165,21 +188,110 @@ suite('AgentHostClientTools', () => {
 		};
 		first.dispose();
 		second.dispose();
-		registration.dispose();
+		const syncProvider = service.getSyncProvider('agent-host-claude');
+		const scopeAfterRelease = service.acquireScope('agent-host-claude', []);
+		await scopeAfterRelease.whenResolved();
+		scopeAfterRelease.dispose();
 
 		assert.deepStrictEqual({
-			unregisteredScope,
+			unregisteredScopeIsResolved: unregisteredScope.isResolved.get(),
 			sharedScopeState,
-			scopeAfterRegistrationDisposal: service.acquireScope('agent-host-claude', []),
+			syncProviderIsStable: syncProvider === service.getSyncProvider('agent-host-claude'),
+			scopeAfterReleaseIsResolved: scopeAfterRelease.isResolved.get(),
 		}, {
-			unregisteredScope: undefined,
+			unregisteredScopeIsResolved: true,
 			sharedScopeState: {
 				customizations: true,
 				customAgents: true,
 			},
-			scopeAfterRegistrationDisposal: undefined,
+			syncProviderIsStable: true,
+			scopeAfterReleaseIsResolved: true,
 		});
 	});
+
+	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
+		const { service } = createActiveClientService();
+		const unavailable = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, undefined);
+		const workspaceless = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const workspacelessAgain = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const otherHarness = service.acquireMcpServerSupportScope('agent-host-claude', []);
+		assert.ok(unavailable);
+		assert.ok(workspaceless);
+		assert.ok(workspacelessAgain);
+		await Promise.all([unavailable.whenResolved(), workspaceless.whenResolved()]);
+
+		assert.deepStrictEqual({
+			unavailableResolved: unavailable.isResolved.get(),
+			workspacelessResolved: workspaceless.isResolved.get(),
+			sameWorkspacelessObservable: workspaceless.support === workspacelessAgain.support,
+			unavailableIsDistinct: unavailable.support !== workspaceless.support,
+			snapshot: workspaceless.support.get(),
+			otherHarness,
+		}, {
+			unavailableResolved: true,
+			workspacelessResolved: true,
+			sameWorkspacelessObservable: true,
+			unavailableIsDistinct: true,
+			snapshot: {
+				servers: [],
+				discoveryComplete: true,
+				coverage: {
+					restrictedByMcpAccess: false,
+					restrictedByCustomizationPolicy: false,
+				},
+			},
+			otherHarness: undefined,
+		});
+
+		unavailable.dispose();
+		workspaceless.dispose();
+		workspacelessAgain.dispose();
+	});
+
+	for (const remoteAuthority of [undefined, 'ssh-remote+devbox']) {
+		test(`passes window authority ${remoteAuthority} to MCP support and customization scopes`, async () => {
+			const servers = [null, 'ssh-remote+devbox'].map(authority => {
+				const id = `copilot.${authority}`;
+				const collection: McpCollectionDefinition = {
+					id, label: id, order: 0,
+					remoteAuthority: authority,
+					provenance: McpCollectionProvenance.ExternalConfiguration,
+					discoverySource: ExternalDiscoverySource.Copilot,
+					serverDefinitions: constObservable([]),
+					trustBehavior: McpServerTrust.Kind.Trusted,
+					scope: StorageScope.PROFILE,
+					configTarget: ConfigurationTarget.USER,
+				};
+				const definition: McpServerDefinition = {
+					id, label: id, cacheNonce: id,
+					launch: { type: McpServerTransportType.Stdio, command: 'server', args: [], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined },
+				};
+				return new class extends mock<IMcpServer>() {
+					override readonly collection = collection;
+					override readonly definition = definition;
+					override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+					override readDefinitions() { return constObservable({ collection, server: definition }); }
+				}();
+			});
+			const { service } = createActiveClientService(undefined, undefined, { remoteAuthority, servers });
+			const support = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+			assert.ok(support);
+			disposables.add(support);
+			const customizations = disposables.add(service.acquireScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []));
+			await Promise.all([support.whenResolved(), customizations.whenResolved()]);
+
+			assert.deepStrictEqual({
+				deliveries: support.support.get().servers.map(server => [server.id, server.delivery]),
+				bundled: customizations.customizations.get().map(ref => Object.keys(ref.childEnablement ?? {})),
+			}, {
+				deliveries: [
+					['copilot.null', remoteAuthority ? AgentHostMcpServerDelivery.ClientForwarded : AgentHostMcpServerDelivery.RuntimeDiscovered],
+					['copilot.ssh-remote+devbox', remoteAuthority ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.ClientForwarded],
+				],
+				bundled: [[remoteAuthority ? 'copilot.null' : 'copilot.ssh-remote+devbox']],
+			});
+		});
+	}
 
 	const semanticSearchTool: IToolData = {
 		id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
@@ -221,8 +333,7 @@ suite('AgentHostClientTools', () => {
 			override getTools(): Iterable<IToolData> { return tools.filter(tool => tool.id !== CLIENT_SEMANTIC_SEARCH_TOOL_ID); }
 		};
 		const client = createActiveClientService(constObservable(tools), constObservable([searchToolSet, enabledToolSet]));
-		const registration = disposables.add(client.service.registerForAgent(sessionType));
-		const scope = disposables.add(registration.acquireScope([]));
+		const scope = disposables.add(client.service.acquireScope(sessionType, []));
 		await scope.whenResolved();
 		client.setSemanticSearchEnabled(enabled);
 		return scope.tools.get().map(tool => [tool.name, tool.title]);
@@ -645,6 +756,12 @@ suite('AgentHostClientTools', () => {
 				entry.emitter.fire(entry.state);
 			}
 
+			setChatState(chat: string, state: ChatState): void {
+				const entry = this._ensureLiveSubscription(StateComponents.Chat, chat);
+				entry.state = state;
+				entry.emitter.fire(state);
+			}
+
 			override readonly rootState: IAgentSubscription<RootState> = {
 				value: undefined,
 				verifiedValue: undefined,
@@ -745,6 +862,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
 			instantiationService.stub(ILanguageModelsService, {
+				onDidChangeLanguageModels: Event.None,
 				deltaLanguageModelChatProviderDescriptors: () => { },
 				registerLanguageModelProvider: () => toDisposable(() => { }),
 			});
@@ -779,6 +897,13 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
+			// Acquiring a customization scope is now infallible, so the handler
+			// constructs a real one — which reads these on its first autorun.
+			instantiationService.stub(IMcpService, {
+				servers: observableValue('mcpServers', []),
+			});
+			instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
+			instantiationService.stub(IWorkbenchEnvironmentService, {} as Partial<IWorkbenchEnvironmentService>);
 			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeCustomAgents = Event.None;
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -786,6 +911,7 @@ suite('AgentHostClientTools', () => {
 				override readonly onDidChangeInstructions = Event.None;
 				override readonly onDidChangeAgentInstructions = Event.None;
 
+				override getDisabledPromptFiles() { return new ResourceSet(); }
 				override async listPromptFilesForStorage() {
 					return [];
 				}
@@ -811,6 +937,11 @@ suite('AgentHostClientTools', () => {
 				register: () => toDisposable(() => { }),
 				reconcile: async () => { },
 			} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
+			instantiationService.stub(IAgentHostShellInitSynchronizer, {
+				register: () => toDisposable(() => { }),
+				reconcile: async () => { },
+			});
+			instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
@@ -987,8 +1118,9 @@ suite('AgentHostClientTools', () => {
 				confirmed?: ToolCallConfirmationReason;
 				_meta?: Record<string, unknown>;
 			},
+			backendSession = AgentSession.uri('copilot', 'session-1'),
 		): void {
-			connection.applySessionAction(URI.parse(AgentSession.uri('copilot', 'session-1').toString()), {
+			connection.applySessionAction(backendSession, {
 				type: ActionType.SessionInputNeededSet,
 				request: {
 					id: `exec-${toolCall.toolCallId}`,
@@ -2726,6 +2858,95 @@ suite('AgentHostClientTools', () => {
 			);
 		}));
 
+		test('parallel background chats retain client tool context when their snapshots include optimistic turn starts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+			const contexts: string[] = [];
+			let clientSeq = 0;
+			let serverSeq = 0;
+
+			for (const index of [1, 2, 3]) {
+				const backendSession = AgentSession.uri('copilot', `session-${index}`);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/session-${index}` });
+				const chat = buildDefaultChatUri(backendSession.toString());
+				const subscription = disposables.add(new ChatStateSubscription(chat, connection.clientId, () => ++clientSeq, () => { }));
+				disposables.add(subscription.onDidChange(state => connection.setChatState(chat, state)));
+				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				contexts.push(sessionResource.toString());
+
+				const initial = createChatState({
+					resource: chat,
+					title: 'Test',
+					status: SessionStatus.Idle,
+					modifiedAt: '2025-01-01T00:00:00.000Z',
+				});
+				const start = {
+					type: ActionType.ChatTurnStarted,
+					turnId: `turn-${index}`,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'reply to origin', origin: { kind: MessageKind.User } },
+				} as const;
+				if (index === 1) {
+					subscription.handleSnapshot(initial, serverSeq);
+				}
+				const startSeq = subscription.applyOptimistic(start);
+				subscription.receiveEnvelope({
+					channel: chat,
+					action: start,
+					serverSeq: ++serverSeq,
+					origin: { clientId: connection.clientId, clientSeq: startSeq },
+				});
+				if (index !== 1) {
+					subscription.handleSnapshot(chatReducer(initial, start, () => { }), serverSeq);
+				}
+
+				const toolCallId = `tool-${index}`;
+				subscription.receiveEnvelope({
+					channel: chat,
+					serverSeq: ++serverSeq,
+					origin: undefined,
+					action: {
+						type: ActionType.ChatToolCallStart,
+						turnId: start.turnId,
+						toolCallId,
+						toolName: testConfirmTool.toolReferenceName!,
+						displayName: testConfirmTool.displayName,
+						contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+					},
+				});
+				subscription.receiveEnvelope({
+					channel: chat,
+					serverSeq: ++serverSeq,
+					origin: undefined,
+					action: {
+						type: ActionType.ChatToolCallReady,
+						turnId: start.turnId,
+						toolCallId,
+						invocationMessage: 'Reply',
+						toolInput: '{}',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					},
+				});
+				applyRunningClientExecution(connection, chat, start.turnId, {
+					toolCallId,
+					toolName: testConfirmTool.toolReferenceName!,
+					displayName: testConfirmTool.displayName,
+					invocationMessage: 'Reply',
+					toolInput: '{}',
+				}, backendSession);
+			}
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+			assert.deepStrictEqual({
+				contexts: toolsService.invokedToolCalls.map(invocation => invocation.context?.sessionResource.toString()),
+				declines: connection.dispatchedActions.filter(entry =>
+					entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.result.error?.code === 'clientUnavailable').length,
+			}, {
+				contexts,
+				declines: 0,
+			});
+		}));
+
 		test('denies an unclaimed confirmable client tool after the grace window without executing it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
@@ -3012,9 +3233,11 @@ suite('AgentHostClientTools', () => {
 			}, {
 				parent: {
 					kind: 'subagent',
+					hasStarted: true,
 					description: 'Prepared delegated task',
 					agentName: undefined,
 					chatResource: subagentChat,
+					isChatAvailable: true,
 					isActive: true,
 					startedAt: Date.parse('2025-01-01T00:00:00.000Z'),
 					duration: undefined,

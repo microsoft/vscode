@@ -26,7 +26,8 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
 import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
-import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { rawPartAsThinkingEnvelope } from '../common/thinkingDataContainer';
+import { thinkingOriginToMetadata } from '../../thinking/common/thinking';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
 
 /**
@@ -384,9 +385,15 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: Co
 					&& statefulMarker.summarizedAtRoundId === options.summarizedAtRoundId) {
 					apiContent.push(new vscode.LanguageModelDataPart(encodeStatefulMarker(statefulMarker.modelId, statefulMarker.marker), CustomDataPartMimeTypes.StatefulMarker));
 				}
-				const thinkingData = rawPartAsThinkingData(contentPart);
-				if (thinkingData) {
-					apiContent.push(new vscode.LanguageModelThinkingPart(thinkingData.text, thinkingData.id, thinkingData.metadata));
+				const thinkingEnvelope = rawPartAsThinkingEnvelope(contentPart);
+				if (thinkingEnvelope) {
+					const { thinking, originApi } = thinkingEnvelope;
+					// `vscode.lm` has no envelope, so provenance rides per-part metadata and is
+					// read back off it by the receiving side.
+					const metadata = originApi
+						? { ...thinking.metadata, ...thinkingOriginToMetadata(originApi) }
+						: thinking.metadata;
+					apiContent.push(new vscode.LanguageModelThinkingPart(thinking.text, thinking.id, metadata));
 				}
 			}
 		}

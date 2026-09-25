@@ -94,7 +94,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const errorNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/error'));
 		const errorAction = getActionEnvelope(errorNotif).action;
 		if (errorAction.type === 'chat/error') {
-			assert.strictEqual(errorAction.error.message, 'Something went wrong');
+			assert.strictEqual(errorAction.part.error.message, 'Something went wrong');
 		}
 	});
 

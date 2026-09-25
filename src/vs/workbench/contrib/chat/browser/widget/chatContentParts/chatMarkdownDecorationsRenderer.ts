@@ -28,9 +28,10 @@ import { IChatMarkdownContent, IChatService } from '../../../common/chatService/
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
 import { ChatRichLinkDecorator } from './chatRichLink.js';
 
 /** For rendering slash commands, variables */
@@ -97,9 +98,10 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 	) {
 		super();
-		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService)));
+		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
 	}
 
 	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
@@ -135,9 +137,13 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
 		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
+				return;
+			}
 			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {

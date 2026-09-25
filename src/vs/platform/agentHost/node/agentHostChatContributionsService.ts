@@ -8,7 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
@@ -146,37 +146,92 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	action(action: IObservedAction): void {
+	didApplyClientAction(action: IAppliedClientAction): void {
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
-			if (!contribution.onAction) {
+			if (!contribution.onDidApplyClientAction) {
 				continue;
 			}
 			try {
-				contribution.onAction(action);
+				contribution.onDidApplyClientAction(action);
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}
 		}
 	}
 
-	async outgoingTurn(turn: IOutgoingTurn): Promise<readonly string[]> {
+	didDispatchAction(dispatched: IDispatchedAction): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onDidDispatchAction) {
+				continue;
+			}
+			try {
+				contribution.onDidDispatchAction(dispatched);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		const instructions: string[] = [];
+		let message = turn.message;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onOutgoingTurn) {
 				continue;
 			}
 			try {
-				const result = await contribution.onOutgoingTurn(turn);
+				const result = await contribution.onOutgoingTurn({ ...turn, message });
 				if (result?.instructions) {
 					instructions.push(...result.instructions);
+				}
+				if (result?.text !== undefined) {
+					message = { ...message, text: result.text };
 				}
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}
 		}
-		return instructions;
+		return {
+			...(instructions.length ? { instructions } : {}),
+			message,
+		};
+	}
+
+	/**
+	 * Admits an incoming request through ordered contribution gates.
+	 *
+	 * Unlike every other contribution dispatcher, this fails CLOSED: a throwing
+	 * contribution rejects the request instead of being isolated and skipped.
+	 * Treating a failure as an accept could run work in a read-only or archived
+	 * session whose worktree no longer exists.
+	 */
+	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onIncomingRequest) {
+				continue;
+			}
+			try {
+				const disposition = contribution.onIncomingRequest(request);
+				if (disposition && disposition.kind !== 'accept') {
+					return disposition;
+				}
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+				return {
+					kind: 'reject',
+					error: {
+						errorType: 'internalError',
+						message: `Turn admission contribution '${registration.id}' failed`,
+					},
+					stage: 'validation',
+				};
+			}
+		}
+		return { kind: 'accept' };
 	}
 
 	async hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
@@ -193,6 +248,22 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 		}
 		return hydratedTurns;
+	}
+
+	async hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		let hydrated = restored;
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onHydrateChat) {
+				continue;
+			}
+			try {
+				hydrated = await contribution.onHydrateChat(context, hydrated);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+		return hydrated;
 	}
 
 	disposeChatState(chat: ProtocolURI): void {

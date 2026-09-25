@@ -7,12 +7,13 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -20,19 +21,22 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
+import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
-import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { MockChatWidgetService } from '../mockChatWidget.js';
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -44,6 +48,14 @@ class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	}
 }
 
+const mockTodoListService = {
+	_serviceBrand: undefined,
+	onDidUpdateTodos: Event.None,
+	getTodos: () => [],
+	setTodos() { },
+	migrateTodos() { },
+} satisfies IChatTodoListService;
+
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -54,6 +66,7 @@ suite('ChatToolProgressSubPart', () => {
 	let mockHoverService: IHoverService;
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
+	let sessionLinkPresentation: ISettableObservable<ILinkPresentation | undefined>;
 
 	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -98,11 +111,12 @@ suite('ChatToolProgressSubPart', () => {
 		toolId?: string;
 		isComplete?: boolean;
 		invocationMessage?: string | IMarkdownString;
+		originMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
 			toolSpecificData: undefined,
-			originMessage: undefined,
+			originMessage: options.originMessage,
 			invocationMessage: options.invocationMessage ?? 'Running tool...',
 			pastTenseMessage: undefined,
 			resultDetails: undefined,
@@ -119,6 +133,7 @@ suite('ChatToolProgressSubPart', () => {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		invocationMessage?: string | IMarkdownString;
+		originMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -126,7 +141,7 @@ suite('ChatToolProgressSubPart', () => {
 		return {
 			presentation: undefined,
 			toolSpecificData: undefined,
-			originMessage: undefined,
+			originMessage: options.originMessage,
 			invocationMessage: options.invocationMessage ?? 'Running tool...',
 			pastTenseMessage: undefined,
 			source,
@@ -141,7 +156,7 @@ suite('ChatToolProgressSubPart', () => {
 			toolSpecificDataKind: observableValue('test', undefined),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
-			toJSON: () => createSerializedToolInvocation({ source, toolId, invocationMessage: options.invocationMessage })
+			toJSON: () => createSerializedToolInvocation({ source, toolId, invocationMessage: options.invocationMessage, originMessage: options.originMessage })
 		};
 	}
 
@@ -184,6 +199,17 @@ suite('ChatToolProgressSubPart', () => {
 		} as unknown as IHoverService;
 		instantiationService.stub(IHoverService, mockHoverService);
 
+		sessionLinkPresentation = observableValue<ILinkPresentation | undefined>('sessionLinkPresentation', undefined);
+		instantiationService.stub(ILinkPresentationService, {
+			_serviceBrand: undefined,
+			onDidChangeLinkPresentationRules: Event.None,
+			linkPresentationRules: [],
+			registerLinkPresentationProvider: () => ({ dispose() { } }),
+			registerExtensionLinkPresentationProvider: () => ({ dispose() { } }),
+			getLinkPresentationRule: () => ({ id: 'test-session-links', uriPattern: /^agent-host-session:/, kind: 'session' }),
+			createLinkPresentationWatcher: () => ({ presentation: sessionLinkPresentation, dispose() { } }),
+		});
+
 		mockEditorPool = {} as EditorPool;
 	});
 
@@ -202,13 +228,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 	}
 
@@ -313,6 +335,63 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
+	test('renders a created session as a rich session link', () => {
+		const updateHover = sinon.spy();
+		const setupManagedHoverStub = sinon.stub(mockHoverService, 'setupManagedHover').returns({
+			dispose() { },
+			show() { },
+			hide() { },
+			update: updateHover,
+		});
+		disposables.add(toDisposable(() => setupManagedHoverStub.restore()));
+		const runningTitle = 'Weather question session with a detailed title that is longer than sixty characters';
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: runningTitle,
+			status: { kind: 'pending', label: 'Working' },
+		}, undefined);
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionCreatedResultSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Implement Task A for the current session…',
+				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
+			} satisfies IChatSessionCreatedData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link');
+
+		assert.deepStrictEqual({
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
+			href: link?.getAttribute('href'),
+			hoverTitle: updateHover.lastCall.args[0],
+			kind: link?.dataset.chatRichLinkKind,
+			hasRichLink: link?.classList.contains('chat-rich-link'),
+		}, {
+			title: runningTitle,
+			href: 'agent-host-session://copilot/task-a',
+			hoverTitle: runningTitle,
+			kind: 'session',
+			hasRichLink: true,
+		});
+
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: 'Finished weather session',
+			status: { kind: 'success', label: 'Completed' },
+		}, undefined);
+		assert.deepStrictEqual({
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
+			hoverTitle: updateHover.lastCall.args[0],
+		}, {
+			title: 'Finished weather session',
+			hoverTitle: 'Finished weather session',
+		});
+	});
+
 	test('renders codicon syntax in an automation name as literal text', () => {
 		const render = (automationName: string) => {
 			const part = disposables.add(instantiationService.createInstance(
@@ -327,7 +406,7 @@ suite('ChatToolProgressSubPart', () => {
 				text: button?.textContent,
 				ariaLabel: button?.getAttribute('aria-label'),
 				tabIndex: button?.tabIndex,
-				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				calendarIconIsChild: !!button?.querySelector('.codicon-calendar'),
 				// `codicon-*` on the root would restyle the label text.
 				rootCarriesCodiconClass: button?.classList.contains('codicon'),
 				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
@@ -340,17 +419,17 @@ suite('ChatToolProgressSubPart', () => {
 				text: 'Created an automation: $(error)',
 				ariaLabel: 'Open automation $(error)',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 			{
 				text: 'Created an automation: a \\$(error) b',
 				ariaLabel: 'Open automation a \\$(error) b',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 		]);
 	});
@@ -387,13 +466,9 @@ suite('ChatToolProgressSubPart', () => {
 			undefined,
 			0,
 			instantiationService,
-			{
-				_serviceBrand: undefined,
-				onDidUpdateTodos: Event.None,
-				getTodos: () => [],
-				setTodos() { },
-				migrateTodos() { },
-			} satisfies IChatTodoListService,
+			mockTodoListService,
+			mockConfigurationService,
+			new MockChatWidgetService(),
 		));
 		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
 
@@ -408,6 +483,117 @@ suite('ChatToolProgressSubPart', () => {
 			renderCount: 2,
 			sessionIdBeforeUpdate: '',
 			sessionIdAfterUpdate: 'terminal-session',
+		});
+	});
+
+	for (const persistentProgress of [false, true]) {
+		for (const error of ['page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation', true] as const) {
+			test(`failure changes only the progress icon (persistent: ${persistentProgress}, error: ${error})`, () => {
+				const context = { ...createRenderContext(true), suppressProgressShimmer: persistentProgress };
+				const hover = sinon.spy(mockHoverService, 'setupDelayedHover');
+				try {
+					const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
+					const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
+					const original = render(tool);
+					const failed = render({ ...tool, resultError: error });
+					const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
+					assert.deepStrictEqual({
+						card: failed.domNode.classList.contains('chat-notification-widget'),
+						icon: !!failed.domNode.querySelector('.codicon-error-compact'),
+						unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
+						label: label?.textContent,
+						focusable: label?.tabIndex,
+						newHover: hover.called,
+					}, {
+						card: false,
+						icon: true,
+						unchangedContent: true,
+						label: 'Navigate to the local previewBrowser',
+						focusable: -1,
+						newHover: false,
+					});
+				} finally {
+					hover.restore();
+				}
+			});
+		}
+
+		test(`renders MCP attribution in running and streaming rows with persistent progress ${persistentProgress ? 'on' : 'off'}`, () => {
+			const originMessage = 'GitHub (MCP Server)';
+			const context = { ...createRenderContext(false), suppressProgressShimmer: persistentProgress };
+			const renderer: IMarkdownRenderer = { render: (markdown, options) => renderMarkdown(markdown, options) };
+			const running = disposables.add(instantiationService.createInstance(
+				ChatToolProgressSubPart,
+				createToolInvocation({ invocationMessage: 'Read issue', originMessage }),
+				context,
+				renderer,
+				new Set<string>(),
+			));
+			const streaming = disposables.add(instantiationService.createInstance(
+				ChatToolStreamingSubPart,
+				{ ...createStreamingToolInvocation('Read issue'), originMessage: new MarkdownString('**GitHub** (MCP Server)') },
+				context,
+				renderer,
+			));
+
+			assert.deepStrictEqual([running, streaming].map(part => ({
+				message: part.domNode.querySelector('.progress-step > p')?.textContent?.replaceAll('\u00a0', ' '),
+				origin: part.domNode.querySelector('.chat-progress-origin')?.textContent?.replaceAll('\u00a0', ' '),
+				originCount: part.domNode.querySelectorAll('.chat-progress-origin').length,
+				originShimmers: !!part.domNode.querySelector('.chat-progress-origin .chat-progress-shimmer-text'),
+			})), [running, streaming].map(() => ({
+				message: 'Read issue',
+				origin: originMessage,
+				originCount: 1,
+				originShimmers: false,
+			})));
+		});
+	}
+
+	test('recognizes tool failures from result flags and terminal exit codes', () => {
+		const tool = createSerializedToolInvocation();
+		assert.deepStrictEqual({
+			success: hasToolInvocationError(tool),
+			flag: hasToolInvocationError({ ...tool, resultError: true }),
+			details: hasToolInvocationError({ ...tool, resultDetails: { input: '', output: [], isError: true } }),
+			terminal: hasToolInvocationError({
+				...tool, toolSpecificData: { kind: 'terminal', commandLine: { original: 'exit 2' }, language: 'sh', terminalCommandState: { exitCode: 2 } },
+			}),
+		}, {
+			success: false,
+			flag: true,
+			details: true,
+			terminal: true,
+		});
+	});
+
+	test('preserves and escapes the MCP origin when progress messages are updated', () => {
+		const originMessage = 'GitHub **tools** (MCP Server)';
+		const part = disposables.add(instantiationService.createInstance(
+			ChatProgressContentPart,
+			{ content: new MarkdownString('Read issue') },
+			{ render: (markdown, options) => renderMarkdown(markdown, options) },
+			createRenderContext(false),
+			false,
+			true,
+			undefined,
+			createToolInvocation({ originMessage }),
+			false,
+			undefined,
+		));
+		part.updateMessage(new MarkdownString('Reading issue details'));
+		part.updateMessage(new MarkdownString('Read issue details'));
+
+		assert.deepStrictEqual({
+			message: part.domNode.querySelector('.progress-step > p')?.textContent,
+			origin: part.domNode.querySelector('.chat-progress-origin')?.textContent?.replaceAll('\u00a0', ' '),
+			originCount: part.domNode.querySelectorAll('.chat-progress-origin').length,
+			boldCount: part.domNode.querySelectorAll('.chat-progress-origin strong').length,
+		}, {
+			message: 'Read issue details',
+			origin: originMessage,
+			originCount: 1,
+			boldCount: 0,
 		});
 	});
 

@@ -119,7 +119,7 @@
 
 /* Title */
 .chat-explanation-title {
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 }
