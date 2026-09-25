@@ -19,7 +19,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -33,7 +33,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -106,12 +106,33 @@ suite('AICustomizationDiscoveryPage', () => {
 				return result.p;
 			}
 		}());
+		const installChanges = store.add(new Emitter<void>());
+		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
+		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
+		const repairs: string[] = [];
+		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-			override readonly onDidChange = Event.None;
-			override getInstallState(resource: ICustomizationMarketplaceResource) {
+			override readonly onDidChange = installChanges.event;
+			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				return setupUrl && resource.identifier === 'unity'
-					? { kind: 'unavailable' as const, message: 'Manual setup required', setupUrl }
-					: { kind: 'available' as const };
+					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
+					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+			}
+			override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
+				return [...recordedResources.values()];
+			}
+			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				const state = installStates.get(key);
+				if (state?.kind !== 'missing') {
+					throw new Error('Only missing installations can be repaired.');
+				}
+				repairs.push(resource.identifier);
+				installStates.set(key, { kind: 'repairing', target: state.target });
+				installChanges.fire();
+				await onRepair?.(resource);
+				installStates.set(key, { kind: 'installed', target: state.target });
+				installChanges.fire();
 			}
 			override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 				const result = new DeferredPromise<void>();
@@ -168,7 +189,17 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 		}
 		return {
-			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents, opened, deletions, installs,
+			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents, opened, deletions, installs, repairs,
+			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				installStates.set(key, state);
+				if (state.kind === 'checking' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error') {
+					recordedResources.set(key, resource);
+				} else {
+					recordedResources.delete(key);
+				}
+			},
+			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
@@ -516,6 +547,124 @@ suite('AICustomizationDiscoveryPage', () => {
 			await deletion.complete();
 		}
 		assert.deepStrictEqual({ pending, calls }, { pending: { label: 'Uninstalling...', disabled: 'true', busy: 'true' }, calls: 1 });
+	});
+
+	test('keeps an available marketplace resource separate from a same-name local item', async () => {
+		const candidate = resource('marketplace-mail', {
+			displayName: 'Local mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/mail' },
+		});
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			rows: ['Local mail skill', 'Local mail skill'],
+			actions: ['Uninstall', 'Install'],
+		});
+	});
+
+	test('shows and repairs a recorded installation whose exact target is missing', async () => {
+		const candidate = resource('repair-mail', {
+			displayName: 'Repair mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/repair-mail' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/repair-mail/SKILL.md') } });
+		fixture.page.setSearchQuery('repair mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const before = {
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		};
+		const repair = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Repair');
+		assert.ok(repair);
+		repair.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			before,
+			repairs: fixture.repairs,
+			actionsAfter: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
+			repairs: ['repair-mail'],
+			actionsAfter: ['Uninstall'],
+		});
+	});
+
+	test('shows missing records in installed-only search without querying the catalog', async () => {
+		const candidate = resource('retired-skill', {
+			sourceId: 'retired',
+			displayName: 'Retired recorded skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/retired' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/retired/SKILL.md') } });
+		fixture.page.setSearchQuery('@installed retired');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			name: fixture.container.querySelector('.customization-discovery-result-name')?.textContent,
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			requests: 0,
+			name: 'Retired recorded skill',
+			detail: 'Skill · retired · Missing files',
+			actions: ['Repair', 'Uninstall'],
+		});
+	});
+
+	test('keeps uninstall available when installation verification fails', async () => {
+		const candidate = resource('unreadable-skill', {
+			displayName: 'Unreadable recorded skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/unreadable' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'error', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/unreadable/SKILL.md') }, message: 'Permission denied' });
+		fixture.page.setSearchQuery('@installed unreadable');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			action: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.textContent,
+			disabled: fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')?.getAttribute('aria-disabled'),
+		}, { detail: 'Skill · GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
+	});
+
+	test('does not render after disposal while repair completes', async () => {
+		const candidate = resource('repair-after-dispose', {
+			displayName: 'Repair after dispose',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/repair-after-dispose' },
+		});
+		const fixture = createPage();
+		const repair = new DeferredPromise<void>();
+		fixture.setRepairHandler(async () => repair.p);
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/repair-after-dispose/SKILL.md') } });
+		fixture.page.setSearchQuery('repair after dispose');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const button = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(candidate => candidate.textContent === 'Repair');
+		assert.ok(button);
+		button.click();
+		const before = fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button').length;
+		fixture.page.dispose();
+		await repair.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button').length }, { before: 1, after: 0 });
 	});
 
 	for (const query of ['', '@type:plugin demo']) {

@@ -34,7 +34,8 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 
 /** Source-validated installation provenance; repository paths name the resource directory, not its manifest. */
 export type CustomizationMarketplaceInstallation =
-	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
@@ -64,7 +65,7 @@ export interface ICustomizationMarketplaceResource extends ICustomizationMarketp
 }
 
 /** Identifiers and versions are opaque and only unique within their source. */
-export function getCustomizationMarketplaceResourceKey(resource: ICustomizationMarketplaceResource): string {
+export function getCustomizationMarketplaceResourceKey(resource: Pick<ICustomizationMarketplaceResource, 'sourceId' | 'identifier' | 'version'>): string {
 	return JSON.stringify([resource.sourceId, resource.identifier, resource.version ?? null]);
 }
 
