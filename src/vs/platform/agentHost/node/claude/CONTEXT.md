@@ -158,13 +158,12 @@ Anthropic-canonical IDs (`claude-opus-4-6-20250929`). Translation is
 
 - `filterSupportedBetas()` in `node/claude/anthropicBetas.ts` accepts the
   `SUPPORTED_ANTHROPIC_BETAS` families: `interleaved-thinking`,
-  `context-management`, `advanced-tool-use`, and `mid-conversation-output-config`.
+  `context-management`, `advanced-tool-use`, and `per-turn-control`.
   Allowlist match is prefix + `-` (date-suffix discipline).
-- The filter always appends `ADDITIONAL_ANTHROPIC_BETAS` without duplicating
-  entries, including when the SDK supplies no beta header. This currently adds
-  `mid-conversation-output-config-2026-07-01`.
-  CAPI requires this explicit beta to accept per-message `output_config`.
-  Request bodies and native Anthropic transport are unchanged.
+- The filter only forwards supported betas supplied by the SDK; it does not
+  inject compatibility betas.
+- The SDK's `per-turn-control` beta is passed through so CAPI can accept
+  per-message `output_config`.
 - Applied at `POST /v1/messages` after auth, before model translation.
   If the filtered result is a non-empty string, set it on the outbound
   `ICopilotApiServiceRequestOptions.headers['anthropic-beta']`. If
@@ -174,7 +173,7 @@ Anthropic-canonical IDs (`claude-opus-4-6-20250929`). Translation is
   are dropped, including `x-request-id` / `request-id` — CAPI generates
   its own.
 - The proxy ignores `request.metadata` and any SDK-side `betas` field;
-  it uses the inbound `anthropic-beta` header plus the declared additional betas.
+  only the `anthropic-beta` header drives behavior.
 
 ### Q8 — Streaming: framing, backpressure, mid-stream errors
 

@@ -648,7 +648,7 @@ function rewriteEventModel(
 /**
  * Build the headers we forward to {@link ICopilotApiService.messages}
  * from the inbound request. Forwards `anthropic-version` (verbatim),
- * `anthropic-beta` (filtered and augmented through {@link filterSupportedBetas}), and
+ * `anthropic-beta` (filtered through {@link filterSupportedBetas}), and
  * `user-agent` (transformed via {@link transformUserAgent}).
  */
 function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string, string> {
@@ -658,9 +658,11 @@ function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string,
 		out['anthropic-version'] = version;
 	}
 	const beta = inbound['anthropic-beta'];
-	const filtered = filterSupportedBetas(typeof beta === 'string' ? beta : '');
-	if (filtered !== undefined) {
-		out['anthropic-beta'] = filtered;
+	if (typeof beta === 'string' && beta.length > 0) {
+		const filtered = filterSupportedBetas(beta);
+		if (filtered !== undefined) {
+			out['anthropic-beta'] = filtered;
+		}
 	}
 	const userAgent = inbound['user-agent'];
 	if (typeof userAgent === 'string' && userAgent.length > 0) {
