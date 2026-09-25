@@ -45,9 +45,12 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						localize('hintWhitespace', "Show Whitespace Differences"),
 						null
 					));
-					store.add(helperWidget.onClick(() => {
-						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
-					}));
+				store.add(helperWidget.onClick(() => {
+					const model = this._diffEditor.getModel();
+					if (model) {
+						this._textResourceConfigurationService.updateValue(model.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
+					}
+				}));
 					helperWidget.render();
 				}
 			}));
@@ -62,7 +65,10 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						[{
 							label: localize('removeTimeout', "Remove Limit"),
 							run: () => {
-								this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
+								const model = this._diffEditor.getModel();
+								if (model) {
+									this._textResourceConfigurationService.updateValue(model.modified.uri, 'diffEditor.maxComputationTime', 0);
+								}
 							}
 						}],
 						{}
