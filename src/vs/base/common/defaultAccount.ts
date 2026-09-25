@@ -96,7 +96,6 @@ export interface IDefaultAccountAuthenticationProvider {
 export interface IDefaultAccount {
 	readonly authenticationProvider: IDefaultAccountAuthenticationProvider;
 	readonly accountName: string;
-	readonly profileName?: string;
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;

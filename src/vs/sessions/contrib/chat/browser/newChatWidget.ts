@@ -12,7 +12,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +24,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
+import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
@@ -67,6 +69,7 @@ import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 // #region --- New Chat Widget ---
 
@@ -74,6 +77,7 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICK
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
+const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
 function takeNextNewSessionWelcomePhraseIndex(): number {
 	const index = nextNewSessionWelcomePhraseIndex;
@@ -129,6 +133,7 @@ export class NewChatWidget extends Disposable {
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _welcomePhraseIndex = takeNextNewSessionWelcomePhraseIndex();
+	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 
 	constructor(
 		private readonly options: IChatViewOptions & {
@@ -152,6 +157,8 @@ export class NewChatWidget extends Disposable {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IRequestService private readonly requestService: IRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -487,13 +494,16 @@ export class NewChatWidget extends Disposable {
 		const defaultAccountChanged = observableSignalFromEvent(this, this.defaultAccountService.onDidChangeDefaultAccount);
 		this._register(autorun(reader => {
 			defaultAccountChanged.read(reader);
+			const profileName = this._githubProfileName.read(reader);
 			this._updateWelcomeMessage(
 				welcomeMessage,
 				this._useExperimentalComposerLayout.read(reader),
 				this._welcomePhraseIndex,
-				this._getGitHubAccountName(),
+				profileName ?? this._getGitHubAccountName(),
 			);
 		}));
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
+		void this._refreshGitHubProfileName();
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -683,7 +693,57 @@ export class NewChatWidget extends Disposable {
 		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
 			return undefined;
 		}
-		return account.profileName ?? account.accountName;
+		return account.accountName;
+	}
+
+	private async _refreshGitHubProfileName(): Promise<void> {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
+			this._githubProfileName.set(undefined, undefined);
+			return;
+		}
+
+		const cacheKey = `${account.authenticationProvider.id}:${account.sessionId}`;
+		let profileName = githubProfileNames.get(cacheKey);
+		if (!profileName) {
+			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId);
+			githubProfileNames.set(cacheKey, profileName);
+		}
+		const resolvedProfileName = await profileName;
+		if (this.defaultAccountService.currentDefaultAccount?.sessionId === account.sessionId) {
+			this._githubProfileName.set(resolvedProfileName, undefined);
+		}
+	}
+
+	private async _fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined> {
+		try {
+			const sessions = await this.authenticationService.getSessions(providerId, [], { silent: true });
+			const session = sessions.find(candidate => candidate.id === sessionId);
+			if (!session) {
+				return undefined;
+			}
+			const enterpriseUri = enterprise ? this.defaultAccountService.resolveGitHubUrl('') : undefined;
+			const response = await this.requestService.request({
+				type: 'GET',
+				url: `${deriveGitHubEndpoints(enterpriseUri).apiBaseUri}/user`,
+				disableCache: true,
+				callSite: 'newChatWidget.fetchGitHubProfileName',
+				headers: {
+					'Authorization': `token ${session.accessToken}`,
+					'Accept': 'application/vnd.github.v3+json',
+					'User-Agent': 'VSCode-Sessions',
+				},
+			}, CancellationToken.None);
+			if (!isSuccess(response)) {
+				this.logService.warn(`Failed to fetch GitHub profile name: ${response.res.statusCode ?? 'unknown status'}`);
+				return undefined;
+			}
+			const profile = await asJson<{ readonly name?: string | null }>(response);
+			return profile?.name?.trim() || undefined;
+		} catch (error) {
+			this.logService.warn('Failed to fetch GitHub profile name:', error);
+			return undefined;
+		}
 	}
 
 	private _updateWelcomeMessage(container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): void {

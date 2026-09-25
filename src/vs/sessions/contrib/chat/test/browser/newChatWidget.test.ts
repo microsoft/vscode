@@ -152,7 +152,7 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
-const getGitHubAccountName = Reflect.get(NewChatWidget.prototype, '_getGitHubAccountName') as (this: { readonly defaultAccountService: { readonly currentDefaultAccount: { readonly authenticationProvider: { readonly id: string }; readonly accountName: string; readonly profileName?: string } | null } }) => string | undefined;
+const getGitHubAccountName = Reflect.get(NewChatWidget.prototype, '_getGitHubAccountName') as (this: { readonly defaultAccountService: { readonly currentDefaultAccount: { readonly authenticationProvider: { readonly id: string }; readonly accountName: string } | null } }) => string | undefined;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -817,22 +817,22 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('prefers the GitHub profile name for welcome phrases', () => {
+	test('uses GitHub account names as the profile fallback', () => {
 		const names = [
-			{ providerId: 'github', accountName: 'octocat', profileName: 'The Octocat' },
-			{ providerId: 'github-enterprise', accountName: 'mona', profileName: undefined },
-			{ providerId: 'microsoft', accountName: 'Megan', profileName: 'Megan Rogge' },
+			{ providerId: 'github', accountName: 'octocat' },
+			{ providerId: 'github-enterprise', accountName: 'mona' },
+			{ providerId: 'microsoft', accountName: 'Megan' },
 		].map(account => getGitHubAccountName.call({
 			defaultAccountService: {
 				currentDefaultAccount: {
 					authenticationProvider: { id: account.providerId },
 					accountName: account.accountName,
-					profileName: account.profileName,
 				},
 			},
 		}));
-		assert.deepStrictEqual(names, ['The Octocat', 'mona', undefined]);
-		assert.deepStrictEqual(names, ['The Octocat', 'mona', undefined]);
+
+		assert.deepStrictEqual(names, ['octocat', 'mona', undefined]);
+		assert.deepStrictEqual(names, ['octocat', 'mona', undefined]);
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
