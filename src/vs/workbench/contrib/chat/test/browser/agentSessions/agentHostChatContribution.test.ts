@@ -34,6 +34,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -7075,19 +7076,20 @@ suite('AgentHostChatContribution', () => {
 			const service = instantiationService.get(IChatInputNotificationService);
 			service.setNotification = notice => notifications.set(notice.id, notice);
 			service.deleteNotification = id => { notifications.delete(id); };
-			agentHostService.setInitializeResult({ _meta: { 'vscode.prepareChat': true } });
+			const backend = 'codex:/locked';
+			const chat = buildDefaultChatUri(backend);
+			const initial = createSessionState({ resource: backend, provider: 'codex', title: 'Locked', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() });
+			initial._meta = withChatInputState(initial, chat, { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } });
+			agentHostService.sessionStates.set(backend, { ...initial, lifecycle: SessionLifecycle.Ready });
 			const host: IAgentHostService = agentHostService;
 			const calls: string[] = [];
-			let locked = true;
-			host.prepareChat = async chat => {
-				calls.push(chat.toString());
-				return locked ? { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } } : {};
+			host.refreshSubscription = async resource => {
+				calls.push(resource.toString());
+				agentHostService.fireAction({ channel: backend, action: { type: ActionType.SessionMetaChanged, _meta: {} }, serverSeq: 100, origin: undefined });
 			};
 			const resource = URI.parse('agent-host-copilot:/locked');
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
-			await session.retryInput?.();
 			const before = { blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size };
-			locked = false;
 			await session.retryInput?.();
 			assert.deepStrictEqual({ before, blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size, chats: [...new Set(calls)], turns: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted) }, {
 				before: { blocked: true, history: 0, notices: 1 }, blocked: false, history: 0, notices: 0, chats: [buildDefaultChatUri('codex:/locked')], turns: [],

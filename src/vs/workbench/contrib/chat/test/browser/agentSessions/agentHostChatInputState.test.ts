@@ -8,14 +8,15 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import type { IAgentPrepareChatResult } from '../../../../../../platform/agentHost/common/agent.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import type { AgentChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { AgentHostChatInputState } from '../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
 import { type IChatInputNotification, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 
 suite('AgentHostChatInputState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse('agent-host-codex:/locked');
-	const locked = { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
+	const locked: AgentChatInputState = { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
 
 	class Notifications extends mock<IChatInputNotificationService>() {
 		readonly notices = new Map<string, IChatInputNotification>();
@@ -23,58 +24,62 @@ suite('AgentHostChatInputState', () => {
 		override deleteNotification(id: string): void { this.notices.delete(id); }
 	}
 
-	test('retries only preparation, keeps one non-dismissible banner, and unblocks on success', async () => {
+	test('renders host state and refreshes without accumulating banners', async () => {
 		const notices = new Notifications();
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
 		let calls = 0;
-		const retry = new DeferredPromise<IAgentPrepareChatResult>();
-		const state = store.add(new AgentHostChatInputState(resource, async () => ++calls === 1 ? locked : retry.p, notices));
-		const initial = state.prepare();
-		const checking = state.isInputBlocked.get();
-		await initial;
-		const notice = [...notices.notices.values()][0];
-		const retrying = state.prepare();
-		const coalesced = state.prepare() === retrying;
-		const retryBlocked = state.isInputBlocked.get();
-		await retry.complete({});
-		await retrying;
-		assert.deepStrictEqual({
-			checking, retryBlocked, coalesced, calls,
-			dismissible: notice.dismissible,
-			autoDismiss: notice.autoDismissOnMessage,
-			targets: notice.sessionResources,
-			actions: notice.actions.map(action => action.label),
-			remaining: notices.notices.size,
-			blocked: state.isInputBlocked.get(),
-		}, {
-			checking: true, retryBlocked: true, coalesced: true, calls: 2,
-			dismissible: false, autoDismiss: false, targets: [resource], actions: ['Retry'], remaining: 0, blocked: false,
+		const barrier = new DeferredPromise<void>();
+		const state = store.add(new AgentHostChatInputState(resource, input, async () => { calls++; await barrier.p; input.set(undefined, undefined); }, notices));
+		const before = [...notices.notices.values()][0];
+		const retry = state.retry();
+		const coalesced = state.retry() === retry;
+		const whileChecking = state.isInputBlocked.get();
+		await barrier.complete();
+		await retry;
+		assert.deepStrictEqual({ calls, coalesced, whileChecking, blocked: state.isInputBlocked.get(), notices: notices.notices.size, dismissible: before.dismissible, actions: before.actions.map(action => action.label) }, {
+			calls: 1, coalesced: true, whileChecking: true, blocked: false, notices: 0, dismissible: false, actions: ['Retry'],
 		});
 	});
 
-	test('repeated lock failures do not accumulate banners and disposal ignores late results', async () => {
+	test('remote lock updates clear a banner in every view without local retry', () => {
 		const notices = new Notifications();
-		const pending = new DeferredPromise<IAgentPrepareChatResult>();
-		let calls = 0;
-		const state = store.add(new AgentHostChatInputState(resource, async () => ++calls < 3 ? locked : pending.p, notices));
-		await state.prepare();
-		await state.prepare();
-		const before = { count: notices.notices.size, blocked: state.isInputBlocked.get() };
-		const preparing = state.prepare();
-		state.dispose();
-		await pending.complete(locked);
-		await preparing;
-		assert.deepStrictEqual({ before, after: notices.notices.size }, { before: { count: 1, blocked: true }, after: 0 });
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
+		const state = store.add(new AgentHostChatInputState(resource, input, async () => { assert.fail('No request expected'); }, notices));
+		const blocked = state.isInputBlocked.get();
+		input.set(undefined, undefined);
+		assert.deepStrictEqual({ blocked, after: state.isInputBlocked.get(), notices: notices.notices.size }, { blocked: true, after: false, notices: 0 });
 	});
 
-	test('unrelated errors stay actionable without being described as writer contention', async () => {
+	test('failed refresh keeps input blocked and remains retryable without claiming a writer conflict', async () => {
 		const notices = new Notifications();
-		const state = store.add(new AgentHostChatInputState(resource, async () => { throw new Error('Connection unavailable'); }, notices));
-		await state.prepare();
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
+		const state = store.add(new AgentHostChatInputState(resource, input, async () => { throw new Error('Connection unavailable'); }, notices));
+		await state.retry();
 		const notice = [...notices.notices.values()][0];
 		assert.deepStrictEqual({ blocked: state.isInputBlocked.get(), message: notice.message, description: notice.description }, {
-			blocked: true,
-			message: 'Conversation Unavailable',
-			description: 'Couldn\'t prepare this conversation. Select Retry to try again. Connection unavailable',
+			blocked: true, message: 'Conversation Unavailable', description: 'Couldn\'t prepare this conversation. Select Retry to try again. Connection unavailable',
 		});
+	});
+
+	test('a shared-state update clears a failed local Retry', async () => {
+		const notices = new Notifications();
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
+		const state = store.add(new AgentHostChatInputState(resource, input, async () => { throw new Error('Connection unavailable'); }, notices));
+		await state.retry();
+		input.set(undefined, undefined);
+		assert.deepStrictEqual({ blocked: state.isInputBlocked.get(), notices: notices.notices.size }, { blocked: false, notices: 0 });
+	});
+
+	test('disposal prevents a late refresh from recreating the banner', async () => {
+		const notices = new Notifications();
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
+		const pending = new DeferredPromise<void>();
+		const state = store.add(new AgentHostChatInputState(resource, input, () => pending.p, notices));
+		const retry = state.retry();
+		await Promise.resolve();
+		state.dispose();
+		await pending.error(new Error('Connection unavailable'));
+		await retry;
+		assert.strictEqual(notices.notices.size, 0);
 	});
 });

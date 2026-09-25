@@ -13,7 +13,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import type { IAgentPrepareChatResult } from '../../../../platform/agentHost/common/agent.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
@@ -294,8 +293,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().createChat(session, chat, options);
 	}
 
-	prepareChat(chat: URI): Promise<IAgentPrepareChatResult> {
-		return this._requireClient().prepareChat(chat);
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
 	}
 
 	disposeChat(chat: URI): Promise<void> {

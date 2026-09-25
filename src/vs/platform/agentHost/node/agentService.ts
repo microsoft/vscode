@@ -20,7 +20,7 @@ import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -62,6 +62,7 @@ import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDa
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
@@ -753,6 +754,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@IAgentHostChatInputService private readonly _chatInputService: IAgentHostChatInputService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
@@ -1506,26 +1508,6 @@ export class AgentService extends Disposable implements IAgentService {
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
 		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
-	}
-
-	async prepareChat(chat: URI): Promise<IAgentPrepareChatResult> {
-		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat.toString()));
-		if (isSessionStatusArchived(this._stateManager.getSessionSummary(session.toString())?.status)) {
-			return {};
-		}
-		await this.restoreSession(session);
-		if (isSessionStatusArchived(this._stateManager.getSessionSummary(session.toString())?.status)) {
-			return {};
-		}
-		const state = await this._stateManager.resolveChatState(chat.toString());
-		if (!state) {
-			throw new Error(`Chat not found: ${chat}`);
-		}
-		if (isChatReadOnly(state.interactivity, false)) {
-			return {};
-		}
-		const provider = this._providerService.getProviderForSession(session);
-		return await provider?.chats.prepareChat?.(chat, this._chatContext(session, chat)) ?? {};
 	}
 
 	async importSession(session: URI): Promise<void> {
@@ -6087,6 +6069,16 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();
 			this._watchChatHistory(resource);
+			if (isAhpChatChannel(resourceStr)) {
+				await this._chatInputService.prepareChat(resource);
+				if (this._store.isDisposed || (isActive && !isActive())) {
+					throw new Error(`Subscription cancelled: ${resourceStr}`);
+				}
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+				if (!snapshot) {
+					throw new Error(`Chat removed while subscribing: ${resourceStr}`);
+				}
+			}
 
 			// Ensure git state has been computed for this session. When the snapshot
 			// already existed (e.g. seeded by list query, or restored earlier), the
@@ -6160,6 +6152,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._chatHistoryWatches.deleteAndDispose(resource);
 		this._pendingChatHistories.delete(resource.toString());
+		if (isAhpChatChannel(resource.toString())) {
+			this._chatInputService.clear(parseRequiredSessionUriFromChatUri(resource.toString()), resource.toString());
+		}
 		this._changesetCoordinator.onLastSubscriber(resource);
 		this._stateManager.onChangesetLivenessChanged();
 		if (this._maybeScheduleEphemeralSessionGc(resource)) {

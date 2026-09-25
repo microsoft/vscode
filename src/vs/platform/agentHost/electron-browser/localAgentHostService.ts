@@ -10,7 +10,6 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentPrepareChatResult } from '../common/agent.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -430,8 +429,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		await this._protocolClient?.reportFirstResponse(diagnostic);
 	}
 
-	prepareChat(chat: URI): Promise<IAgentPrepareChatResult> {
-		return this._requireClient().prepareChat(chat);
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
 	}
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {

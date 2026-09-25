@@ -10,6 +10,7 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
@@ -107,6 +108,21 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not persist temporary input restrictions as read-only chats', async () => {
+		const state = sourceState();
+		const peer = `${chat}/peer`;
+		const meta = withChatInputState({ _meta: state.meta }, chat, { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } });
+		const result = await createResolver({}).buildCatalogSyncRequest(session, {
+			...state,
+			meta,
+			chats: [...state.chats, { uri: peer, kind: 'peer', interactivity: ChatInteractivity.ReadOnly }],
+		}, {}, false);
+		assert.deepStrictEqual({
+			interactivity: result.data.chats.map(chat => chat.interactivity),
+			input: readChatInputState(result.data, chat),
+		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], input: undefined });
+	});
 
 	test('round-trips persisted folder-scoped Git state through the catalog payload', async () => {
 		const scopeId = 'folder-scope';

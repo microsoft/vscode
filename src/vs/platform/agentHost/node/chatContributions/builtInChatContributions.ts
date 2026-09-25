@@ -8,6 +8,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
+import { ChatInputContribution } from './chatInput/chatInputContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
@@ -35,6 +36,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));

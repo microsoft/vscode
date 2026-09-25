@@ -833,6 +833,7 @@ suite('ChatWidget', () => {
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
+		const inputVisibility: boolean[] = [];
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
@@ -840,7 +841,7 @@ suite('ChatWidget', () => {
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
 			hasInputFocus: () => false,
-			setInputVisible: () => { },
+			setInputVisible: (visible: boolean) => inputVisibility.push(visible),
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
@@ -849,11 +850,13 @@ suite('ChatWidget', () => {
 		});
 
 		widget.setReadOnly(true);
+		widget.setReadOnly(true, true);
 		widget.setReadOnly(false);
 
-		assert.deepStrictEqual({ rendererOptions, rerenders }, {
-			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 2,
+		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 3,
+			inputVisibility: [false, true, true],
 		});
 	});
 

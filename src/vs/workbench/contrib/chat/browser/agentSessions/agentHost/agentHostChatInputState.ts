@@ -6,11 +6,11 @@
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import type { IAgentPrepareChatResult } from '../../../../../../platform/agentHost/common/agent.js';
+import type { AgentChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import type { ErrorInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
@@ -29,82 +29,69 @@ export function codexWriterLockMessage(): string {
 /** Keeps chat preparation failures out of the transcript and preserves the unsent draft. */
 export class AgentHostChatInputState extends Disposable {
 	private static _nextId = 0;
-	readonly isInputBlocked = observableValue(this, false);
-	private readonly _notificationId = `agentHost.chatPreparation.${AgentHostChatInputState._nextId++}`;
-	private _error: ErrorInfo | undefined;
+	readonly isInputBlocked: IObservable<boolean>;
+	private readonly _notificationId = `agentHost.chatInput.${AgentHostChatInputState._nextId++}`;
+	private readonly _retrying = observableValue(this, false);
+	private readonly _retryError = observableValue<{ readonly state: AgentChatInputState; readonly error: ErrorInfo } | undefined>(this, undefined);
 	private _pending: Promise<void> | undefined;
-	private _generation = 0;
 
 	constructor(
 		private readonly _sessionResource: URI,
-		private readonly _prepare: () => Promise<IAgentPrepareChatResult>,
+		private readonly _state: IObservable<AgentChatInputState | undefined>,
+		private readonly _refresh: () => Promise<void>,
 		@IChatInputNotificationService private readonly _notifications: IChatInputNotificationService,
 	) {
 		super();
+		const retryError = derived(this, reader => {
+			const failure = this._retryError.read(reader);
+			return failure?.state === this._state.read(reader) ? failure?.error : undefined;
+		});
+		this.isInputBlocked = derived(this, reader => !!this._state.read(reader) || this._retrying.read(reader) || !!retryError.read(reader));
+		this._register(autorun(reader => this._updateNotification(this._state.read(reader), this._retrying.read(reader), retryError.read(reader))));
 	}
 
-	prepare(): Promise<void> {
-		if (this._store.isDisposed) {
+	retry(): Promise<void> {
+		if (this._store.isDisposed || !this._state.get()) {
 			return Promise.resolve();
 		}
-		if (this._pending) {
-			return this._pending;
+		if (!this._pending) {
+			this._retrying.set(true, undefined);
+			this._pending = Promise.resolve().then(async () => {
+				try {
+					if (!this._store.isDisposed) {
+						await this._refresh();
+						this._retryError.set(undefined, undefined);
+					}
+				} catch (error) {
+					const state = this._state.get();
+					if (!this._store.isDisposed && state) {
+						this._retryError.set({ state, error: { errorType: 'ChatRefreshFailed', message: toErrorMessage(error) } }, undefined);
+					}
+				} finally {
+					this._pending = undefined;
+					this._retrying.set(false, undefined);
+				}
+			});
 		}
-		const generation = ++this._generation;
-		this.isInputBlocked.set(true, undefined);
-		this._updateNotification(true);
-		const pending = Promise.resolve().then<IAgentPrepareChatResult>(() => generation === this._generation && !this._store.isDisposed ? this._prepare() : {}).then(result => {
-			if (generation === this._generation && !this._store.isDisposed) {
-				this._error = result.error;
-				this.isInputBlocked.set(!!result.error, undefined);
-			}
-		}, error => {
-			if (generation === this._generation && !this._store.isDisposed) {
-				this._error = { errorType: 'ChatPreparationFailed', message: toErrorMessage(error) };
-			}
-		}).finally(() => {
-			if (generation === this._generation && !this._store.isDisposed) {
-				this._pending = undefined;
-				this._updateNotification(false);
-			}
-		});
-		this._pending = pending;
-		return pending;
+		return this._pending;
 	}
 
-	showWriterLock(error: ErrorInfo): void {
-		if (error.errorType !== 'CodexThreadInUse') {
-			return;
-		}
-		this._generation++;
-		this._pending = undefined;
-		this._error = error;
-		this.isInputBlocked.set(true, undefined);
-		this._updateNotification(false);
-	}
-
-	reset(): void {
-		this._generation++;
-		this._pending = undefined;
-		this._error = undefined;
-		this.isInputBlocked.set(false, undefined);
-		this._notifications.deleteNotification(this._notificationId);
-	}
-
-	private _updateNotification(checking: boolean): void {
-		if (!this._error) {
+	private _updateNotification(state: AgentChatInputState | undefined, retrying: boolean, retryError: ErrorInfo | undefined): void {
+		if (!state && !retrying && !retryError) {
 			this._notifications.deleteNotification(this._notificationId);
 			return;
 		}
-		const locked = this._error.errorType === 'CodexThreadInUse';
+		const checking = retrying || state?.kind === 'checking';
+		const error = retryError ?? (state?.kind === 'blocked' ? state.error : undefined);
+		const locked = error?.errorType === 'CodexThreadInUse';
 		this._notifications.setNotification({
 			id: this._notificationId,
-			telemetryId: 'agentHost.chatPreparation',
+			telemetryId: 'agentHost.chatInput',
 			severity: ChatInputNotificationSeverity.Error,
-			message: locked ? localize('agentHost.conversationInUse', "Conversation in Use") : localize('agentHost.conversationUnavailable', "Conversation Unavailable"),
+			message: checking ? localize('agentHost.checkingConversationTitle', "Checking Conversation") : locked ? localize('agentHost.conversationInUse', "Conversation in Use") : localize('agentHost.conversationUnavailable', "Conversation Unavailable"),
 			description: checking
 				? localize('agentHost.checkingConversation', "Checking whether this conversation is available…")
-				: locked ? localize('agentHost.codexWriterLockRetry', "{0} Select Retry to continue in VS Code.", codexWriterLockMessage()) : localize('agentHost.prepareChatFailed', "Couldn't prepare this conversation. Select Retry to try again. {0}", this._error.message),
+				: locked ? localize('agentHost.codexWriterLockRetry', "{0} Select Retry to continue in VS Code.", codexWriterLockMessage()) : localize('agentHost.prepareChatFailed', "Couldn't prepare this conversation. Select Retry to try again. {0}", error?.message ?? ''),
 			actions: checking ? [] : [{
 				kind: ChatInputNotificationActionKind.Command,
 				label: localize('agentHost.retryPreparation', "Retry"),
@@ -119,7 +106,7 @@ export class AgentHostChatInputState extends Disposable {
 	}
 
 	override dispose(): void {
-		this.reset();
 		super.dispose();
+		this._notifications.deleteNotification(this._notificationId);
 	}
 }

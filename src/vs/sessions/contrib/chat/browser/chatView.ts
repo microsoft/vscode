@@ -567,8 +567,11 @@ export class ChatView extends AbstractChatView {
 		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			const model = chatModel.read(reader);
+			const temporarilyBlocked = isEqual(model?.sessionResource, resource) && (model?.isInputBlocked.read(reader) ?? false);
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full, temporarilyBlocked);
 		});
 
 		// Skip loading if we're already showing this chat

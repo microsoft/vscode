@@ -112,8 +112,7 @@ import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
-import { supportsAgentHostChatPreparation } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
-import type { IAgentPrepareChatResult } from '../../../../../../platform/agentHost/common/agent.js';
+import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -712,8 +711,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly retryInput: (() => Promise<void>) | undefined;
 	private readonly _inputState: AgentHostChatInputState | undefined;
-	private readonly _inputStateSubscription = this._register(new MutableDisposable<IDisposable>());
-	private _inputChatSubscription: IAgentSubscription<ChatState> | undefined;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
@@ -745,7 +742,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
-		prepareChat: (() => Promise<IAgentPrepareChatResult>) | undefined,
+		refreshChat: (() => Promise<void>) | undefined,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
@@ -758,13 +755,14 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	) {
 		super();
 
-		this._inputState = prepareChat ? this._register(instantiationService.createInstance(AgentHostChatInputState, sessionResource, prepareChat)) : undefined;
+		const providerInputState = derived(this, reader => {
+			const session = this._sessionState.read(reader).read(reader);
+			const chat = this._chatState.read(reader).read(reader);
+			return session && chat && !(session.status & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
+		});
+		this._inputState = refreshChat ? this._register(instantiationService.createInstance(AgentHostChatInputState, sessionResource, providerInputState, refreshChat)) : undefined;
 		this.isInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);
-		this.retryInput = this._inputState ? async () => {
-			if (!this.isReadOnly.get()) {
-				await this._inputState?.prepare();
-			}
-		} : undefined;
+		this.retryInput = this._inputState ? () => this._inputState!.retry() : undefined;
 		this.isReadOnly = derived(this, reader => {
 			const sessionArchived = Boolean((this._sessionState.read(reader).read(reader)?.status ?? 0) & SessionStatus.IsArchived);
 			const chat = this._chatState.read(reader).read(reader);
@@ -772,13 +770,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 				|| isChatReadOnly(chat?.interactivity, sessionArchived);
 		});
 		this.setStateSubscriptions(sessionSubscription, chatSubscription);
-		this._register(autorun(reader => {
-			if (this.isReadOnly.read(reader)) {
-				this._inputState?.reset();
-			} else if (this._chatState.read(undefined).read(undefined)) {
-				void this._inputState?.prepare();
-			}
-		}));
 
 		const hasActiveTurn = initialProgress !== undefined;
 		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
@@ -800,25 +791,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
-		const chatChanged = this._inputChatSubscription !== chatSubscription;
-		this._inputChatSubscription = chatSubscription;
-		this._inputStateSubscription.clear();
 		this._promptCacheTracking.clear();
 		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
 		transaction(tx => {
 			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
 			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
 		});
-		if (chatSubscription && this._inputState) {
-			this._inputStateSubscription.value = chatSubscription.onWillApplyAction(envelope => {
-				if (envelope.action.type === ActionType.ChatError) {
-					this._inputState?.showWriterLock(envelope.action.part.error);
-				}
-			});
-			if (chatChanged) {
-				void this.retryInput?.();
-			}
-		}
 	}
 
 	override dispose(): void {
@@ -1698,8 +1676,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sessionSubscription,
 				chatSubscription,
 				this._config.promptCacheNotification,
-				this._config.connection.prepareChat && supportsAgentHostChatPreparation(this._config.connection.initializeResult.get())
-					? () => this._config.connection.prepareChat!(URI.parse(this._getChatURIOrDefault(sessionResource, resolvedSession)))
+				this._config.connection.refreshSubscription
+					? () => this._config.connection.refreshSubscription!(URI.parse(this._getChatURIOrDefault(sessionResource, resolvedSession)))
 					: undefined,
 				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 					if (!this._getSessionState(resolvedSession.toString())) {

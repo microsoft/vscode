@@ -1912,17 +1912,6 @@ suite('AgentHostProtocolClient', () => {
 		await resultPromise;
 	});
 
-	test('prepareChat returns a provider input restriction without dispatching a turn', async () => {
-		const { client, transport } = createClient();
-		const chat = URI.parse(buildChatUri('codex:/session-1', 'peer'));
-		const resultPromise = client.prepareChat(chat);
-		const result = { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
-		transport.fireMessage({ jsonrpc: '2.0', id: 1, result });
-		assert.deepStrictEqual({ requests: transport.sentMessages, result: await resultPromise }, {
-			requests: [{ jsonrpc: '2.0', id: 1, method: 'vscode/prepareChat', params: { chat: chat.toString() } }], result,
-		});
-	});
-
 	test('removeSessionArtifact propagates unsupported host errors', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.removeSessionArtifact(URI.parse('copilotcli:/session-1'), 'artifact-1');

@@ -60,6 +60,7 @@ import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentS
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
+import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -1203,19 +1204,95 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('prepareChat routes the exact chat without starting a turn and skips archived sessions', async () => {
+	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {
 		registerTestAgentProvider(service, copilotAgent);
 		const session = await service.createSession({ provider: 'copilot' });
 		const chat = URI.parse(buildDefaultChatUri(session.toString()));
-		service.addSubscriber(chat, 'prepare-test');
 		const calls: string[] = [];
-		const result = { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
-		copilotAgent.chats.prepareChat = async resource => { calls.push(resource.toString()); return result; };
-		const blocked = await service.prepareChat(chat);
+		const error = { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' };
+		let locked = true;
+		copilotAgent.chats.prepareChat = async resource => { calls.push(resource.toString()); return locked ? { error } : {}; };
+		const stateManager = getStateManager(service);
+		const read = () => ({ input: readChatInputState(stateManager.getSessionState(session.toString()), chat.toString()), interactivity: stateManager.getChatState(chat.toString())?.interactivity });
+		await service.subscribe(chat, 'client-one');
+		const blocked = read();
+		await service.subscribe(chat, 'client-two');
+		locked = false;
+		await service.subscribe(chat, 'client-one');
+		const ready = read();
 		getStateManager(service).dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
-		const archived = await service.prepareChat(chat);
-		assert.deepStrictEqual({ calls, blocked, archived, turns: getStateManager(service).getChatState(chat.toString())?.turns }, {
-			calls: [chat.toString()], blocked: result, archived: {}, turns: [],
+		await service.subscribe(chat, 'client-one');
+		assert.deepStrictEqual({ calls, blocked, ready, turns: stateManager.getChatState(chat.toString())?.turns }, {
+			calls: [chat.toString(), chat.toString(), chat.toString()],
+			blocked: { input: { kind: 'blocked', error }, interactivity: ChatInteractivity.ReadOnly },
+			ready: { input: undefined, interactivity: ChatInteractivity.Full }, turns: [],
+		});
+	});
+
+	test('closing the last view invalidates a pending writer check', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		const session = await service.createSession({ provider: 'copilot' });
+		const chat = URI.parse(buildDefaultChatUri(session.toString()));
+		const started = new DeferredPromise<void>();
+		const completed = new DeferredPromise<void>();
+		copilotAgent.chats.prepareChat = async () => {
+			started.complete();
+			await completed.p;
+			return { error: { errorType: 'CodexThreadInUse', message: 'Locked' } };
+		};
+		let active = true;
+		const subscribing = service.subscribe(chat, 'client', () => active);
+		const rejected = assert.rejects(subscribing, /Subscription cancelled/);
+		await started.p;
+		active = false;
+		service.unsubscribe(chat, 'client');
+		await completed.complete();
+		await rejected;
+		const stateManager = getStateManager(service);
+		assert.deepStrictEqual({
+			input: readChatInputState(stateManager.getSessionState(session.toString()), chat.toString()),
+			readOnly: stateManager.getChatState(chat.toString())?.interactivity === ChatInteractivity.ReadOnly,
+		}, { input: undefined, readOnly: false });
+	});
+
+	test('writer checks for sibling chats preserve independent restrictions and metadata', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		copilotAgent.createChat = async () => ({ providerData: 'peer' });
+		const session = await service.createSession({ provider: 'copilot' });
+		const chat = URI.parse(buildDefaultChatUri(session.toString()));
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, peer);
+		const stateManager = getStateManager(service);
+		stateManager.setSessionMeta(session.toString(), { unrelated: 'preserved' });
+		let firstLocked = true;
+		copilotAgent.chats.prepareChat = async resource => firstLocked || resource.toString() === peer.toString()
+			? { error: { errorType: 'CodexThreadInUse', message: 'Locked' } } : {};
+		await Promise.all([service.subscribe(chat, 'client'), service.subscribe(peer, 'client')]);
+		firstLocked = false;
+		await service.subscribe(chat, 'client');
+		const state = stateManager.getSessionState(session.toString());
+		assert.deepStrictEqual({
+			first: readChatInputState(state, chat.toString()),
+			peer: readChatInputState(state, peer.toString()),
+			unrelated: state?._meta?.unrelated,
+			interactivity: state?.chats.map(chat => chat.interactivity),
+		}, {
+			first: undefined, peer: { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } },
+			unrelated: 'preserved', interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly],
+		});
+	});
+
+	test('a writer conflict during a turn blocks further sends through shared state', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		const session = await service.createSession({ provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const error = { errorType: 'CodexThreadInUse', message: 'Locked' };
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'failed', startedAt: '2026-09-25T00:00:00.000Z', message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatError, turnId: 'failed', duration: 0, part: createErrorResponsePart(error) });
+		const state = stateManager.getChatState(chat);
+		assert.deepStrictEqual({ input: readChatInputState(stateManager.getSessionState(session.toString()), chat), interactivity: state?.interactivity, error: state?.turns.at(-1)?.responseParts.at(-1) }, {
+			input: { kind: 'blocked', error }, interactivity: ChatInteractivity.ReadOnly, error: createErrorResponsePart(error),
 		});
 	});
 
