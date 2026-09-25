@@ -206,23 +206,18 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
 				const startLine = ranges.start - 1;
 				const endLine = ranges.end - 1;
-				let adjustmentPending = false;
+				let continuousReadStartLine: number | undefined = undefined;
+				let adjustedStartLine: number | undefined = undefined;
+				let adjustedEndLine: number | undefined = undefined;
 				try {
-					const continuousReadStart = this.isContinuousRead(options.chatSessionResource, uri, startLine);
-					if (continuousReadStart !== undefined && continuousReadStart >= 0 && continuousReadStart < startLine) {
-						if (doRealLineAdjustment) {
-							ranges = {
-								start: continuousReadStart + 1,
-								end: ranges.end,
-								truncated: ranges.truncated,
-							};
-						}
-						this.sendContinuousRegionTelemetry(options, startLine - continuousReadStart, documentSnapshot);
+					continuousReadStartLine = this.isContinuousRead(options.chatSessionResource, uri, startLine);
+					if (continuousReadStartLine !== undefined && continuousReadStartLine >= 0 && continuousReadStartLine < startLine) {
+						adjustedStartLine = continuousReadStartLine;
+						this.sendContinuousRegionTelemetry(options, startLine - continuousReadStartLine, documentSnapshot);
 					} else {
 						const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
 						if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
 							if (this.beginReadAdjustment(options.chatSessionResource, uri, startLine, endLine)) {
-								adjustmentPending = true;
 								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
 								const adjustedRange = regionResult?.regions[0]?.range;
 								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
@@ -230,15 +225,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 									// For telemetry purpose send the adjusted region information
 									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, documentSnapshot);
 									if (adjustedRange.end >= startLine && adjustedRange.end < endLine) {
-										if (doRealLineAdjustment) {
-											ranges = {
-												start: ranges.start,
-												end: adjustedRange.end + 1,
-												truncated: ranges.truncated,
-											};
-										}
-										this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, startLine, adjustedRange.end);
-										adjustmentPending = false;
+										adjustedEndLine = adjustedRange.end;
 									}
 								} else {
 									if (documentSnapshot.version === documentSnapshot.document.version) {
@@ -264,8 +251,17 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception', documentSnapshot);
 					// this.logService.error(`Error processing grep result for requestId ${options.chatRequestId}: ${err}`);
 				} finally {
-					if (adjustmentPending) {
+					if (adjustedStartLine !== undefined || adjustedEndLine !== undefined) {
+						this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
+					} else{
 						this.cancelReadAdjustment(options.chatSessionResource, uri, startLine, endLine);
+					}
+					if (doRealLineAdjustment) {
+						ranges = {
+							start: adjustedStartLine !== undefined ? adjustedStartLine + 1: ranges.start,
+							end: adjustedEndLine !== undefined ? adjustedEndLine + 1 : ranges.end,
+							truncated: ranges.truncated,
+						};
 					}
 				}
 			}
