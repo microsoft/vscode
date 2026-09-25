@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { ITableRenderer, ITableVirtualDelegate } from '../../../../../base/browser/ui/table/table.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -41,9 +42,13 @@ import type { IContextMenuProvider } from '../../../../../base/browser/contextme
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { autorun, waitForState } from '../../../../../base/common/observable.js';
+import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 const $ = DOM.$;
 const INSTALL_REGISTRATION_TIMEOUT = 10_000;
+const PLUGIN_DETAIL_TABLE_HEADER_HEIGHT = 30;
+const PLUGIN_DETAIL_TABLE_ROW_HEIGHT = 24;
 
 export interface IPluginReadme {
 	readonly content: string;
@@ -145,9 +150,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
 	private readonly sourceFactsEl: HTMLElement;
-	private readonly factsEl: HTMLElement;
+	private readonly factsTableContainer: HTMLElement;
+	private readonly factsTable: WorkbenchTable<IPluginFactRow>;
 	private readonly contributionsEl: HTMLElement;
-	private readonly contributionsListEl: HTMLElement;
+	private readonly contributionsTableContainer: HTMLElement;
+	private readonly contributionsTable: WorkbenchTable<IPluginContributionRow>;
+	private readonly contributionsEmptyEl: HTMLElement;
 	private readonly readmeEl: HTMLElement;
 	private readonly readmeContentEl: HTMLElement;
 	private readonly emptyEl: HTMLElement;
@@ -161,8 +169,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
 	private updateEnablementAction: (() => void) | undefined;
-	private pluginVersionRowEl: HTMLElement | undefined;
-	private pluginVersionValueEl: HTMLElement | undefined;
 	private renderedPolicyEnablement: boolean | undefined;
 
 	constructor(
@@ -179,6 +185,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -191,6 +198,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				if (this.narrowLayout !== narrow) {
 					this.narrowLayoutUpdate.value = DOM.scheduleAtNextAnimationFrame(targetWindow, () => this.updateNarrowLayout(narrow));
 				}
+				this.layoutTables();
 			},
 			targetWindow,
 		));
@@ -212,12 +220,15 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.sourceFactsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-source-facts'));
 		const sourceFactsTitle = DOM.append(this.sourceFactsEl, $('h3.embedded-detail-section-title'));
 		sourceFactsTitle.textContent = localize('pluginSourceFactsTitle', "Details");
-		this.factsEl = DOM.append(this.sourceFactsEl, $('.embedded-detail-facts.plugin-detail-flat-list'));
+		this.factsTableContainer = DOM.append(this.sourceFactsEl, $('.plugin-detail-table.plugin-detail-facts-table'));
+		this.factsTable = this.createFactsTable();
 
 		this.contributionsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-contributions'));
 		const contributionsTitle = DOM.append(this.contributionsEl, $('h3.embedded-detail-section-title'));
 		contributionsTitle.textContent = localize('pluginContributionsTitle', "Contains");
-		this.contributionsListEl = DOM.append(this.contributionsEl, $('.embedded-detail-chip-list.plugin-detail-flat-list'));
+		this.contributionsTableContainer = DOM.append(this.contributionsEl, $('.plugin-detail-table.plugin-detail-contributions-table'));
+		this.contributionsTable = this.createContributionsTable();
+		this.contributionsEmptyEl = DOM.append(this.contributionsEl, $('.plugin-detail-contribution-empty'));
 		this.readmeEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-readme'));
 		const readmeTitle = DOM.append(this.readmeEl, $('h3.plugin-detail-contribution-group-title'));
 		const readmeLabel = DOM.append(readmeTitle, $('span.plugin-detail-contribution-title-label'));
@@ -236,6 +247,142 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.narrowLayout = narrow;
 		this.root.classList.toggle('narrow-layout', narrow);
 		this._onDidChangeContent.fire();
+	}
+
+	private createFactsTable(): WorkbenchTable<IPluginFactRow> {
+		const labelRenderer = new PluginDetailTextColumnRenderer<IPluginFactRow>(
+			'plugin-detail-fact-label',
+			'plugin-detail-table-label',
+			row => row.label,
+		);
+		const valueRenderer = new PluginFactValueColumnRenderer((row, container, disposables) => this.renderFactValue(row, container, disposables));
+		return this._register(this.instantiationService.createInstance(
+			WorkbenchTable<IPluginFactRow>,
+			'PluginDetails',
+			this.factsTableContainer,
+			new PluginDetailTableDelegate(),
+			[
+				{
+					label: localize('pluginDetailPropertyColumn', "Property"),
+					tooltip: '',
+					weight: 0.3,
+					minimumWidth: 100,
+					templateId: labelRenderer.templateId,
+					project: row => row,
+				},
+				{
+					label: localize('pluginDetailValueColumn', "Value"),
+					tooltip: '',
+					weight: 0.7,
+					minimumWidth: 140,
+					templateId: valueRenderer.templateId,
+					project: row => row,
+				},
+			],
+			[labelRenderer, valueRenderer],
+			{
+				identityProvider: { getId: row => row.id },
+				horizontalScrolling: false,
+				accessibilityProvider: {
+					getWidgetAriaLabel: () => localize('pluginDetailsTableAriaLabel', "Plugin details"),
+					getAriaLabel: row => localize('pluginDetailTableRowAriaLabel', "{0}, {1}", row.label, row.value),
+				},
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => `${row.label} ${row.value}` },
+				multipleSelectionSupport: false,
+				setRowLineHeight: false,
+				openOnSingleClick: false,
+				alwaysConsumeMouseWheel: false,
+			},
+		));
+	}
+
+	private createContributionsTable(): WorkbenchTable<IPluginContributionRow> {
+		const typeRenderer = new PluginDetailTextColumnRenderer<IPluginContributionRow>(
+			'plugin-detail-contribution-type',
+			'plugin-detail-table-type',
+			row => row.type,
+		);
+		const nameRenderer = new PluginDetailTextColumnRenderer<IPluginContributionRow>(
+			'plugin-detail-contribution-name',
+			'plugin-detail-table-name',
+			row => row.name,
+			row => !!row.action,
+		);
+		const descriptionRenderer = new PluginDetailTextColumnRenderer<IPluginContributionRow>(
+			'plugin-detail-contribution-description',
+			'plugin-detail-table-description',
+			row => row.description ?? '',
+		);
+		const table = this._register(this.instantiationService.createInstance(
+			WorkbenchTable<IPluginContributionRow>,
+			'PluginContents',
+			this.contributionsTableContainer,
+			new PluginDetailTableDelegate(),
+			[
+				{
+					label: localize('pluginDetailTypeColumn', "Type"),
+					tooltip: '',
+					weight: 0.2,
+					minimumWidth: 80,
+					templateId: typeRenderer.templateId,
+					project: row => row,
+				},
+				{
+					label: localize('pluginDetailNameColumn', "Name"),
+					tooltip: '',
+					weight: 0.3,
+					minimumWidth: 100,
+					templateId: nameRenderer.templateId,
+					project: row => row,
+				},
+				{
+					label: localize('pluginDetailDescriptionColumn', "Description"),
+					tooltip: '',
+					weight: 0.5,
+					minimumWidth: 100,
+					templateId: descriptionRenderer.templateId,
+					project: row => row,
+				},
+			],
+			[typeRenderer, nameRenderer, descriptionRenderer],
+			{
+				identityProvider: { getId: row => row.id },
+				horizontalScrolling: false,
+				accessibilityProvider: {
+					getWidgetAriaLabel: () => localize('pluginContentsTableAriaLabel', "Plugin contents"),
+					getAriaLabel: row => row.description
+						? localize('pluginContentTableRowWithDescriptionAriaLabel', "{0}, {1}, {2}", row.type, row.name, row.description)
+						: localize('pluginContentTableRowAriaLabel', "{0}, {1}", row.type, row.name),
+				},
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => `${row.type} ${row.name}` },
+				multipleSelectionSupport: false,
+				setRowLineHeight: false,
+				openOnSingleClick: true,
+				alwaysConsumeMouseWheel: false,
+			},
+		));
+		this._register(table.onDidOpen(event => {
+			if (event.element) {
+				this.openContribution(event.element);
+			}
+		}));
+		return table;
+	}
+
+	private setTableRows<TRow>(container: HTMLElement, table: WorkbenchTable<TRow>, rows: readonly TRow[]): void {
+		table.splice(0, Number.POSITIVE_INFINITY, rows);
+		const height = PLUGIN_DETAIL_TABLE_HEADER_HEIGHT + rows.length * PLUGIN_DETAIL_TABLE_ROW_HEIGHT;
+		container.style.height = `${height}px`;
+		table.layout(height, container.clientWidth);
+	}
+
+	private layoutTables(): void {
+		if (this.factsTableContainer?.offsetParent && this.factsTable) {
+			this.factsTable.layout(this.factsTableContainer.clientHeight, this.factsTableContainer.clientWidth);
+		}
+		if (this.contributionsTableContainer?.offsetParent && this.contributionsTable) {
+			this.contributionsTable.layout(this.contributionsTableContainer.clientHeight, this.contributionsTableContainer.clientWidth);
+		}
 	}
 
 	get element(): HTMLElement {
@@ -290,8 +437,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const readmeRenderGeneration = this.readmeRenderGuard.begin();
 		this.renderDisposables.clear();
 		this.updateEnablementAction = undefined;
-		this.pluginVersionRowEl = undefined;
-		this.pluginVersionValueEl = undefined;
 		const item = this.current;
 		const hasItem = !!item;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
@@ -302,9 +447,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 			DOM.clearNode(this.titleActionsEl);
 			this.descriptionEl.textContent = '';
-			DOM.clearNode(this.factsEl);
+			this.setTableRows(this.factsTableContainer, this.factsTable, []);
 			this.sourceFactsEl.style.display = 'none';
-			DOM.clearNode(this.contributionsListEl);
+			this.setTableRows(this.contributionsTableContainer, this.contributionsTable, []);
+			this.contributionsEmptyEl.textContent = '';
 			this.contributionsEl.style.display = 'none';
 			DOM.clearNode(this.readmeContentEl);
 			this.readmeEl.style.display = 'none';
@@ -321,8 +467,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		DOM.clearNode(this.titleActionsEl);
-		DOM.clearNode(this.factsEl);
-		DOM.clearNode(this.contributionsListEl);
 
 		this.renderTitleActions(item);
 		this.renderFacts(item);
@@ -344,7 +488,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		this.updateEnablementAction?.();
-		this.updatePluginVersionFact(item);
+		this.renderFacts(item);
 		this._onDidChangeContent.fire();
 	}
 
@@ -500,71 +644,65 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		};
 	}
 
-	private renderMarketplaceLink(label: string, uri: URI | undefined): HTMLElement {
-		if (uri) {
-			const link = $('a.embedded-detail-fact-link') as HTMLAnchorElement;
-			link.href = uri.toString();
-			link.textContent = label;
-			this.renderDisposables.add(DOM.addDisposableListener(link, 'click', e => {
-				e.preventDefault();
-				this.openerService.open(uri);
-			}));
-			return link;
-		} else {
-			const value = $('span');
-			value.textContent = label;
-			return value;
-		}
-	}
-
 	private renderFacts(item: IAgentPluginItem): void {
 		this.sourceFactsEl.style.display = '';
+		const rows: IPluginFactRow[] = [];
+		const version = getPluginVersion(item);
+		if (version) {
+			rows.push({
+				id: 'version',
+				label: localize('pluginDetailVersion', "Version"),
+				value: version,
+			});
+		}
 		if (item.kind === AgentPluginItemKind.Marketplace) {
-			this.appendPluginVersionFact(item);
-			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
+			rows.push({
+				id: 'marketplace',
+				label: localize('pluginDetailMarketplace', "Marketplace"),
+				value: item.marketplace,
+				link: getMarketplaceUri(item),
+			});
+			this.setTableRows(this.factsTableContainer, this.factsTable, rows);
 			return;
 		}
 
-		this.appendPluginVersionFact(item);
 		if (item.marketplace) {
-			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined));
+			rows.push({
+				id: 'marketplace',
+				label: localize('pluginDetailMarketplace', "Marketplace"),
+				value: item.marketplace,
+				link: item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined,
+			});
 		}
-		this.appendFact(this.factsEl, localize('pluginDetailLocation', "Location"), this.createLocationValue(item.plugin.uri));
+		rows.push({
+			id: 'location',
+			label: localize('pluginDetailLocation', "Location"),
+			value: this.labelService.getUriLabel(item.plugin.uri, { relative: true }),
+			location: item.plugin.uri,
+		});
+		this.setTableRows(this.factsTableContainer, this.factsTable, rows);
 	}
 
-	private appendPluginVersionFact(item: IAgentPluginItem): void {
-		const row = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
-		DOM.append(row, $('.embedded-detail-fact-label')).textContent = localize('pluginDetailVersion', "Version");
-		this.pluginVersionValueEl = DOM.append(row, $('.embedded-detail-fact-value'));
-		this.pluginVersionRowEl = row;
-		this.updatePluginVersionFact(item);
-	}
-
-	private updatePluginVersionFact(item: IAgentPluginItem): void {
-		const version = getPluginVersion(item);
-		if (this.pluginVersionRowEl && this.pluginVersionValueEl) {
-			this.pluginVersionRowEl.style.display = version ? '' : 'none';
-			this.pluginVersionValueEl.textContent = version ?? '';
-		}
-	}
-
-	private appendFact(parent: HTMLElement, label: string, value: string | HTMLElement): void {
-		const row = DOM.append(parent, $('.embedded-detail-fact-row'));
-		const labelEl = DOM.append(row, $('.embedded-detail-fact-label'));
-		labelEl.textContent = label;
-		const valueEl = DOM.append(row, $('.embedded-detail-fact-value'));
-		if (typeof value === 'string') {
-			valueEl.textContent = value;
+	private renderFactValue(row: IPluginFactRow, container: HTMLElement, disposables: DisposableStore): void {
+		if (row.location) {
+			container.appendChild(this.createLocationValue(row.location, row.value, disposables));
+		} else if (row.link) {
+			const link = DOM.append(container, $('a.plugin-detail-table-link')) as HTMLAnchorElement;
+			link.href = row.link.toString();
+			link.textContent = row.value;
+			disposables.add(DOM.addDisposableListener(link, 'click', event => {
+				event.preventDefault();
+				this.openerService.open(row.link!);
+			}));
 		} else {
-			valueEl.classList.add('has-actions');
-			valueEl.appendChild(value);
+			container.textContent = row.value;
 		}
 	}
 
-	private createLocationValue(uri: URI): HTMLElement {
+	private createLocationValue(uri: URI, text: string, disposables: DisposableStore): HTMLElement {
 		const container = $('.embedded-detail-location-value');
 		const label = DOM.append(container, $('span.embedded-detail-location-label'));
-		label.textContent = this.labelService.getUriLabel(uri, { relative: true });
+		label.textContent = text;
 		label.title = uri.fsPath || uri.toString();
 		const copyPluginPathLabel = localize('copyPluginPath', "Copy Plugin Path");
 		let copyPluginPathTooltip = copyPluginPathLabel;
@@ -574,11 +712,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			buttonSecondaryHoverBackground: undefined,
 			buttonSecondaryBorder: undefined,
 		});
-		const copyButton = this.renderDisposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: copyPluginPathLabel, ariaLabel: copyPluginPathLabel }));
+		const copyButton = disposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: copyPluginPathLabel, ariaLabel: copyPluginPathLabel }));
 		copyButton.element.classList.add('embedded-detail-copy-button');
 		copyButton.label = `$(${Codicon.copy.id})`;
-		this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), copyButton.element, () => copyPluginPathTooltip));
-		this.renderDisposables.add(copyButton.onDidClick(async () => {
+		disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), copyButton.element, () => copyPluginPathTooltip));
+		disposables.add(copyButton.onDidClick(async () => {
 			await this.clipboardService.writeText(uri.fsPath || uri.toString());
 			copyButton.label = `$(${Codicon.check.id})`;
 			copyPluginPathTooltip = localize('copiedPluginPath', "Copied");
@@ -591,11 +729,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			}, 1200);
 		}));
 		const openPluginFolderLabel = localize('openPluginFolder', "Open Plugin Folder");
-		const openButton = this.renderDisposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: openPluginFolderLabel, ariaLabel: openPluginFolderLabel }));
+		const openButton = disposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: openPluginFolderLabel, ariaLabel: openPluginFolderLabel }));
 		openButton.element.classList.add('embedded-detail-copy-button');
 		openButton.label = `$(${Codicon.folderOpened.id})`;
-		this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), openButton.element, openPluginFolderLabel));
-		this.renderDisposables.add(openButton.onDidClick(async () => {
+		disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), openButton.element, openPluginFolderLabel));
+		disposables.add(openButton.onDidClick(async () => {
 			try {
 				await this.commandService.executeCommand('revealFileInOS', uri);
 			} catch {
@@ -656,58 +794,134 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderContributions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			this.contributionsEl.style.display = '';
-			const empty = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-empty'));
-			empty.textContent = localize('pluginMarketplaceContributionsUnavailable', "Contribution details are available after install when the plugin can be inspected locally.");
+			this.contributionsTableContainer.style.display = 'none';
+			this.contributionsEmptyEl.style.display = '';
+			this.contributionsEmptyEl.textContent = localize('pluginMarketplaceContributionsUnavailable', "Contribution details are available after install when the plugin can be inspected locally.");
+			this.setTableRows(this.contributionsTableContainer, this.contributionsTable, []);
 			return;
 		}
 
 		const entries = getInstalledPluginContributionEntries(item);
+		const rows = entries.flatMap((entry, entryIndex) => entry.items.map((contribution, contributionIndex): IPluginContributionRow => ({
+			id: `${entry.kind}:${entryIndex}:${contributionIndex}`,
+			type: entry.label,
+			name: contribution.name,
+			description: contribution.description,
+			action: getPluginContributionAction(entry.kind, contribution.uri),
+		})));
+		this.contributionsEl.style.display = rows.length > 0 ? '' : 'none';
+		this.contributionsTableContainer.style.display = '';
+		this.contributionsEmptyEl.style.display = 'none';
+		this.contributionsEmptyEl.textContent = '';
+		this.setTableRows(this.contributionsTableContainer, this.contributionsTable, rows);
+	}
 
-		this.contributionsEl.style.display = entries.length > 0 ? '' : 'none';
-		for (const entry of entries) {
-			const section = DOM.append(this.contributionsListEl, $('.plugin-detail-contribution-section'));
-			const header = DOM.append(section, $('.plugin-detail-contribution-group-title'));
-			const label = DOM.append(header, $('span.plugin-detail-contribution-title-label'));
-			label.textContent = entry.label;
-			const count = DOM.append(header, $('span.plugin-detail-contribution-title-count'));
-			count.textContent = String(entry.items.length);
-			const group = DOM.append(section, $('.plugin-detail-contribution-group'));
-			const list = DOM.append(group, $('.plugin-detail-contribution-list'));
-			for (const contribution of entry.items) {
-				const row = DOM.append(list, $('.plugin-detail-contribution-row'));
-				if (entry.kind === 'skills' && contribution.uri) {
-					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
-					button.type = 'button';
-					button.textContent = contribution.name;
-					button.setAttribute('aria-label', localize('openSkillContribution', "Open skill {0}", contribution.name));
-					this.renderDisposables.add(DOM.addDisposableListener(button, 'click', () => this._onDidRequestOpenSkill.fire(contribution.uri!)));
-				} else if (entry.kind === 'agents' && contribution.uri) {
-					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
-					button.type = 'button';
-					button.textContent = contribution.name;
-					button.setAttribute('aria-label', localize('openAgentContribution', "Open agent {0}", contribution.name));
-					this.renderDisposables.add(DOM.addDisposableListener(button, 'click', () => this._onDidRequestOpenAgent.fire(contribution.uri!)));
-				} else if (entry.kind === 'mcp') {
-					const button = DOM.append(row, $('button.plugin-detail-contribution-name.plugin-detail-contribution-link')) as HTMLButtonElement;
-					button.type = 'button';
-					button.textContent = contribution.name;
-					button.setAttribute('aria-label', localize('openMcpSectionForContribution', "Open MCP Servers"));
-					this.renderDisposables.add(DOM.addDisposableListener(button, 'click', () => this._onDidRequestOpenSection.fire(AICustomizationManagementSection.McpServers)));
-				} else {
-					const name = DOM.append(row, $('.plugin-detail-contribution-name'));
-					name.textContent = contribution.name;
-				}
-				if (contribution.description && entry.kind !== 'skills') {
-					const description = DOM.append(row, $('.plugin-detail-contribution-description'));
-					description.textContent = contribution.description;
-				}
-			}
+	private openContribution(row: IPluginContributionRow): void {
+		if (!row.action) {
+			return;
+		}
+		switch (row.action.kind) {
+			case 'skill':
+				this._onDidRequestOpenSkill.fire(row.action.uri);
+				break;
+			case 'agent':
+				this._onDidRequestOpenAgent.fire(row.action.uri);
+				break;
+			case 'mcp':
+				this._onDidRequestOpenSection.fire(AICustomizationManagementSection.McpServers);
+				break;
 		}
 	}
 }
 
+class PluginDetailTableDelegate implements ITableVirtualDelegate<IPluginFactRow | IPluginContributionRow> {
+	readonly headerRowHeight = PLUGIN_DETAIL_TABLE_HEADER_HEIGHT;
+
+	getHeight(): number {
+		return PLUGIN_DETAIL_TABLE_ROW_HEIGHT;
+	}
+}
+
+interface IPluginDetailTextColumnTemplateData {
+	readonly element: HTMLElement;
+}
+
+class PluginDetailTextColumnRenderer<TRow> implements ITableRenderer<TRow, IPluginDetailTextColumnTemplateData> {
+	constructor(
+		readonly templateId: string,
+		private readonly className: string,
+		private readonly getText: (row: TRow) => string,
+		private readonly isLink?: (row: TRow) => boolean,
+	) { }
+
+	renderTemplate(container: HTMLElement): IPluginDetailTextColumnTemplateData {
+		return { element: DOM.append(container, $(`.${this.className}`)) };
+	}
+
+	renderElement(row: TRow, index: number, templateData: IPluginDetailTextColumnTemplateData): void {
+		const text = this.getText(row);
+		templateData.element.textContent = text;
+		templateData.element.title = text;
+		templateData.element.classList.toggle('plugin-detail-table-link', this.isLink?.(row) ?? false);
+	}
+
+	disposeTemplate(): void { }
+}
+
+interface IPluginFactValueColumnTemplateData {
+	readonly element: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
+class PluginFactValueColumnRenderer implements ITableRenderer<IPluginFactRow, IPluginFactValueColumnTemplateData> {
+	readonly templateId = 'plugin-detail-fact-value';
+
+	constructor(private readonly renderValue: (row: IPluginFactRow, container: HTMLElement, disposables: DisposableStore) => void) { }
+
+	renderTemplate(container: HTMLElement): IPluginFactValueColumnTemplateData {
+		return {
+			element: DOM.append(container, $('.plugin-detail-table-value')),
+			disposables: new DisposableStore(),
+		};
+	}
+
+	renderElement(row: IPluginFactRow, index: number, templateData: IPluginFactValueColumnTemplateData): void {
+		templateData.disposables.clear();
+		DOM.clearNode(templateData.element);
+		templateData.element.title = row.location ? row.location.fsPath || row.location.toString() : row.value;
+		this.renderValue(row, templateData.element, templateData.disposables);
+	}
+
+	disposeTemplate(templateData: IPluginFactValueColumnTemplateData): void {
+		templateData.disposables.dispose();
+	}
+}
+
+interface IPluginFactRow {
+	readonly id: string;
+	readonly label: string;
+	readonly value: string;
+	readonly link?: URI;
+	readonly location?: URI;
+}
+
+type PluginContributionKind = 'agents' | 'skills' | 'commands' | 'instructions' | 'mcp' | 'hooks' | 'automations';
+
+type PluginContributionAction =
+	| { readonly kind: 'agent'; readonly uri: URI }
+	| { readonly kind: 'skill'; readonly uri: URI }
+	| { readonly kind: 'mcp' };
+
+interface IPluginContributionRow {
+	readonly id: string;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly action?: PluginContributionAction;
+}
+
 interface IPluginContributionEntry {
-	readonly kind: string;
+	readonly kind: PluginContributionKind;
 	readonly label: string;
 	readonly items: readonly { name: string; description?: string; uri?: URI }[];
 }
@@ -728,10 +942,23 @@ function getInstalledPluginContributionEntries(item: Extract<IAgentPluginItem, {
 	return entries;
 }
 
-function appendContributionEntry(entries: IPluginContributionEntry[], kind: string, label: string | undefined, items: readonly { name: string; description?: string; uri?: URI }[]): void {
+function appendContributionEntry(entries: IPluginContributionEntry[], kind: PluginContributionKind, label: string | undefined, items: readonly { name: string; description?: string; uri?: URI }[]): void {
 	if (label && items.length > 0) {
 		entries.push({ kind, label, items });
 	}
+}
+
+function getPluginContributionAction(kind: PluginContributionKind, uri: URI | undefined): PluginContributionAction | undefined {
+	if (kind === 'skills' && uri) {
+		return { kind: 'skill', uri };
+	}
+	if (kind === 'agents' && uri) {
+		return { kind: 'agent', uri };
+	}
+	if (kind === 'mcp') {
+		return { kind: 'mcp' };
+	}
+	return undefined;
 }
 
 export function getPluginVersion(item: IAgentPluginItem): string | undefined {
