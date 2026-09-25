@@ -892,6 +892,34 @@ suite('ChatStateSubscription', () => {
 			turns: [{ id: 'turn-1', state: TurnState.Complete }],
 		});
 	});
+
+	test('stranded optimistic turn start does not reset a confirmed streaming turn', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const turnStarted: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+
+		sub.applyOptimistic(turnStarted);
+		sub.receiveEnvelope(makeEnvelope(turnStarted, 1, undefined));
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatResponsePart,
+			turnId: 'turn-1',
+			part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hel' },
+		}, 2, undefined));
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'part-1', content: 'lo' }, 3, undefined));
+
+		assert.deepStrictEqual({
+			pendingActions: sub.getPendingActions().length,
+			responseParts: (sub.value as ChatState | undefined)?.activeTurn?.responseParts,
+		}, {
+			pendingActions: 1,
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hello' }],
+		});
+	});
 });
 
 // TerminalStateSubscription
