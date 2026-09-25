@@ -29,7 +29,7 @@ export interface ITestSessionSpec {
 	readonly title: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
-	readonly workspaceFolders?: readonly string[];
+	readonly workspaceFolders?: readonly [string, ...string[]];
 	readonly isQuickChat?: boolean;
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
@@ -78,7 +78,7 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string, folderLabels: readonly string[] = [label]): ISessionWorkspace {
+export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label]): ISessionWorkspace {
 	const folders = folderLabels.map(folderLabel => {
 		const root = URI.file(`/home/user/projects/${folderLabel}`);
 		return { root, workingDirectory: root, name: folderLabel, description: undefined };
