@@ -62,8 +62,6 @@ if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
-		console.error('\x1b[1;31m*** If you have Visual Studio installed in a custom location, you can specify it via the environment variable:\x1b[0;0m');
-		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
 }
@@ -76,42 +74,68 @@ if (process.arch !== os.arch()) {
 }
 
 function hasSupportedVisualStudioVersion() {
-	// Translated over from
-	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019'];
-
-	const availableVersions = [];
-	for (const version of supportedVersions) {
-		// Check environment variable first (explicit override)
-		let vsPath = process.env[`vs${version}_install`];
-		if (vsPath && fs.existsSync(vsPath)) {
-			availableVersions.push(version);
-			break;
-		}
-
-		// Check default installation paths
-		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		const programFiles64Path = process.env['ProgramFiles'];
-
-		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
-		if (programFiles64Path) {
-			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
-				break;
-			}
-		}
-
-		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
-				break;
-			}
-		}
+	const vswherePath = [process.env['ProgramFiles(x86)'], process.env['ProgramFiles']]
+		.filter(programFilesPath => programFilesPath !== undefined)
+		.map(programFilesPath => path.join(programFilesPath, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe'))
+		.find(candidate => fs.existsSync(candidate));
+	if (vswherePath === undefined) {
+		return false;
 	}
 
-	return availableVersions.length;
+	const targetArch = process.env['npm_config_arch'] ?? process.arch;
+	const architectureComponents = targetArch === 'arm64'
+		? [
+			'Microsoft.VisualStudio.Component.VC.Runtimes.ARM64.Spectre',
+			'Microsoft.VisualStudio.Component.VC.ATL.ARM64.Spectre',
+			'Microsoft.VisualStudio.Component.VC.MFC.ARM64.Spectre',
+		]
+		: [
+			'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre',
+			'Microsoft.VisualStudio.Component.VC.ATL.Spectre',
+			'Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre',
+		];
+
+	const baseComponents = [
+		'Microsoft.VisualStudio.Workload.VCTools',
+		'Microsoft.VisualStudio.Component.Windows1?SDK.?????',
+	];
+
+	const findLatestInstallation = (requiredComponents: string[]) => {
+		const result = child_process.spawnSync(vswherePath, [
+			'-latest',
+			'-products', '*',
+			'-prerelease',
+			'-version', '[16.0,19.0)',
+			'-requires', ...requiredComponents,
+			'-property', 'installationPath',
+		], { encoding: 'utf8' });
+
+		if (result.error) {
+			console.error(`\x1b[1;31m*** Failed to query Visual Studio installations: ${result.error.message}\x1b[0;0m`);
+			return undefined;
+		}
+		if (result.status !== 0) {
+			console.error(`\x1b[1;31m*** Failed to query Visual Studio installations: ${result.stderr.trim()}\x1b[0;0m`);
+			return undefined;
+		}
+
+		return result.stdout.trim() || undefined;
+	};
+
+	// Validate the newest base toolchain because that is the installation node-gyp will prefer.
+	const selectedInstallation = findLatestInstallation(baseComponents);
+	if (selectedInstallation === undefined) {
+		return false;
+	}
+
+	const validInstallation = findLatestInstallation([...baseComponents, ...architectureComponents]);
+	if (validInstallation === undefined
+		|| path.resolve(validInstallation).toLowerCase() !== path.resolve(selectedInstallation).toLowerCase()) {
+		console.error(`\x1b[1;31m*** Visual Studio installation is missing required components: ${selectedInstallation}\x1b[0;0m`);
+		return false;
+	}
+
+	return true;
 }
 
 function installHeaders() {
