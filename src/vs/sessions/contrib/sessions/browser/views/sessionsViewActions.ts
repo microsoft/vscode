@@ -1502,7 +1502,11 @@ class RestoreActiveSessionAction extends BaseUnarchiveActiveSessionAction {
 	}
 }
 
-function getSessionsArchiveActionConstructors(wording: ChatSessionArchiveActionWording): readonly { new(): Action2 }[] {
+/**
+ * The archive actions for a wording. Both wordings share command ids, so only
+ * one set can be registered at a time.
+ */
+export function getSessionsArchiveActionConstructors(wording: ChatSessionArchiveActionWording): readonly { new(): Action2 }[] {
 	return wording === ChatSessionArchiveActionWording.MarkAsDone
 		? [
 			MarkSectionSessionsDoneAction,
