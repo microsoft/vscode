@@ -1521,7 +1521,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.setVisible(true);
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
-		await Promise.resolve();
+		editor.revealLastItem();
+		await timeout(50);
 		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
 	}
 	if (!discoverEnabled && !options.selectedSection) {
@@ -1865,10 +1866,6 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 		activeSessionMcpServers: inlineErrorMcpServers,
 		mcpSearchQuery: 'component',
 	});
-	const workspaceTab = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container [role="tab"]')]
-		.find(tab => tab.textContent?.includes('Workspace'));
-	assert(workspaceTab !== undefined, 'The fixture must render the Workspace MCP tab.');
-	workspaceTab.click();
 	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
@@ -2591,7 +2588,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tab.'],
+		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tree group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
