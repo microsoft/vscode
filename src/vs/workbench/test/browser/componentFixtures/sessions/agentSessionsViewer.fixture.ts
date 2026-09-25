@@ -167,7 +167,7 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
 	const sessionRenderer = disposableStore.add(
 		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
 	);
-	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer);
+	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer, () => true);
 	const now = Date.now();
 	const parentResource = URI.parse('vscode-chat-session://local/hierarchy');
 	const child = createMockSession({
@@ -178,7 +178,6 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
 		parentSession: {
 			resource: parentResource,
 			label: 'Hello Chat',
-			isLastChild: true,
 		},
 		timing: {
 			created: now - 4 * 24 * 60 * 60 * 1000,

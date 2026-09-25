@@ -236,7 +236,7 @@ suite('AgentSessionsDataSource', () => {
 				parentId: resource.toString(),
 				childId: `chat-${resource.with({ fragment: 'peer' }).toString()}`,
 				parentGroup: 1,
-				childGroup: 1,
+				childGroup: 2,
 			});
 		});
 

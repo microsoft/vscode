@@ -345,7 +345,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
 		template.description.textContent = '';
-		const hasChatChildren = !!session.element.children?.length;
+		const hasChatChildren = session.visibleChildrenCount > 0;
 		template.element.closest('.monaco-list-row')?.classList.toggle('has-chat-children', hasChatChildren);
 
 		// Archived
@@ -770,6 +770,7 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 
 	constructor(
 		private readonly sessionRenderer: AgentSessionRenderer,
+		private readonly isLastVisibleChat: (session: ITreeNode<IAgentSession, FuzzyScore>) => boolean,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) { }
 
@@ -811,7 +812,7 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		}
 
 		template.elementDisposable.clear();
-		template.element.classList.toggle('last-chat', session.element.parentSession.isLastChild === true);
+		template.element.classList.toggle('last-chat', this.isLastVisibleChat(session));
 		template.element.classList.toggle('needs-input', session.element.status === AgentSessionStatus.NeedsInput);
 		template.statusIcon.setStatus(session.element);
 
@@ -1730,7 +1731,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
 			return NotSelectableGroupId;
 		}
-		return 1;
+		return isAgentSession(element) && isAgentSessionChild(element) ? 2 : 1;
 	}
 }
 

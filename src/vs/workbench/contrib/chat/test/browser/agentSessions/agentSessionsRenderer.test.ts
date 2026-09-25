@@ -74,7 +74,7 @@ suite('AgentSessionsRenderer', () => {
 			undefined,
 			observableValue<URI | undefined>('activeSessionResource', undefined),
 		));
-		const renderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer);
+		const renderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer, (node: ITreeNode<IAgentSession, FuzzyScore>) => node.visibleChildIndex === 0);
 		const row = document.createElement('div');
 		row.classList.add('monaco-list-row');
 		const contents = document.createElement('div');
@@ -98,7 +98,6 @@ suite('AgentSessionsRenderer', () => {
 			parentSession: {
 				resource: parentResource,
 				label: 'Parent session',
-				isLastChild: true,
 			},
 			isArchived: () => false,
 			setArchived: () => { },

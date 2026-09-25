@@ -11,7 +11,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -224,13 +224,17 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 		};
-		const visibleChats = summary.chats?.filter(chat => chat.interactivity !== ChatInteractivity.Hidden);
-		if (!visibleChats?.length) {
+		if (!summary.chats?.length) {
 			return this._makeItem(rawId, base);
 		}
 
-		const defaultChat = visibleChats.find(chat => this._isDefaultChat(summary, chat));
-		const peerChats = visibleChats.filter(chat => chat !== defaultChat);
+		const defaultChat = summary.chats.find(chat => this._isDefaultChat(summary, chat));
+		const peerChats = summary.chats.filter(chat =>
+			chat !== defaultChat &&
+			chat.interactivity !== ChatInteractivity.Hidden &&
+			chat.origin?.kind !== ChatOriginKind.Tool &&
+			chat.origin?.kind !== ChatOriginKind.SideChat
+		);
 		return this._makeItem(rawId, {
 			...base,
 			title: defaultChat?.title || summary.title,

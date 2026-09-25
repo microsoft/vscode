@@ -2788,6 +2788,8 @@ suite('AgentHostChatContribution', () => {
 			const defaultChat = URI.parse(buildDefaultChatUri(session.toString()));
 			const peerChat = URI.parse(buildChatUri(session.toString(), 'peer-chat'));
 			const hiddenChat = URI.parse(buildChatUri(session.toString(), 'hidden-chat'));
+			const toolChat = URI.parse(buildChatUri(session.toString(), 'tool-chat'));
+			const sideChat = URI.parse(buildChatUri(session.toString(), 'side-chat'));
 			agentHostService.addSession({
 				session,
 				startTime: 1000,
@@ -2797,6 +2799,8 @@ suite('AgentHostChatContribution', () => {
 					{ chat: defaultChat, summary: 'Main chat', kind: 'default' },
 					{ chat: peerChat, summary: 'Peer chat', kind: 'peer' },
 					{ chat: hiddenChat, summary: 'Hidden chat', kind: 'peer', interactivity: ChatInteractivity.Hidden },
+					{ chat: toolChat, summary: 'Tool chat', kind: 'peer', origin: { kind: ChatOriginKind.Tool, chat: defaultChat.toString(), toolCallId: 'tool-call' } },
+					{ chat: sideChat, summary: 'Side chat', kind: 'peer', origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'turn' } },
 				],
 			});
 

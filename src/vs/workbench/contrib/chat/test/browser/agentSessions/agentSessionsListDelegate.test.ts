@@ -93,7 +93,6 @@ suite('AgentSessionsListDelegate', () => {
 			parentSession: {
 				resource: session.resource,
 				label: session.label,
-				isLastChild: true,
 			},
 		};
 		const delegate = new AgentSessionsListDelegate();

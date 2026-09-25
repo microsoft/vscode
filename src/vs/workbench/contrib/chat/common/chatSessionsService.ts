@@ -237,8 +237,8 @@ export interface IChatSessionItem {
 	readonly resource: URI;
 	readonly label: string;
 	/**
-	 * Child chats to present under this session. A session with children is a
-	 * grouping item; its children are the openable chat items.
+	 * Child chats to present under this session. The parent remains openable as
+	 * the session's routing or default chat.
 	 */
 	readonly children?: readonly IChatSessionItem[];
 	readonly iconPath?: ThemeIcon;
