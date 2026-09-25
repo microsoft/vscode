@@ -51,7 +51,7 @@ suite('StandardChatInputPillSources', () => {
 		return {
 			inputPills,
 			visibility,
-			labels: () => [...inputPills.element.querySelectorAll('.chat-pill-label')].map(element => element.textContent),
+			labels: () => [...inputPills.element.querySelectorAll('.chat-pill-label, .changes-stats-files')].map(element => element.textContent),
 			openContextMenu: (target: HTMLElement, keyboard = false) => {
 				menuActions = [];
 				target.dispatchEvent(keyboard
