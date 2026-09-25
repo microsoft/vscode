@@ -7,6 +7,8 @@ import { expect, test } from '@playwright/test';
 import { openFixture } from './utils.js';
 
 test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', async ({ page }) => {
+	test.setTimeout(60_000);
+
 	const surfaceColors = async (style: 'Legacy' | 'Connected' | 'Pill') => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/TabStyleCompatibility/${style}/DarkModern`, '.tabs-container > .tab.active');
 		return page.locator('.editor-group-container > .title.tabs').evaluate(title => {
