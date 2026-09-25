@@ -6,19 +6,19 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProductService } from '../../product/common/productService.js';
-import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME } from '../common/customizationMarketplaceIpc.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, IPlatformCustomizationMarketplaceService } from '../common/customizationMarketplaceIpc.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
-import { createMcpGalleryMarketplaceProviders, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
+import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
 
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly allSources = Object.values(CustomizationMarketplaceSources);
+	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
 	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
@@ -55,4 +55,4 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 	}
 }
 
-registerSingleton(ICustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IPlatformCustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);

@@ -673,6 +673,16 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.confetti': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.confetti', "Plays a joyful sound / audio cue when confetti is shown."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.confetti.sound', "Plays a joyful sound when confetti is shown."),
+					...soundFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.codeActionTriggered': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.codeActionTriggered', "Plays a sound / audio cue - when a code action has been triggered."),

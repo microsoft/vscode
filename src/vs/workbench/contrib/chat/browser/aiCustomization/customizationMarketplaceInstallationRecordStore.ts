@@ -49,7 +49,7 @@ export type CustomizationMarketplaceInstallationRecordTarget =
 		readonly project?: URI;
 		readonly session?: URI;
 	}
-	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision: string }
+	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision?: string }
 	| { readonly kind: 'mcp'; readonly id: string };
 
 interface IStoredCustomizationMarketplaceInstallationRecord {
@@ -76,7 +76,7 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 			readonly project?: string;
 			readonly session?: string;
 		}
-		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision: string }
+		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision?: string }
 		| { readonly kind: 'mcp'; readonly id: string };
 	};
 }
@@ -288,7 +288,7 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| !isBoundedString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
 		|| !isRecord(record.target)
-		|| record.target.kind !== record.installation.kind) {
+		|| record.target.kind !== (record.installation.kind === 'configuredPlugin' ? 'plugin' : record.installation.kind)) {
 		return false;
 	}
 	if (record.target.kind === 'mcp') {
@@ -297,8 +297,9 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 	if (record.target.kind === 'plugin') {
 		return (record.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || record.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
 			&& isBoundedString(record.target.uri)
-			&& isBoundedString(record.target.resolvedRevision, 40, 40)
-			&& /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision);
+			&& (record.installation.kind === 'configuredPlugin'
+				? record.target.resolvedRevision === undefined
+				: isBoundedString(record.target.resolvedRevision, 40, 40) && /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision));
 	}
 	if (record.mediaType !== CustomizationMarketplaceMediaType.Skill) {
 		return false;
@@ -330,6 +331,9 @@ function isStoredInstallation(value: unknown): value is CustomizationMarketplace
 	}
 	if (value.kind === 'mcp') {
 		return isBoundedString(value.name) && isBoundedString(value.version);
+	}
+	if (value.kind === 'configuredPlugin') {
+		return Object.keys(value).length === 1;
 	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
 		&& isBoundedString(value.repository)
