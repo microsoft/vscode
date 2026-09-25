@@ -89,6 +89,7 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		const disposable = new DisposableStore();
 		try {
 			if (!formatApplied) {
+				let reason: TextModelEditSource|undefined = undefined;
 				const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
 					const ref = await this.textModelService.createModelReference(cell.uri);
 					disposable.add(ref);
@@ -106,14 +107,15 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 					const edits: ResourceTextEdit[] = [];
 
 					if (formatEdits) {
-						edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
+						reason ??= formatEdits.reason;
+						edits.push(...formatEdits.edits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
 						return edits;
 					}
 
 					return [];
 				}));
 
-				await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatNotebook', "Format Notebook"), code: 'undoredo.formatNotebook', });
+				await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatNotebook', "Format Notebook"), code: 'undoredo.formatNotebook', reason });
 			}
 		} finally {
 			progress.report({ increment: 100 });
