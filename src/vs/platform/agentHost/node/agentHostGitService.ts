@@ -10,7 +10,6 @@ import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { parse } from '../../../base/common/glob.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -180,9 +179,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
+	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		try {
-			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, globs);
+			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, patterns, sessionId);
 			if (worktreeIncludePaths.length === 0) {
 				return;
 			}
@@ -628,104 +627,65 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	/**
-	 * Resolves the git-ignored paths to copy into a worktree.
+	 * Resolves the git-ignored paths to copy into a worktree. `patterns` are
+	 * matched by git using `.gitignore` semantics.
 	 */
-	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, globs: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
-		if (globs.length === 0) {
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, patterns: readonly string[], sessionId: string): Promise<IWorktreeIncludeEntry[]> {
+		// Each setting entry must stay a single `.gitignore` line; an embedded
+		// line break would inject additional patterns (e.g. a `!` negation).
+		const includePatterns = patterns.filter(pattern => !/[\r\n]/.test(pattern));
+		if (includePatterns.length !== patterns.length) {
+			this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Ignoring ${patterns.length - includePatterns.length} pattern(s) containing line breaks.`);
+		}
+		if (includePatterns.length === 0) {
 			return [];
 		}
 
-		// List the git-ignored (but untracked) files: `--others` selects
-		// untracked files, `--ignored` restricts to those matched by an exclude
-		// source, and `--exclude-standard` uses the standard sources (.gitignore,
-		// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
-		// paths containing spaces or other special characters survive intact.
-		//
-		// The `--directory` variant additionally collapses a *wholly*-ignored
-		// directory (one containing no tracked files) into a single `dir/`
-		// entry. It is enumerated in parallel and used below to copy such
-		// directories as one recursive unit rather than file-by-file.
-		const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
-		const [filesOutput, directoryOutput, worktreeOutput] = await Promise.all([
-			this._runGit(repositoryRoot, baseArgs, { timeout: 60_000 }),
-			this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 60_000 }),
-			this._runGit(worktreeRoot, ['ls-files', '-z'], { timeout: 60_000 }),
-		]);
-		if (!filesOutput) {
-			return [];
-		}
+		// Git reads the patterns from a file so that they are parsed exactly
+		// like a `.gitignore` file (comments, blank lines, trailing spaces).
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-worktree-include-${toFileNameSafeSessionId(sessionId)}`);
+		const includePatternsFile = URI.joinPath(tempDir, 'patterns');
+		await this._fileService.createFolder(tempDir);
 
-		// git emits repository-relative, forward-slash paths.
-		const ignoredFiles = filesOutput.split('\x00').filter(entry => entry.length > 0);
-		if (ignoredFiles.length === 0) {
-			return [];
-		}
+		try {
+			await this._fileService.writeFile(includePatternsFile, VSBuffer.fromString(includePatterns.join('\n') + '\n'));
 
-		// Keep only the ignored files that match one of the configured
-		// `git.worktreeIncludeFiles` glob patterns (VS Code glob semantics),
-		// and — in the same pass — tally which wholly-ignored directories
-		// contain an ignored file that cannot be copied (and therefore cannot be
-		// collapsed). `git ls-files --directory` reports a wholly-ignored
-		// directory as a single `dir/` entry and never nests these entries
-		// (it stops descending once a directory is wholly ignored), so each
-		// file has at most one containing directory and no de-duplication of
-		// the directory set is required.
-		const matchers = globs.map(pattern => parse(pattern));
-		const wholeDirectories = new Set((directoryOutput ?? '')
-			.split('\x00').filter(entry => entry.endsWith('/')));
-		const worktreeFiles = new Set((worktreeOutput ?? '')
-			.split('\x00').filter(entry => entry.length > 0));
-
-		// Every ancestor directory of a tracked path, with the trailing `/` used
-		// by `git ls-files --directory`, so a source path can be checked against
-		// the shape (file vs directory) of its destination.
-		const worktreeDirectories = new Set<string>();
-		for (const file of worktreeFiles) {
-			let index = file.indexOf('/');
-			while (index !== -1) {
-				worktreeDirectories.add(file.slice(0, index + 1));
-				index = file.indexOf('/', index + 1);
+			// List the git-ignored (but untracked) files: `--others` selects
+			// untracked files, `--ignored` restricts to those matched by an exclude
+			// source, and `--exclude-standard` uses the standard sources (.gitignore,
+			// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
+			// paths containing spaces or other special characters survive intact.
+			//
+			// The `--directory` variant additionally collapses a *wholly*-ignored
+			// directory (one containing no tracked files) into a single `dir/`
+			// entry. It is enumerated in parallel and used below to copy such
+			// directories as one recursive unit rather than file-by-file.
+			//
+			// The `--exclude-from` variant uses *only* the include patterns as the
+			// exclude source (no standard sources), so it lists the untracked files
+			// matching `git.worktreeIncludeFiles`. Passing both sources to a single
+			// invocation would yield their union, hence the separate call.
+			const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
+			const [filesOutput, directoryOutput, includedOutput, worktreeOutput] = await Promise.all([
+				this._runGit(repositoryRoot, baseArgs, { timeout: 60_000 }),
+				this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 60_000 }),
+				this._runGit(repositoryRoot, ['ls-files', '--others', '--ignored', `--exclude-from=${includePatternsFile.fsPath}`, '-z'], { timeout: 60_000 }),
+				this._runGit(worktreeRoot, ['ls-files', '-z'], { timeout: 60_000 }),
+			]);
+			if (!filesOutput || !includedOutput) {
+				return [];
 			}
-		}
 
-		const matchedFiles: string[] = [];
-		const nonCollapsibleDirectories = new Set<string>();
-		for (const file of ignoredFiles) {
-			if (
-				matchers.some(matcher => matcher(file)) &&
-				!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
-			) {
-				matchedFiles.push(file);
-			} else if (wholeDirectories.size > 0) {
-				const containingDirectory = findContainingDirectory(file, wholeDirectories);
-				if (containingDirectory !== undefined) {
-					nonCollapsibleDirectories.add(containingDirectory);
-				}
+			// git emits repository-relative, forward-slash paths.
+			const ignoredFiles = filesOutput.split('\x00').filter(entry => entry.length > 0);
+			if (ignoredFiles.length === 0) {
+				return [];
 			}
-		}
 
-		if (matchedFiles.length === 0) {
-			return [];
+			return resolveWorktreeIncludeEntries(repositoryRoot, ignoredFiles, includedOutput, directoryOutput, worktreeOutput);
+		} finally {
+			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
-
-		// Collapse matched files into their containing directory when the whole
-		// directory can be copied as a single recursive unit — i.e. it is
-		// wholly ignored (so it has no tracked files a recursive copy would
-		// clobber) and every ignored file it contains matched a glob (so
-		// nothing unwanted is copied, tracked by `nonCollapsibleDirectories` above).
-		// This turns a large tree such as `node_modules/` into one copy instead
-		// of one per file, while a partially-matched or partially-tracked
-		// directory falls back to its individual matched files. `--directory`
-		// with `--no-empty-directory` never reports an empty directory, so every
-		// entry in `wholeDirectories` is known to contain at least one ignored file.
-		const collapsedDirectories = new Set<string>();
-		for (const dir of wholeDirectories) {
-			if (!nonCollapsibleDirectories.has(dir)) {
-				collapsedDirectories.add(dir);
-			}
-		}
-
-		return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
 	}
 
 	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
@@ -1259,6 +1219,87 @@ function toWorktreeIncludeEntries(repositoryRoot: URI, matchedFiles: readonly st
 		...[...directoryFileCounts].map(([dir, fileCount]) => toEntry(dir, fileCount)),
 		...fileEntries,
 	];
+}
+
+/**
+ * Replaces characters that are not safe in a file name so a session id can
+ * be embedded in a temporary directory name without escaping `tmpDir`.
+ */
+function toFileNameSafeSessionId(sessionId: string): string {
+	return sessionId.replace(/[^\w.-]/g, '_');
+}
+
+/**
+ * Selects the ignored files to copy into a worktree from the NUL-separated
+ * `git ls-files` outputs, collapsing wholly-ignored directories whose every
+ * ignored file is included into a single recursive entry.
+ */
+function resolveWorktreeIncludeEntries(repositoryRoot: URI, ignoredFiles: readonly string[], includedOutput: string, directoryOutput: string | undefined, worktreeOutput: string | undefined): IWorktreeIncludeEntry[] {
+	// Keep only the ignored files that also match one of the configured
+	// `git.worktreeIncludeFiles` patterns, and — in the same pass — tally
+	// which wholly-ignored directories contain an ignored file that cannot
+	// be copied (and therefore cannot be collapsed). `git ls-files
+	// --directory` reports a wholly-ignored directory as a single `dir/`
+	// entry and never nests these entries (it stops descending once a
+	// directory is wholly ignored), so each file has at most one containing
+	// directory and no de-duplication of the directory set is required.
+	const includedFiles = new Set(includedOutput
+		.split('\x00').filter(entry => entry.length > 0));
+	const wholeDirectories = new Set((directoryOutput ?? '')
+		.split('\x00').filter(entry => entry.endsWith('/')));
+	const worktreeFiles = new Set((worktreeOutput ?? '')
+		.split('\x00').filter(entry => entry.length > 0));
+
+	// Every ancestor directory of a tracked path, with the trailing `/` used
+	// by `git ls-files --directory`, so a source path can be checked against
+	// the shape (file vs directory) of its destination.
+	const worktreeDirectories = new Set<string>();
+	for (const file of worktreeFiles) {
+		let index = file.indexOf('/');
+		while (index !== -1) {
+			worktreeDirectories.add(file.slice(0, index + 1));
+			index = file.indexOf('/', index + 1);
+		}
+	}
+
+	const matchedFiles: string[] = [];
+	const nonCollapsibleDirectories = new Set<string>();
+	for (const file of ignoredFiles) {
+		if (
+			includedFiles.has(file) &&
+			!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
+		) {
+			matchedFiles.push(file);
+		} else if (wholeDirectories.size > 0) {
+			const containingDirectory = findContainingDirectory(file, wholeDirectories);
+			if (containingDirectory !== undefined) {
+				nonCollapsibleDirectories.add(containingDirectory);
+			}
+		}
+	}
+
+	if (matchedFiles.length === 0) {
+		return [];
+	}
+
+	// Collapse matched files into their containing directory when the whole
+	// directory can be copied as a single recursive unit — i.e. it is
+	// wholly ignored (so it has no tracked files a recursive copy would
+	// clobber) and every ignored file it contains matched a pattern (so
+	// nothing unwanted is copied, tracked by `nonCollapsibleDirectories` above).
+	// This turns a large tree such as `node_modules/` into one copy instead
+	// of one per file, while a partially-matched or partially-tracked
+	// directory falls back to its individual matched files. `--directory`
+	// with `--no-empty-directory` never reports an empty directory, so every
+	// entry in `wholeDirectories` is known to contain at least one ignored file.
+	const collapsedDirectories = new Set<string>();
+	for (const dir of wholeDirectories) {
+		if (!nonCollapsibleDirectories.has(dir)) {
+			collapsedDirectories.add(dir);
+		}
+	}
+
+	return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
 }
 
 /**

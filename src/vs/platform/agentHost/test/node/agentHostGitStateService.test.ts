@@ -1024,6 +1024,46 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('a peer-folder lookup keeps the peer PR when automatic attachment is disabled', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'main' };
+			const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			const sessionGitHubState: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'session-feature' };
+			const peerGitHubState: ISessionGitHubState = {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
+				associatedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
+				pullRequestBranchName: 'peer-feature',
+			};
+			const h = createHarness({ autoAttachPullRequests: false });
+			const peer = buildChatUri(SESSION, 'peer');
+			const peerFolder = 'file:///peer';
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState: sessionGitState,
+				gitHubState: sessionGitHubState,
+				artifacts: [pullRequestArtifact(1), pullRequestArtifact(2)],
+			});
+			h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+			await h.service.setSessionGitHubState(peer, peerGitHubState);
+			h.setGitResult(peerGitState);
+			h.setPullRequest('session-feature', { url: 'https://github.com/microsoft/vscode/pull/1', number: 1, state: 'closed' });
+
+			await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: h.pullRequestCalls,
+				peer: h.service.getGitHubState(peer),
+				session: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
+			}, {
+				pullRequestCalls: [],
+				peer: peerGitHubState,
+				session: sessionGitHubState,
+			});
+		});
+	});
+
 	test('applies restricted PR state when candidate lookup fails', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };

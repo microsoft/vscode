@@ -46,7 +46,8 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		const provider = this._providers.getProviderForSession(session);
 		if (this._store.isDisposed || !state || !sessionState || !provider?.chats.prepareChat || state.activeTurn
 			|| state.interactivity === ChatInteractivity.Hidden
-			|| isSessionStatusArchived(sessionState.status) || (isChatReadOnly(state.interactivity, false) && !previous)) {
+			|| isSessionStatusArchived(sessionState.status) || isSessionStatusArchived(state.status)
+			|| (isChatReadOnly(state.interactivity, false) && !previous)) {
 			return Promise.resolve();
 		}
 		const existing = this._pending.get(chat);
@@ -105,6 +106,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 			return;
 		}
 		if (input && (!chatState || chatState.interactivity === ChatInteractivity.Hidden || isSessionStatusArchived(sessionState.status)
+			|| isSessionStatusArchived(chatState.status)
 			|| (isChatReadOnly(chatState.interactivity, false) && !previous))) {
 			return;
 		}

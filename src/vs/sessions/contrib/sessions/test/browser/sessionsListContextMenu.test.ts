@@ -14,7 +14,7 @@ import { constObservable, transaction } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -34,7 +34,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionShowsArchivedChatsContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -95,9 +95,11 @@ suite('Sessions list context menus', () => {
 
 	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActions: readonly { id: string; run: () => void }[] = [], showNavigationShortcuts = false) {
 		const contextMenuService = new TestContextMenuService();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const sessionMenuContexts: { readonly showsArchivedChats: boolean | undefined }[] = [];
 		let menuDisposed = false;
 		const harness = createListHarness(disposables, sessions, instantiationService => {
-			const contextKeyService = instantiationService.get(IContextKeyService);
+			instantiationService.stub(IContextKeyService, contextKeyService);
 			const commandService = instantiationService.get(ICommandService);
 			instantiationService.stub(IContextMenuService, contextMenuService);
 			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
@@ -105,7 +107,12 @@ suite('Sessions list context menus', () => {
 				grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
 			));
 			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-				override createMenu(): IMenu {
+				override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
+					if (id === Menus.SessionItemContextMenu) {
+						sessionMenuContexts.push({
+							showsArchivedChats: menuContextKeyService.getContextKeyValue<boolean>(SessionShowsArchivedChatsContext.key),
+						});
+					}
 					const disposable = toDisposable(() => menuDisposed = true);
 					const extensionAction = new MenuItemAction({
 						id: 'extension.action',
@@ -133,20 +140,21 @@ suite('Sessions list context menus', () => {
 			});
 		});
 		const container = harness.createContainer();
-		const sessionsHeaderContainer = mainWindow.document.createElement('div');
-		const sessionsHeader = mainWindow.document.createElement('div');
-		sessionsHeaderContainer.append(sessionsHeader);
-		container.prepend(sessionsHeaderContainer);
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			showNavigationShortcuts: () => showNavigationShortcuts,
-			sessionsHeader,
-			sessionsHeaderContainer,
+			createSessionsHeader: (parent, disposables) => {
+				const sessionsHeader = mainWindow.document.createElement('div');
+				sessionsHeader.textContent = 'Sessions';
+				parent.append(sessionsHeader);
+				disposables.add(toDisposable(() => sessionsHeader.remove()));
+				return sessionsHeader;
+			},
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed, sessionMenuContexts };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -187,6 +195,28 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
+	test('session context keys expose per-session archived chat visibility without archived chats', () => {
+		const session = createSession('Session').session;
+		const { container, contextMenuService, list, sessionMenuContexts } = createList(false, false, SessionsGrouping.Date, [session]);
+		const sessionRow = container.querySelector<HTMLElement>('.session-item');
+		assert.ok(sessionRow);
+
+		dispatchContextMenu(sessionRow);
+		contextMenuService.delegate?.onHide?.(false);
+		list.setExcludeArchived(false);
+		dispatchContextMenu(sessionRow);
+		contextMenuService.delegate?.onHide?.(false);
+		list.setSessionArchivedChatsVisible(session, false);
+		dispatchContextMenu(sessionRow);
+		contextMenuService.delegate?.onHide?.(false);
+
+		assert.deepStrictEqual(sessionMenuContexts, [
+			{ showsArchivedChats: false },
+			{ showsArchivedChats: true },
+			{ showsArchivedChats: false },
+		]);
+	});
+
 	test('navigation shortcuts and Sessions header have no context menus', () => {
 		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
 		const customizationsRow = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
@@ -220,6 +250,7 @@ suite('Sessions list context menus', () => {
 			resource: URI.parse('test-chat:/main'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -230,7 +261,8 @@ suite('Sessions list context menus', () => {
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -418,7 +450,8 @@ suite('Sessions list context menus', () => {
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename, canDelete }),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});

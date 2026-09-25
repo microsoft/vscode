@@ -771,6 +771,10 @@
 		.session-chat-title-input {
 			display: block;
 		}
+
+		.session-title-toolbar {
+			display: none;
+		}
 	}
 
 	/* Reuses the session row's approval-row styling; only the left inset is
@@ -1246,6 +1250,10 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+	}
+
+	.session-chat-item .session-chat-title-row {
+		padding-right: var(--session-chat-base-height);
 	}
 
 	.session-item .session-icon {

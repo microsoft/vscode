@@ -31,6 +31,8 @@ export class ChatInputContribution extends Disposable implements IAgentHostChatC
 			this._inputService.setBlocked(channel, action.part.error);
 		} else if (action.type === ActionType.SessionChatRemoved) {
 			this._inputService.clear(session, action.chat);
+		} else if (action.type === ActionType.ChatIsArchivedChanged && action.isArchived) {
+			this._inputService.clear(session, channel);
 		} else if (action.type === ActionType.SessionIsArchivedChanged && action.isArchived) {
 			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
 				this._inputService.clear(session, chat.resource);

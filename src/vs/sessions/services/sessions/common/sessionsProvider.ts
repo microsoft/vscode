@@ -460,6 +460,12 @@ export interface ISessionsProvider {
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
 
+	/** Archive a chat independently of its owning session. */
+	archiveChat?(sessionId: string, chatResource: URI): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat?(sessionId: string, chatResource: URI): Promise<void>;
+
 	/**
 	 * Set the read/unread state of a session. The provider owns and persists
 	 * this state (e.g. via its backend protocol or chat model) and is expected

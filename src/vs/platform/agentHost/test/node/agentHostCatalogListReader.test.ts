@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentSession } from '../../common/agent.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
-import { isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { buildChatUri, buildSubagentChatUri, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
@@ -79,7 +79,7 @@ suite('AgentHostCatalogListReader', () => {
 		},
 		chats: [
 			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user' },
-			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
 		],
 	};
 
@@ -171,8 +171,41 @@ suite('AgentHostCatalogListReader', () => {
 				kind: chat.kind,
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
 			})),
 			catalogChats: data.chats,
+		});
+	});
+
+	test('omits reserved subagent and tool-origin channels from list metadata and catalog data', async () => {
+		const subagentChat = buildSubagentChatUri(session, 'tool-call');
+		const toolChat = buildChatUri(session, 'spawned-tool');
+		const result = await new AgentHostCatalogListReader(createDatabase({
+			...data,
+			chats: [
+				...data.chats,
+				{ uri: subagentChat, order: data.chats.length, kind: 'peer', summary: 'Explore', titleSource: 'agent' },
+				{
+					uri: toolChat,
+					order: data.chats.length + 1,
+					kind: 'peer',
+					summary: 'Spawned Tool',
+					titleSource: 'agent',
+					origin: { kind: 'tool', chat: `${session.toString()}/chat/default`, toolCallId: 'tool-call' },
+				},
+			],
+		})).read(registered);
+		assert.strictEqual(result.eligible, true);
+		if (!result.eligible) {
+			return;
+		}
+
+		assert.deepStrictEqual({
+			metadataChats: result.metadata.chats?.map(chat => chat.chat.toString()),
+			catalogChats: result.data.chats.map(chat => chat.uri.toString()),
+		}, {
+			metadataChats: data.chats.map(chat => chat.uri),
+			catalogChats: data.chats.map(chat => chat.uri),
 		});
 	});
 

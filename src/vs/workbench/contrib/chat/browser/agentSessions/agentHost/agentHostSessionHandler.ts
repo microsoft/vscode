@@ -764,7 +764,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		const providerInputState = derived(this, reader => {
 			const session = this._sessionState.read(reader).read(reader);
 			const chat = this._chatState.read(reader).read(reader);
-			return session && chat && !(session.status & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
+			return session && chat && !((session.status | chat.status) & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
 		});
 		this._inputState = refreshChat ? this._register(instantiationService.createInstance(AgentHostChatInputState, sessionResource, providerInputState, refreshChat)) : undefined;
 		this.isInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);

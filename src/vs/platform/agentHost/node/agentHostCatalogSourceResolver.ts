@@ -33,6 +33,7 @@ export interface ICatalogSourceState {
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ChatInteractivity;
+		readonly archived?: boolean;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
 	}[];
@@ -254,6 +255,7 @@ export class AgentHostCatalogSourceResolver {
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
 					...(interactivity !== undefined ? { interactivity } : {}),
+					...(chat.archived === true ? { archived: true } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 				};

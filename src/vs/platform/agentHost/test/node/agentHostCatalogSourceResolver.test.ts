@@ -117,12 +117,13 @@ suite('AgentHostCatalogSourceResolver', () => {
 		const result = await createResolver({}).buildCatalogSyncRequest(session, {
 			...state,
 			meta,
-			chats: [...state.chats, { uri: peer, kind: 'peer', interactivity: ChatInteractivity.ReadOnly }],
+			chats: [...state.chats.map(chat => ({ ...chat, archived: true })), { uri: peer, kind: 'peer', interactivity: ChatInteractivity.ReadOnly }],
 		}, {}, false);
 		assert.deepStrictEqual({
 			interactivity: result.data.chats.map(chat => chat.interactivity),
+			archived: result.data.chats.map(chat => chat.archived),
 			input: readChatInputState(result.data, chat),
-		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], input: undefined });
+		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], archived: [true, undefined], input: undefined });
 	});
 
 	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
@@ -201,6 +202,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				uri: peer,
 				kind: 'peer',
 				origin: { kind: ChatOriginKind.User },
+				archived: true,
 				inheritedTurnId: 'inherited-turn',
 			}],
 		}, {}, true, undefined);
@@ -212,6 +214,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: undefined,
 			titleSource: 'auto',
 			origin: { kind: ChatOriginKind.User },
+			archived: true,
 			inheritedTurnId: 'inherited-turn',
 		}]);
 	});
