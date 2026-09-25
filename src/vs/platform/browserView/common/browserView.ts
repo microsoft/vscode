@@ -323,19 +323,23 @@ export interface IBrowserViewStorageKeys {
 	readonly permissions?: string;
 }
 
-export interface IBrowserViewState {
+/** Page state that {@link IBrowserViewService.getNavigationState} returns without screenshots or session data. */
+export interface IBrowserViewNavigationState {
 	url: string;
 	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	lastFavicon: string | undefined;
+	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
+}
+
+export interface IBrowserViewState extends IBrowserViewNavigationState {
 	focused: boolean;
 	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
-	lastFavicon: string | undefined;
-	lastError: IBrowserViewLoadError | undefined;
-	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
@@ -566,6 +570,13 @@ export interface IBrowserViewService {
 	 * @throws If no browser view exists for the given ID
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/**
+	 * Get the lightweight navigation state of an existing browser view by ID, or throw if it doesn't exist.
+	 * Read it after subscribing to the view's events to recover changes fired before the subscription.
+	 * @param id The browser view identifier
+	 */
+	getNavigationState(id: string): Promise<IBrowserViewNavigationState>;
 
 	/**
 	 * Adds an audience or, when disabled, removes every audience matching it.
