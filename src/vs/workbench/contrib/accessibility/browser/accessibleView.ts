@@ -370,7 +370,7 @@ export class AccessibleView extends Disposable {
 
 	private _setLastProvider(provider: AccesibleViewContentProvider | undefined): void {
 		this._lastProvider = provider;
-		this._lastProviderListener.value = provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider
+		this._lastProviderListener.value = isIAccessibleViewContentProvider(provider) && provider.onDidRequestClearLastProvider
 			? provider.onDidRequestClearLastProvider((id: string) => {
 				if (this._lastProvider?.options.id === id) {
 					this._setLastProvider(undefined);

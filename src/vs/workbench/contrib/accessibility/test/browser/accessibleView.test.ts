@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccesibleViewContentProvider, AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -139,5 +139,46 @@ suite('AccessibleView', () => {
 		counts.push(listenerCount);
 
 		assert.deepStrictEqual(counts, [1, 1, 0]);
+	});
+
+	test('forgets a directly implemented last provider when it requests to be cleared', () => {
+		let showCount = 0;
+		let delegate: IContextViewDelegate | undefined;
+		const contextViewService = new class extends mock<IContextViewService>() {
+			override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
+				showCount++;
+				delegate = contextViewDelegate;
+				return { close: () => this.hideContextView() };
+			}
+
+			override hideContextView(): void {
+				delegate?.onHide?.();
+				delegate = undefined;
+			}
+		};
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+
+		const onDidRequestClearLastProvider = disposables.add(new Emitter<AccessibleViewProviderId>());
+		const provider: IAccessibleViewContentProvider = {
+			id: AccessibleViewProviderId.Terminal,
+			options: { type: AccessibleViewType.View, id: AccessibleViewProviderId.Terminal },
+			verbositySettingKey: 'test.verbosity',
+			provideContent: () => 'content',
+			onClose: () => { },
+			onDidRequestClearLastProvider: onDidRequestClearLastProvider.event,
+			dispose: () => { },
+		};
+
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		accessibleView.show(provider as AccesibleViewContentProvider, undefined, true);
+		contextViewService.hideContextView();
+		accessibleView.showLastProvider(AccessibleViewProviderId.Terminal);
+		const showsBeforeClear = showCount;
+
+		onDidRequestClearLastProvider.fire(AccessibleViewProviderId.Terminal);
+		accessibleView.showLastProvider(AccessibleViewProviderId.Terminal);
+
+		assert.deepStrictEqual({ showsBeforeClear, showsAfterClear: showCount }, { showsBeforeClear: 2, showsAfterClear: 2 });
 	});
 });
