@@ -555,11 +555,12 @@ export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneratio
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
+/** Root config key controlling agent session creation, messaging, and recursion limits. */
+export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
+export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
-
-/** Root config key selecting compact artifact-tool prompt wording independently of tool deferral. */
-export const AgentHostArtifactToolsCompactPromptsConfigKey = 'artifactToolsCompactPrompts';
 
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
@@ -894,16 +895,21 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
 	}),
+	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({
+		type: 'string',
+		title: localize('agentHost.config.agentOrchestrationLimits.title', "Agent Orchestration Limits"),
+		description: localize('agentHost.config.agentOrchestrationLimits.description', "Controls creation, messaging, and recursion safety limits for Agent Host session tools."),
+		enum: ['on', 'off'],
+		enumDescriptions: [
+			localize('agentHost.config.agentOrchestrationLimits.on', "Enforce agent orchestration safety limits."),
+			localize('agentHost.config.agentOrchestrationLimits.off', "Do not enforce agent orchestration safety limits."),
+		],
+		default: 'on',
+	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
-		default: false,
-	}),
-	[AgentHostArtifactToolsCompactPromptsConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.artifactToolsCompactPrompts.title', "Compact Artifact Tool Prompts"),
-		description: localize('agentHost.config.artifactToolsCompactPrompts.description', "Whether artifact tools use compact prompt wording instead of the original guidance. Does not change tool availability or deferral."),
 		default: false,
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({

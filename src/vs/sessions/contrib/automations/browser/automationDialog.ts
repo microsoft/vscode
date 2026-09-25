@@ -17,7 +17,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, disposableObservableValue, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -46,7 +46,8 @@ import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSession
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { AutomationInterval, AutomationTarget } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -61,7 +62,7 @@ import { IAutomationSessionConfiguration } from '../../../services/sessions/comm
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
-import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
+import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
@@ -223,12 +224,28 @@ export interface IValidationState {
 	branchError: string | undefined;
 }
 
+export function getAutomationDialogProviders(automationService: IAutomationService, existing: IAutomationDescriptor | undefined): IObservable<readonly string[]> {
+	return derived(reader => {
+		if (existing === undefined) {
+			return automationService.availableProviders.read(reader).map(provider => provider.id);
+		}
+		automationService.automations.read(reader);
+		automationService.catalogueState.read(reader);
+		const providerId = existing.target.providerId;
+		if (providerId === undefined || !automationService.canUpdateAutomation(existing.id)) {
+			return [];
+		}
+		return [providerId];
+	});
+}
+
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
 	readonly setSaving: (saving: boolean) => void;
+	readonly showTargetValidationError: (message: string | undefined) => void;
 	readonly showSessionConfigurationError: (message: string | undefined) => void;
 	readonly focusSessionConfigurationError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
@@ -523,7 +540,7 @@ function setAutomationControlVisible(container: HTMLElement, visible: boolean): 
 	}
 }
 
-function getAutomationToolbarResponsiveItems(toolbar: MenuWorkbenchToolBar, options: { readonly canShrink?: boolean; readonly compactModelPicker?: ISettableObservable<boolean> } = {}): IChatInputPickerResponsiveLayoutItem[] {
+function getAutomationToolbarResponsiveItems(toolbar: MenuWorkbenchToolBar, options: { readonly canShrink?: boolean } = {}): IChatInputPickerResponsiveLayoutItem[] {
 	const items: IChatInputPickerResponsiveLayoutItem[] = [];
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
 		const element = toolbar.getItemElement(index);
@@ -537,9 +554,6 @@ function getAutomationToolbarResponsiveItems(toolbar: MenuWorkbenchToolBar, opti
 			isCompact: () => element.classList.contains('compact-picker'),
 			setCompact: compact => {
 				element.classList.toggle('compact-picker', compact);
-				if (action.id === 'sessions.modelPicker') {
-					options.compactModelPicker?.set(compact, undefined);
-				}
 			},
 		});
 	}
@@ -1002,6 +1016,7 @@ export function renderForm(
 	initialPrompt: string,
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
+	allowedProviders: IObservable<readonly string[]>,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1087,7 +1102,12 @@ export function renderForm(
 	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
+		persistSelection: false,
+		preserveUnavailableSelection: true,
+		telemetrySource: 'AutomationSessionTypePicker',
+		allowedProviders,
+	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
@@ -1154,7 +1174,7 @@ export function renderForm(
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
-		if (!pick || (isQuickChat && !pick.providerId) || (!isQuickChat && !folderUri)) {
+		if (!pick || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
 		}
@@ -1183,7 +1203,15 @@ export function renderForm(
 		updateAutomationSessionTarget();
 		revalidate();
 	}));
-	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => updateAutomationSessionTarget()));
+	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => {
+		updateAutomationSessionTarget();
+		revalidate();
+	}));
+	disposables.add(autorun(reader => {
+		allowedProviders.read(reader);
+		updateAutomationSessionTarget();
+		revalidate();
+	}));
 
 	if (state.folderUri) {
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });
@@ -1211,6 +1239,13 @@ export function renderForm(
 		role: 'group',
 		'aria-labelledby': targetLabel.id,
 	}));
+	const targetError = DOM.append(targetRow, $('span.automation-target-error', {
+		id: 'automation-target-error',
+		role: 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+	}));
+	DOM.hide(targetError);
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
@@ -1335,34 +1370,16 @@ export function renderForm(
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
-	const sessionConfigurationRow = DOM.append(promptSection, $('.automation-form-row'));
-	const sessionConfigurationLabel = DOM.append(sessionConfigurationRow, $('span.automation-form-label', {
-		id: 'automation-session-configuration-label',
-	}, localize('automation.form.sessionConfiguration', "Session configuration")));
-	const sessionConfiguration = DOM.append(sessionConfigurationRow, $('.automation-session-configuration', {
-		role: 'group',
-		'aria-labelledby': sessionConfigurationLabel.id,
-	}));
-	const sessionConfigContainer = DOM.append(sessionConfiguration, $('.automation-session-config.sessions-chat-config-toolbar'));
-	const compactModelPicker = observableValue(sessionConfigContainer, false);
-	const sessionConfigToolbar = disposables.add(createNewSessionConfigToolbar(
-		sessionConfigContainer,
-		scopedInstantiationService,
-		compactModelPicker,
-		localize('automation.form.sessionConfigurationOptions', "Session configuration options"),
-	));
+	const sessionConfigContainer = chatInput.inputToolbarElement;
+	sessionConfigContainer.classList.add('automation-session-config', 'sessions-chat-config-toolbar');
+	chatInput.setInputToolbarAriaLabel(localize('automation.form.sessionConfigurationOptions', "Session configuration options"));
+	const sessionConfiguration = DOM.append(promptSection, $('.automation-session-configuration'));
 	const sessionControlsContainer = DOM.append(sessionConfiguration, $('.automation-session-controls'));
 	const sessionControlsToolbar = disposables.add(createNewSessionControlToolbar(
 		sessionControlsContainer,
 		scopedInstantiationService,
 		localize('automation.form.sessionControls', "Session controls"),
 	));
-	const sessionConfigLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionConfig', sessionConfigContainer, {
-		getItems: () => getAutomationToolbarResponsiveItems(sessionConfigToolbar, { compactModelPicker }),
-		hasOverflow: () => sessionConfigToolbar.hasOverflow(),
-		relayout: () => sessionConfigToolbar.relayout(),
-	}));
-	sessionConfigLayout.layout();
 	const sessionControlsLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionControls', sessionControlsContainer, {
 		getItems: () => getAutomationToolbarResponsiveItems(sessionControlsToolbar),
 		hasOverflow: () => sessionControlsToolbar.hasOverflow(),
@@ -1380,14 +1397,15 @@ export function renderForm(
 	DOM.hide(sessionConfigurationError);
 	disposables.add(autorun(reader => {
 		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
-		setAutomationControlVisible(sessionConfigurationRow, hasTarget);
+		setAutomationControlVisible(sessionConfiguration, hasTarget);
+		setAutomationControlVisible(sessionConfigContainer, hasTarget);
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
-		sessionConfiguration.classList.toggle('controls-unavailable', controlsUnavailable);
 		for (const container of [sessionConfigContainer, sessionControlsContainer]) {
+			container.classList.toggle('controls-unavailable', controlsUnavailable);
 			container.toggleAttribute('inert', controlsUnavailable);
-			container.setAttribute('aria-hidden', String(controlsUnavailable));
+			container.setAttribute('aria-hidden', String(!hasTarget || controlsUnavailable));
 			container.setAttribute('aria-busy', String(pending));
 		}
 		sessionConfigurationUnavailable.textContent = pending
@@ -1451,6 +1469,22 @@ export function renderForm(
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getSessionConfiguration: token => automationSessionDraftSynchronizer.getSessionConfiguration(token),
 		getBranch: () => isolationModel.persistedBranch,
+		showTargetValidationError: message => {
+			const text = message ?? '';
+			if (targetError.textContent === text) {
+				return;
+			}
+			if (message !== undefined) {
+				DOM.show(targetError);
+				targetContainer.setAttribute('aria-describedby', targetError.id);
+				targetContainer.setAttribute('aria-invalid', 'true');
+			} else {
+				DOM.hide(targetError);
+				targetContainer.removeAttribute('aria-describedby');
+				targetContainer.removeAttribute('aria-invalid');
+			}
+			targetError.textContent = text;
+		},
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
@@ -1538,6 +1572,9 @@ export function updateSaveButtonState(
 	form: HTMLElement,
 	getPrompt: () => string,
 	getBranch: () => string | undefined,
+	sessionsManagementService: ISessionsManagementService,
+	providerAvailable = true,
+	originalProviderId?: string,
 ): void {
 	validation.nameError = state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
@@ -1549,9 +1586,22 @@ export function updateSaveButtonState(
 		&& !state.isQuickChat
 		? localize('automation.form.folderRequired', "Workspace folder is required.")
 		: undefined;
-	validation.sessionTypeError = !state.sessionTypeId || (state.isQuickChat && !state.providerId)
-		? localize('automation.form.sessionTypeRequired', "Session type is required.")
-		: undefined;
+	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
+		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (!providerAvailable) {
+		validation.sessionTypeError = localize('automation.form.hostUnavailable', "Choose an available Agent Host that supports automations.");
+	} else if (!state.sessionTypeId || !state.providerId) {
+		validation.sessionTypeError = localize('automation.form.sessionTypeRequired', "Session type is required.");
+	} else {
+		const target = { providerId: state.providerId, sessionTypeId: state.sessionTypeId };
+		if (state.isQuickChat && !sessionsManagementService.isQuickChatTargetAvailable(target)) {
+			validation.sessionTypeError = localize('automation.form.quickChatUnavailable', "The selected Agent Host and session type cannot run without a workspace. Choose a workspace or another session type.");
+		} else if (!state.isQuickChat && state.folderUri !== undefined && !sessionsManagementService.isNewSessionTargetAvailable(state.folderUri, target)) {
+			validation.sessionTypeError = localize('automation.form.workspaceTargetUnavailable', "The selected Agent Host and session type cannot use this workspace. Choose another workspace or session type.");
+		} else {
+			validation.sessionTypeError = undefined;
+		}
+	}
 	validation.branchError = !state.isQuickChat && state.isolationMode === 'worktree' && !getBranch()
 		? localize('automation.form.branchRequired', "A branch is required for Worktree isolation.")
 		: undefined;

@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
@@ -158,6 +159,14 @@ suite('Sessions - Session management actions', () => {
 	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat, renameFocusedTab = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
+		const dialogService = new class extends mock<IDialogService>() {
+			readonly confirmations: IConfirmation[] = [];
+
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				this.confirmations.push(confirmation);
+				return { confirmed: false };
+			}
+		}();
 		const inlineRenamedSessions: ISession[] = [];
 		const inlineRenamedChats: ISessionChatItem[] = [];
 		const inlineRenamedTabs: URI[] = [];
@@ -205,13 +214,31 @@ suite('Sessions - Session management actions', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, dialogService, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
+
+	test('archives active sessions without confirmation', async () => {
+		const active = createTestSession('Running', { status: SessionStatus.InProgress }).session;
+		const waiting = createTestSession('Waiting', { status: SessionStatus.NeedsInput }).session;
+		const completed = createTestSession('Completed').session;
+		const harness = createActionHarness([active, waiting, completed], undefined);
+
+		await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+		assert.deepStrictEqual({
+			confirmations: harness.dialogService.confirmations,
+			archived: harness.managementService.archived.map(session => session.sessionId),
+		}, {
+			confirmations: [],
+			archived: [active.sessionId, waiting.sessionId, completed.sessionId],
+		});
+	});
 
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;
@@ -221,10 +248,11 @@ suite('Sessions - Session management actions', () => {
 		const mainChat = base.mainChat.get();
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:///grill-and-plan'),
+			workspace: constObservable(undefined),
 			title: constObservable('Grill and Plan'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		});
 		const activeSession = upcastPartial<IActiveSession>({
 			...base,

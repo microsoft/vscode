@@ -113,6 +113,39 @@ suite('GitHub link presentations', () => {
 		});
 	});
 
+	test('removes link presentations when the enterprise URL becomes unavailable', () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
+		let baseUrl: string | undefined = 'https://github.example.com/';
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(() => { }),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
+				override resolveGitHubUrl(path: string): string | undefined {
+					return baseUrl ? `${baseUrl}${path}` : undefined;
+				}
+			}(),
+			new NullLogService(),
+			new TestNotificationService(),
+		));
+
+		const enterpriseResource = URI.parse('https://github.example.com/microsoft/vscode/issues/1');
+		const before = linkPresentationService.hasProvider(enterpriseResource);
+		baseUrl = undefined;
+		onDidChangeDefaultAccount.fire(null);
+
+		assert.deepStrictEqual({
+			before,
+			enterprise: linkPresentationService.hasProvider(enterpriseResource),
+			public: linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1')),
+		}, {
+			before: true,
+			enterprise: false,
+			public: false,
+		});
+	});
+
 	test('prompts once to sign in when authentication is required', async () => {
 		const linkPresentationService = new TestLinkPresentationService();
 		const notificationService = new TestNotificationService();

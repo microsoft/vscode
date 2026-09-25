@@ -4,22 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Menu } from '../../../../base/browser/ui/menu/menu.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorSelectionBackground, editorSelectionForeground } from '../../../../platform/theme/common/colors/editorColors.js';
+import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
+import { logResponseSelectionWidgetAction, type ResponseSelectionWidgetVariant } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
+import { IResolvedResponseSelection, resolveResponseSelection, resolveResponseSelectionFocus } from './responseSelectionResolver.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
 
 /**
@@ -27,6 +37,8 @@ import { createAndSendSideChat } from './sideChatOrchestration.js';
  * once the browser collapses it.
  */
 const selectionHighlightName = 'chat-response-selection';
+
+export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';
 
 // Highlight pseudo-elements inherit custom properties from the root element
 // only, so they cannot see the `--vscode-*` theme variables (which are scoped
@@ -63,40 +75,40 @@ function getSelectionHighlight(targetWindow: Window & typeof globalThis): Highli
 	return highlight;
 }
 
-/**
- * Bounding box of the range's *visible* line boxes. `Range.getBoundingClientRect`
- * includes the empty box a line selection leaves at the start of the following
- * block, which would push the affordance a line too far down.
- */
-function getVisibleBoundingRect(range: Range): { top: number; bottom: number; left: number } | undefined {
-	let top = Number.POSITIVE_INFINITY;
-	let bottom = Number.NEGATIVE_INFINITY;
-	let left = Number.POSITIVE_INFINITY;
-	for (const rect of range.getClientRects()) {
-		if (rect.width === 0 || rect.height === 0) {
-			continue;
-		}
-		top = Math.min(top, rect.top);
-		bottom = Math.max(bottom, rect.bottom);
-		left = Math.min(left, rect.left);
+function getVisibleFocusRect(range: Range, focusEdge: IResolvedResponseSelection['focusEdge']): { top: number; bottom: number; left: number } | undefined {
+	if (range.collapsed || range.startContainer.nodeType !== Node.TEXT_NODE || !range.startContainer.isConnected) {
+		return undefined;
 	}
-	if (bottom === Number.NEGATIVE_INFINITY) {
-		const fallback = range.getBoundingClientRect();
-		return fallback.width || fallback.height ? fallback : undefined;
+	const characterRect = Array.from(range.getClientRects()).find(rect => rect.height > 0) ?? range.getBoundingClientRect();
+	if (!characterRect.height) {
+		return undefined;
 	}
-	return { top, bottom, left };
+	return {
+		top: characterRect.top,
+		bottom: characterRect.bottom,
+		left: focusEdge === 'left' ? characterRect.left : characterRect.right,
+	};
 }
 
 /**
- * Agents-window-only controller that shows an "Ask Question" input (reusing
- * {@link FeedbackInputWidget}) when the user selects text within a single
- * assistant response's rendered markdown, and creates a side chat anchored to
- * that response when submitted. Owned by `ChatView` so this affordance never
- * appears in the regular workbench chat surface.
+ * Owns Agents-window actions for text selected within one assistant response.
+ * The default is the existing input; the experiment adds an action menu before it.
  */
 export class ResponseSelectionSideChatController extends Disposable {
 
 	private readonly _input: FeedbackInputWidget;
+	private readonly _menuDomNode: HTMLElement;
+	private readonly _menu: Menu;
+	private readonly _quoteAction: Action;
+	private readonly _chatInteractivity = this._register(new MutableDisposable());
+	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
+	private _pointerSelectionId: number | undefined;
+	private _pointerSelectionChanged = false;
+	private _verticalPlacement: 'above' | 'below' | undefined;
+	private _lastFocusRect: { top: number; bottom: number; left: number } | undefined;
+	private _lastTranscriptBounds: { top: number; bottom: number } | undefined;
+	private _visibleSurface: 'input' | 'menu' | undefined;
+	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
 	/** Range currently painted via the CSS custom highlight, if any. */
 	private _paintedRange: Range | undefined;
@@ -113,9 +125,13 @@ export class ResponseSelectionSideChatController extends Disposable {
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
+		this._selectionChangeScheduler = this._register(new dom.AnimationFrameScheduler(this._widget.domNode, () => this._applySelectionChange()));
 		this._input = this._register(new FeedbackInputWidget({
 			placeholder: localize('sessions.selectionSideChat.placeholder', "Ask Question"),
 			ariaLabel: localize('sessions.selectionSideChat.ariaLabel', "Ask a question about the selected response text"),
@@ -127,6 +143,44 @@ export class ResponseSelectionSideChatController extends Disposable {
 			},
 		}));
 		this._widget.domNode.appendChild(this._input.domNode);
+
+		this._menuDomNode = dom.$('.context-view.chat-response-selection-menu');
+		this._menuDomNode.style.position = 'absolute';
+		this._menuDomNode.style.zIndex = '10000';
+		this._menuDomNode.style.display = 'none';
+		this._widget.domNode.appendChild(this._menuDomNode);
+
+		const askQuestionAction = this._register(new Action(
+			'sessions.responseSelection.askWithBtw',
+			localize('sessions.responseSelection.askWithBtw', "Ask in a Side Chat"),
+			ThemeIcon.asClassName(Codicon.commentDiscussion),
+			true,
+			() => this._openQuestionInput(),
+		));
+		this._quoteAction = this._register(new Action(
+			'sessions.responseSelection.quote',
+			localize('sessions.responseSelection.quote', "Quote"),
+			ThemeIcon.asClassName(Codicon.quote),
+			false,
+			() => this._quoteSelection(),
+		));
+		const copyAction = this._register(new Action(
+			'sessions.responseSelection.copy',
+			localize('sessions.responseSelection.copy', "Copy"),
+			ThemeIcon.asClassName(Codicon.copy),
+			true,
+			() => this._copySelection(),
+		));
+		this._menu = this._register(new Menu(this._menuDomNode, [
+			askQuestionAction,
+			this._quoteAction,
+			new Separator(),
+			copyAction,
+		], {
+			ariaLabel: localize('sessions.responseSelection.menuAriaLabel', "Selected response text actions"),
+		}, defaultMenuStyles));
+		this._register(this._menu.onDidCancel(() => this._dismiss()));
+		this._register(dom.addStandardDisposableListener(this._menuDomNode, 'mousedown', e => e.preventDefault()));
 
 		this._register(this._input.onDidTriggerPrimary(() => this._submit()));
 		this._register(dom.addStandardDisposableListener(this._input.inputElement, 'keydown', e => {
@@ -152,16 +206,21 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._register(dom.addStandardDisposableListener(this._input.inputElement, 'input', () => {
 			this._input.autoSize();
 			this._input.updateActionEnabled();
+			this._reposition(true, false);
 		}));
 
 		const window = dom.getWindow(this._widget.domNode);
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
+		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => this._beginPointerSelection(e), true));
+		this._register(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
 		// The transcript is a virtualized list that scrolls by transform, so it
 		// never fires a DOM scroll event; follow its own scroll event instead.
 		// The capture-phase DOM listener additionally covers nested scrollers
 		// (a scrollable code block within a response).
-		this._register(this._widget.onDidScroll(() => this._reposition()));
-		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(), true));
+		this._register(this._widget.onDidScroll(() => this._reposition(true)));
+		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(true), true));
 		this._register(toDisposable(() => this._paintHighlight(undefined)));
 	}
 
@@ -173,22 +232,58 @@ export class ResponseSelectionSideChatController extends Disposable {
 	setChat(chat: IChat): void {
 		const changedChat = !this._chat || this._chat.resource.toString() !== chat.resource.toString();
 		this._chat = chat;
+		this._chatInteractivity.value = autorun(reader => {
+			this._quoteAction.enabled = chat.interactivity.read(reader) === ChatInteractivity.Full;
+		});
 		if (changedChat) {
 			this._dismiss(true);
 		}
 	}
 
+	private _beginPointerSelection(event: PointerEvent): void {
+		if (event.button !== 0
+			|| event.isPrimary === false
+			|| this._input.isBusy) {
+			return;
+		}
+		this._selectionChangeScheduler.cancel();
+		this._pointerSelectionId = event.pointerId;
+		this._pointerSelectionChanged = false;
+	}
+
+	private _finishPointerSelection(pointerId?: number): void {
+		if (this._pointerSelectionId === undefined
+			|| (pointerId !== undefined && this._pointerSelectionId !== pointerId)) {
+			return;
+		}
+		this._pointerSelectionId = undefined;
+		this._pointerSelectionChanged = false;
+		this._selectionChangeScheduler.schedule();
+	}
+
 	private _onSelectionChange(): void {
+		if (this._pointerSelectionId !== undefined) {
+			this._updateAutoScrollHold();
+			if (!this._pointerSelectionChanged && !this._hasAffordanceFocus()) {
+				this._pointerSelectionChanged = true;
+				this._dismiss();
+			}
+			return;
+		}
+		if (this._selectionChangeScheduler.isScheduled()) {
+			this._updateAutoScrollHold();
+			return;
+		}
+		this._applySelectionChange();
+	}
+
+	private _applySelectionChange(): void {
 		// Reflect the new selection state first: every branch below (including
 		// the early returns) needs the hold to match what is currently selected.
 		this._updateAutoScrollHold();
-		// The browser collapses the document selection the moment the "Ask
-		// Question" textarea receives focus (textareas don't participate in
-		// the Selection API). Ignore selectionchange entirely while focus is
-		// inside the input so typing doesn't dismiss the widget it just
-		// captured; a real outside invalidation is handled once focus
-		// actually leaves (the next selectionchange runs with focus outside).
-		if (dom.isAncestorOfActiveElement(this._input.domNode)) {
+		// The browser can collapse the document selection when focus moves into
+		// the affordance. Keep the captured range until focus genuinely leaves.
+		if (this._hasAffordanceFocus()) {
 			this._syncHighlight();
 			return;
 		}
@@ -268,35 +363,115 @@ export class ResponseSelectionSideChatController extends Disposable {
 	}
 
 	private _showFor(): void {
-		this._input.show();
-		this._input.autoSize();
-		this._input.updateActionEnabled();
+		const wasVisible = this._visibleSurface !== undefined;
+		const variant = this._visibleVariant ?? this._getConfiguredVariant();
+		this._visibleVariant = variant;
+		if (variant === 'actionMenu' && this._visibleSurface !== 'input') {
+			this._input.hide();
+			this._menuDomNode.style.display = '';
+			this._visibleSurface = 'menu';
+		} else {
+			this._menuDomNode.style.display = 'none';
+			this._input.show();
+			this._input.autoSize();
+			this._input.updateActionEnabled();
+			this._visibleSurface = 'input';
+		}
+		if (!wasVisible) {
+			logResponseSelectionWidgetAction(this._telemetryService, variant, 'shown');
+		}
 		this._syncHighlight();
 		this._reposition();
 	}
 
-	/**
-	 * Re-anchors the input to the (live) selection range. Called on every
-	 * transcript scroll so the overlay tracks the text it belongs to instead of
-	 * staying pinned where the selection used to be.
-	 */
-	private _reposition(): void {
+	private _openQuestionInput(): void {
+		if (!this._resolved) {
+			return;
+		}
+		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionOpened');
+		this._menuDomNode.style.display = 'none';
+		this._input.show();
+		this._input.autoSize();
+		this._input.updateActionEnabled();
+		this._visibleSurface = 'input';
+		this._reposition(true);
+		this._input.inputElement.focus();
+		this._syncHighlight();
+	}
+
+	private _quoteSelection(): void {
+		const resolved = this._resolved;
+		if (!resolved || this._chat?.interactivity.get() !== ChatInteractivity.Full) {
+			return;
+		}
+		const variant = this._visibleVariant ?? this._getConfiguredVariant();
+		const existingInput = this._widget.getInput();
+		const separator = existingInput.length > 0 && !existingInput.endsWith('\n') ? '\n' : '';
+		logResponseSelectionWidgetAction(this._telemetryService, variant, 'quote');
+		this._dismiss();
+		this._widget.setInput(`${existingInput}${separator}${formatBlockquote(resolved.text)}`);
+		this._widget.focusInput();
+		status(localize('sessions.responseSelection.quoted', "Quoted selection inserted."));
+	}
+
+	private async _copySelection(): Promise<void> {
 		const resolved = this._resolved;
 		if (!resolved) {
 			return;
 		}
-		const selectionRect = getVisibleBoundingRect(resolved.range);
-		if (!selectionRect) {
+		const variant = this._visibleVariant ?? this._getConfiguredVariant();
+		logResponseSelectionWidgetAction(this._telemetryService, variant, 'copy');
+		this._dismiss();
+		try {
+			await this._clipboardService.writeText(resolved.text);
+			status(localize('sessions.responseSelection.copied', "Selected response text copied."));
+		} catch (err) {
+			this._logService.error('[responseSelection] Failed to copy selected response text', err);
+			this._notificationService.error(localize('sessions.responseSelection.copyFailed', "The selected response text could not be copied."));
+		}
+	}
+
+	private _getConfiguredVariant(): ResponseSelectionWidgetVariant {
+		return this._configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) ? 'actionMenu' : 'askQuestionInput';
+	}
+
+	private _hasAffordanceFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this._input.domNode) || dom.isAncestorOfActiveElement(this._menuDomNode);
+	}
+
+	/**
+	 * Re-anchors the affordance to the (live) selection range. Called on every
+	 * transcript scroll so the overlay tracks the text it belongs to instead of
+	 * staying pinned where the selection used to be.
+	 */
+	private _reposition(preservePlacement = false, dismissIfAnchorMissing = true): void {
+		let resolved = this._resolved;
+		const surface = this._visibleSurface;
+		if (!resolved || !surface) {
+			return;
+		}
+		let focusRect = getVisibleFocusRect(resolved.focusRange, resolved.focusEdge);
+		if (!focusRect) {
 			// The transcript is virtualized, so scrolling far enough removes the
 			// selected row. Removing a node re-homes any live range onto the
 			// surviving parent, collapsing it, so the range still looks attached
 			// but no longer covers anything. The anchored text cannot come back
 			// — re-rendering builds new nodes — so dismiss rather than leave the
 			// input pointing at nothing and the transcript pinned forever.
-			this._dismiss();
-			return;
+			const refreshedFocus = resolveResponseSelectionFocus(resolved.range, resolved.direction, this._widget.domNode);
+			if (refreshedFocus) {
+				resolved = this._resolved = { ...resolved, ...refreshedFocus };
+				focusRect = getVisibleFocusRect(resolved.focusRange, resolved.focusEdge);
+			}
+			if (!focusRect) {
+				if (dismissIfAnchorMissing) {
+					this._dismiss();
+				}
+				return;
+			}
 		}
-		this._input.show();
+		const overlay = surface === 'menu' ? this._menuDomNode : this._input.domNode;
+		overlay.style.display = '';
 
 		// The overlay is a child of the widget, so its coordinates are relative
 		// to that, but it is confined to the scrollable transcript: once the
@@ -305,25 +480,42 @@ export class ResponseSelectionSideChatController extends Disposable {
 		const originRect = this._widget.domNode.getBoundingClientRect();
 		const bounds = this._transcriptBounds();
 		const gap = 4;
-		const inputWidth = this._input.domNode.offsetWidth;
-		const inputHeight = this._input.domNode.offsetHeight;
+		const overlayWidth = overlay.offsetWidth;
+		const overlayHeight = overlay.offsetHeight;
 
 		const minLeft = bounds.left - originRect.left;
-		const maxLeft = Math.max(minLeft, minLeft + bounds.width - inputWidth);
-		const left = clamp(selectionRect.left - originRect.left, minLeft, maxLeft);
+		const maxLeft = Math.max(minLeft, minLeft + bounds.width - overlayWidth);
+		const left = clamp(focusRect.left - originRect.left, minLeft, maxLeft);
 
 		const minTop = bounds.top - originRect.top;
-		const maxTop = Math.max(minTop, minTop + bounds.height - inputHeight);
-		let top = selectionRect.bottom - originRect.top + gap;
-		if (top > maxTop) {
-			// Not enough room below the selection: prefer placing it above instead.
-			const aboveTop = selectionRect.top - originRect.top - inputHeight - gap;
-			top = aboveTop >= minTop ? aboveTop : maxTop;
+		const transcriptBottom = minTop + bounds.height;
+		const maxTop = Math.max(minTop, transcriptBottom - overlayHeight);
+		const aboveTop = focusRect.top - originRect.top - overlayHeight - gap;
+		const belowTop = focusRect.bottom - originRect.top + gap;
+		const preferBelow = resolved.direction === 'forward';
+		const aboveFits = aboveTop >= minTop;
+		const belowFits = belowTop <= maxTop;
+		let placement = preservePlacement ? this._verticalPlacement : undefined;
+		const focusMoved = !!this._lastFocusRect
+			&& (Math.abs(this._lastFocusRect.top - focusRect.top) > 0.5
+				|| Math.abs(this._lastFocusRect.bottom - focusRect.bottom) > 0.5
+				|| Math.abs(this._lastFocusRect.left - focusRect.left) > 0.5);
+		const transcriptBoundsMoved = !!this._lastTranscriptBounds
+			&& (Math.abs(this._lastTranscriptBounds.top - minTop) > 0.5
+				|| Math.abs(this._lastTranscriptBounds.bottom - transcriptBottom) > 0.5);
+		if (preservePlacement && (focusMoved || transcriptBoundsMoved)) {
+			placement = undefined;
 		}
-		top = clamp(top, minTop, maxTop);
+		placement ??= preferBelow
+			? (belowFits || !aboveFits ? 'below' : 'above')
+			: (aboveFits || !belowFits ? 'above' : 'below');
+		this._verticalPlacement = placement;
+		this._lastFocusRect = focusRect;
+		this._lastTranscriptBounds = { top: minTop, bottom: transcriptBottom };
+		const top = placement === 'below' ? belowTop : aboveTop;
 
-		this._input.domNode.style.top = `${top}px`;
-		this._input.domNode.style.left = `${left}px`;
+		overlay.style.top = `${clamp(top, minTop, maxTop)}px`;
+		overlay.style.left = `${left}px`;
 	}
 
 	/**
@@ -351,19 +543,28 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!force && this._input.isBusy) {
 			return;
 		}
+		this._selectionChangeScheduler.cancel();
 		if (force) {
+			this._pointerSelectionId = undefined;
+			this._pointerSelectionChanged = false;
 			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
 			this._generation++;
 		}
-		const hadFocus = dom.isAncestorOfActiveElement(this._input.domNode);
+		const hadFocus = this._hasAffordanceFocus();
 		this._resolved = undefined;
 		this._paintHighlight(undefined);
 		this._updateAutoScrollHold();
 		this._input.setBusy(false);
 		this._input.hide();
+		this._menuDomNode.style.display = 'none';
 		this._input.clearInput();
+		this._visibleSurface = undefined;
+		this._visibleVariant = undefined;
+		this._verticalPlacement = undefined;
+		this._lastFocusRect = undefined;
+		this._lastTranscriptBounds = undefined;
 		if (hadFocus) {
-			// Hiding the focused input would otherwise leave focus stranded on
+			// Hiding the focused affordance would otherwise leave focus stranded on
 			// the body; return it to the transcript it was invoked from.
 			this._widget.focusResponseItem(true);
 		}
@@ -376,6 +577,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!resolved || !chat || !query || this._input.isBusy) {
 			return;
 		}
+		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionSubmitted');
 
 		const found = this._sessionsManagementService.getSessionForChatResource(chat.resource);
 		if (!found) {
@@ -393,6 +595,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// `setChat`; on failure the question and normal controls are restored
 		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
+		this._reposition(true, false);
 		const generation = this._generation;
 		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
 			.then(() => {
@@ -404,6 +607,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 				// chat) normally dismisses this overlay already; clear busy
 				// defensively in case that doesn't happen.
 				this._input.setBusy(false);
+				this._reposition(true, false);
 			})
 			.catch(err => {
 				this._logService.error('[selectionSideChat] Failed to create side chat', err);
@@ -415,7 +619,12 @@ export class ResponseSelectionSideChatController extends Disposable {
 				this._input.inputElement.value = query;
 				this._input.autoSize();
 				this._input.updateActionEnabled();
+				this._reposition(true, false);
 				this._input.inputElement.focus();
 			});
 	}
+}
+
+function formatBlockquote(text: string): string {
+	return `${text.split('\n').map(line => `> ${line}`).join('\n')}\n\n`;
 }

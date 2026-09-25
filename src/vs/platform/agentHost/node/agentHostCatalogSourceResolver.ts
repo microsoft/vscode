@@ -5,12 +5,13 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
-import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
@@ -31,6 +32,7 @@ export interface ICatalogSourceState {
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ChatInteractivity;
+		readonly archived?: boolean;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
 	}[];
@@ -82,6 +84,7 @@ const sessionMetadata = {
 	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
 	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
 	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
+	remoteOrigin: parsedSessionMetadataKey(REMOTE_SESSION_ORIGIN_METADATA_KEY, parseRemoteSessionOrigin),
 	workspaceless: parsedSessionMetadataKey(AH_META_WORKSPACELESS_DB_KEY, value => value === 'true'),
 	ehcliAdopted: parsedSessionMetadataKey(AH_META_EHCLI_ADOPTED_DB_KEY, value => value === 'true'),
 	multiRoot: parsedSessionMetadataKey(SESSION_META_MULTI_ROOT_KEY, parseSessionMultiRootMetadata),
@@ -90,8 +93,11 @@ const sessionMetadata = {
 	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
 	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
 	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
+	gitHubData: parsedSessionMetadataKey(META_GITHUB_DATA_STATE, readPersistedGitHubData),
+	/** Written by earlier versions; migrated to the session folder. */
 	gitHub: parsedSessionMetadataKey(META_GITHUB_STATE, readPersistedGitHubState),
 	git: parsedSessionMetadataKey(META_GIT_STATE, readPersistedGitState),
+	gitData: parsedSessionMetadataKey(META_GIT_DATA_STATE, readPersistedGitData),
 	sourceControl: parsedSessionMetadataKey(META_SOURCE_CONTROL_STATE, readPersistedSourceControlState),
 	devContainerWorktree: parsedSessionMetadataKey(AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readPersistedDevContainerWorktree),
 } as const;
@@ -150,16 +156,31 @@ export class AgentHostCatalogSourceResolver {
 		const creationReference = preferPersistedMetadata
 			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))
 			: readSessionCreationReference(state.meta) ?? persistedCreationReference;
-		const persistedGitHub = sessionMetadata.gitHub.read(metadata);
-		const github = preferPersistedMetadata
-			? (sessionMetadata.gitHub.has(metadata) ? persistedGitHub : readSessionGitHubState(state.meta))
-			: readSessionGitHubState(state.meta) ?? persistedGitHub;
+		const persistedRemoteOrigin = sessionMetadata.remoteOrigin.read(metadata);
+		const remoteOrigin = preferPersistedMetadata
+			? (sessionMetadata.remoteOrigin.has(metadata) ? persistedRemoteOrigin : readRemoteSessionOrigin({ _meta: state.meta }))
+			: readRemoteSessionOrigin({ _meta: state.meta }) ?? persistedRemoteOrigin;
+		const persistedGitHubData = readSessionGitHubData(withMigratedSessionGitHubState(
+			sessionMetadata.gitHubData.read(metadata),
+			state.workingDirectories[0],
+			sessionMetadata.gitHub.read(metadata),
+		));
+		const stateGitHubData = readSessionGitHubData(withMigratedSessionGitHubState(state.meta, state.workingDirectories[0]));
+		const hasPersistedGitHub = sessionMetadata.gitHubData.has(metadata) || !!metadata[META_GITHUB_STATE];
+		const githubData = preferPersistedMetadata
+			? (hasPersistedGitHub ? persistedGitHubData : stateGitHubData)
+			: stateGitHubData.size > 0 ? stateGitHubData : persistedGitHubData;
 		const persistedSourceControl = sessionMetadata.sourceControl.read(metadata);
 		const sourceControl = preferPersistedMetadata
 			? (sessionMetadata.sourceControl.has(metadata) ? persistedSourceControl : readSessionSourceControlState(state.meta))
 			: readSessionSourceControlState(state.meta) ?? persistedSourceControl;
 		const persistedGit = sessionMetadata.git.read(metadata);
 		const git = readSessionGitState(state.meta) ?? persistedGit;
+		const persistedGitData = sessionMetadata.gitData.read(metadata) ?? new Map();
+		const stateGitData = readSessionGitData(state.meta);
+		const gitData = preferPersistedMetadata
+			? (sessionMetadata.gitData.has(metadata) ? persistedGitData : stateGitData)
+			: stateGitData.size > 0 ? stateGitData : persistedGitData;
 		const persistedWorkspaceless = sessionMetadata.workspaceless.read(metadata) ?? false;
 		const workspaceless = preferPersistedMetadata && metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined
 			? persistedWorkspaceless
@@ -184,11 +205,13 @@ export class AgentHostCatalogSourceResolver {
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
-			...(github ? { [SESSION_META_GITHUB_KEY]: github } : undefined),
+			...(githubData.size > 0 ? { [SESSION_META_GITHUB_DATA_KEY]: Object.fromEntries(githubData) } : undefined),
 			...(git ? { [SESSION_META_GIT_KEY]: git } : undefined),
+			...(gitData.size > 0 ? { [SESSION_META_GIT_DATA_KEY]: Object.fromEntries(gitData) } : undefined),
 			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
 			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
 			...(creationReference ? { [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference } : undefined),
+			...(remoteOrigin ? { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: remoteOrigin } : undefined),
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
@@ -227,6 +250,7 @@ export class AgentHostCatalogSourceResolver {
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(chat.archived === true ? { archived: true } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 				};
@@ -243,7 +267,11 @@ export class AgentHostCatalogSourceResolver {
 		if (creationReference || metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_CREATED_BY_SESSION_DB_KEY] = creationReference ? JSON.stringify(creationReference) : '';
 		}
-		if (workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+		if (remoteOrigin) {
+			legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
+		}
+		// The persisted marker also identifies host-created sessions, so it is never backfilled for an external one.
+		if ((workspaceless && !readSessionExternal(state.meta)) || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = workspaceless ? 'true' : 'false';
 		}
 		if (metadata[CHAT_BACKING_METADATA_KEY] !== undefined) {
@@ -261,8 +289,12 @@ export class AgentHostCatalogSourceResolver {
 		} else if (metadataOverrides[SESSION_CUSTOM_TITLE_SOURCE_KEY] !== undefined || persisted[SESSION_CUSTOM_TITLE_SOURCE_KEY] !== undefined) {
 			legacyMetadata[SESSION_CUSTOM_TITLE_SOURCE_KEY] = titleSource;
 		}
-		if (github) {
-			legacyMetadata[META_GITHUB_STATE] = JSON.stringify(github);
+		// The Git state service owns the GitHub state of each folder; the catalog
+		// only migrates the original single-folder entry of earlier versions.
+		if (metadata[META_GITHUB_STATE]) {
+			if (githubData.size > 0) {
+				legacyMetadata[META_GITHUB_DATA_STATE] = JSON.stringify(Object.fromEntries(githubData));
+			}
 		}
 		if (sourceControl) {
 			legacyMetadata[META_SOURCE_CONTROL_STATE] = JSON.stringify(sourceControl);
@@ -271,6 +303,11 @@ export class AgentHostCatalogSourceResolver {
 			legacyMetadata[META_GIT_STATE] = JSON.stringify(git);
 		} else if (metadata[META_GIT_STATE] !== undefined) {
 			legacyMetadata[META_GIT_STATE] = '';
+		}
+		if (gitData.size > 0) {
+			legacyMetadata[META_GIT_DATA_STATE] = JSON.stringify(Object.fromEntries(gitData));
+		} else if (metadata[META_GIT_DATA_STATE] !== undefined) {
+			legacyMetadata[META_GIT_DATA_STATE] = '';
 		}
 		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
@@ -394,7 +431,19 @@ function readPersistedGitHubState(value: string | undefined): ISessionGitHubStat
 		return undefined;
 	}
 	try {
-		return readSessionGitHubState({ [SESSION_META_GITHUB_KEY]: JSON.parse(value) });
+		return parseSessionGitHubState(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+function readPersistedGitHubData(value: string | undefined): SessionSummary['_meta'] {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		const folders = parseSessionGitHubData(JSON.parse(value));
+		return folders.size > 0 ? { [SESSION_META_GITHUB_DATA_KEY]: Object.fromEntries(folders) } : undefined;
 	} catch {
 		return undefined;
 	}
@@ -425,6 +474,18 @@ function readPersistedGitState(value: string | undefined): ISessionGitState | un
 	}
 	try {
 		return agentHostCatalogGitValidator.validate(JSON.parse(value)).content;
+	} catch {
+		return undefined;
+	}
+}
+
+function readPersistedGitData(value: string | undefined): ReadonlyMap<string, ISessionGitState> | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		const content = agentHostCatalogGitDataValidator.validate(JSON.parse(value)).content;
+		return content ? new Map(Object.entries(content)) : undefined;
 	} catch {
 		return undefined;
 	}

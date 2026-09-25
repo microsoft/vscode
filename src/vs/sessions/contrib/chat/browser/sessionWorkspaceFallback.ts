@@ -18,6 +18,7 @@ const MAX_RECENT_SESSIONS = 15;
 export interface IResolvedFolderWorkspace {
 	readonly providerId: string;
 	readonly workspace: ISessionWorkspace;
+	readonly isSessionWorkspace?: boolean;
 }
 
 /** Callbacks that keep provider-specific picker policy outside the fallback. */
@@ -30,6 +31,7 @@ export interface ISessionWorkspaceFallbackOptions {
 interface ISessionWorkspaceCandidate {
 	readonly folderUri: URI;
 	readonly providerId: string;
+	readonly workspace: ISessionWorkspace;
 	readonly count: number;
 	readonly firstIndex: number;
 }
@@ -61,6 +63,39 @@ export class SessionWorkspaceFallback extends Disposable {
 		}
 	}
 
+	/** Returns every workspace known from provider sessions. */
+	getWorkspaces(): IResolvedFolderWorkspace[] {
+		const sessions = this.sessionsProvidersService.getProviders()
+			.filter(provider => this.options.canUseProvider(provider.id))
+			.flatMap(provider => provider.getSessions())
+			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
+
+		const workspaces = new Map<string, IResolvedFolderWorkspace>();
+		for (const session of sessions) {
+			const workspace = session.workspace.get();
+			if (!workspace || session.isQuickChat?.get() || session.worktreePending?.get()) {
+				continue;
+			}
+			const folder = workspace.folders[0];
+			const catalogResolved = folder?.gitRepository && (folder.gitRepository.workTreeUri || isWorktreeWorkspaceUri(folder.root))
+				? this.options.resolveWorkspace(folder.gitRepository.uri, session.providerId)
+				: { providerId: session.providerId, workspace };
+			if (!catalogResolved) {
+				continue;
+			}
+			const catalogWorkspace = catalogResolved.workspace;
+			const key = this.uriIdentityService.extUri.getComparisonKey(catalogWorkspace.folders[0]?.root ?? catalogWorkspace.uri);
+			if (!workspaces.has(key)) {
+				workspaces.set(key, {
+					providerId: catalogResolved.providerId,
+					workspace: catalogWorkspace,
+					isSessionWorkspace: true,
+				});
+			}
+		}
+		return [...workspaces.values()];
+	}
+
 	/** Returns the highest-ranked existing workspace among recent sessions. */
 	async findWorkspace(): Promise<IResolvedFolderWorkspace | undefined> {
 		const sessions = this.sessionsProvidersService.getProviders()
@@ -89,15 +124,16 @@ export class SessionWorkspaceFallback extends Disposable {
 		const candidates = new Map<string, ISessionWorkspaceCandidate>();
 		for (let index = 0; index < sessions.length; index++) {
 			const session = sessions[index];
+			const workspace = session.workspace.get();
 			const folderUri = this._getWorkspaceFolder(session);
-			if (!folderUri) {
+			if (!workspace || !folderUri) {
 				continue;
 			}
 			const key = this.uriIdentityService.extUri.getComparisonKey(folderUri);
 			const candidate = candidates.get(key);
 			candidates.set(key, candidate
 				? { ...candidate, count: candidate.count + 1 }
-				: { folderUri, providerId: session.providerId, count: 1, firstIndex: index });
+				: { folderUri, providerId: session.providerId, workspace, count: 1, firstIndex: index });
 		}
 		return [...candidates.values()].sort((a, b) => b.count - a.count || a.firstIndex - b.firstIndex);
 	}

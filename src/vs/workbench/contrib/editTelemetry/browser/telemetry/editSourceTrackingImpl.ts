@@ -25,6 +25,13 @@ import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownO
 
 const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
 
+function getDetailsGroupingKey(source: TextModelEditSource): string {
+	const sourceKey = source.toKey(1);
+	return source.props.$origin === 'agentHost' && source.props.$$chatSessionId !== undefined
+		? JSON.stringify([sourceKey, source.props.$$sessionId, source.props.$$chatSessionId])
+		: sourceKey;
+}
+
 export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'agentHost' | 'user' | 'ide' | 'external' | 'unknown';
 
 export function getEditTelemetryCategory(source: EditSource): EditTelemetryCategory {
@@ -267,7 +274,7 @@ class TrackedDocumentInfo extends Disposable {
 		}>();
 		for (const internalKey of internalKeys) {
 			const representative = t.getRepresentative(internalKey)!;
-			const telemetryKey = representative.toKey(1);
+			const telemetryKey = getDetailsGroupingKey(representative);
 			const entry = telemetryKeys.get(telemetryKey) ?? {
 				representative,
 				modifiedCount: 0,
@@ -278,7 +285,7 @@ class TrackedDocumentInfo extends Disposable {
 		}
 		for (const range of ranges) {
 			const representative = t.getRepresentative(range.sourceKey)!;
-			const entry = telemetryKeys.get(representative.toKey(1));
+			const entry = telemetryKeys.get(getDetailsGroupingKey(representative));
 			if (entry) {
 				entry.modifiedCount += range.range.length;
 			}
@@ -296,7 +303,7 @@ class TrackedDocumentInfo extends Disposable {
 
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
-				sourceKey: key,
+				sourceKey: repr.toKey(1),
 				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
@@ -305,6 +312,7 @@ class TrackedDocumentInfo extends Disposable {
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
+				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
 				harness: repr.props.$harness,

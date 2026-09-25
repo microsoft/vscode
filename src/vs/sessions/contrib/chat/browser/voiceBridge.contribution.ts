@@ -44,9 +44,13 @@ export async function prepareNewVoiceSession(
 	voiceSessionController.setDraftTarget();
 	const transition = beginVoiceTransition();
 	try {
+		const inheritedTarget = inheritableSessionTarget(sessionsManagementService, activeSession, folderUri);
+		const target = inheritedTarget.providerId || !activeSession || !folderUri
+			? inheritedTarget
+			: { providerId: activeSession.providerId };
 		const result = await sessionsService.openNewSession({
 			folderUri,
-			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+			...target,
 		});
 		if (folderUri) {
 			if (!result.session) {

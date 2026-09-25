@@ -738,6 +738,7 @@ export namespace WorkspaceEdit {
 				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
 				if (isSnippet) {
 					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+					editOrSnippetTest.keepWhitespace = item.textEdit.keepWhitespace;
 				} else {
 					editOrSnippetTest = types.TextEdit.replace(range, text);
 				}
@@ -3493,7 +3494,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, workingDirectory: URI.revive(request.workingDirectory) }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, requestId: request.requestId, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
 			modelConfiguration,
