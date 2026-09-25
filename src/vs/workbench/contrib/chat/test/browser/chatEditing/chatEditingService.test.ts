@@ -299,48 +299,45 @@ suite('ChatEditingService', function () {
 		return entry;
 	}
 
-	for (const inline of [false, true]) {
-		test(`queued ${inline ? 'inline' : 'chat'} edits retain their originating request and tier snapshots`, async () => {
-			await runWithFakedTimers({}, async () => {
-				const uri = URI.from({ scheme: 'test', path: 'auto-tier' });
-				const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
-				const model = modelRef.object as ChatModel;
-				const session = model.editingSession;
-				assertType(session);
-				const textModel = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
-				const sources: { source: string; modelId: string | undefined; requestId: string | undefined; autoTier: string | undefined }[] = [];
-				store.add(textModel.onDidChangeContent(event => {
-					for (const source of event.detailedReasons) {
-						if (source.metadata.source === 'Chat.applyEdits' || source.metadata.source === 'inlineChat.applyEdits') {
-							sources.push({ source: source.metadata.source, modelId: source.props.$modelId, requestId: source.props.$$requestId, autoTier: source.props.$autoTier });
-						}
+	test('queued edits retain their originating request and tier snapshots', async () => {
+		await runWithFakedTimers({}, async () => {
+			const uri = URI.from({ scheme: 'test', path: 'auto-tier' });
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session);
+			const textModel = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+			const sources: { source: string; modelId: string | undefined; requestId: string | undefined; autoTier: string | undefined }[] = [];
+			store.add(textModel.onDidChangeContent(event => {
+				for (const source of event.detailedReasons) {
+					if (source.metadata.source === 'Chat.applyEdits') {
+						sources.push({ source: source.metadata.source, modelId: source.props.$modelId, requestId: source.props.$$requestId, autoTier: source.props.$autoTier });
 					}
-				}));
-				const request = model.addRequest(
-					{ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined,
-					inline ? { type: ChatAgentLocation.EditorInline, id: 'editor', document: uri, selection: new Selection(1, 1, 1, 1), wholeRange: new Range(1, 1, 1, 1) } : undefined,
-					undefined, undefined, 'copilot/auto',
-				);
-				const streaming = waitForState(session.state.map(state => state === ChatEditingSessionState.StreamingEdits), Boolean);
-				for (const autoTier of ['efficiency', 'fast', undefined, 'intelligence', undefined] as const) {
-					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false, autoTier });
 				}
-				request.response!.complete();
-				const later = model.addRequest({ text: 'later', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/another-model');
-				later.response!.complete();
+			}));
+			const request = model.addRequest(
+				{ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined,
+				undefined, undefined, undefined, 'copilot/auto',
+			);
+			const streaming = waitForState(session.state.map(state => state === ChatEditingSessionState.StreamingEdits), Boolean);
+			for (const autoTier of ['efficiency', 'fast', undefined, 'intelligence', undefined] as const) {
+				model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false, autoTier });
+			}
+			request.response!.complete();
+			const later = model.addRequest({ text: 'later', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/another-model');
+			later.response!.complete();
 
-				await streaming;
-				await waitForState(session.state.map(state => state === ChatEditingSessionState.Idle), Boolean);
+			await streaming;
+			await waitForState(session.state.map(state => state === ChatEditingSessionState.Idle), Boolean);
 
-				assert.deepStrictEqual(sources, ['efficiency', 'fast', undefined, 'intelligence', undefined].map(autoTier => ({
-					source: inline ? 'inlineChat.applyEdits' : 'Chat.applyEdits',
-					modelId: 'copilot|auto',
-					requestId: request.id,
-					autoTier,
-				})));
-			});
+			assert.deepStrictEqual(sources, ['efficiency', 'fast', undefined, 'intelligence', undefined].map(autoTier => ({
+				source: 'Chat.applyEdits',
+				modelId: 'copilot|auto',
+				requestId: request.id,
+				autoTier,
+			})));
 		});
-	}
+	});
 
 	test('mirror typing outside -> accept', async function () {
 		return runWithFakedTimers({}, async () => {

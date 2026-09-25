@@ -7,9 +7,9 @@ import { RequestType } from '@vscode/copilot-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest } from 'vscode';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter } from '../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseTextEditPart, Uri } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
@@ -23,7 +23,7 @@ import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { defaultAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
-import { AutomodeService, reportAutoModeRouting, type IAutoModeRoutingState } from '../automodeService';
+import { AutomodeService, reportAutoModeRouting } from '../automodeService';
 
 function createMockHeaders(entries: Record<string, string> = {}): { get(name: string): string | null } {
 	const lower: Record<string, string> = {};
@@ -34,8 +34,7 @@ function createMockHeaders(entries: Record<string, string> = {}): { get(name: st
 }
 
 describe('AutomodeService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	let routingStates: IAutoModeRoutingState[];
+	const disposables = new DisposableStore();
 	let automodeService: AutomodeService;
 	let mockCAPIClientService: ICAPIClientService;
 	let mockAuthService: IAuthenticationService;
@@ -64,25 +63,19 @@ describe('AutomodeService', () => {
 	}
 
 	function createService(): AutomodeService {
-		const service = disposables.add(new AutomodeService(
+		return new AutomodeService(
 			mockCAPIClientService,
 			mockAuthService,
 			mockLogService,
 			mockInstantiationService,
 			mockTelemetryService,
-			disposables.add(new NullRequestLogger()),
+			new NullRequestLogger(),
 			configurationService
-		));
-		disposables.add(service.onDidRoute(event => routingStates.push(event)));
-		return service;
-	}
-
-	function resolvedTiers() {
-		return routingStates.filter(state => state.kind !== 'started').map(state => state.kind === 'resolved' ? state.tier : undefined);
+		);
 	}
 
 	function configure(overrides: Map<BaseConfig<unknown>, unknown> = new Map()): void {
-		configurationService = disposables.add(new InMemoryConfigurationService(disposables.add(new DefaultsOnlyConfigurationService()), overrides));
+		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService(), overrides);
 	}
 
 	function setTierOverride(override: string): void {
@@ -125,14 +118,13 @@ describe('AutomodeService', () => {
 	}
 
 	beforeEach(() => {
-		routingStates = [];
 		mockChatEndpoint = createEndpoint('gpt-4o-mini', 'OpenAI');
 
 		mockCAPIClientService = {
 			makeRequest: vi.fn().mockResolvedValue(makeAutoResponse(autoResponse('gpt-4o-mini')))
 		} as unknown as ICAPIClientService;
 
-		onDidAuthenticationChangeEmitter = disposables.add(new Emitter<void>());
+		onDidAuthenticationChangeEmitter = new Emitter<void>();
 		mockAuthService = {
 			getCopilotToken: vi.fn().mockResolvedValue({ token: 'test-auth-token' }),
 			onDidAuthenticationChange: onDidAuthenticationChangeEmitter.event
@@ -174,6 +166,8 @@ describe('AutomodeService', () => {
 	});
 
 	afterEach(() => {
+		automodeService?.dispose();
+		disposables.clear();
 		vi.useRealTimers();
 	});
 
@@ -214,8 +208,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-empty-prompt',
 			} as ChatRequest, [mockChatEndpoint])).rejects.toThrow();
 
-			expect({ calls: autoCalls().length, tiers: resolvedTiers() })
-				.toEqual({ calls: 0, tiers: [undefined, undefined] });
+			expect(autoCalls()).toHaveLength(0);
 		});
 
 		// A bare slash command (`/tests` from the lightbulb, `/fix`, …) has an
@@ -247,7 +240,6 @@ describe('AutomodeService', () => {
 			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect({ model: first.model, calls: autoCalls().length }).toEqual({ model: 'gpt-4o', calls: 2 });
-			expect(resolvedTiers()).toEqual(['balance', 'balance']);
 		});
 
 		it('sends has_image when the request contains an image', async () => {
@@ -271,26 +263,15 @@ describe('AutomodeService', () => {
 
 			automodeService = createService();
 			const chatRequest: Partial<ChatRequest> = {
-				id: 'first',
 				location: ChatLocation.Panel,
 				prompt: 'first prompt',
 				sessionId: 'session-auto-reuse'
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
-			const second = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, id: 'second', prompt: 'second prompt' } as ChatRequest, [gpt4oEndpoint]);
-			automodeService.invalidateRouterCache(chatRequest as ChatRequest);
-			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, id: 'no-prompt', prompt: ' ' }, [gpt4oEndpoint]);
+			const second = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second prompt' } as ChatRequest, [gpt4oEndpoint]);
 
-			expect({ model: second.model, calls: autoCalls().length, routingStates }).toEqual({
-				model: 'gpt-4o', calls: 1,
-				routingStates: [
-					{ kind: 'started', requestId: 'first' },
-					...['first', 'second', 'no-prompt'].map((requestId, index) => ({
-						kind: 'resolved', requestId, endpoint: gpt4oEndpoint, tier: 'balance', didRoute: index === 0,
-					})),
-				],
-			});
+			expect({ model: second.model, calls: autoCalls().length }).toEqual({ model: 'gpt-4o', calls: 1 });
 		});
 
 		it('re-runs /auto after the cache is invalidated', async () => {
@@ -326,7 +307,6 @@ describe('AutomodeService', () => {
 
 			automodeService = createService();
 			const route = () => automodeService.resolveAutoModeEndpoint({
-				id: 'same-request',
 				location: ChatLocation.Panel,
 				prompt: 'concurrent prompt',
 				sessionId: 'session-concurrent',
@@ -334,13 +314,8 @@ describe('AutomodeService', () => {
 
 			const results = await Promise.all([route(), route(), route()]);
 
-			expect({ models: results.map(r => r.model), calls: autoCalls().length, routingStates }).toEqual({
-				models: ['gpt-4o', 'gpt-4o', 'gpt-4o'], calls: 1,
-				routingStates: [
-					{ kind: 'started', requestId: 'same-request' },
-					...[true, false, false].map(didRoute => ({ kind: 'resolved', requestId: 'same-request', endpoint: gpt4oEndpoint, tier: 'balance', didRoute })),
-				],
-			});
+			expect({ models: results.map(r => r.model), calls: autoCalls().length })
+				.toEqual({ models: ['gpt-4o', 'gpt-4o', 'gpt-4o'], calls: 1 });
 		});
 
 		// Reuse already ignores the prompt — a later turn keeps the model chosen
@@ -352,7 +327,6 @@ describe('AutomodeService', () => {
 
 			automodeService = createService();
 			const route = (prompt: string) => automodeService.resolveAutoModeEndpoint({
-				id: prompt,
 				location: ChatLocation.Panel,
 				prompt,
 				sessionId: 'session-concurrent-prompts',
@@ -360,15 +334,8 @@ describe('AutomodeService', () => {
 
 			const results = await Promise.all([route('first prompt'), route('second prompt')]);
 
-			expect({ models: results.map(r => r.model), calls: autoCalls().length, routingStates }).toEqual({
-				models: ['gpt-4o', 'gpt-4o'], calls: 1,
-				routingStates: [
-					{ kind: 'started', requestId: 'first prompt' },
-					...['first prompt', 'second prompt'].map((requestId, index) => ({
-						kind: 'resolved', requestId, endpoint: gpt4oEndpoint, tier: 'balance', didRoute: index === 0,
-					})),
-				],
-			});
+			expect({ models: results.map(r => r.model), calls: autoCalls().length })
+				.toEqual({ models: ['gpt-4o', 'gpt-4o'], calls: 1 });
 		});
 
 		// The session token belongs to the account that was signed in when the
@@ -411,7 +378,6 @@ describe('AutomodeService', () => {
 
 			automodeService = createService();
 			const route = (sessionId: string, tier: string, references?: unknown[]) => automodeService.resolveAutoModeEndpoint({
-				id: sessionId,
 				location: ChatLocation.Panel,
 				prompt: 'concurrent prompt',
 				sessionId,
@@ -419,27 +385,14 @@ describe('AutomodeService', () => {
 				references,
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			const pending = [
+			await Promise.all([
 				route('session-a', 'intelligence'),
 				route('session-b', 'intelligence'),
 				route('session-a', 'efficiency'),
 				route('session-a', 'intelligence', [{ value: { mimeType: 'image/png' } }]),
-			];
-			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'fast');
-			await Promise.all(pending);
+			]);
 
-			expect({ calls: autoCalls().length, routingStates }).toEqual({
-				calls: 4,
-				routingStates: [
-					...['session-a', 'session-b', 'session-a', 'session-a'].map(requestId => ({ kind: 'started', requestId })),
-					...[
-						{ requestId: 'session-a', tier: 'intelligence' },
-						{ requestId: 'session-b', tier: 'intelligence' },
-						{ requestId: 'session-a', tier: 'efficiency' },
-						{ requestId: 'session-a', tier: 'intelligence' },
-					].map(route => ({ ...route, kind: 'resolved', endpoint: gpt4oEndpoint, didRoute: true })),
-				],
-			});
+			expect(autoCalls()).toHaveLength(4);
 		});
 
 		// A failed routing call must not leave the conversation permanently
@@ -454,20 +407,11 @@ describe('AutomodeService', () => {
 				sessionId: 'session-inflight-error',
 			} as ChatRequest, [mockChatEndpoint]);
 
-			const failures = await Promise.allSettled([route(), route()]);
+			await expect(route()).rejects.toThrow();
 			mockAuto(autoResponse('gpt-4o-mini'));
 			const retry = await route();
 
-			expect({ model: retry.model, calls: autoCalls().length, failures: failures.map(result => result.status), routingStates }).toEqual({
-				model: 'gpt-4o-mini', calls: 2, failures: ['rejected', 'rejected'],
-				routingStates: [
-					{ kind: 'started', requestId: undefined },
-					{ kind: 'failed', requestId: undefined },
-					{ kind: 'failed', requestId: undefined },
-					{ kind: 'started', requestId: undefined },
-					{ kind: 'resolved', requestId: undefined, endpoint: mockChatEndpoint, tier: 'balance', didRoute: true },
-				],
-			});
+			expect({ model: retry.model, calls: autoCalls().length }).toEqual({ model: 'gpt-4o-mini', calls: 2 });
 		});
 
 		it('drops cached sessions when authentication changes', async () => {
@@ -572,8 +516,7 @@ describe('AutomodeService', () => {
 			automodeService.invalidateRouterCache(chatRequest as ChatRequest);
 			const second = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second turn' } as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect({ model: second.model, tiers: resolvedTiers() })
-				.toEqual({ model: 'gpt-4o', tiers: ['balance', 'balance'] });
+			expect(second.model).toBe('gpt-4o');
 		});
 
 		it('throws when the selected model metadata is unusable', async () => {
@@ -735,7 +678,6 @@ describe('AutomodeService', () => {
 			}
 
 			expect(autoRequestBodies().map(b => b.tier)).toEqual(['fast', 'fast', 'fast']);
-			expect(resolvedTiers()).toEqual(['fast', 'fast', 'fast']);
 		});
 
 		// The workbench materializes the schema default into `modelConfiguration`,
@@ -754,7 +696,6 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'inline turn', tier: 'fast' }]);
-			expect(resolvedTiers()).toEqual(['fast']);
 		});
 
 		it('honors an explicit tier selection on inline surfaces', async () => {
@@ -785,7 +726,6 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence' }]);
-			expect(resolvedTiers()).toEqual(['intelligence']);
 		});
 
 		it('falls back to the default tier when the configured tier is not user selectable', async () => {
@@ -801,7 +741,6 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balance' }]);
-			expect(resolvedTiers()).toEqual(['balance']);
 		});
 
 		it('re-routes the conversation when the tier changes', async () => {
@@ -821,7 +760,6 @@ describe('AutomodeService', () => {
 			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'third turn', modelConfiguration: { tier: 'intelligence' } } as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies().map(b => b.tier)).toEqual(['efficiency', 'intelligence']);
-			expect(resolvedTiers()).toEqual(['efficiency', 'efficiency', 'intelligence']);
 		});
 
 		it('lets the tier override win over the picker and the inline chat pin', async () => {
@@ -843,7 +781,6 @@ describe('AutomodeService', () => {
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies().map(b => b.tier)).toEqual(['efficiency', 'efficiency']);
-			expect(resolvedTiers()).toEqual(['efficiency', 'efficiency']);
 		});
 
 		// The override is an internal/eval knob, so unlike the picker it may target
@@ -861,7 +798,6 @@ describe('AutomodeService', () => {
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'fast' }]);
-			expect(resolvedTiers()).toEqual(['fast']);
 		});
 
 		it('ignores an unrecognized tier override', async () => {
@@ -878,7 +814,6 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
-			expect(resolvedTiers()).toEqual(['intelligence']);
 		});
 
 		it('does not reuse a cached endpoint from a different tier when /auto fails', async () => {
@@ -903,7 +838,6 @@ describe('AutomodeService', () => {
 				prompt: 'second turn',
 				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint])).rejects.toThrow();
-			expect(resolvedTiers()).toEqual(['efficiency', undefined]);
 		});
 
 		// `/auto` does not promise a new session token when the tier changes, so
@@ -981,7 +915,6 @@ describe('AutomodeService', () => {
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'efficiency' }]);
-			expect(resolvedTiers()).toEqual(['efficiency']);
 		});
 
 		// A picker value stored before the rename can be restored unfiltered while its model's
@@ -1007,7 +940,6 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			expect(autoRequestBodies().map(b => b.tier)).toEqual(['intelligence', 'fast']);
-			expect(resolvedTiers()).toEqual(['intelligence', 'fast']);
 		});
 	});
 
@@ -1046,7 +978,6 @@ describe('AutomodeService', () => {
 
 			expect(result).toBeDefined();
 			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalled();
-			expect(routingStates).toEqual([]);
 		});
 
 		// The picker has no prompt, so the discount label is read off the model

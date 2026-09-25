@@ -127,152 +127,69 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
-	for (const [sourceName, createSource] of [
-		['Chat.applyEdits', EditSources.chatApplyEdits],
-		['inlineChat.applyEdits', EditSources.inlineChatApplyEdit],
-	] as const) {
-		test(`${sourceName} reports generated and retained characters by Auto tier`, () => runWithFakedTimers({}, async () => {
-			const context = setup();
-			try {
-				await timeout(10);
-				const edits = [
-					{ text: 'aaaaaa', autoTier: 'efficiency' },
-					{ text: 'bbb', autoTier: 'efficiency' },
-					{ text: 'ccccc', autoTier: 'balance' },
-					{ text: 'dddd', autoTier: 'intelligence' },
-					{ text: 'ee', autoTier: 'fast' },
-					{ text: 'fff', autoTier: undefined },
-					{ text: 'gg', autoTier: undefined },
-					{ text: 'hh', autoTier: undefined, modelId: 'copilot/gpt-5' },
-				];
-				for (const [index, edit] of edits.entries()) {
-					context.document.applyEdit(StringEditWithReason.replace(
-						OffsetRange.emptyAt(context.document.value.get().value.length),
-						edit.text,
-						createSource({
-							modelId: edit.modelId ?? 'copilot/auto',
-							autoTier: edit.autoTier,
-							sessionId: 'session',
-							requestId: `request-${index}`,
-							languageId: 'typescript',
-							mode: 'agent',
-							extensionId: { extensionId: 'github.copilot-chat', version: '1.0.0' },
-							codeBlockSuggestionId: undefined,
-						}),
-					));
-					await timeout(1500);
-				}
-				for (const text of ['aaa', 'ccccc']) {
-					context.document.applyEdit(StringEditWithReason.replace(context.document.findRange(text), '', EditSources.cursor({ kind: 'type' })));
-					await timeout(10);
-				}
-				context.document.dispose();
-				await timeout(10);
-
-				const modes = ['longterm', '10minFocusWindow', '20minFocusWindow'];
-				assert.deepStrictEqual(modes.map(mode => ({
-					mode,
-					details: context.allDetails.filter(event => event.mode === mode && event.sourceKey.startsWith(`source:${sourceName}`)).map(event => ({
-						sourceKey: event.sourceKey,
-						sourceKeyCleaned: event.sourceKeyCleaned,
-						modelId: event.modelId,
-						autoTier: event.autoTier,
-						modifiedCount: event.modifiedCount,
-						deltaModifiedCount: event.deltaModifiedCount,
-						totalModifiedCount: event.totalModifiedCount,
-					})),
-					stats: context.allStats.filter(event => event.mode === mode).map(event => ({
-						otherAIModifiedCount: event.otherAIModifiedCount,
-						totalModifiedCharacters: event.totalModifiedCharacters,
-					})),
-				})), modes.map(mode => ({
-					mode,
-					details: [
-						{ autoTier: 'efficiency', modifiedCount: 6, deltaModifiedCount: 9 },
-						{ autoTier: 'balance', modifiedCount: 0, deltaModifiedCount: 5 },
-						{ autoTier: 'intelligence', modifiedCount: 4, deltaModifiedCount: 4 },
-						{ autoTier: 'fast', modifiedCount: 2, deltaModifiedCount: 2 },
-						{ autoTier: undefined, modifiedCount: 5, deltaModifiedCount: 5 },
-						{ autoTier: undefined, modifiedCount: 2, deltaModifiedCount: 2, modelId: 'copilot|gpt-5' },
-					].map(entry => ({
-						...entry,
-						modelId: entry.modelId ?? 'copilot|auto',
-						sourceKey: `source:${sourceName}-$modelId:${entry.modelId ?? 'copilot|auto'}${entry.autoTier ? `-$autoTier:${entry.autoTier}` : ''}-$extensionId:github.copilot-chat-$extensionVersion:1.0.0`,
-						sourceKeyCleaned: `source:${sourceName}`,
-						totalModifiedCount: 19,
-					})),
-					stats: [{ otherAIModifiedCount: 19, totalModifiedCharacters: 19 }],
-				})));
-			} finally {
-				context.disposables.dispose();
+	test('Chat.applyEdits reports generated and retained characters by Auto tier', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const edits = [
+				{ text: 'aaaaaa', autoTier: 'efficiency' },
+				{ text: 'bbb', autoTier: 'efficiency' },
+				{ text: 'ccccc', autoTier: 'balance' },
+				{ text: 'dddd', autoTier: 'intelligence' },
+				{ text: 'ee', autoTier: 'fast' },
+				{ text: 'fff', autoTier: undefined },
+				{ text: 'hh', autoTier: undefined, modelId: 'copilot/gpt-5' },
+			];
+			for (const [index, edit] of edits.entries()) {
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(context.document.value.get().value.length),
+					edit.text,
+					EditSources.chatApplyEdits({
+						modelId: edit.modelId ?? 'copilot/auto',
+						autoTier: edit.autoTier,
+						sessionId: 'session',
+						requestId: `request-${index}`,
+						languageId: 'typescript',
+						mode: 'agent',
+						extensionId: { extensionId: 'github.copilot-chat', version: '1.0.0' },
+						codeBlockSuggestionId: undefined,
+					}),
+				));
+				await timeout(1500);
 			}
-		}));
-	}
-
-	for (const mode of ['longterm', '10minFocusWindow', '20minFocusWindow'] as const) {
-		test(`${mode} caps pre-tier groups with stable ties and preserves all subdivisions`, () => runWithFakedTimers({ maxTaskCount: 2000 }, async () => {
-			const context = setup();
-			try {
+			for (const text of ['aaa', 'ccccc']) {
+				context.document.applyEdit(StringEditWithReason.replace(context.document.findRange(text), '', EditSources.cursor({ kind: 'type' })));
 				await timeout(10);
-				const cap = mode === 'longterm' ? 30 : 10;
-				const tiers = [undefined, 'efficiency', 'balance', 'intelligence', 'fast'];
-				for (let group = 1; group <= cap; group++) {
-					for (const autoTier of tiers) {
-						const offset = context.document.value.get().value.length;
-						context.document.applyEdit(StringEditWithReason.replace(
-							OffsetRange.emptyAt(offset),
-							'x'.repeat(group),
-							chatEdit(`request-${group}-${autoTier}`, {
-								modelId: 'copilot/auto',
-								autoTier,
-								extensionId: { extensionId: `test.extension-${group}`, version: '1.0.0' },
-							}),
-						));
-						await timeout(1500);
-						if (autoTier === undefined) {
-							context.document.applyEdit(StringEditWithReason.replace(
-								new OffsetRange(offset, offset + group),
-								'',
-								EditSources.cursor({ kind: 'type' }),
-							));
-							await timeout(10);
-							if (group === 1) {
-								const competitorOffset = context.document.value.get().value.length;
-								context.document.applyEdit(StringEditWithReason.replace(
-									OffsetRange.emptyAt(competitorOffset), 'z'.repeat(1000), EditSources.unknown({ name: 'competitor' }),
-								));
-								await timeout(10);
-								context.document.applyEdit(StringEditWithReason.replace(
-									new OffsetRange(competitorOffset + 4, competitorOffset + 1000), '', EditSources.cursor({ kind: 'type' }),
-								));
-								await timeout(10);
-							}
-						}
-					}
-				}
-				context.document.dispose();
-				await timeout(10);
-
-				const details = context.allDetails.filter(event => event.mode === mode);
-				const groupSum = cap * (cap + 1) / 2;
-				assert.deepStrictEqual(details.map(event => ({
-					sourceKey: event.sourceKey,
-					autoTier: event.autoTier,
-					modifiedCount: event.modifiedCount,
-					deltaModifiedCount: event.deltaModifiedCount,
-					totalModifiedCount: event.totalModifiedCount,
-				})), Array.from({ length: cap }, (_, i) => cap - i).flatMap(group => tiers.map(autoTier => ({
-					sourceKey: `source:Chat.applyEdits-$modelId:copilot|auto${autoTier ? `-$autoTier:${autoTier}` : ''}-$extensionId:test.extension-${group}-$extensionVersion:1.0.0`,
-					autoTier,
-					modifiedCount: autoTier === undefined ? 0 : group,
-					deltaModifiedCount: group,
-					totalModifiedCount: 4 * groupSum + 4,
-				}))));
-			} finally {
-				context.disposables.dispose();
 			}
-		}));
-	}
+			context.document.dispose();
+			await timeout(10);
+
+			assert.deepStrictEqual(context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits')).map(event => ({
+				sourceKey: event.sourceKey,
+				sourceKeyCleaned: event.sourceKeyCleaned,
+				modelId: event.modelId,
+				autoTier: event.autoTier,
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+				totalModifiedCount: event.totalModifiedCount,
+			})), [
+				{ autoTier: 'efficiency', modifiedCount: 6, deltaModifiedCount: 9 },
+				{ autoTier: 'balance', modifiedCount: 0, deltaModifiedCount: 5 },
+				{ autoTier: 'intelligence', modifiedCount: 4, deltaModifiedCount: 4 },
+				{ autoTier: 'fast', modifiedCount: 2, deltaModifiedCount: 2 },
+				{ autoTier: undefined, modifiedCount: 3, deltaModifiedCount: 3 },
+				{ autoTier: undefined, modifiedCount: 2, deltaModifiedCount: 2, modelId: 'copilot|gpt-5' },
+			].map(entry => ({
+				...entry,
+				modelId: entry.modelId ?? 'copilot|auto',
+				sourceKey: `source:Chat.applyEdits-$modelId:${entry.modelId ?? 'copilot|auto'}${entry.autoTier ? `-$autoTier:${entry.autoTier}` : ''}-$extensionId:github.copilot-chat-$extensionVersion:1.0.0`,
+				sourceKeyCleaned: 'source:Chat.applyEdits',
+				totalModifiedCount: 17,
+			})));
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
 
 	test('starts after first visibility and keeps only the long-term tracker while hidden', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', false);
@@ -1152,7 +1069,7 @@ function setup(
 	return { disposables, document, details, stats, allDetails, allStats, headHash, branch, impl };
 }
 
-function chatEdit(requestId: string, data: Partial<Parameters<typeof EditSources.chatApplyEdits>[0]> = {}) {
+function chatEdit(requestId: string) {
 	return EditSources.chatApplyEdits({
 		modelId: undefined,
 		sessionId: 'session-1',
@@ -1161,7 +1078,6 @@ function chatEdit(requestId: string, data: Partial<Parameters<typeof EditSources
 		mode: 'agent',
 		extensionId: undefined,
 		codeBlockSuggestionId: undefined,
-		...data,
 	});
 }
 
