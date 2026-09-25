@@ -1450,6 +1450,7 @@ export class AgentService extends Disposable implements IAgentService {
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
+			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
 			getWorktreeRoots: workspace => this._gitService.getWorktreeRoots(workspace),
