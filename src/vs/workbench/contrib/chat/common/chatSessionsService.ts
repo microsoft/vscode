@@ -160,6 +160,9 @@ export interface IChatSessionsExtensionPoint {
 	readonly description: string;
 	/** Groups session-list filters without changing this type's resource or content routing. */
 	readonly sessionListGroup?: string;
+	/** Hides this type from the Editor harness picker and automatic new-chat selection without affecting existing sessions. */
+	// TODO: @osortega remove this hack once we have a final UI/UX for cloud sandboxes
+	readonly hideFromSessionTypePicker?: boolean;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
