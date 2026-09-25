@@ -2062,18 +2062,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 }
 
 /**
- * Builds {@link IChatExternalEdit} progress parts for a completed tool call
- * that produced file edits. Returns an empty array if the tool call has no
- * edits. Each emitted part carries the URI, edit kind, before/after content
- * URIs, and the diff stats already known from the agent host protocol —
- * downstream rendering can produce a static "edit pill" without re-deriving
- * any of this from an editing session.
- *
- * `connectionAuthority` is required so all emitted URIs are wrapped via
- * {@link toAgentHostUri}; otherwise the chat session would receive raw
- * remote URIs that its file system providers cannot resolve.
+ * Builds per-file edit pills with protocol diff metadata and connection-scoped resource URIs.
+ * An optional root subagent id keeps child edits out of the parent's own content flow.
  */
-export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string): IChatProgress[] {
+export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string, subAgentInvocationId?: string): IChatExternalEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -2081,10 +2073,13 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
 	if (fileEdits.length === 0) {
 		return [];
 	}
-	const parts: IChatProgress[] = [];
+	const parts: IChatExternalEdit[] = [];
 	for (const edit of fileEdits) {
 		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority);
 		if (part) {
+			if (subAgentInvocationId !== undefined) {
+				part.subAgentInvocationId = subAgentInvocationId;
+			}
 			parts.push(part);
 		}
 	}

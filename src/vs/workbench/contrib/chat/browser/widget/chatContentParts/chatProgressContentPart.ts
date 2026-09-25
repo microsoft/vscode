@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { $, append, hide, isHTMLElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../base/common/iconLabels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -32,7 +32,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
@@ -451,6 +451,14 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.explicitContent = explicitContent;
 		this.isActive = isActive;
 		this.contextElement = context.element;
+
+		// Keep the replacement anchor, but never leave completed or disposed progress visible.
+		this._register(toDisposable(() => hide(this.domNode)));
+		const response = context.element;
+		if (isResponseVM(response)) {
+			const isComplete = observableFromEvent(this, response.model.onDidChange, () => response.isComplete || response.isCanceled);
+			this._register(autorun(reader => setVisibility(!isComplete.read(reader), this.domNode)));
+		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {

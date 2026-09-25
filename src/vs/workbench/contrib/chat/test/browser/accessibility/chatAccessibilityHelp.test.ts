@@ -61,12 +61,21 @@ suite('Chat Accessibility Help', () => {
 			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
 			sessionsHelp.includes('testing was requested, not that tests passed'),
 			sessionsHelp.includes('App Testing Options'),
-			sessionsHelp.includes('Subagent'),
+			sessionsHelp.includes('Test App Subagent'),
 			editorHelp.includes('Test App'),
 			editorHelp.includes('Retest App'),
 		], [true, true, true, false, false, false, false]);
 	});
 
+	test('documents keyboard access to subagent chats and inline details', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			focus: help.includes('Use Tab to focus a subagent pill'),
+			open: help.includes('Enter or Space to open its chat'),
+			inline: help.includes('Enter or Space expands or collapses its inline details'),
+			status: help.includes('announces its running state and any pending confirmations'),
+		}, { focus: true, open: true, inline: true, status: true });
+	});
 	test('documents collapsing the model controls when Auto is enabled', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

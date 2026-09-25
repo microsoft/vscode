@@ -223,7 +223,6 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	config.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 	config.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	config.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
-	config.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	config.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 	config.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, scenario.confirmations === true);
 	config.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
@@ -774,7 +773,8 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 export default defineThemedFixtureGroup({ path: 'chat/agent-lifecycle/' }, Object.fromEntries(
 	Object.entries(scenarios).map(([name, scenario]) => [name, defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: !scenario.confirmations, durationMs: 2000 },
+		// Section handoffs must allow real CSS collapse transitions to finish.
+		virtualTime: { enabled: !scenario.confirmations && !scenario.sectionTail, durationMs: 2000 },
 		additionalThemes: name === 'RetainedFollowUpLatestTurn' || name === 'ParentCompleteChildRunning' ? ['darkHighContrast', 'lightHighContrast'] : [],
 		expectedVisualDescriptions: [scenario.description],
 		render: context => renderLifecycle(context, name, scenario),

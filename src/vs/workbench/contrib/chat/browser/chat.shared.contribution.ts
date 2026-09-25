@@ -2487,11 +2487,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			},
 		},
-		[ChatConfiguration.SubagentsUseRichRendering]: {
-			type: 'boolean',
-			description: nls.localize('chat.subagents.useRichRendering', "Controls whether subagents in chat editors use a rich presentation that opens each subagent in its own editor instead of rendering its full activity inline in the parent chat."),
-			default: true,
-		},
 		[ChatConfiguration.SubagentsShowCreditUsage]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagents.showCreditUsage', "Controls whether AI credit usage is shown next to the duration for subagents."),

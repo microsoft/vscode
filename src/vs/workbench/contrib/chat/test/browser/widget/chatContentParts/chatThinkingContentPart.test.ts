@@ -20,7 +20,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -165,15 +166,17 @@ suite('ChatThinkingContentPart', () => {
 
 	test('uses a search icon only when no problems were found', () => {
 		assert.deepStrictEqual({
-			referenceName: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
-			internalTool: getToolInvocationIcon('get_errors', Codicon.error, 'Checked files, no problems found'),
-			contributedTool: getToolInvocationIcon('copilot_getErrors', Codicon.error, 'Checked files, no problems found'),
-			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
-			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
+			referenceName: getToolInvocationIcon('problems', { icon: Codicon.error }, 'Checked files, no problems found'),
+			internalTool: getToolInvocationIcon('get_errors', { icon: Codicon.error }, 'Checked files, no problems found'),
+			contributedTool: getToolInvocationIcon('copilot_getErrors', { icon: Codicon.error }, 'Checked files, no problems found'),
+			renderedMessage: getToolInvocationIcon('get_errors', { icon: Codicon.error }, 'Checked files, no\u00a0problems\u00a0found'),
+			problemsFound: getToolInvocationIcon('problems', { icon: Codicon.error }, 'Checked files, 2 problems found'),
+			unrelatedTool: getToolInvocationIcon('terminal', { icon: Codicon.terminal }, 'No problems found'),
 		}, {
 			referenceName: Codicon.search,
 			internalTool: Codicon.search,
 			contributedTool: Codicon.search,
+			renderedMessage: Codicon.search,
 			problemsFound: Codicon.error,
 			unrelatedTool: Codicon.terminal,
 		});
@@ -200,10 +203,10 @@ suite('ChatThinkingContentPart', () => {
 	test('uses the MCP icon instead of registered or inferred tool icons', () => {
 		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
 		assert.deepStrictEqual({
-			source: getToolInvocationIcon('read_file', undefined, undefined, source),
-			registered: getToolInvocationIcon('search', Codicon.tools, undefined, source),
-			problems: getToolInvocationIcon('get_errors', Codicon.error, 'No problems found', source),
-			agentHost: getToolInvocationIcon('mcp__reference__read', Codicon.book),
+			source: getToolInvocationIcon('read_file', { source }),
+			registered: getToolInvocationIcon('search', { icon: Codicon.tools, source }),
+			problems: getToolInvocationIcon('get_errors', { icon: Codicon.error, source }, 'No problems found'),
+			agentHost: getToolInvocationIcon('mcp__reference__read', { icon: Codicon.book }),
 		}, { source: Codicon.mcp, registered: Codicon.mcp, problems: Codicon.mcp, agentHost: Codicon.mcp });
 	});
 
