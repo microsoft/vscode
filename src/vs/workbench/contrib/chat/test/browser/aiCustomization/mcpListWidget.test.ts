@@ -27,8 +27,8 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
+import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -61,8 +61,8 @@ import {
 	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
 	registerMcpSignInButtonAction,
-	type IMcpStatusRenderInput,
 	type IMcpInstalledEntry,
+	type IMcpStatusRenderInput,
 	updateMcpCompatibilityBadge,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
