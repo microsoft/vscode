@@ -47,7 +47,7 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -57,6 +57,7 @@ import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } f
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
+import type { FileEditTracker } from '../../node/shared/fileEditTracker.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -778,11 +779,7 @@ function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallI
 type ISessionInternalsForTest = {
 	_onDidSessionProgress: { fire(event: AgentSignal): void };
 	_agentMergeTurn: boolean;
-	_editTracker: {
-		trackEditStart(path: string): Promise<void>;
-		completeEdit(path: string): Promise<void>;
-		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined>;
-	};
+	_editTracker: Pick<FileEditTracker, 'trackEditStart' | 'completeEdit' | 'takeCompletedEdit'>;
 	_pendingClientToolCalls: {
 		register(toolCallId: string): Promise<ToolResultObject>;
 		respondOrBuffer(toolCallId: string, value: ToolResultObject): void;
@@ -11271,16 +11268,9 @@ Use the attached image as context.
 			});
 		});
 
-		test('tool_complete resolves relative apply_patch file paths before taking completed edits', async () => {
+		test('tool_complete resolves relative apply_patch file paths and the originating chat', async () => {
 			const workingDirectory = URI.file('/repo/project');
-			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
-			const sessionInternals = session as unknown as ISessionInternalsForTest;
-			const taken: string[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId) => {
-				taken.push(path);
-				return undefined;
-			};
-			session.resetTurnState('turn-apply-patch');
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 			const patch = [
 				'*** Begin Patch',
 				'*** Update File: foo.ts',
@@ -11291,21 +11281,38 @@ Use the attached image as context.
 				'+new',
 				'*** End Patch',
 			].join('\n');
+			for (const chat of [buildDefaultChatUri(sessionUri), buildChatUri(sessionUri, 'peer')]) {
+				for (const agentId of [undefined, 'agent-1']) {
+					const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+						workingDirectory, sessionUri, chatChannelUri: URI.parse(chat),
+					});
+					const sessionInternals = session as unknown as ISessionInternalsForTest;
+					const taken: { path: string; chat: string | undefined }[] = [];
+					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, _clientContext, chat) => {
+						taken.push({ path, chat });
+						return undefined;
+					};
+					session.resetTurnState('turn-apply-patch');
+					if (agentId) {
+						mockSession.fire('subagent.started', {
+							toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+						} as SessionEventPayload<'subagent.started'>['data'], { agentId });
+					}
+					mockSession.fire('tool.execution_start', {
+						toolCallId: 'tc-apply-patch', toolName: 'apply_patch', arguments: patch,
+					} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+					mockSession.fire('tool.execution_complete', {
+						toolCallId: 'tc-apply-patch', success: true,
+					} as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-apply-patch',
-				toolName: 'apply_patch',
-				arguments: patch,
-			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+					await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
-			mockSession.fire('tool.execution_complete', {
-				toolCallId: 'tc-apply-patch',
-				success: true,
-			} as SessionEventPayload<'tool.execution_complete'>['data']);
-
-			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
-
-			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
+					assert.deepStrictEqual(taken, ['foo.ts', 'src/bar.ts'].map(path => ({
+						path: join(workingDirectory.fsPath, path),
+						chat: agentId ? buildSubagentChatUri(sessionUri, 'task') : chat,
+					})));
+				}
+			}
 		});
 
 		suite('asynchronous edit completion', () => {
@@ -12729,6 +12736,7 @@ Use the attached image as context.
 						eventName: event.eventName,
 						provider: data.provider,
 						requestId: data.requestId,
+						chatSessionId: data.chatSessionId,
 						responseType: data.responseType,
 						toolCounts: data.toolCounts,
 						model: data.model,
@@ -12751,6 +12759,7 @@ Use the attached image as context.
 					eventName: 'toolCallDetails',
 					provider: 'copilotcli',
 					requestId: 'turn-tool-details',
+					chatSessionId: getTelemetryChatSessionId(peerChatUri),
 					responseType: 'cancelled',
 					toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
 					model: 'gpt-x',
@@ -18747,6 +18756,59 @@ Use the attached image as context.
 	});
 
 	suite('restricted telemetry', () => {
+		test('uses the originating chat rather than the persistence resource for compatibility telemetry', async () => {
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+			const peer = URI.parse(buildChatUri(sessionUri, 'peer'));
+			const cases = [
+				{ resource: sessionUri, chat: URI.parse(buildDefaultChatUri(sessionUri)) },
+				{ resource: peer, chat: peer },
+				{ resource: sessionUri, chat: peer },
+			];
+			for (const { resource, chat } of cases) {
+				const requestOptionsSent = new DeferredPromise<void>();
+				const telemetryService = new class extends CapturingRestrictedTelemetryService {
+					override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+						super.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+						if (eventName === 'request.options.tools') {
+							void requestOptionsSent.complete();
+						}
+					}
+				}();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					sessionUri, resource, chatChannelUri: chat, telemetryService,
+					clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+				});
+				session.resetTurnState('turn-chat');
+				await session.send('hello', undefined, 'turn-chat');
+				mockSession.fire('user.message', { content: 'hello' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('assistant.message', {
+					messageId: 'message', content: 'response', clientRequestId: 'request',
+				} as SessionEventPayload<'assistant.message'>['data']);
+				mockSession.fire('session.auto_mode_resolved', {
+					chosenModel: 'model',
+				} as SessionEventPayload<'session.auto_mode_resolved'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				await requestOptionsSent.p;
+
+				const correlation = { conversationId: AgentSession.id(resource), chatSessionId: getTelemetryChatSessionId(chat) };
+				assert.deepStrictEqual(telemetryService.events.map(event => ({
+					eventName: event.eventName,
+					destination: event.destination,
+					conversationId: event.properties?.conversationId,
+					chatSessionId: event.properties?.chatSessionId,
+				})).sort((a, b) => `${a.eventName}:${a.destination}`.localeCompare(`${b.eventName}:${b.destination}`)), [
+					{ eventName: 'automode.routerDecisionRestricted', destination: 'enhanced', ...correlation },
+					{ eventName: 'conversation.messageText', destination: 'enhanced', ...correlation },
+					{ eventName: 'conversation.messageText', destination: 'enhanced', ...correlation },
+					{ eventName: 'conversation.messageText', destination: 'internal', ...correlation },
+					{ eventName: 'conversation.messageText', destination: 'internal', ...correlation },
+					{ eventName: 'request.options.tools', destination: 'enhanced', ...correlation },
+					{ eventName: 'toolCallDetailsExternal', destination: 'enhanced', ...correlation, conversationId: AgentSession.id(sessionUri) },
+					{ eventName: 'toolCallDetailsInternal', destination: 'internal', ...correlation, conversationId: AgentSession.id(sessionUri) },
+				]);
+			}
+		});
+
 		test('uses the client request id for model conversation.messageText', async () => {
 			const telemetryService = new CapturingRestrictedTelemetryService();
 			const { mockSession } = await createAgentSession(disposables, {
@@ -18812,6 +18874,7 @@ Use the attached image as context.
 					destination: 'enhanced',
 					properties: {
 						conversationId: 'test-session-1',
+						chatSessionId: getTelemetryChatSessionId(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'))),
 						vscodeRequestId: 'turn-auto',
 						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
