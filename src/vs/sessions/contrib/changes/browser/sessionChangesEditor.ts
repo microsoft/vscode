@@ -5,7 +5,9 @@
 
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -29,6 +31,7 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
@@ -204,6 +207,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 	private readonly _pendingReveal = this._register(new MutableDisposable());
+	/** Defers resolving the multi-diff while the editor part is hidden (single-pane detail-only). */
+	private readonly _pendingResolve = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -338,8 +343,23 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
+		this._pendingResolve.clear();
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
+			this._pendingResolve.value = this.layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.EDITOR_PART && e.visible) {
+					this._pendingResolve.clear();
+					this._resolveInput(input, options, context, token).catch(onUnexpectedError);
+				}
+			});
+			return;
+		}
+		await this._resolveInput(input, options, context, token);
+	}
+
+	private async _resolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const viewModel = await input.getViewModel();
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 		this.viewModel = viewModel;
@@ -349,7 +369,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
 		this._logger.log('changes editor set input', {
-			session: sessionResource,
+			session: this.sessionChangesService.getSessionResource(input.multiDiffSource),
 			preserveFocus: !!options?.preserveFocus,
 			hasPersistedViewState: !!viewState,
 		});
@@ -463,6 +483,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const input = this.input;
 		this._pendingFocus.clear();
 		this._pendingReveal.clear();
+		this._pendingResolve.clear();
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
