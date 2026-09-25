@@ -165,6 +165,7 @@ export interface IAgentHostCustomizationTarget {
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
+	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
@@ -260,6 +261,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
+					...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? { background: () => target.backgroundMcpServer(server.id) } : {}),
 				};
 			});
 	}
@@ -335,12 +337,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
 		try {
+			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
+				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
@@ -581,6 +583,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			stopMcpServer: rawId => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionMcpServerStopRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
+			},
+			backgroundMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerBackgroundRequested,
 					id: rawId,
 				});
 				return Promise.resolve();

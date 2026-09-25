@@ -30,6 +30,7 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -55,7 +56,6 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { ModelPicker } from '../../../chat/browser/modelPicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -110,15 +110,28 @@ suite('Automation dialog layout', () => {
 			dispose: () => { },
 		});
 		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
-		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptInput = document.createElement('textarea');
 		promptInput.setAttribute('aria-label', 'Prompt');
+		disposables.add(MenuRegistry.appendMenuItem(Menus.AutomationsDialogInputToolbar, {
+			command: { id: 'test.automation.agent', title: 'Agent' },
+			group: 'navigation',
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(Menus.NewSessionControl, {
+			command: { id: 'test.automation.executionMode', title: 'Interactive' },
+			group: 'navigation',
+		}));
+		const inputToolbarWidget = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, DOM.$('div'), Menus.AutomationsDialogInputToolbar, {}));
+		const inputToolbar = inputToolbarWidget.getElement();
+		inputToolbar.classList.add('chat-input-toolbar');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
 				promptInput.value = value ?? '';
-				container.appendChild(promptInput);
+				const inputContainer = DOM.append(container, DOM.$('.chat-input-container'));
+				inputContainer.append(promptInput, inputToolbar);
 			},
+			inputToolbarElement: inputToolbar,
+			setInputToolbarAriaLabel: label => inputToolbarWidget.setAriaLabel(label),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
 				onDidChangeModelContent: Event.None,
@@ -148,6 +161,8 @@ suite('Automation dialog layout', () => {
 
 		const targetRow = form.querySelector('.automation-target-row')!;
 		const promptSection = form.querySelector('.automation-prompt-section')!;
+		const inputContainer = form.querySelector('.chat-input-container')!;
+		const sessionControls = form.querySelector('.automation-session-configuration')!;
 		assert.deepStrictEqual({
 			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
@@ -157,6 +172,17 @@ suite('Automation dialog layout', () => {
 			promptFocused: document.activeElement === promptInput,
 			prompt: handle.getPrompt(),
 			targetUnselected: !state.isQuickChat && state.folderUri === undefined && state.sessionTypeId === undefined,
+			configurationInsideInput: inputContainer.contains(inputToolbar),
+			controlsInsideInput: inputContainer.contains(sessionControls),
+			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
+			configurationHeader: form.querySelector('#automation-session-configuration-label'),
+			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
+			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			inputToolbarLabelCount: form.querySelectorAll('[aria-label="Session configuration options"]').length,
+			controlsWrapperRole: sessionControls.getAttribute('role'),
+			controlsLabel: sessionControls.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			controlsLabelCount: form.querySelectorAll('[aria-label="Session controls"]').length,
+			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
@@ -166,11 +192,36 @@ suite('Automation dialog layout', () => {
 			promptFocused: true,
 			prompt: 'Review the workspace',
 			targetUnselected: true,
+			configurationInsideInput: true,
+			controlsInsideInput: false,
+			controlsAfterInput: true,
+			configurationHeader: null,
+			inputToolbarWrapperRole: null,
+			inputToolbarLabel: 'Session configuration options',
+			inputToolbarLabelCount: 1,
+			controlsWrapperRole: null,
+			controlsLabel: 'Session controls',
+			controlsLabelCount: 1,
+			inputToolbarHidden: true,
 		});
 
 		assert.ok(targetModel);
 		targetModel.setQuickChat(true);
-		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
+		assert.deepStrictEqual({
+			status: form.querySelector('.automation-session-configuration-unavailable')?.textContent,
+			inputToolbarVisible: inputToolbar.style.display !== 'none',
+			inputToolbarInert: inputToolbar.inert,
+			inputToolbarAriaHidden: inputToolbar.getAttribute('aria-hidden'),
+			promptInert: promptInput.inert || !!promptInput.closest('[inert]'),
+			controlsInert: form.querySelector('.automation-session-controls')?.hasAttribute('inert'),
+		}, {
+			status: 'Session configuration unavailable',
+			inputToolbarVisible: true,
+			inputToolbarInert: true,
+			inputToolbarAriaHidden: 'true',
+			promptInert: false,
+			controlsInert: true,
+		});
 
 		const targetGroup = form.querySelector('.automation-target-toolbar')!;
 		const targetError = form.querySelector<HTMLElement>('.automation-target-error')!;
@@ -250,7 +301,10 @@ suite('Automation dialog layout', () => {
 
 	test('keeps target actions out of the prompt toolbar', () => {
 		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
-		const promptActions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem);
+		const promptActions = [
+			...MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar),
+			...MenuRegistry.getMenuItems(MenuId.ChatInputSecondary),
+		].filter(isIMenuItem);
 		assert.deepStrictEqual({
 			target: targetActions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
 			duplicatedInPrompt: promptActions.some(item => targetActions.some(target => target.command.id === item.command.id)),
@@ -1540,11 +1594,13 @@ suite('Automation dialog run once', () => {
 			dispose: () => { },
 		});
 		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
-		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptInput = document.createElement('textarea');
+		const inputToolbar = document.createElement('div');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => { promptInput.value = value ?? ''; container.appendChild(promptInput); },
+			inputToolbarElement: inputToolbar,
+			setInputToolbarAriaLabel: label => inputToolbar.setAttribute('aria-label', label),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
 				onDidChangeModelContent: Event.None,
@@ -1614,6 +1670,19 @@ suite('Automation dialog run once', () => {
 		});
 	});
 
+	test('Run once changes the absolute cap without resetting consumed allowance or enabling', () => {
+		const existing = {
+			enabled: true,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }],
+			runCount: 2,
+		};
+		const patch = buildChangedAutomationFields(true, true, existing);
+		assert.deepStrictEqual({ patch, runCount: existing.runCount }, {
+			patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			runCount: 2,
+		});
+	});
+
 	test('groups Enabled then Run once with matching keyboard order', () => {
 		const state = createFormState({ isQuickChat: true, folderUri: undefined, providerId: 'host', sessionTypeId: 'copilotcli', runOnce: true });
 		const { form, handle, runOnceCheckbox, enabledCheckbox } = renderRunOnceForm({
@@ -1636,7 +1705,7 @@ suite('Automation dialog run once', () => {
 			labels: ['Enabled', 'Run once'],
 			grouped: true,
 			checked: 'true',
-			description: 'Disable scheduling after one scheduled run. Manual runs do not count.',
+			description: 'Set the scheduled run limit to one. Runs already used in the current allowance count toward this limit. Manual runs do not count.',
 			focusable: true,
 			tabFocusesRunOnce: true,
 			removedInputs: 0,

@@ -243,11 +243,16 @@
 	gap: var(--vscode-spacing-size100);
 }
 
-.automation-session-section,
-.automation-prompt-section {
+.automation-session-section {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size100);
+}
+
+.automation-prompt-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
 }
 
 .automation-target-toolbar,
@@ -344,11 +349,10 @@
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
 	min-height: 22px;
-	padding-top: var(--vscode-spacing-size40);
 }
 
-.automation-session-configuration.controls-unavailable .automation-session-config,
-.automation-session-configuration.controls-unavailable .automation-session-controls {
+.automation-session-config.controls-unavailable,
+.automation-session-controls.controls-unavailable {
 	opacity: 0.5;
 	pointer-events: none;
 }
@@ -395,9 +399,11 @@
 	padding-inline-start: 0;
 }
 
-.automation-session-configuration .compact-picker .sessions-chat-dropdown-label,
-.automation-session-configuration .compact-picker .chat-input-picker-label,
-.automation-session-configuration .compact-picker .chat-session-option-label {
+.automation-session-config .compact-picker .sessions-chat-dropdown-label,
+.automation-session-config .compact-picker .chat-input-picker-label,
+.automation-session-controls .compact-picker .sessions-chat-dropdown-label,
+.automation-session-controls .compact-picker .chat-input-picker-label,
+.automation-session-controls .compact-picker .chat-session-option-label {
 	display: none;
 }
 

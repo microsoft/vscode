@@ -647,7 +647,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					finish(catalog);
 				}
 			};
-			store.add(this._catalog.onDidChange(check));
+			if (action?.type === ActionType.AutomationCreateRequested || action?.type === ActionType.AutomationUpdateRequested) {
+				store.add(this._catalog.onDidApplyAction(envelope => {
+					if (!envelope.rejectionReason && envelope.action.type === ActionType.AutomationSet
+						&& envelope.action.automation.resource === action.resource) {
+						check();
+					}
+				}));
+			} else {
+				store.add(this._catalog.onDidChange(check));
+			}
 			if (this._catalog.onDidError) {
 				store.add(this._catalog.onDidError(error => finish(error)));
 			}

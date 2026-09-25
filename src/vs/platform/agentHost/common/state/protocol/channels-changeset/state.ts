@@ -105,8 +105,14 @@ export interface ChangesetCapabilities {
  * @nonexhaustive
  */
 export const enum ChangesetStatus {
-	/** The server is still computing the contents of this changeset. */
+	/** The server is computing this changeset for the first time. */
 	Computing = 'computing',
+	/**
+	 * The server is recomputing this changeset. {@link ChangesetState.files}
+	 * remains the previous completed result while recomputation is in progress,
+	 * including when that result is an empty array.
+	 */
+	Recomputing = 'recomputing',
 	/** The changeset has been fully computed and is up-to-date. */
 	Ready = 'ready',
 	/**

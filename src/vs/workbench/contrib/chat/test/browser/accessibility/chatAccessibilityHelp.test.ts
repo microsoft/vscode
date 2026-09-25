@@ -20,6 +20,11 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
+		});
+
 		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
@@ -67,15 +72,27 @@ suite('Chat Accessibility Help', () => {
 		], [true, true, true, false, false, false, false]);
 	});
 
+	test('documents collapsing the model controls when Auto is enabled', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
+			preferences: help.includes('Auto and its Details action remain available'),
+			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			details: help.includes('selected model\'s details open beside the list'),
-			immediatePreview: help.includes('updates the details immediately without selecting a model'),
-			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
-			mutedPreferences: help.includes('They look muted while off but remain interactive'),
+			details: help.includes('Tab to reach its Details action'),
+			inspection: help.includes('configuration page without selecting it'),
+			inputShortcut: help.includes('opens the same page for the current model'),
+			defaults: help.includes('Known values remain visible even at their defaults'),
+			detailsPreferences: help.includes('Open Auto Details to configure its "Optimize for" preference'),
+			inactivePreferences: help.includes('options are available in details whether Auto is on or off'),
 			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, detailsPreferences: true, inactivePreferences: true, activation: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -94,8 +111,8 @@ suite('Chat Accessibility Help', () => {
 			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
 			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
-			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
-			dismissal: help.includes('Escape again to close the picker'),
+			pinning: help.includes('Pinning or unpinning updates the model list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape again closes the picker'),
 		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 
@@ -268,6 +285,34 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents full terminal output in chat surfaces that render terminal tools', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'Open Full Output (Read-Only) action';
+		const agentViewText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: agentViewText.includes(expectedText),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
+			previewClick: agentViewText.includes('click the output preview'),
+			outputEnter: agentViewText.includes('focus the output region and press Enter'),
+			readonly: agentViewText.includes('read-only editor'),
+			accessibleView: agentViewText.includes('terminal output Accessible View'),
+		}, {
+			panelChat: true,
+			quickChat: true,
+			agentView: true,
+			inlineChat: false,
+			editsView: false,
+			previewClick: true,
+			outputEnter: true,
+			readonly: true,
+			accessibleView: true,
 		});
 	});
 

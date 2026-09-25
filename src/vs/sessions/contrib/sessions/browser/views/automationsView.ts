@@ -35,6 +35,7 @@ import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -64,6 +65,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
@@ -181,9 +183,11 @@ export class AutomationsCardsWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
+		logAutomationViewShown(this.telemetryService);
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
@@ -303,6 +307,7 @@ class AutomationCardsSection extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -413,6 +418,7 @@ class AutomationCardsSection extends Disposable {
 			this.configurationService,
 			this.dialogService,
 			this.logService,
+			this.telemetryService,
 		);
 	}
 
@@ -1018,7 +1024,8 @@ class AutomationCardsSection extends Disposable {
 			if (!await this.ensureEnabled()) {
 				return;
 			}
-			const created = await this.automationService.createAutomation(result.value, () => this.throwIfDisabled());
+			const created = await withAutomationDialogPersistenceTelemetry(this.telemetryService, 'create', () =>
+				this.automationService.createAutomation(result.value, () => this.throwIfDisabled()));
 			if (restoreFocus && focusRequestGeneration === this.focusRequestGeneration && !this._store.isDisposed && DOM.isAncestorOfActiveElement(this.focusRoot)) {
 				this.pendingFocusAutomationId = created.id;
 				this.focusPendingAutomation();
@@ -1087,7 +1094,8 @@ class AutomationCardsSection extends Disposable {
 			if (!await this.ensureEnabled()) {
 				return;
 			}
-			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
+			const updateResult = await withAutomationDialogPersistenceTelemetry(this.telemetryService, 'update', () =>
+				this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled()));
 			if (updateResult.kind === 'conflict') {
 				throw new Error(updateResult.current
 					? localize('automationChangedDuringEdit', "This automation changed while the dialog was open. Reopen it to review the latest values.")
@@ -1722,6 +1730,7 @@ async function importAutomationBlueprint(
 	configurationService: IConfigurationService,
 	dialogService: IDialogService,
 	logService: ILogService,
+	telemetryService: ITelemetryService,
 ): Promise<void> {
 	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 	if (!isEnabled()) {
@@ -1759,11 +1768,12 @@ async function importAutomationBlueprint(
 	}
 
 	try {
-		const automation = await automationService.createAutomation(result.value, () => {
-			if (!isEnabled()) {
-				throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
-			}
-		});
+		const automation = await withAutomationDialogPersistenceTelemetry(telemetryService, 'create', () =>
+			automationService.createAutomation(result.value, () => {
+				if (!isEnabled()) {
+					throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
+				}
+			}));
 		status(localize('automationImportedStatus', "Imported automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[Automations] Failed to import Automation blueprint', error);
@@ -2043,6 +2053,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 		if (!isEnabled()) {
 			await showAutomationsDisabled(dialogService);
@@ -2057,11 +2068,12 @@ registerAction2(class NewAutomationAction extends Action2 {
 			return;
 		}
 		try {
-			await automationService.createAutomation(result.value, () => {
-				if (!isEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeSave', "Automations were disabled before the change could be saved."));
-				}
-			});
+			await withAutomationDialogPersistenceTelemetry(telemetryService, 'create', () =>
+				automationService.createAutomation(result.value, () => {
+					if (!isEnabled()) {
+						throw new Error(localize('automationsDisabledBeforeSave', "Automations were disabled before the change could be saved."));
+					}
+				}));
 		} catch (err) {
 			logService.error('[Automations] Failed to create automation', err);
 			await dialogService.error(
@@ -2090,6 +2102,7 @@ registerAction2(class ImportAutomationAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const automationDialogService = accessor.get(IAutomationDialogService);
 		const automationService = accessor.get(IAutomationService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 		if (!isEnabled()) {
 			await showAutomationsDisabled(dialogService);
@@ -2123,6 +2136,7 @@ registerAction2(class ImportAutomationAction extends Action2 {
 			configurationService,
 			dialogService,
 			logService,
+			telemetryService,
 		);
 	}
 });
@@ -2143,6 +2157,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 		if (!isEnabled()) {
 			await showAutomationsDisabled(dialogService);
@@ -2175,11 +2190,12 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 				await showAutomationsDisabled(dialogService);
 				return;
 			}
-			const duplicate = await automationService.createAutomation(result.value, () => {
-				if (!isEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeDuplicate', "Automations were disabled before the duplicate could be saved."));
-				}
-			});
+			const duplicate = await withAutomationDialogPersistenceTelemetry(telemetryService, 'create', () =>
+				automationService.createAutomation(result.value, () => {
+					if (!isEnabled()) {
+						throw new Error(localize('automationsDisabledBeforeDuplicate', "Automations were disabled before the duplicate could be saved."));
+					}
+				}));
 			status(localize('automationDuplicatedStatus', "Created duplicate automation {0}", duplicate.name));
 		} catch (error) {
 			logService.error('[Automations] Failed to duplicate automation', error);

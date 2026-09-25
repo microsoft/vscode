@@ -16,6 +16,23 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot managed-settings diagnostics cannot return an account snapshot
+
+A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the bundled `1.0.15-preview.2` runtime, the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+
+- Test: `managed settings diagnostics expose the provider snapshot`.
+- Scope: Copilot on all platforms, in strict replay.
+- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
+- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "managed settings diagnostics expose the provider snapshot"
+  ```
+
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
@@ -494,21 +511,21 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
-### Copilot session debug export omits provider log entries
+### Copilot session debug export omits the process log
 
-A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+A user can export debug logs for a Copilot session to diagnose lower-level SDK runtime behavior. The export omits the SDK `process.log`, so startup, authentication, and runtime diagnostics are unavailable even after the provider session has been created.
 
-- Test: `materialized Copilot debug collection includes provider log entries`.
+- Test: `materialized Copilot debug collection includes process log`.
 - Scope: Copilot sessions on all platforms.
-- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
-- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and contains a non-empty `process.log` entry.
+- Observed: the export reports `providerLogsIncluded: false` and contains no `process.log`.
+- Gate: the model-free scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
 - Reproduce:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "materialized Copilot debug collection includes provider log entries"
+    --grep "materialized Copilot debug collection includes process log"
   ```
 
 ### Resource reads ignore the requested base64 encoding
@@ -562,21 +579,6 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
   ```
 
-### Discard changes fails for an untracked file
-
-- Test: `discarding an untracked file removes it from disk`.
-- Scope: conformance reference provider, uncommitted changeset with one untracked file.
-- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
-- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
-- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
-    --grep "discarding an untracked file"
-  ```
-
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 
 - Tests:
@@ -586,10 +588,10 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
   - `a per-turn changeset for an unknown turn reports an error`
   - `comparing a turn with itself produces an empty ready changeset`
   - `comparing two turns reports the changes between their checkpoints`
-  - `a materialized git session advertises turn and compare changeset templates`
+  - `a materialized git session advertises changesets only on its chat`
 - Scope: conformance reference provider, real worktree-isolated sessions.
-- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized git sessions advertise the turn/compare templates.
-- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the session catalog does not advertise turn/compare templates.
+- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized sessions advertise selectable changesets only on the default chat.
+- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the host-local command used by the catalogue test does not materialize the provisional provider session.
 - Gate: each affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
 - Reproduce:
 

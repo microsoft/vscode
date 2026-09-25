@@ -29,6 +29,7 @@ import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../commo
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
+import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
@@ -91,6 +92,15 @@ interface ITestPeer {
 function createTestPeer(): ITestPeer {
 	const stdin = new PassThrough();
 	const stdout = new PassThrough();
+	const outbound = new PassThrough();
+	stdin.on('data', (chunk: Buffer) => {
+		const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+		if (request.method === 'skills/list') {
+			stdout.write(JSON.stringify({ id: request.id, result: { data: [] } }) + '\n');
+		} else {
+			outbound.write(chunk);
+		}
+	});
 	const onExit = new Emitter<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>();
 	const disposables = new DisposableStore();
 	const transport: ICodexAppServerTransport = {
@@ -102,7 +112,7 @@ function createTestPeer(): ITestPeer {
 	};
 	return {
 		transport,
-		outbound: stdin,
+		outbound,
 		disposables,
 		push: message => stdout.write(JSON.stringify(message) + '\n'),
 		dispose: () => {
@@ -110,6 +120,7 @@ function createTestPeer(): ITestPeer {
 			onExit.dispose();
 			stdin.destroy();
 			stdout.destroy();
+			outbound.destroy();
 		},
 	};
 }
@@ -205,6 +216,11 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
+	instantiationService.stub(IAgentPluginManager, {
+		_serviceBrand: undefined,
+		basePath: URI.file('/plugins'),
+		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
+	});
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? { _serviceBrand: undefined });
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
@@ -3252,7 +3268,6 @@ suite('CodexAgent exact chat routing', () => {
 		let enabled = true;
 		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
-			useCompactPrompts: () => false,
 			persist: () => { },
 		})]));
 		const peer = disposables.add(createTestPeer());

@@ -274,7 +274,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				path: resolveToolInputPath(file, this.promptPathRepresentationService),
 				movePath: changes.movePath ? resolveToolInputPath(changes.movePath, this.promptPathRepresentationService) : undefined,
 			}));
-			for (const { changes, path, movePath } of fileChanges) {
+			for (const { file, changes, path, movePath } of fileChanges) {
 				const affectedUris = movePath
 					? [{ uri: path, contents: undefined }, { uri: movePath, contents: changes.newContent ?? '' }]
 					: [{ uri: path, contents: undefined }];
@@ -286,6 +286,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						]);
 						result.hasError = true;
 						return result;
+					}
+					if (!movePath && changes.type === ActionType.ADD) {
+						const fileExists = await this.fileSystemService.stat(uri).then(() => true, () => false);
+						if (fileExists) {
+							throw new Error(`Add File Error: File already exists: ${file}`);
+						}
+						// Match create_file: model-created files skip content exclusion checks.
+						continue;
 					}
 					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri, undefined, contents));
 				}

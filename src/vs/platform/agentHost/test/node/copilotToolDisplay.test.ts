@@ -519,6 +519,39 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		});
 	});
 
+	test('names each recipient of a multi-agent write without changing routing arguments', () => {
+		const names = new Map([['agent-1', 'Renderer reviewer'], ['agent-2', 'Review `permissions`']]);
+		const parameters = { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' };
+		const resolveAgentName = (id: string) => names.get(id);
+		const messages = [
+			getStreamingInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getPastTenseMessage('write_agent', 'Write to Agent', parameters, true, undefined, undefined, resolveAgentName),
+		];
+		assert.deepStrictEqual({ messages, parameters }, {
+			messages: Array(3).fill({ markdown: 'Write to agents `Renderer reviewer`, `` Review `permissions` ``, `unknown-agent`' }),
+			parameters: { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' },
+		});
+	});
+
+	test('describes scoped writes and tolerates incomplete streaming recipients', () => {
+		assert.deepStrictEqual([
+			invocation('write_agent', { scope: 'children' }),
+			pastTense('write_agent', { scope: 'siblings' }),
+			invocation('write_agent', { agent_ids: ['agent-1'] }),
+			invocation('write_agent', { agent_ids: ['', 123, null] }),
+			invocation('write_agent', { agent_ids: 'agent-1' }),
+			invocation('write_agent', { scope: 'invalid' }),
+		], [
+			'Write to child agents',
+			'Write to sibling agents',
+			'Write to agent `agent-1`',
+			'Write to agent',
+			'Write to agent',
+			'Write to agent',
+		]);
+	});
+
 	test('agent tools fall back to a generic phrase without an agent id', () => {
 		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
 		assert.strictEqual(pastTense('write_agent', undefined), 'Write to agent');

@@ -107,7 +107,7 @@ class TestAutomationConnection {
 				onDidChange: this._onDidCatalogChange.event,
 				onDidError: this._onDidCatalogError.event,
 				onWillApplyAction: Event.None,
-				onDidApplyAction: Event.None,
+				onDidApplyAction: this._onDidAction.event,
 			},
 			dispose: () => { },
 		};
@@ -259,6 +259,22 @@ class TestAutomationConnection {
 			],
 		};
 		this._onDidCatalogChange.fire(this._catalog);
+		this._onDidAction.fire({
+			channel: AUTOMATION_CATALOG_URI,
+			action: { type: ActionType.AutomationSet, automation },
+			serverSeq: ++this._serverSeq,
+			origin: undefined,
+		});
+	}
+
+	rejectUpdate(resource: string): void {
+		this._onDidAction.fire({
+			channel: AUTOMATION_CATALOG_URI,
+			action: { type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: true } },
+			serverSeq: ++this._serverSeq,
+			origin: undefined,
+			rejectionReason: 'Update rejected',
+		});
 	}
 
 	completeRun(resource: string): void {
@@ -462,12 +478,44 @@ suite('AgentHostAutomationStore', () => {
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
 		connection.setAutomation({
+			resource: 'ahp-automation:/unrelated', definition: create.definition, runCount: 0, runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		});
+		await timeout(0);
+		assert.strictEqual(settled, false);
+		connection.setAutomation({
 			resource: create.resource, definition: create.definition, runCount: 0, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: new Date().toISOString(),
 		});
 		const updated = await pending;
 		assert.deepStrictEqual([updated.enabled, updated.runCount, updated.disableConditions], [false, 0, created.disableConditions]);
+	});
+
+	test('unrelated catalogue changes cannot hide rejection of an expired-date re-enable', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const created = await store.createAutomation({
+			...createOptions(), enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(created.id, { enabled: true });
+		const rejected = assert.rejects(pending);
+		await timeout(0);
+		connection.setAutomation({
+			resource: 'ahp-automation:/unrelated', definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		});
+		await timeout(0);
+		connection.rejectUpdate(create.resource);
+		await rejected;
+		assert.strictEqual(store.getAutomation(created.id)?.enabled, false);
 	});
 
 	test('capability removal and feature disablement revoke operations immediately', async () => {

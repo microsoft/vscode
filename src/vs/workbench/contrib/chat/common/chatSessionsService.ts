@@ -158,6 +158,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** Groups session-list filters without changing this type's resource or content routing. */
+	readonly sessionListGroup?: string;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
@@ -440,6 +442,8 @@ export interface IChatSession extends IDisposable {
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+	/** Claims this client's tools before an approved background request is queued directly on the host. */
+	prepareForClientTools?: (token: CancellationToken) => Promise<void>;
 
 	/**
 	 * Event fired when the server initiates a new request (e.g. from a consumed

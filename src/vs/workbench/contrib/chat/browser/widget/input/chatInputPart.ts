@@ -484,6 +484,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	private readonly _notificationHostVisible = observableValue(this, false);
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
@@ -544,6 +545,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get inputToolbarElement(): HTMLElement {
+		return this.inputActionsToolbar.getElement();
+	}
+
+	setInputToolbarAriaLabel(label: string): void {
+		this.inputActionsToolbar.setAriaLabel(label);
 	}
 
 	placeContextUsageWidget(container?: HTMLElement): void {
@@ -788,6 +797,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
 		return this._currentLanguageModel;
+	}
+
+	get onDidChangeUserSelectedModel() {
+		return this._modelSelectionController.onDidChangeUserSelectedModel;
 	}
 
 	/** Models the current input can select. */
@@ -2262,6 +2275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		this._notificationHostVisible.set(visible, undefined);
 		this._onDidChangeVisibility.fire(visible);
 	}
 
@@ -2943,6 +2957,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
+				hostVisible: this._notificationHostVisible,
 				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,

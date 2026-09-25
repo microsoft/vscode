@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -27,7 +28,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSe
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -266,6 +267,15 @@ MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 });
 
 registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
+
+MenuRegistry.appendMenuItem(SessionSectionToolbarMenuId, {
+	submenu: Menus.SessionsViewExternalFilter,
+	title: localize2('configureExternalSessions', "Configure External Sessions"),
+	icon: Codicon.filter,
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
+});
 
 //  Sort / Group Actions
 
@@ -932,6 +942,37 @@ KeybindingsRegistry.registerKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
 });
 
+registerAction2(class ImportSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.importSession',
+			title: localize2('importSession', "Import"),
+			icon: Codicon.chatImport,
+			precondition: ChatContextKeys.enabled,
+			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
+				id,
+				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_edit',
+				order: 1.5,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemCanImportContext, SessionIsArchivedContext.negate()),
+			})),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessions = getSessionActionTargets(accessor, context).filter(session =>
+			session.isExternal?.get() === true && session.capabilities.get().supportsImport && !session.isArchived.get());
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		for (const session of sessions) {
+			await sessionsManagementService.importSession(session);
+		}
+		if (sessions.length > 0) {
+			status(sessions.length === 1
+				? localize('sessionImported', "Imported {0}.", sessions[0].title.get())
+				: localize('sessionsImported', "Imported {0} sessions.", sessions.length));
+		}
+	}
+});
+
 abstract class BaseArchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
@@ -1338,7 +1379,7 @@ function getSessionsArchiveActionConstructors(wording: ChatSessionArchiveActionW
 		];
 }
 
-class SessionsArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsArchiveActions';
 
