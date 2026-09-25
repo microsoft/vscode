@@ -88,4 +88,21 @@ suite('Codex account metadata', () => {
 
 		assert.strictEqual(account.status, 'downloading');
 	});
+
+	test('preserves validated request correlation on a terminal sign-in failure', () => {
+		const readFailure = (authUrlNonce: string | number) => readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'error', authUrlNonce } },
+		});
+
+		assert.deepStrictEqual({
+			valid: readFailure('failed-request').authUrlNonce,
+			invalid: readFailure(42).authUrlNonce,
+			url: readFailure('failed-request').authUrl,
+		}, {
+			valid: 'failed-request',
+			invalid: undefined,
+			url: undefined,
+		});
+	});
 });

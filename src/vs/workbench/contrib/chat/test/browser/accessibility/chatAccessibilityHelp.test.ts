@@ -48,6 +48,15 @@ suite('Chat Accessibility Help', () => {
 		}, { primaryAction: true, disabled: true, keybinding: true });
 	});
 
+	test('explains setup notification keyboard access and remote host targeting', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Use Tab or Shift+Tab to reach Download, sign-in actions, or setup links, then press Enter'),
+			hostLabel: help.includes('the notification names the host'),
+			target: help.includes('Download and Reload Configuration apply to that host, not the local machine'),
+		}, { keyboard: true, hostLabel: true, target: true });
+	});
+
 	test('documents finished sections and subagent progress without duplicate shimmer', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

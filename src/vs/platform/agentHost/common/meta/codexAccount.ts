@@ -43,6 +43,7 @@ export interface ICodexAccountInfo {
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
 	readonly rateLimits?: readonly ICodexAccountRateLimitInfo[];
 	readonly authUrl?: string;
+	/** Sign-in request nonce, including terminal responses that have no authorization URL. */
 	readonly authUrlNonce?: string;
 }
 

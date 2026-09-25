@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, MAX_CODEX_PROFILE_IMAGE_BYTES, readCodexAccountInfo, type ICodexAccountInfo, type ICodexProfileImageReference } from '../../../../platform/agentHost/common/codexAccount.js';
 import { CODEX_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, IAgentConnection, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ContentEncoding } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -40,7 +42,7 @@ export interface ICodexAccountService {
 	readonly agent: string;
 	readonly account: ICodexAccountViewInfo;
 	readonly onDidChangeAccount: Event<ICodexAccountViewInfo>;
-	signIn(): void;
+	signIn(connection?: IAgentConnection): void;
 	signOut(): void;
 }
 
@@ -126,7 +128,7 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 	private readonly _onDidChangeAccount = this._register(new Emitter<ICodexAccountViewInfo>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
 
-	private readonly _pendingSignInRequests = new Set<string>();
+	private readonly _pendingSignInRequests = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
 	private _rootAccount: ICodexAccountInfo;
 	private _account: ICodexAccountViewInfo;
 	private _profileImageKey: string | undefined;
@@ -138,6 +140,7 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly _hostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
@@ -145,16 +148,64 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 		this._rootAccount = readCodexAccountInfo(initialState instanceof Error ? undefined : initialState);
 		this._account = this._rootAccount;
 		this._updateProfileImage(this._rootAccount.profileImage);
-		this._register(this._agentHostService.rootState.onDidChange(state => this._updateAccount(readCodexAccountInfo(state))));
+		const rootStateListeners = this._register(new DisposableStore());
+		const bindRootState = () => {
+			rootStateListeners.clear();
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(state => this._updateAccount(readCodexAccountInfo(state))));
+			const state = this._agentHostService.rootState.value;
+			this._updateAccount(readCodexAccountInfo(state instanceof Error ? undefined : state));
+		};
+		bindRootState();
+		this._register(this._agentHostService.onAgentHostStart(bindRootState));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			rootStateListeners.clear();
+			this._pendingSignInRequests.deleteAndDispose(this._agentHostService);
+			this._updateAccount(readCodexAccountInfo(undefined));
+		}));
+		this._register(this._hostConnectionsService.onDidChangeConnections(() => {
+			const connected = new Set(this._hostConnectionsService.connections.map(host => host.connection));
+			for (const connection of this._pendingSignInRequests.keys()) {
+				if (!connected.has(connection)) {
+					this._pendingSignInRequests.deleteAndDispose(connection);
+				}
+			}
+		}));
 	}
 
-	signIn(): void {
+	signIn(connection: IAgentConnection = this._agentHostService): void {
+		if (!this._hostConnectionsService.connections.some(host => host.connection === connection)) {
+			throw new Error(localize('codexAccount.disconnected', "The selected agent host is disconnected. Reconnect and try again."));
+		}
+		if (this._pendingSignInRequests.has(connection)) {
+			return;
+		}
 		const request = generateUuid();
-		this._pendingSignInRequests.add(request);
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY]: request },
-		});
+		const listeners = new DisposableStore();
+		this._pendingSignInRequests.set(connection, listeners);
+		listeners.add(connection.rootState.onDidChange(state => {
+			const account = readCodexAccountInfo(state);
+			if (account.authUrlNonce !== request) {
+				return;
+			}
+			if (account.authUrl) {
+				this._pendingSignInRequests.deleteAndDispose(connection);
+				void openCodexAuthUrl(this._openerService, account.authUrl).catch(onUnexpectedError);
+			} else if (account.status === 'signedIn' || account.status === 'error') {
+				this._pendingSignInRequests.deleteAndDispose(connection);
+			}
+		}));
+		if (connection.rootState.onDidError) {
+			listeners.add(connection.rootState.onDidError(() => this._pendingSignInRequests.deleteAndDispose(connection)));
+		}
+		try {
+			connection.dispatch(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY]: request },
+			});
+		} catch (error) {
+			this._pendingSignInRequests.deleteAndDispose(connection);
+			throw error;
+		}
 	}
 
 	signOut(): void {
@@ -172,9 +223,6 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 			: account;
 		this._onDidChangeAccount.fire(this._account);
 		this._updateProfileImage(account.profileImage);
-		if (account.authUrlNonce && this._pendingSignInRequests.delete(account.authUrlNonce) && account.authUrl) {
-			void openCodexAuthUrl(this._openerService, account.authUrl);
-		}
 	}
 
 	private _updateProfileImage(reference: ICodexProfileImageReference | undefined): void {

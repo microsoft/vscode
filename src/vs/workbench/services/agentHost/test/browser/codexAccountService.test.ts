@@ -9,9 +9,12 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
-import { CODEX_ACCOUNT_META_KEY } from '../../../../../platform/agentHost/common/codexAccount.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, ICodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRootConfigChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { RootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -23,6 +26,44 @@ import { CodexAccountService, ICodexAccountService, createCodexAccountMenuAction
 
 suite('CodexAccountService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createAccountHost() {
+		const changed = disposables.add(new Emitter<RootState>());
+		const started = disposables.add(new Emitter<void>());
+		const exited = disposables.add(new Emitter<number>());
+		let state: RootState = { agents: [] };
+		const requests: IRootConfigChangedAction[] = [];
+		const rootState: IAgentSubscription<RootState> = {
+			get value() { return state; },
+			get verifiedValue() { return state; },
+			onDidChange: changed.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connection = new class extends NullAgentHostService {
+			override readonly onAgentHostStart = started.event;
+			override readonly onAgentHostExit = exited.event;
+			override get rootState(): IAgentSubscription<RootState> { return rootState; }
+			override dispatch(_channel: string, action: IRootConfigChangedAction): void {
+				requests.push(action);
+			}
+		}();
+		return {
+			connection, requests,
+			start: () => started.fire(),
+			exit: () => exited.fire(0),
+			setAccount: (account: ICodexAccountInfo) => {
+				state = { agents: [], _meta: { [CODEX_ACCOUNT_META_KEY]: account } };
+				changed.fire(state);
+			},
+			hasListeners: () => changed.hasListeners(),
+			nonce: () => {
+				const nonce = requests.at(-1)?.config[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
+				assert.ok(typeof nonce === 'string');
+				return nonce;
+			},
+		};
+	}
 
 	function service(status: ICodexAccountService['account']['status'], email?: string): ICodexAccountService & { signInCalls: number; signOutCalls: number } {
 		return {
@@ -123,7 +164,160 @@ suite('CodexAccountService', () => {
 			editorEnabled: true,
 			editorAIHidden: false,
 		});
+
 	});
+
+	test('signs in on the selected remote and only opens its matching authorization response', () => {
+		const ambient = createAccountHost();
+		const first = createAccountHost();
+		const second = createAccountHost();
+		let connected: IAgentConnection[] = [ambient.connection, first.connection, second.connection];
+		const onDidChangeConnections = disposables.add(new Emitter<void>());
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeConnections = onDidChangeConnections.event;
+			override get connections() {
+				return connected.map((connection, index) => ({ connection, authority: `${index}`, name: `${index}`, address: undefined, isAmbient: connection === ambient.connection }));
+			}
+		}();
+		const opened: string[] = [];
+		const accountService = disposables.add(new CodexAccountService(ambient.connection, connectionsService, {
+			...NullOpenerService,
+			async open(resource) {
+				opened.push(resource.toString());
+				return true;
+			},
+		}));
+		accountService.signIn(first.connection);
+		accountService.signIn(first.connection);
+		accountService.signIn(second.connection);
+		second.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/wrong-host', authUrlNonce: first.nonce() });
+		first.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/first', authUrlNonce: first.nonce() });
+		first.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/first', authUrlNonce: first.nonce() });
+		connected = [ambient.connection, first.connection];
+		onDidChangeConnections.fire();
+		second.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/disconnected', authUrlNonce: second.nonce() });
+		assert.throws(() => accountService.signIn(second.connection), /disconnected/);
+
+		assert.deepStrictEqual({
+			requestCounts: [ambient.requests.length, first.requests.length, second.requests.length],
+			opened,
+			remoteListeners: [first.hasListeners(), second.hasListeners()],
+			ambientStatus: accountService.account.status,
+		}, {
+			requestCounts: [0, 1, 1],
+			opened: ['https://auth.openai.com/first'],
+			remoteListeners: [false, false],
+			ambientStatus: 'unknown',
+		});
+	});
+
+	for (const { name, disconnect } of [
+		{ name: 'keeps a queued sign-in response listener through the initial host start', disconnect: false },
+		{ name: 'discards a queued sign-in response after the ambient host exits', disconnect: true },
+	]) {
+		test(name, () => {
+			const host = createAccountHost();
+			const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeConnections = Event.None;
+				override readonly connections = [{ connection: host.connection, authority: 'local', name: 'Local', address: undefined, isAmbient: true }];
+			}();
+			const opened: string[] = [];
+			const accountService = disposables.add(new CodexAccountService(host.connection, connectionsService, {
+				...NullOpenerService,
+				async open(resource) {
+					opened.push(resource.toString());
+					return true;
+				},
+			}));
+
+			accountService.signIn();
+			const rootBeforeStart = host.connection.rootState;
+			if (disconnect) {
+				host.exit();
+			}
+			host.start();
+			host.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/queued', authUrlNonce: host.nonce() });
+
+			assert.deepStrictEqual({
+				sameRoot: host.connection.rootState === rootBeforeStart,
+				requests: host.requests.length,
+				opened,
+			}, {
+				sameRoot: true,
+				requests: 1,
+				opened: disconnect ? [] : ['https://auth.openai.com/queued'],
+			});
+		});
+	}
+
+	test('retrying an existing account error keeps the matching authorization response listener', () => {
+		const host = createAccountHost();
+		const staleAccount: ICodexAccountInfo = { status: 'error', authUrlNonce: 'previous-request' };
+		host.setAccount(staleAccount);
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeConnections = Event.None;
+			override readonly connections = [{ connection: host.connection, authority: 'local', name: 'Local', address: undefined, isAmbient: true }];
+		}();
+		const opened: string[] = [];
+		const accountService = disposables.add(new CodexAccountService(host.connection, connectionsService, {
+			...NullOpenerService,
+			async open(resource) {
+				opened.push(resource.toString());
+				return true;
+			},
+		}));
+
+		accountService.signIn();
+		const request = host.nonce();
+		host.setAccount(staleAccount);
+		accountService.signIn();
+		host.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/retry', authUrlNonce: request });
+
+		assert.deepStrictEqual({
+			requestCount: host.requests.length,
+			opened,
+		}, {
+			requestCount: 1,
+			opened: ['https://auth.openai.com/retry'],
+		});
+	});
+
+	for (const status of ['error', 'signedIn'] as const) {
+		test(`only a matching ${status} response completes its pending sign-in request`, () => {
+			const host = createAccountHost();
+			const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeConnections = Event.None;
+				override readonly connections = [{ connection: host.connection, authority: 'local', name: 'Local', address: undefined, isAmbient: true }];
+			}();
+			const opened: string[] = [];
+			const accountService = disposables.add(new CodexAccountService(host.connection, connectionsService, {
+				...NullOpenerService,
+				async open(resource) {
+					opened.push(resource.toString());
+					return true;
+				},
+			}));
+
+			accountService.signIn();
+			const firstRequest = host.nonce();
+			host.setAccount({ status, authUrlNonce: firstRequest });
+			accountService.signIn();
+			const retryRequest = host.nonce();
+			host.setAccount({ status, authUrlNonce: firstRequest });
+			accountService.signIn();
+			host.setAccount({ status: 'signedOut', authUrl: 'https://auth.openai.com/retry', authUrlNonce: retryRequest });
+
+			assert.deepStrictEqual({
+				requestCount: host.requests.length,
+				distinctRequests: firstRequest !== retryRequest,
+				opened,
+			}, {
+				requestCount: 2,
+				distinctRequests: true,
+				opened: ['https://auth.openai.com/retry'],
+			});
+		});
+	}
 
 	test('opens expected authentication URLs without validation prompts', async () => {
 		let call: { resource: string; options: OpenOptions | undefined } | undefined;
@@ -210,7 +404,10 @@ suite('CodexAccountService', () => {
 				return { data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' };
 			}
 		}();
-		const accountService = disposables.add(new CodexAccountService(agentHostService, NullOpenerService));
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeConnections = Event.None;
+		}();
+		const accountService = disposables.add(new CodexAccountService(agentHostService, connectionsService, NullOpenerService));
 		disposables.add(rootStateEmitter);
 
 		await firstReadStarted.p;

@@ -1464,6 +1464,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._withOnDemandConnection(async (client, transient) => {
 				const account = await this._refreshAccount(client, true, transient);
 				if (account.status === 'signedIn' && account.authType === 'chatgpt') {
+					this._publishAccountInfo({ ...this._toAccountInfo(account), authUrlNonce: request });
 					return;
 				}
 
@@ -1498,7 +1499,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					// account refresh before login/start returns. Do not put the obsolete
 					// authorization URL back onto an account that is already signed in.
 					if (this._openAIAccountState.status === 'signedIn' && this._openAIAccountState.authType === 'chatgpt') {
-						this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
+						this._publishAccountInfo({ ...this._toAccountInfo(this._openAIAccountState), authUrlNonce: request });
 						return;
 					}
 					this._publishAccountInfo({ ...this._toAccountInfo(this._openAIAccountState), authUrl: response.authUrl, authUrlNonce: request });
@@ -1518,7 +1519,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message });
+			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message }, false);
+			this._publishAccountInfo({ ...this._toAccountInfo(this._openAIAccountState), authUrlNonce: request });
 		} finally {
 			progressInterest.dispose();
 		}
