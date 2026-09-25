@@ -182,7 +182,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			},
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
-			selectImport: async (id: string) => {
+			selectCreateOrAdd: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
 				button.click();
@@ -205,20 +205,33 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
+	test('Create or Add action describes the mixed customization flow', () => {
+		const fixture = createPage();
+		const button = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		assert.ok(button);
+		assert.deepStrictEqual({
+			label: button.textContent,
+			ariaLabel: button.getAttribute('aria-label'),
+		}, {
+			label: 'Create or Add',
+			ariaLabel: 'Create or add a customization',
+		});
+	});
+
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
 		['newSkill', PromptsType.skill],
 		['newInstructions', PromptsType.instructions],
 		['newPrompt', PromptsType.prompt],
 	] as const) {
-		test(`Import > ${action} closes Discover before starting creation`, async () => {
+		test(`Create or Add > ${action} closes Discover before starting creation`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
 			]);
-			await fixture.selectImport(action);
+			await fixture.selectCreateOrAdd(action);
 			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
 		});
 	}
