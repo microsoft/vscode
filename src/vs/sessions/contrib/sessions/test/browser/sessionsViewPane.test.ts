@@ -34,6 +34,15 @@ const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayo
 	readonly customizationsPresentation: string;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
 	readonly isFindWidgetOpen: boolean;
+	updateFindHeaderPosition(): void;
+}) => void;
+const updateFindHeaderPosition = Reflect.get(SessionsView.prototype, 'updateFindHeaderPosition') as (this: {
+	readonly sessionsHeaders: ReadonlySet<{ readonly row: HTMLElement; readonly treeHeader: boolean }>;
+	readonly sessionsContent: HTMLElement | undefined;
+	readonly sessionsHeaderContainer: HTMLElement | undefined;
+	readonly sessionsControlContainer: HTMLElement | undefined;
+	readonly customizationsPresentation: string;
+	readonly isFindWidgetOpen: boolean;
 }) => void;
 
 suite('Sessions - SessionsViewPane', () => {
@@ -299,6 +308,7 @@ suite('Sessions - SessionsViewPane', () => {
 			customizationsPresentation: 'treatment',
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
+			updateFindHeaderPosition: () => { },
 		};
 
 		updateHeaderLayout.call(host);
@@ -313,5 +323,79 @@ suite('Sessions - SessionsViewPane', () => {
 			transientDisplay: '',
 			narrowDisplay: 'none',
 		});
+	});
+
+	test('aligns Find with the visible Sessions header and follows the sticky handoff', () => {
+		const sessionsContent = mainWindow.document.createElement('div');
+		const sessionsHeaderContainer = mainWindow.document.createElement('div');
+		const sessionsControlContainer = mainWindow.document.createElement('div');
+		const sourceHeader = mainWindow.document.createElement('div');
+		const stickyRow = mainWindow.document.createElement('div');
+		const stickyHeader = mainWindow.document.createElement('div');
+		stickyRow.classList.add('monaco-tree-sticky-row');
+		stickyRow.appendChild(stickyHeader);
+
+		const setVerticalBounds = (element: HTMLElement, top: number, bottom: number) => {
+			Object.defineProperty(element, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => ({ top, bottom, height: bottom - top }),
+			});
+		};
+		setVerticalBounds(sessionsContent, 100, 600);
+		setVerticalBounds(sessionsControlContainer, 110, 500);
+		setVerticalBounds(sourceHeader, 180, 212);
+		setVerticalBounds(stickyHeader, 120, 152);
+
+		const host = {
+			sessionsContent,
+			sessionsHeaderContainer,
+			sessionsControlContainer,
+			sessionsHeaders: new Set([
+				{ row: sourceHeader, treeHeader: true },
+				{ row: stickyHeader, treeHeader: true },
+			]),
+			customizationsPresentation: 'treatment',
+			isFindWidgetOpen: true,
+		};
+
+		updateFindHeaderPosition.call(host);
+		const stickyPosition = sessionsHeaderContainer.style.top;
+		setVerticalBounds(stickyHeader, 600, 632);
+		updateFindHeaderPosition.call(host);
+		const sourcePosition = sessionsHeaderContainer.style.top;
+		setVerticalBounds(sourceHeader, 600, 632);
+		updateFindHeaderPosition.call(host);
+
+		assert.deepStrictEqual({
+			stickyPosition,
+			sourcePosition,
+			retainedPositionWithoutVisibleHeader: sessionsHeaderContainer.style.top,
+		}, {
+			stickyPosition: '20px',
+			sourcePosition: '80px',
+			retainedPositionWithoutVisibleHeader: '80px',
+		});
+	});
+
+	test('positions the Find header only while open in treatment', () => {
+		const sessionsContent = mainWindow.document.createElement('div');
+		const host = {
+			sessionsHeaders: new Set<{ readonly row: HTMLElement; readonly label: HTMLElement; readonly actions: HTMLElement; readonly treeHeader: boolean }>(),
+			sessionsContent,
+			customizationsPresentation: 'treatment',
+			layoutService: { mainContainer: mainWindow.document.createElement('div') },
+			isFindWidgetOpen: true,
+			updateFindHeaderPosition: () => { },
+		};
+
+		updateHeaderLayout.call(host);
+		const findOpen = sessionsContent.classList.contains('sessions-find-header-open');
+		host.isFindWidgetOpen = false;
+		updateHeaderLayout.call(host);
+
+		assert.deepStrictEqual([
+			findOpen,
+			sessionsContent.classList.contains('sessions-find-header-open'),
+		], [true, false]);
 	});
 });

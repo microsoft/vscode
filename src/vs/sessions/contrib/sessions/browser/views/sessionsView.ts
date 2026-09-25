@@ -7,7 +7,7 @@ import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -120,7 +120,9 @@ export class SessionsView extends ViewPane {
 	private sidebarSplitViewContainer: HTMLElement | undefined;
 	private sidebarSplitView: SplitView | undefined;
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly findHeaderPositionUpdate = this._register(new MutableDisposable<IDisposable>());
 	private sessionsControlContainer: HTMLElement | undefined;
+	private sessionsHeaderContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private sessionsContent: HTMLElement | undefined;
 	private readonly sessionsHeaders = new Set<IRegisteredSessionsHeader>();
@@ -229,7 +231,7 @@ export class SessionsView extends ViewPane {
 		// MobileTitlebarPart. We still create the row container because the find
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
-		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
+		const sessionsHeaderContainer = this.sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, false, this._register(new DisposableStore()));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
@@ -256,6 +258,7 @@ export class SessionsView extends ViewPane {
 			createSessionsHeader: (container, disposables) => {
 				return this.createSessionsHeader(container, phoneLayout, true, disposables).row;
 			},
+			onDidScroll: () => this.scheduleFindHeaderPositionUpdate(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -294,6 +297,7 @@ export class SessionsView extends ViewPane {
 			findWidgetContainer.style.display = open ? '' : 'none';
 			this.updateHeaderLayout();
 		}));
+		this._register(sessionsControl.onDidUpdate(() => this.scheduleFindHeaderPositionUpdate()));
 
 		// Close find widget on Escape
 		this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
@@ -740,10 +744,12 @@ export class SessionsView extends ViewPane {
 		this.layoutSidebarSplitView();
 
 		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {
+			this.scheduleFindHeaderPositionUpdate();
 			return;
 		}
 
 		this.sessionsControl.layout(this.sessionsControlContainer.offsetHeight, width);
+		this.scheduleFindHeaderPositionUpdate();
 	}
 
 	private layoutSidebarSplitView(): void {
@@ -798,7 +804,12 @@ export class SessionsView extends ViewPane {
 
 	private updateHeaderLayout(): void {
 		const treatment = this.customizationsPresentation === 'treatment';
-		this.sessionsContent?.classList.toggle('sessions-find-header-overlay', treatment && this.isFindWidgetOpen);
+		this.sessionsContent?.classList.toggle('sessions-find-header-open', treatment && this.isFindWidgetOpen);
+		if (treatment && this.isFindWidgetOpen) {
+			this.updateFindHeaderPosition();
+		} else {
+			this.sessionsHeaderContainer?.style.removeProperty('top');
+		}
 		const showStableHeader = !treatment || this.isFindWidgetOpen;
 		for (const header of this.sessionsHeaders) {
 			if (!header.treeHeader) {
@@ -824,6 +835,39 @@ export class SessionsView extends ViewPane {
 			if (header.row.clientWidth > 0 && header.label.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
 				header.label.style.display = 'none';
 			}
+		}
+	}
+
+	private scheduleFindHeaderPositionUpdate(): void {
+		if (!this.isFindWidgetOpen || this.customizationsPresentation !== 'treatment' || !this.sessionsContent) {
+			return;
+		}
+
+		this.findHeaderPositionUpdate.value = DOM.scheduleAtNextAnimationFrame(
+			DOM.getWindow(this.sessionsContent),
+			() => this.updateFindHeaderPosition(),
+		);
+	}
+
+	private updateFindHeaderPosition(): void {
+		const sessionsContent = this.sessionsContent;
+		const sessionsHeaderContainer = this.sessionsHeaderContainer;
+		const sessionsControlContainer = this.sessionsControlContainer;
+		if (!sessionsContent || !sessionsHeaderContainer || !sessionsControlContainer || !this.isFindWidgetOpen || this.customizationsPresentation !== 'treatment') {
+			return;
+		}
+
+		const controlRect = sessionsControlContainer.getBoundingClientRect();
+		const candidates = [...this.sessionsHeaders]
+			.filter(header => header.treeHeader)
+			.map(header => ({
+				isSticky: !!header.row.closest('.monaco-tree-sticky-row'),
+				rect: header.row.getBoundingClientRect(),
+			}))
+			.filter(candidate => candidate.rect.height > 0 && candidate.rect.bottom > controlRect.top && candidate.rect.top < controlRect.bottom);
+		const anchor = candidates.find(candidate => candidate.isSticky) ?? candidates[0];
+		if (anchor) {
+			sessionsHeaderContainer.style.top = `${anchor.rect.top - sessionsContent.getBoundingClientRect().top}px`;
 		}
 	}
 

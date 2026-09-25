@@ -85,13 +85,12 @@
 		position: relative;
 	}
 
-	.agent-sessions-content.sessions-find-header-overlay > .agent-sessions-header-container {
+	.agent-sessions-content.sessions-find-header-open > .agent-sessions-header-container {
 		position: absolute;
 		top: 0;
 		left: 0;
 		right: 0;
-		z-index: 1;
-		padding-top: var(--vscode-spacing-size100);
+		z-index: 14;
 		box-sizing: border-box;
 	}
 

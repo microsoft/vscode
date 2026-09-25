@@ -666,7 +666,9 @@ suite('Sessions - SessionsList', () => {
 			tree.scrollTop = 400;
 			await timeout(0);
 			const stickyHeaderAfterZeroHeight = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
+			const scrollTopBeforeFind = tree.scrollTop;
 			list.openFind();
+			const scrollTopAfterFind = tree.scrollTop;
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
 			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
 			const hiddenTreeHeader = container.querySelector<HTMLElement>('.sessions-list-header');
@@ -684,6 +686,8 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: sessionsHeader.parentElement === sessionsHeaderContainer && findWidgetContainer.parentElement === sessionsHeader,
 				treeHeaderHiddenForFind,
 				findFocusedAfterOffscreenOpen,
+				scrollTopAfterFind,
+				scrollTopBeforeFind,
 				distinctHeaderInstances: new Set(allHeaders).size === allHeaders.length,
 				activeHeaderCount: activeHeaders.size,
 			}, {
@@ -697,8 +701,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				treeHeaderHiddenForFind: true,
 				findFocusedAfterOffscreenOpen: true,
+				scrollTopAfterFind: scrollTopBeforeFind,
+				scrollTopBeforeFind: 400,
 				distinctHeaderInstances: true,
-				activeHeaderCount: 1,
+				activeHeaderCount: 2,
 			});
 			list.closeFind();
 			await timeout(350);

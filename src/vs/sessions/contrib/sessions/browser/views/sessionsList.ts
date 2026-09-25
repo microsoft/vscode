@@ -3048,6 +3048,7 @@ interface ISessionsListControlBaseOptions {
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly findWidgetContainer?: HTMLElement;
 	readonly createSessionsHeader?: (container: HTMLElement, disposables: DisposableStore) => HTMLElement;
+	readonly onDidScroll?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -3612,6 +3613,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+		if (this.options.onDidScroll) {
+			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
+		}
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
 		// the session whose guides it belongs to, so hovering/selecting/focusing
@@ -4554,10 +4558,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	openFind(): void {
-		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
-			this.tree.reveal(SESSIONS_HEADER_SECTION);
-			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
-		}
 		this.tree.openFind();
 	}
 
