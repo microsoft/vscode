@@ -455,21 +455,6 @@
             "included": false
         },
         {
-            "key": "chat.copilot.hydraFusion.enabled",
-            "name": "ChatCopilotHydraFusion",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.140",
-            "localization": {
-                "description": {
-                    "key": "chat.copilot.hydraFusion.enabled.policy",
-                    "value": "Configure whether the experimental HydraFusion model is available to local Copilot Agent Host sessions."
-                }
-            },
-            "type": "boolean",
-            "default": false,
-            "included": true
-        },
-        {
             "key": "chat.customizations.strictPluginOnlyCustomization",
             "name": "ChatStrictPluginOnlyCustomization",
             "category": "InteractiveSession",

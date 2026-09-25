@@ -54,7 +54,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
-import { autoApprovePolicyValue, hydraFusionPolicyValue } from '../common/agentHostConfigPolicy.js';
+import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
@@ -1767,18 +1767,6 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
-			policy: {
-				name: 'ChatCopilotHydraFusion',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.140',
-				value: hydraFusionPolicyValue,
-				localization: {
-					description: {
-						key: 'chat.copilot.hydraFusion.enabled.policy',
-						value: nls.localize('chat.copilot.hydraFusion.enabled.policy', "Configure whether the experimental HydraFusion model is available to local Copilot Agent Host sessions."),
-					},
-				},
-			},
 		},
 		[CopilotAutoModeTierOverrideSettingId]: {
 			type: ['string', 'null'],

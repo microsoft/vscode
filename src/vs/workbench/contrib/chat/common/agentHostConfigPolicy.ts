@@ -13,10 +13,6 @@ export function autoApprovePolicyValue(policyData: IPolicyData): false | undefin
 	return policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable' ? false : undefined;
 }
 
-export function hydraFusionPolicyValue(policyData: IPolicyData): false | undefined {
-	return policyData.chat_preview_features_enabled === false ? false : undefined;
-}
-
 export function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
 	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 }
