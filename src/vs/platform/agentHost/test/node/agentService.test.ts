@@ -3450,7 +3450,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const toolChat = buildChatUri(session, 'tool');
-			getStateManager(svc).addChat(session, toolChat, {
+			getStateManager(svc).addChat(session.toString(), toolChat, {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));

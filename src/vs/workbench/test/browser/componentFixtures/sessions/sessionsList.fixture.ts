@@ -271,6 +271,9 @@ interface IRenderOptions {
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
+	readonly showFocusedChatToolbar?: boolean;
+	readonly showSessionContextMenu?: boolean;
+	readonly sessionArchivedChatsVisible?: boolean;
 	readonly focusSelectedSession?: boolean;
 	readonly revealFirstSession?: boolean;
 	readonly showFirstSessionTwistie?: boolean;
@@ -327,7 +330,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 					override isMotionReduced(): boolean { return reducedMotion; }
 				}());
 			}
-			if (options.showFocusedToolbar || options.focusSelectedSession) {
+			if (options.showFocusedToolbar || options.showFocusedChatToolbar || options.showSessionContextMenu || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
 					override readonly label = 'Archive';
@@ -336,11 +339,54 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 					override readonly enabled = true;
 					override async run(): Promise<void> { }
 				}();
+				const markAsDoneAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.markAsDone';
+					override readonly label = 'Mark as Done';
+					override readonly tooltip = 'Mark as Done';
+					override readonly class = ThemeIcon.asClassName(Codicon.check);
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
+				const restoreAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.restore';
+					override readonly label = 'Restore';
+					override readonly tooltip = 'Restore';
+					override readonly class = ThemeIcon.asClassName(Codicon.redo);
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
+				const showDoneChatsAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.showDoneChats';
+					override readonly label = 'Show Done Chats';
+					override readonly tooltip = 'Show Done Chats';
+					override readonly enabled = true;
+					override readonly checked = options.sessionArchivedChatsVisible;
+					override async run(): Promise<void> { }
+				}();
+				const newChatAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.newChat';
+					override readonly label = 'New Chat in This Session';
+					override readonly tooltip = 'New Chat in This Session';
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
 				reg.defineInstance(IMenuService, new class extends mock<IMenuService>() {
-					override createMenu(): IMenu {
+					override createMenu(id: MenuId): IMenu {
 						return {
 							onDidChange: Event.None,
-							getActions: () => [['navigation', [archiveAction]]],
+							getActions: () => {
+								if (id === Menus.SessionItemToolbar) {
+									return [['navigation', [archiveAction]]];
+								}
+								if (id === Menus.SessionChatItemToolbar) {
+									const action = options.showFocusedChatToolbar ? restoreAction : markAsDoneAction;
+									return [['navigation', [action]]];
+								}
+								if (id === Menus.SessionItemContextMenu) {
+									return [['1_newChat', [newChatAction, showDoneChatsAction]]];
+								}
+								return [];
+							},
 							dispose: () => { },
 						};
 					}
@@ -573,6 +619,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		// Section context changes refresh the production menus after a debounce.
 		await timeout(100);
 	}
+	if (options.sessionArchivedChatsVisible && sessions[0]) {
+		list.setSessionArchivedChatsVisible(sessions[0], true);
+	}
 	if (options.rename === 'session') {
 		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
 		if (!titleRow) {
@@ -693,6 +742,35 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}
 			sessionRow.classList.add('focused');
 			toolbar.style.display = 'block';
+		});
+	}
+
+	if (options.showFocusedChatToolbar) {
+		return Promise.resolve().then(() => {
+			const chatRow = listHost.querySelector<HTMLElement>('.session-chat-item.archived')?.closest<HTMLElement>('.monaco-list-row');
+			const toolbar = chatRow?.querySelector<HTMLElement>('.session-title-toolbar');
+			const actions = toolbar?.querySelector<HTMLElement>('.actions-container');
+			if (!chatRow || !toolbar || !actions) {
+				throw new Error('Expected an archived chat row toolbar.');
+			}
+			chatRow.classList.add('focused');
+			toolbar.style.display = 'block';
+		});
+	}
+
+	if (options.showSessionContextMenu) {
+		return Promise.resolve().then(() => {
+			const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest<HTMLElement>('.monaco-list-row');
+			if (!sessionRow) {
+				throw new Error('Expected a session row context menu target.');
+			}
+			sessionRow.dispatchEvent(new MouseEvent('contextmenu', {
+				bubbles: true,
+				cancelable: true,
+				button: 2,
+				clientX: sessionRow.getBoundingClientRect().right,
+				clientY: sessionRow.getBoundingClientRect().top,
+			}));
 		});
 	}
 
@@ -872,7 +950,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchivedNestedChat: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent and uses the completed archive status icon.'],
+		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [{
 				id: 'nested-archive',
@@ -885,6 +963,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				],
 			}],
 			showArchived: true,
+			showFocusedChatToolbar: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_ArchivedNestedChatSessionMenu: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{
+				id: 'nested-archive-menu',
+				title: 'Investigate session persistence',
+				workspace: 'vscode',
+				minutesAgo: 2,
+				chats: [
+					{ id: 'active', title: 'Compare provider state' },
+				],
+			}],
+			showSessionContextMenu: true,
 			width: 400,
 		}),
 	}),

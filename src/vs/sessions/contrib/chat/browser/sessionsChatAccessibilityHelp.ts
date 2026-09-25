@@ -137,6 +137,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			: archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
 				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
+		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('sessionsChat.showDoneChats', "Open a session's context menu and toggle Show Done Chats to control whether its Done chats are shown. This action is always available, and a check mark means those chats are shown.")
+			: localize('sessionsChat.showArchivedChats', "Open a session's context menu and toggle Show Archived Chats to control whether its archived chats are shown. This action is always available, and a check mark means those chats are shown."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));
