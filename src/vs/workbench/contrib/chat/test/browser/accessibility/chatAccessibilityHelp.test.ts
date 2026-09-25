@@ -284,6 +284,21 @@ suite('Chat Accessibility Help', () => {
 			agentView: true,
 			panelChat: false,
 		});
+
+		test('only documents customization migration entry points in panel chat', () => {
+			const keybindingService = new MockKeybindingService();
+			const expectedText = 'notice above the new-chat input';
+
+			assert.deepStrictEqual({
+				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+			}, {
+				panelChat: true,
+				quickChat: false,
+				agentView: false,
+			});
+		});
 	});
 
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {
