@@ -4,14 +4,81 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
-import { ISCMProvider, ISCMRepository, ISCMService } from '../../../scm/common/scm.js';
-import { ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
+import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
+import { ScmMultiDiffSourceResolver, ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
+
+suite('ScmMultiDiffSourceResolver', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts resources by path', async () => {
+		const resources: ISCMResource[] = [];
+		const onDidChangeResources = disposables.add(new Emitter<void>());
+		const group = new class extends mock<ISCMResourceGroup>() {
+			override readonly id = 'changes';
+			override readonly label = 'Changes';
+			override readonly resources = resources;
+			override readonly onDidChangeResources = onDidChangeResources.event;
+		}();
+		const provider = new class extends mock<ISCMProvider>() {
+			override readonly id = 'scm0';
+			override readonly providerId = 'scm0';
+			override readonly rootUri = URI.file('/repository');
+			override readonly groups = [group];
+			override readonly onDidChangeResourceGroups = new Emitter<void>().event;
+		}();
+		const repository = new class extends mock<ISCMRepository>() {
+			override readonly id = provider.id;
+			override readonly provider = provider;
+		}();
+		const repositories = [repository];
+		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
+		const scmService = new class extends mock<ISCMService>() {
+			override readonly onDidAddRepository = onDidAddRepository.event;
+			override get repositories(): Iterable<ISCMRepository> { return repositories; }
+			override get repositoryCount(): number { return repositories.length; }
+			override getRepository(idOrResource: string | URI): ISCMRepository | undefined {
+				return typeof idOrResource === 'string' ? repositories.find(r => r.id === idOrResource) : undefined;
+			}
+		}();
+
+		const activityService = new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = Event.None;
+			override getViewContainerActivities() { return []; }
+		}();
+		const resolver = new ScmMultiDiffSourceResolver(scmService, activityService);
+		const sourceUri = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(provider.rootUri.toString(), group.id);
+		const sourcePromise = resolver.resolveDiffSource(sourceUri);
+
+		const createResource = (path: string) => new class extends mock<ISCMResource>() {
+			override readonly sourceUri = URI.file(path);
+			override readonly multiDiffEditorModifiedUri = this.sourceUri;
+		}();
+
+		resources.push(
+			createResource('/repository/githubServer.ts'),
+			createResource('/repository/env.ts'),
+			createResource('/repository/githubUri.ts'),
+		);
+		onDidChangeResources.fire();
+
+		const source = await sourcePromise;
+		assert.deepStrictEqual(
+			source.resources.value.map(resource => resource.goToFileUri?.path),
+			[
+				'/repository/env.ts',
+				'/repository/githubServer.ts',
+				'/repository/githubUri.ts',
+			]
+		);
+	});
+});
 
 suite('ScmHistoryItemResolver', () => {
 

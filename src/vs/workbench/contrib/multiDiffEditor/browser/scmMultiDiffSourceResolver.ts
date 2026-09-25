@@ -7,6 +7,7 @@ import { ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/path.js';
+import { comparePaths } from '../../../../base/common/comparers.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { localize2 } from '../../../../nls.js';
@@ -176,7 +177,9 @@ class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
 	) {
 		this._resources = observableFromEvent<MultiDiffEditorItem[]>(
 			this._group.onDidChangeResources,
-			() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
+			() => /** @description resources */ [...this._group.resources]
+				.sort((a, b) => comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath))
+				.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
 		);
 		this.resources = new ValueWithChangeEventFromObservable(this._resources);
 		this.contextKeys = {
