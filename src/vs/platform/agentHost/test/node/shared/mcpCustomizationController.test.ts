@@ -201,11 +201,14 @@ suite('McpCustomizationController', () => {
 
 		controller.applyOne(server('search', ready()));
 		const restored = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: uri }]);
+		const unchanged = snapshot();
 		const newUri = URI.file('/custom/copilot/mcp-config.json').toString();
 		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: newUri }]);
 
-		assert.deepStrictEqual({ restored, relocated: snapshot() }, {
+		assert.deepStrictEqual({ restored, unchanged, relocated: snapshot() }, {
 			restored: [{ id, uri, range }],
+			unchanged: [{ id, uri, range }],
 			relocated: [{ id, uri: newUri, range: undefined }],
 		});
 	});
