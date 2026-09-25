@@ -175,7 +175,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private findUserKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
 		for (let index = 0; index < userKeybindingEntries.length; index++) {
 			const keybinding = userKeybindingEntries[index];
-			if (keybinding.command === keybindingItem.command) {
+			if (keybinding.command === keybindingItem.command && objects.equals(keybinding.args ?? undefined, keybindingItem.commandArgs ?? undefined)) {
 				if (!keybinding.when && !keybindingItem.when) {
 					return index;
 				}
