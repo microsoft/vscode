@@ -29,6 +29,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -48,12 +49,12 @@ suite('ProjectBoardNewSessionDialog', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function makeSession(id: string, workspace: IObservable<ISessionWorkspace | undefined> = constObservable(undefined)): ISession {
+	function makeSession(id: string, workspace: IObservable<ISessionWorkspace | undefined> = constObservable(undefined), status: IObservable<SessionStatus> = constObservable(SessionStatus.Untitled)): ISession {
 		const chat = new class extends mock<IChat>() {
 			override readonly resource = URI.parse(`test-chat:/${id}`);
 			override readonly modelId = constObservable('model');
 			override readonly mode = constObservable(undefined);
-			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly status = status;
 			override readonly interactivity = constObservable(ChatInteractivity.Full);
 			override readonly workspace = workspace;
 			override readonly changes = constObservable([]);
@@ -64,7 +65,7 @@ suite('ProjectBoardNewSessionDialog', () => {
 			override readonly providerId = 'test';
 			override readonly sessionType = 'test-chat';
 			override readonly resource = chat.resource;
-			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly status = status;
 			override readonly mainChat = constObservable(chat);
 			override readonly chats = constObservable([chat]);
 			override readonly workspace = workspace;
@@ -93,7 +94,8 @@ suite('ProjectBoardNewSessionDialog', () => {
 			override get canEdit() { return state.editable && available.get(); }
 		}();
 		const draftWorkspace = observableValue<ISessionWorkspace | undefined>('draftWorkspace', undefined);
-		const draftSession = makeSession('draft', draftWorkspace);
+		const draftStatus = observableValue<SessionStatus>('draftStatus', SessionStatus.Untitled);
+		const draftSession = makeSession('draft', draftWorkspace, draftStatus);
 		const canonical = makeSession('canonical');
 		const send = sinon.stub<[ISendRequestOptions], Promise<ISession | undefined>>().resolves(canonical);
 		const draftDispose = sinon.spy();
@@ -120,6 +122,7 @@ suite('ProjectBoardNewSessionDialog', () => {
 		}] : [];
 		const providersChanged = store.add(new Emitter<void>());
 		instantiation.stub(ISessionsManagementService, {
+			sessionDrafts: constObservable(new Set([draftSession])),
 			onDidChangeSessionTypes: providersChanged.event,
 			usesCombinedNewSessionConfigPicker: () => state.combinedConfig,
 			getSessionTypesForFolder: sessionTypes,
@@ -133,6 +136,8 @@ suite('ProjectBoardNewSessionDialog', () => {
 		});
 		instantiation.stub(IWorkspaceTrustRequestService, { requestResourcesTrust: trust });
 		instantiation.stub(ILogService, log);
+		const notifyError = sinon.spy();
+		instantiation.stub(INotificationService, { error: notifyError });
 		instantiation.stub(IContextViewService, {});
 		const mainContext = store.add(new MockContextKeyService());
 		SessionProviderIdContext.bindTo(mainContext).set('main-provider');
@@ -194,7 +199,8 @@ suite('ProjectBoardNewSessionDialog', () => {
 		});
 		const dialog = store.add(instantiation.createInstance(ProjectBoardNewSessionDialog));
 		const onDidCreate = sinon.stub();
-		const showing = dialog.show({ container, boardState, onDidCreate });
+		const onDidResolve = sinon.stub();
+		const showing = dialog.show({ container, boardState, onDidCreate, onDidResolve });
 		const widgetCreation = creations?.getCalls().find(call => call.args[0] === NewChatWidget);
 		assert.ok(widgetCreation, 'instantiate the real shared NewChatWidget class, not a native chat editor');
 		const host: INewChatWidgetHost = (widgetCreation.args[1] as ConstructorParameters<typeof NewChatWidget>[0]).host!;
@@ -206,8 +212,99 @@ suite('ProjectBoardNewSessionDialog', () => {
 			destination.dispatchEvent(new (dom.getWindow(container).Event)('change', { bubbles: true }));
 		};
 		const error = () => container.querySelector('[role="alert"]')?.textContent;
-		return { container, elsewhere, editor, dialog, showing, host, widget, state, configuration, available, select, cancel, destination, selectDestination, error, draft, draftDispose, draftSession, canonical, send, createDraft, createMain, createAutomation, trust, resolveWorkspace, targetAvailable, onDidCreate, logError, softDispatch, createScoped, contextDispose, focusedEditor, mainComposerService, mainComposer, modalComposerService: modalComposerService!, modalComposer, mainContext, scopedContext, providersChanged, draftWorkspace };
+		return { container, elsewhere, editor, dialog, showing, host, widget, state, configuration, available, select, cancel, destination, selectDestination, error, draft, draftDispose, draftSession, draftStatus, canonical, send, createDraft, createMain, createAutomation, trust, resolveWorkspace, targetAvailable, onDidCreate, onDidResolve, notifyError, logError, softDispatch, createScoped, contextDispose, focusedEditor, mainComposerService, mainComposer, modalComposerService: modalComposerService!, modalComposer, mainContext, scopedContext, providersChanged, draftWorkspace };
 	}
+
+	test('hands off the existing provisional session without waiting for canonical discovery', async () => {
+		const h = setup({ autoInclude: false });
+		await h.select();
+		const pending = new DeferredPromise<ISession | undefined>();
+		h.send.returns(pending.p);
+		let accepted = false;
+		const submitting = h.widget.submitInput().then(result => { accepted = result; });
+		h.draftStatus.set(SessionStatus.InProgress, undefined);
+		await timeout(0);
+		const handedOff = accepted;
+		if (!handedOff) {
+			await pending.complete(h.canonical);
+			await submitting;
+		}
+		assert.strictEqual(handedOff, true, 'canonical discovery must not gate input clearing or modal dismissal');
+		await submitting;
+		assert.strictEqual(await h.showing, h.draftSession);
+		assert.deepStrictEqual(h.onDidCreate.firstCall.args, [h.draftSession, { rowId: 'general', columnId: 'p0' }]);
+		assert.strictEqual(h.state.text, '');
+		assert.strictEqual(h.draftDispose.called, false, 'the background send still owns the draft');
+		h.dialog.dispose();
+		assert.strictEqual(h.draftDispose.called, false);
+		await pending.complete(h.canonical);
+		await timeout(0);
+		assert.deepStrictEqual(h.onDidResolve.firstCall.args, [h.draftSession, h.canonical]);
+		assert.strictEqual(h.onDidCreate.callCount, 1);
+		assert.strictEqual(h.draftDispose.callCount, 1);
+		assert.strictEqual(h.notifyError.called, false);
+	});
+
+	test('reports a late discovery failure without losing ownership or inviting a duplicate send', async () => {
+		const h = setup();
+		await h.select();
+		const pending = new DeferredPromise<ISession | undefined>();
+		h.send.returns(pending.p);
+		const submitting = h.widget.submitInput();
+		h.draftStatus.set(SessionStatus.InProgress, undefined);
+		await timeout(0);
+		await pending.error(new Error('canonical discovery failed'));
+		assert.strictEqual(await submitting, true);
+		await h.showing;
+		await timeout(0);
+		assert.strictEqual(h.notifyError.callCount, 1);
+		assert.match(h.notifyError.firstCall.args[0], /canonical discovery failed/);
+		assert.strictEqual(h.logError.callCount, 1);
+		assert.strictEqual(h.draftDispose.callCount, 1);
+		assert.strictEqual(h.onDidResolve.called, false);
+		assert.strictEqual(h.send.callCount, 1);
+	});
+
+	test('an unpublished error status does not accept or clear the prompt', async () => {
+		const h = setup();
+		await h.select();
+		const pending = new DeferredPromise<ISession | undefined>();
+		h.send.returns(pending.p);
+		const submitting = h.widget.submitInput();
+		h.draftStatus.set(SessionStatus.Error, undefined);
+		await timeout(0);
+		await pending.error(new Error('send rejected'));
+		assert.strictEqual(await submitting, false);
+		assert.strictEqual(h.onDidCreate.called, false);
+		assert.strictEqual(h.state.text, 'Keep this prompt');
+		await timeout(0);
+		h.cancel();
+		await h.showing;
+	});
+
+	test('closing the standalone origin after handoff cannot cancel discovery or send again', async () => {
+		const frame = mainWindow.document.createElement('iframe');
+		mainWindow.document.body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const h = setup({ document: frame.contentDocument! });
+		await h.select();
+		const active = h.host.session.get()!;
+		const pending = new DeferredPromise<ISession | undefined>();
+		h.send.returns(pending.p);
+		const submitting = h.widget.submitInput();
+		h.draftStatus.set(SessionStatus.InProgress, undefined);
+		assert.strictEqual(await submitting, true);
+		assert.strictEqual(await h.showing, h.draftSession);
+		h.dialog.dispose();
+		frame.remove();
+		assert.strictEqual(h.draftDispose.called, false);
+		assert.strictEqual(await h.host.sendRequest(active, { query: 'duplicate' }), false);
+		await pending.complete(h.canonical);
+		await timeout(0);
+		assert.strictEqual(h.send.callCount, 1);
+		assert.strictEqual(h.onDidResolve.callCount, 1);
+		assert.strictEqual(h.draftDispose.callCount, 1);
+	});
 
 	test('labels board placement Project Path and dismisses with X without footer actions', async () => {
 		const h = setup();

@@ -54,6 +54,24 @@ suite('ProjectBoardCatalog', () => {
 		}, { saved: { ...collection(), boards: [{ ...collection().boards[0], name: 'Work' }] }, legacy: undefined, userKeys: [] });
 	});
 
+	test('provisional replacement preserves independent placements and does not overwrite a canonical move', () => {
+		const h = create();
+		const other = h.catalog.createBoard('Other');
+		h.state(defaultId).moveCard('provisional', { rowId: 'general', columnId: 'p2' });
+		h.state(other).moveCard('provisional', { rowId: 'general', columnId: 'p1' });
+		h.state(other).moveCard('canonical', { rowId: 'general', columnId: 'p3' });
+		const writes = sinon.spy(h.storage, 'store');
+		h.catalog.replaceCardPlacements('provisional', 'canonical');
+		assert.strictEqual(writes.callCount, 1);
+		assert.deepStrictEqual(h.state(defaultId).configuration.get().placements, [{ cardId: 'canonical', rowId: 'general', columnId: 'p2' }]);
+		assert.deepStrictEqual(h.state(other).configuration.get().placements, [{ cardId: 'canonical', rowId: 'general', columnId: 'p3' }]);
+		const boards = h.catalog.boards.get();
+		h.catalog.replaceCardPlacements('canonical', 'canonical');
+		h.catalog.replaceCardPlacements('provisional', 'canonical');
+		assert.strictEqual(h.catalog.boards.get(), boards);
+		assert.strictEqual(writes.callCount, 1);
+	});
+
 	test('migration preserves every placement, axis order and preference once, keeping legacy bytes untouched', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const configuration: IProjectBoardConfiguration = {
