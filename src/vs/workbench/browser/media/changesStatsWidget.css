@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.changes-summary-widget {
-	display: inline-flex;
-	gap: var(--vscode-spacing-size40);
+.changes-stats-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-stats-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
