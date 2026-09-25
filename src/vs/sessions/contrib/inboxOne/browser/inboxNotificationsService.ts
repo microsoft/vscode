@@ -206,8 +206,12 @@ type InboxDetailSummaryGeneratedClassification = {
 type InboxContentClassificationEvent = {
 	workType: string;
 	domain: string;
-	decisionType: string;
+	requestKind: string;
+	decisionSubject: string;
 	riskLevel: string;
+	reversibility: string;
+	environment: string;
+	evidenceState: string;
 	confidence: string;
 	ontologyVersion: number;
 	inputScope: string;
@@ -219,16 +223,76 @@ type InboxContentClassificationEvent = {
 
 type InboxContentClassificationClassification = {
 	owner: 'meganrogge';
-	comment: 'Bounded, content-derived classification of an inbox item (work type, domain, decision type, risk) produced locally by the utility model from otherwise-PII content. Only these bounded labels are emitted (to a restricted table); the raw titles/transcript never leave the client. Generated on demand when the user views an item, so volume is user-paced.';
-	workType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-type category inferred from the task content (e.g. bugfix, feature, refactor, test, docs), or unknown.' };
-	domain: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-domain category inferred from the task content (e.g. frontend, backend, build, security), or unknown.' };
-	decisionType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded decision-type category for a pending request (e.g. approval, designChoice, clarification), none, or unknown.' };
-	riskLevel: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded inferred risk level of the work (low, med, high), or unknown. An inference, never an authoritative risk determination.' };
+	comment: 'Bounded, content-derived classification of an inbox item (work type, domain, the kind and subject of any pending request, and inferred risk/reversibility/environment) produced locally by the utility model from otherwise-PII content. Only these bounded labels are emitted (to a restricted table); the raw title/transcript never leave the client. Generated on demand when the user views an item, so volume is user-paced.';
+	workType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded primary work-type category inferred from the task content (e.g. bugfix, feature, refactor, migration, diagnosis), or unknown.' };
+	domain: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-domain/subsystem category inferred from the task content (e.g. frontend, backend, api, database, security), or unknown.' };
+	requestKind: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded kind of pending request the user is being asked for (e.g. approve, choose, clarify, provideInput, review), none when nothing is pending, or unknown.' };
+	decisionSubject: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded subject a pending request is about (e.g. design, scope, access, merge, release), none when nothing is pending, or unknown.' };
+	riskLevel: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded inferred risk/impact severity of the work (none, low, med, high, critical), or unknown. An inference, never an authoritative risk determination.' };
+	reversibility: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded inferred reversibility of the work (reversible, partial, irreversible), or unknown.' };
+	environment: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded inferred environment the work targets (local, isolated, shared, production, external), or unknown.' };
+	evidenceState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded amount of evidence the context provided for the classification: absent, sparse, sufficient, conflicting, or unknown.' };
 	confidence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model confidence bucket for the classification: low, med, high, or unknown.' };
 	ontologyVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the classification ontology, so label meanings can be tracked over time.' };
-	inputScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded scope of the classified input: sessionTranscript.' };
+	inputScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded scope of the classified input: sessionContext (item title, any pending request, and the session transcript).' };
 	provenance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the labels were produced: utilityModelInference.' };
 	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind the classification was produced for.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with the rest of the trajectory.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+};
+
+type InboxItemLifecycleEvent = {
+	outcome: string;
+	notificationKind: string;
+	priorityTier: string;
+	needsInput: string;
+	msInInbox: number;
+	agentSessionId: string;
+	providerId: string;
+};
+
+type InboxItemLifecycleClassification = {
+	owner: 'meganrogge';
+	comment: 'Records an inbox item entering or leaving the Sessions Inbox and why, so the item lifecycle (and the outcomes that feed a meta-routing feedback loop) can be reconstructed in sequence with the rest of the trajectory. Emitted by the inbox service as items appear and disappear; user-paced.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded lifecycle outcome: entered, reentered, dismissed, removed, or unknown.' };
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind of the item.' };
+	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded importance tier of the item: now, next, later, or none.' };
+	needsInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the item was awaiting user input: yes or no.' };
+	msInInbox: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'For a departure, how long (ms) the item was in the inbox; 0 on entry.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with the rest of the trajectory.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+};
+
+type InboxRoutingDecisionEvent = {
+	recipientType: string;
+	ordering: string;
+	timing: string;
+	priorityTier: string;
+	evidenceScope: string;
+	autonomyLevel: string;
+	decisionRequired: string;
+	riskLevel: string;
+	routingPlanVersion: number;
+	provenance: string;
+	notificationKind: string;
+	agentSessionId: string;
+	providerId: string;
+};
+
+type InboxRoutingDecisionClassification = {
+	owner: 'meganrogge';
+	comment: 'Records the structured routing plan the inbox would produce for an item (who should handle it, in what order, when, with what evidence, and with how much agent autonomy). Today the plan is derived programmatically by an explicit rules stub; the schema is logged so a future learned meta-router can replace the derivation without changing telemetry. Emitted once per item when it first enters the inbox.';
+	recipientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded intended handler: human, agent, both, or none.' };
+	ordering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded handling order when multiple handlers apply: single, sequential, or parallel.' };
+	timing: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded intended delivery timing: immediate, deferred, or scheduled.' };
+	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded importance tier assigned to the item: now, next, later, or none.' };
+	evidenceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded evidence package that would accompany the item: none, summary, or full.' };
+	autonomyLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded agent autonomy the plan allows: humanOnly, approvalRequired, or autonomous.' };
+	decisionRequired: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the item requires a human decision: yes or no.' };
+	riskLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded risk level the plan assumed: low, med, or high.' };
+	routingPlanVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the routing-plan schema/derivation, so plan meanings can be tracked as the policy evolves.' };
+	provenance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the plan was produced: ruleBasedStub today.' };
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind the plan was produced for.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with the rest of the trajectory.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
 };
@@ -347,36 +411,50 @@ export function parseDetailSummary(raw: string, artifacts: readonly IInboxEviden
 }
 
 /** Version of the content-classification ontology; bump when the label sets below change. */
-const CLASSIFICATION_ONTOLOGY_VERSION = 1;
+const CLASSIFICATION_ONTOLOGY_VERSION = 2;
 
-const CLASSIFICATION_WORK_TYPES = ['bugfix', 'feature', 'refactor', 'test', 'docs', 'ci', 'review', 'config', 'infra', 'data', 'research', 'chore', 'other', 'unknown'] as const;
-const CLASSIFICATION_DOMAINS = ['frontend', 'backend', 'build', 'test', 'scm', 'data', 'ml', 'infra', 'security', 'docs', 'other', 'unknown'] as const;
-const CLASSIFICATION_DECISION_TYPES = ['approval', 'designChoice', 'clarification', 'codeReview', 'disambiguation', 'auth', 'scope', 'other', 'none', 'unknown'] as const;
-const CLASSIFICATION_RISK_LEVELS = ['low', 'med', 'high', 'unknown'] as const;
+const CLASSIFICATION_WORK_TYPES = ['bugfix', 'feature', 'refactor', 'test', 'validation', 'docs', 'review', 'audit', 'config', 'dependency', 'migration', 'performance', 'diagnosis', 'analysis', 'planning', 'research', 'prototype', 'release', 'incident', 'chore', 'other', 'unknown'] as const;
+const CLASSIFICATION_DOMAINS = ['frontend', 'backend', 'api', 'database', 'pipeline', 'analytics', 'mobile', 'desktop', 'cli', 'integration', 'identity', 'security', 'observability', 'operations', 'infra', 'network', 'runtime', 'build', 'ci', 'scm', 'devtools', 'test', 'docs', 'ml', 'ai', 'embedded', 'accessibility', 'localization', 'compliance', 'other', 'unknown'] as const;
+const CLASSIFICATION_REQUEST_KINDS = ['approve', 'choose', 'clarify', 'provideInput', 'provideEvidence', 'review', 'performAction', 'acknowledge', 'other', 'none', 'unknown'] as const;
+const CLASSIFICATION_DECISION_SUBJECTS = ['design', 'requirements', 'scope', 'priority', 'tradeoff', 'ownership', 'access', 'resource', 'risk', 'policy', 'change', 'merge', 'release', 'target', 'conflict', 'other', 'none', 'unknown'] as const;
+const CLASSIFICATION_RISK_LEVELS = ['none', 'low', 'med', 'high', 'critical', 'unknown'] as const;
+const CLASSIFICATION_REVERSIBILITY = ['reversible', 'partial', 'irreversible', 'unknown'] as const;
+const CLASSIFICATION_ENVIRONMENTS = ['local', 'isolated', 'shared', 'production', 'external', 'unknown'] as const;
+const CLASSIFICATION_EVIDENCE_STATES = ['absent', 'sparse', 'sufficient', 'conflicting', 'unknown'] as const;
 const CLASSIFICATION_CONFIDENCE = ['low', 'med', 'high', 'unknown'] as const;
 
 /**
  * Bounded, content-derived classification of an inbox item, produced by the utility model from
- * otherwise-PII content (titles, transcript, the pending request). Only these bounded labels are
- * emitted, to a restricted telemetry table; the raw content never leaves the client.
+ * otherwise-PII content (title, transcript, and any pending request). Only these bounded labels are
+ * emitted, to a restricted telemetry table; the raw content never leaves the client. The axes are
+ * split (request kind vs. decision subject; risk vs. reversibility vs. environment) so a meta-router
+ * can reason about who should handle an item and whether an agent may act autonomously.
  */
 export interface IInboxContentClassification {
 	readonly workType: string;
 	readonly domain: string;
-	readonly decisionType: string;
+	readonly requestKind: string;
+	readonly decisionSubject: string;
 	readonly riskLevel: string;
+	readonly reversibility: string;
+	readonly environment: string;
+	readonly evidenceState: string;
 	readonly confidence: string;
 }
 
 const CLASSIFICATION_SYSTEM_PROMPT = [
 	'You classify a background coding-agent task into a fixed, bounded ontology for research analytics.',
 	'Read the provided session context and respond with STRICT JSON only, no prose, using exactly these keys:',
-	'{ "workType": <one of ' + CLASSIFICATION_WORK_TYPES.join('|') + '>,',
-	'  "domain": <one of ' + CLASSIFICATION_DOMAINS.join('|') + '>,',
-	'  "decisionType": <one of ' + CLASSIFICATION_DECISION_TYPES.join('|') + '; the kind of decision the user is being asked for, or none when nothing is pending>,',
-	'  "riskLevel": <one of ' + CLASSIFICATION_RISK_LEVELS.join('|') + '; how risky/destructive the work is>,',
-	'  "confidence": <one of ' + CLASSIFICATION_CONFIDENCE.join('|') + '> }',
-	'Use "unknown" for any field you cannot determine. Do not invent categories outside the lists. Output only the JSON object.',
+	'{ "workType": <one of ' + CLASSIFICATION_WORK_TYPES.join('|') + '; the primary kind of work>,',
+	'  "domain": <one of ' + CLASSIFICATION_DOMAINS.join('|') + '; the main subsystem or area>,',
+	'  "requestKind": <one of ' + CLASSIFICATION_REQUEST_KINDS.join('|') + '; what the user is being asked to do in the pending request, or none when nothing is pending>,',
+	'  "decisionSubject": <one of ' + CLASSIFICATION_DECISION_SUBJECTS.join('|') + '; what the pending request is about, or none when nothing is pending>,',
+	'  "riskLevel": <one of ' + CLASSIFICATION_RISK_LEVELS.join('|') + '; overall risk/impact severity of the work>,',
+	'  "reversibility": <one of ' + CLASSIFICATION_REVERSIBILITY.join('|') + '; how easily the work could be undone>,',
+	'  "environment": <one of ' + CLASSIFICATION_ENVIRONMENTS.join('|') + '; the environment the work targets>,',
+	'  "evidenceState": <one of ' + CLASSIFICATION_EVIDENCE_STATES.join('|') + '; how much evidence the context gave you to classify>,',
+	'  "confidence": <one of ' + CLASSIFICATION_CONFIDENCE.join('|') + '; your overall confidence in these labels> }',
+	'Use "unknown" for any field you cannot determine, and "none" for requestKind/decisionSubject when no request is pending. Do not invent categories outside the lists. Output only the JSON object.',
 ].join('\n');
 
 function pickClassificationValue(value: unknown, allowed: readonly string[]): string {
@@ -401,15 +479,122 @@ export function parseContentClassification(raw: string): IInboxContentClassifica
 	const classification: IInboxContentClassification = {
 		workType: pickClassificationValue(record.workType, CLASSIFICATION_WORK_TYPES),
 		domain: pickClassificationValue(record.domain, CLASSIFICATION_DOMAINS),
-		decisionType: pickClassificationValue(record.decisionType, CLASSIFICATION_DECISION_TYPES),
+		requestKind: pickClassificationValue(record.requestKind, CLASSIFICATION_REQUEST_KINDS),
+		decisionSubject: pickClassificationValue(record.decisionSubject, CLASSIFICATION_DECISION_SUBJECTS),
 		riskLevel: pickClassificationValue(record.riskLevel, CLASSIFICATION_RISK_LEVELS),
+		reversibility: pickClassificationValue(record.reversibility, CLASSIFICATION_REVERSIBILITY),
+		environment: pickClassificationValue(record.environment, CLASSIFICATION_ENVIRONMENTS),
+		evidenceState: pickClassificationValue(record.evidenceState, CLASSIFICATION_EVIDENCE_STATES),
 		confidence: pickClassificationValue(record.confidence, CLASSIFICATION_CONFIDENCE),
 	};
-	// Only emit if the model produced at least one real (non-unknown) label.
-	if (classification.workType === 'unknown' && classification.domain === 'unknown' && classification.decisionType === 'unknown' && classification.riskLevel === 'unknown') {
+	// Only emit if the model actually learned something about the task or the pending request.
+	const learnedTask = classification.workType !== 'unknown' || classification.domain !== 'unknown';
+	const learnedRequest = classification.requestKind !== 'unknown' && classification.requestKind !== 'none';
+	if (!learnedTask && !learnedRequest) {
 		return undefined;
 	}
 	return classification;
+}
+
+// --- Item lifecycle + routing-plan telemetry -------------------------------------------------
+
+/** Bounded lifecycle outcomes for an inbox item, so enter/leave transitions can be reconstructed. */
+type InboxItemOutcome = 'entered' | 'reentered' | 'dismissed' | 'removed' | 'unknown';
+
+/** Cached, non-identifying state for an item while it is present, used to log its later departure. */
+interface IInboxLifecycleInfo {
+	readonly kind: InboxNotificationKind;
+	readonly priorityTier: 'now' | 'next' | 'later' | 'none';
+	readonly needsInput: boolean;
+	readonly agentSessionId: string;
+	readonly providerId: string;
+	readonly firstSeenMs: number;
+}
+
+/** Version of the routing-plan schema/derivation, so plan meanings can be tracked as it evolves. */
+const ROUTING_PLAN_VERSION = 1;
+
+/**
+ * A structured routing plan for an inbox item: who should handle it, in what order, when, with what
+ * evidence, and with how much agent autonomy. Today it is derived programmatically from the item by
+ * {@link deriveRoutingPlan} (an explicit rules stub); the shape is fixed so a learned meta-router can
+ * replace the derivation later without changing the telemetry schema.
+ */
+export interface IInboxRoutingPlan {
+	readonly recipientType: 'human' | 'agent' | 'both' | 'none';
+	readonly ordering: 'single' | 'sequential' | 'parallel';
+	readonly timing: 'immediate' | 'deferred' | 'scheduled';
+	readonly priorityTier: 'now' | 'next' | 'later' | 'none';
+	readonly evidenceScope: 'none' | 'summary' | 'full';
+	readonly autonomyLevel: 'humanOnly' | 'approvalRequired' | 'autonomous';
+	readonly decisionRequired: boolean;
+	readonly riskLevel: 'low' | 'med' | 'high';
+}
+
+/** Maps an item's importance priority to the inbox's bounded tier id. */
+function priorityTierId(priority: InboxNotificationPriority): 'now' | 'next' | 'later' | 'none' {
+	switch (priority) {
+		case InboxNotificationPriority.Now: return 'now';
+		case InboxNotificationPriority.Next: return 'next';
+		case InboxNotificationPriority.Later: return 'later';
+		default: return 'none';
+	}
+}
+
+/**
+ * Derives a routing plan from an inbox item using explicit rules. Each dimension is computed from the
+ * item's kind, importance tier, and pending-input state rather than hardcoded per event, so swapping
+ * in a learned meta-router later only means replacing this function.
+ */
+export function deriveRoutingPlan(item: IInboxNotificationItem): IInboxRoutingPlan {
+	const priorityTier = priorityTierId(item.priority);
+	const decisionRequired = item.needsInputPart !== undefined
+		|| item.kind === InboxNotificationKind.ConfirmationRequested
+		|| item.kind === InboxNotificationKind.NeedsInput;
+
+	let recipientType: IInboxRoutingPlan['recipientType'];
+	let autonomyLevel: IInboxRoutingPlan['autonomyLevel'];
+	let riskLevel: IInboxRoutingPlan['riskLevel'];
+	switch (item.kind) {
+		case InboxNotificationKind.ConfirmationRequested:
+		case InboxNotificationKind.NeedsInput:
+			// A pending decision must reach a human; an agent may not answer on their behalf.
+			recipientType = 'human';
+			autonomyLevel = 'humanOnly';
+			riskLevel = 'med';
+			break;
+		case InboxNotificationKind.FailingCI:
+		case InboxNotificationKind.ReviewComments:
+			// An agent can attempt the work, but a human still owns the outcome.
+			recipientType = 'both';
+			autonomyLevel = 'approvalRequired';
+			riskLevel = 'med';
+			break;
+		case InboxNotificationKind.PassingCI:
+		case InboxNotificationKind.PullRequestMerged:
+		case InboxNotificationKind.Completed:
+			// Informational: surface to a human to read, no autonomous action.
+			recipientType = 'human';
+			autonomyLevel = 'humanOnly';
+			riskLevel = 'low';
+			break;
+		default:
+			recipientType = decisionRequired ? 'human' : 'agent';
+			autonomyLevel = decisionRequired ? 'humanOnly' : 'approvalRequired';
+			riskLevel = 'low';
+			break;
+	}
+
+	// Completed work ships with a full evidence pack; a pending decision ships a summary.
+	const evidenceScope: IInboxRoutingPlan['evidenceScope'] =
+		item.kind === InboxNotificationKind.Completed ? 'full' : decisionRequired ? 'summary' : 'none';
+	// Delivery timing follows the importance tier the inbox already assigns.
+	const timing: IInboxRoutingPlan['timing'] =
+		priorityTier === 'now' ? 'immediate' : priorityTier === 'later' ? 'scheduled' : 'deferred';
+	// Single recipient today; the schema allows sequential/parallel once multi-agent paths exist.
+	const ordering: IInboxRoutingPlan['ordering'] = recipientType === 'both' ? 'sequential' : 'single';
+
+	return { recipientType, ordering, timing, priorityTier, evidenceScope, autonomyLevel, decisionRequired, riskLevel };
 }
 
 /** Defensively extracts a file URI from a chat response part (edits, code blocks, inline references). */
@@ -499,6 +684,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _detailSummaryInFlight = new Set<string>();
 	/** Item keys whose content classification has already been generated this session (bounds model calls). */
 	private readonly _classifiedKeys = new Set<string>();
+	/** Per-item lifecycle state while present, so departures can be logged after the item is gone. */
+	private readonly _lifecycleState = new Map<string, IInboxLifecycleInfo>();
+	/** Item ids ever seen in the inbox, to distinguish a first entry from a reentry. */
+	private readonly _everSeenItemIds = new Set<string>();
 
 	/** Bounds concurrent utility-model calls (previews + evidence packs) to avoid bursts. */
 	private readonly _utilityLimiter = new Limiter<unknown>(3);
@@ -571,6 +760,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._previewFallbackSignatures.clear();
 			this._detailSummaryInFlight.clear();
 			this._classifiedKeys.clear();
+			this._lifecycleState.clear();
+			this._everSeenItemIds.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -646,6 +837,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			this.invalidateEmptyDetailSummaries();
 			this.invalidatePreviewFallbacks();
+		}));
+
+		// Track items entering and leaving the inbox to emit lifecycle outcomes and the routing-plan
+		// schema, so the trajectory captures why each item appeared and disappeared.
+		this._register(autorun(reader => {
+			this.reconcileItemLifecycle(this.notifications.read(reader));
 		}));
 	}
 
@@ -1097,7 +1294,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const cts = new CancellationTokenSource();
 		this._previewCancellationSources.add(cts);
 		try {
-			const classification = await this._utilityLimiter.queue(() => this.invokeClassificationModel(transcript, cts.token)) as IInboxContentClassification | undefined;
+			const classification = await this._utilityLimiter.queue(() => this.invokeClassificationModel(item, transcript, cts.token)) as IInboxContentClassification | undefined;
 			if (classification && !cts.token.isCancellationRequested) {
 				this.logContentClassification(item, classification);
 			} else {
@@ -1113,12 +1310,23 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private async invokeClassificationModel(transcript: string, token: CancellationToken): Promise<IInboxContentClassification | undefined> {
+	private async invokeClassificationModel(item: IInboxNotificationItem, transcript: string, token: CancellationToken): Promise<IInboxContentClassification | undefined> {
 		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
 		if (!models.length || token.isCancellationRequested) {
 			return undefined;
 		}
-		const input = transcript.length > DETAIL_MAX_INPUT_CHARS ? `${transcript.slice(0, DETAIL_MAX_INPUT_CHARS)}…[truncated]` : transcript;
+		// Classify from the title and (when the agent is waiting) the pending request as well as the
+		// transcript: the pending request is the strongest signal for decisionType, and the title
+		// anchors workType/domain. All of this stays local; only the bounded labels are emitted.
+		const pendingRequest = item.needsInputPart ? this.describeItemForPreview(item).detailText : '';
+		const userText = [
+			`Session: ${item.title}`,
+			...(pendingRequest ? ['', 'Pending request the agent is waiting on:', pendingRequest] : []),
+			'',
+			'Transcript:',
+			transcript,
+		].join('\n');
+		const input = userText.length > DETAIL_MAX_INPUT_CHARS ? `${userText.slice(0, DETAIL_MAX_INPUT_CHARS)}…[truncated]` : userText;
 		const response = await this.languageModelsService.sendChatRequest(
 			models[0],
 			undefined,
@@ -1153,12 +1361,81 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this.telemetryService.publicLog2<InboxContentClassificationEvent, InboxContentClassificationClassification>('agents/inboxContentClassification', {
 			workType: classification.workType,
 			domain: classification.domain,
-			decisionType: classification.decisionType,
+			requestKind: classification.requestKind,
+			decisionSubject: classification.decisionSubject,
 			riskLevel: classification.riskLevel,
+			reversibility: classification.reversibility,
+			environment: classification.environment,
+			evidenceState: classification.evidenceState,
 			confidence: classification.confidence,
 			ontologyVersion: CLASSIFICATION_ONTOLOGY_VERSION,
-			inputScope: 'sessionTranscript',
+			inputScope: 'sessionContext',
 			provenance: 'utilityModelInference',
+			notificationKind: item.kind,
+			agentSessionId: context.agentSessionId,
+			providerId: context.providerId,
+		});
+	}
+
+	/** Diffs the current inbox against the last-seen set, emitting enter/leave lifecycle + routing telemetry. */
+	private reconcileItemLifecycle(items: readonly IInboxNotificationItem[]): void {
+		const now = Date.now();
+		const currentIds = new Set<string>();
+		for (const item of items) {
+			currentIds.add(item.id);
+			if (this._lifecycleState.has(item.id)) {
+				continue;
+			}
+			const context = this.getInteractionTelemetryContext(item);
+			const info: IInboxLifecycleInfo = {
+				kind: item.kind,
+				priorityTier: priorityTierId(item.priority),
+				needsInput: item.needsInputPart !== undefined,
+				agentSessionId: context.agentSessionId,
+				providerId: context.providerId,
+				firstSeenMs: now,
+			};
+			const reentered = this._everSeenItemIds.has(item.id);
+			this._everSeenItemIds.add(item.id);
+			this._lifecycleState.set(item.id, info);
+			this.logItemLifecycle(reentered ? 'reentered' : 'entered', 0, info);
+			this.logRoutingDecision(item, context);
+		}
+		for (const [id, info] of this._lifecycleState) {
+			if (currentIds.has(id)) {
+				continue;
+			}
+			this._lifecycleState.delete(id);
+			const outcome: InboxItemOutcome = this._dismissedIds.get().has(id) ? 'dismissed' : 'removed';
+			this.logItemLifecycle(outcome, now - info.firstSeenMs, info);
+		}
+	}
+
+	private logItemLifecycle(outcome: InboxItemOutcome, msInInbox: number, info: IInboxLifecycleInfo): void {
+		this.telemetryService.publicLog2<InboxItemLifecycleEvent, InboxItemLifecycleClassification>('agents/inboxItemLifecycle', {
+			outcome,
+			notificationKind: info.kind,
+			priorityTier: info.priorityTier,
+			needsInput: info.needsInput ? 'yes' : 'no',
+			msInInbox,
+			agentSessionId: info.agentSessionId,
+			providerId: info.providerId,
+		});
+	}
+
+	private logRoutingDecision(item: IInboxNotificationItem, context: IInboxInteractionTelemetryContext): void {
+		const plan = deriveRoutingPlan(item);
+		this.telemetryService.publicLog2<InboxRoutingDecisionEvent, InboxRoutingDecisionClassification>('agents/inboxRoutingDecision', {
+			recipientType: plan.recipientType,
+			ordering: plan.ordering,
+			timing: plan.timing,
+			priorityTier: plan.priorityTier,
+			evidenceScope: plan.evidenceScope,
+			autonomyLevel: plan.autonomyLevel,
+			decisionRequired: plan.decisionRequired ? 'yes' : 'no',
+			riskLevel: plan.riskLevel,
+			routingPlanVersion: ROUTING_PLAN_VERSION,
+			provenance: 'ruleBasedStub',
 			notificationKind: item.kind,
 			agentSessionId: context.agentSessionId,
 			providerId: context.providerId,

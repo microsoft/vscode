@@ -21,7 +21,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { cleanPreviewText, InboxNotificationsService, parseContentClassification, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, deriveRoutingPlan, InboxNotificationsService, parseContentClassification, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
@@ -550,6 +550,29 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(event!.data.outputLength, 0);
 		assert.ok(typeof event!.data.agentSessionId === 'string' && event!.data.agentSessionId !== 'none');
 		assert.ok(!JSON.stringify(event!.data).includes('waiting for user answer'));
+	});
+
+	test('logs item lifecycle and routing-plan telemetry when an item enters the inbox', () => {
+		const fixture = createFixture([
+			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
+		]);
+		const item = fixture.service.notifications.get()[0];
+		assert.ok(item);
+
+		const lifecycle = fixture.telemetryEvents.find(entry => entry.eventName === 'agents/inboxItemLifecycle');
+		assert.ok(lifecycle, 'expected an agents/inboxItemLifecycle event');
+		assert.strictEqual(lifecycle!.data.outcome, 'entered');
+		assert.strictEqual(lifecycle!.data.notificationKind, item.kind);
+		assert.strictEqual(lifecycle!.data.msInInbox, 0);
+		assert.ok(typeof lifecycle!.data.agentSessionId === 'string' && lifecycle!.data.agentSessionId !== 'none');
+
+		const routing = fixture.telemetryEvents.find(entry => entry.eventName === 'agents/inboxRoutingDecision');
+		assert.ok(routing, 'expected an agents/inboxRoutingDecision event');
+		assert.strictEqual(routing!.data.notificationKind, item.kind);
+		assert.strictEqual(routing!.data.routingPlanVersion, 1);
+		assert.ok(['human', 'agent', 'both', 'none'].includes(String(routing!.data.recipientType)));
+		// Bounded, derived fields only, never the raw content.
+		assert.ok(!JSON.stringify(routing!.data).includes('waiting for user answer'));
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
@@ -1249,16 +1272,24 @@ suite('InboxNotificationsService', () => {
 			const raw = JSON.stringify({
 				workType: 'bugfix',
 				domain: 'backend',
-				decisionType: 'approval',
+				requestKind: 'approve',
+				decisionSubject: 'merge',
 				riskLevel: 'high',
+				reversibility: 'irreversible',
+				environment: 'production',
+				evidenceState: 'sufficient',
 				confidence: 'med',
 			});
 			const result = parseContentClassification(raw);
 			assert.ok(result);
 			assert.strictEqual(result!.workType, 'bugfix');
 			assert.strictEqual(result!.domain, 'backend');
-			assert.strictEqual(result!.decisionType, 'approval');
+			assert.strictEqual(result!.requestKind, 'approve');
+			assert.strictEqual(result!.decisionSubject, 'merge');
 			assert.strictEqual(result!.riskLevel, 'high');
+			assert.strictEqual(result!.reversibility, 'irreversible');
+			assert.strictEqual(result!.environment, 'production');
+			assert.strictEqual(result!.evidenceState, 'sufficient');
 			assert.strictEqual(result!.confidence, 'med');
 		});
 
@@ -1272,22 +1303,64 @@ suite('InboxNotificationsService', () => {
 			assert.ok(result);
 			assert.strictEqual(result!.workType, 'feature');
 			assert.strictEqual(result!.domain, 'unknown');
-			assert.strictEqual(result!.decisionType, 'unknown');
+			assert.strictEqual(result!.requestKind, 'unknown');
+			assert.strictEqual(result!.decisionSubject, 'unknown');
 			assert.strictEqual(result!.riskLevel, 'unknown');
+			assert.strictEqual(result!.reversibility, 'unknown');
+			assert.strictEqual(result!.environment, 'unknown');
 			assert.strictEqual(result!.confidence, 'unknown');
 		});
 
 		test('extracts JSON embedded in prose or code fences', () => {
-			const raw = 'Here you go: ```json\n{"workType":"docs","domain":"docs","decisionType":"none","riskLevel":"low","confidence":"high"}\n```';
+			const raw = 'Here you go: ```json\n{"workType":"docs","domain":"docs","requestKind":"none","decisionSubject":"none","riskLevel":"low","confidence":"high"}\n```';
 			const result = parseContentClassification(raw);
 			assert.ok(result);
 			assert.strictEqual(result!.workType, 'docs');
 			assert.strictEqual(result!.riskLevel, 'low');
 		});
 
-		test('returns undefined for malformed output or all-unknown labels', () => {
+		test('returns undefined for malformed output or when nothing was learned', () => {
 			assert.strictEqual(parseContentClassification('not json at all'), undefined);
-			assert.strictEqual(parseContentClassification(JSON.stringify({ workType: 'nope', domain: 'nope', decisionType: 'nope', riskLevel: 'nope', confidence: 'nope' })), undefined);
+			assert.strictEqual(parseContentClassification(JSON.stringify({ workType: 'nope', domain: 'nope', requestKind: 'none', decisionSubject: 'none', riskLevel: 'nope' })), undefined);
+		});
+	});
+
+	suite('deriveRoutingPlan', () => {
+		function itemOfKind(kind: InboxNotificationKind, priority = InboxNotificationPriority.Now, needsInput = false): IInboxNotificationItem {
+			return upcastPartial<IInboxNotificationItem>({
+				id: `id-${kind}`,
+				kind,
+				priority,
+				title: 'x',
+				description: 'x',
+				timestamp: 0,
+				actions: [],
+				needsInputPart: needsInput ? upcastPartial<IInboxNotificationItem['needsInputPart']>({ kind: 'confirmation' }) : undefined,
+			});
+		}
+
+		test('routes a pending decision to a human with no autonomy', () => {
+			const plan = deriveRoutingPlan(itemOfKind(InboxNotificationKind.NeedsInput, InboxNotificationPriority.Now, true));
+			assert.strictEqual(plan.recipientType, 'human');
+			assert.strictEqual(plan.autonomyLevel, 'humanOnly');
+			assert.strictEqual(plan.decisionRequired, true);
+			assert.strictEqual(plan.timing, 'immediate');
+		});
+
+		test('routes agent-actionable work to both, sequentially, with approval', () => {
+			const plan = deriveRoutingPlan(itemOfKind(InboxNotificationKind.FailingCI, InboxNotificationPriority.Next));
+			assert.strictEqual(plan.recipientType, 'both');
+			assert.strictEqual(plan.ordering, 'sequential');
+			assert.strictEqual(plan.autonomyLevel, 'approvalRequired');
+			assert.strictEqual(plan.timing, 'deferred');
+		});
+
+		test('routes completed work to a human as a full evidence pack', () => {
+			const plan = deriveRoutingPlan(itemOfKind(InboxNotificationKind.Completed, InboxNotificationPriority.Later));
+			assert.strictEqual(plan.recipientType, 'human');
+			assert.strictEqual(plan.evidenceScope, 'full');
+			assert.strictEqual(plan.timing, 'scheduled');
+			assert.strictEqual(plan.decisionRequired, false);
 		});
 	});
 });
