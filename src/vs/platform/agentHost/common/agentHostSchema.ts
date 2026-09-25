@@ -879,7 +879,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
-		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether agent sessions discover connected Copilot connectors and expose their MCP servers."),
+		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether agent sessions expose MCP servers provided by connected Copilot Connectors. Generic agent plugins are managed separately."),
 		default: false,
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
