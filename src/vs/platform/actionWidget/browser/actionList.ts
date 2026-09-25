@@ -40,6 +40,7 @@ import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -179,6 +180,8 @@ export interface IActionListItem<T> {
 	 * Optional toolbar actions shown when the item is focused or hovered.
 	 */
 	readonly toolbarActions?: IAction[];
+	/** Show toolbar action labels instead of icons. */
+	readonly toolbarLabels?: boolean;
 	/**
 	 * Optional section identifier. Items with the same section belong to the same
 	 * collapsible group. Only meaningful when the ActionList is created with
@@ -198,6 +201,12 @@ export interface IActionListItem<T> {
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
+	/** Badges displayed alongside {@link badge}, each with an optional single CSS class and hover. */
+	readonly additionalBadges?: readonly {
+		readonly label: string;
+		readonly className?: string;
+		readonly tooltip?: string;
+	}[];
 	/**
 	 * When true, this item is always shown when filtering produces no other results.
 	 */
@@ -215,6 +224,7 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly badge: HTMLElement;
+	readonly additionalBadges: HTMLElement;
 	readonly description?: HTMLElement;
 	readonly groupTitle: HTMLElement;
 	readonly keybinding: KeybindingLabel;
@@ -261,29 +271,56 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 interface ISeparatorTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
+	readonly badges: HTMLElement;
+	readonly elementDisposables: DisposableStore;
 }
 
 class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparatorTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Separator; }
 
+	constructor(@IHoverService private readonly _hoverService: IHoverService) { }
+
 	renderTemplate(container: HTMLElement): ISeparatorTemplateData {
 		container.classList.add('separator');
 
 		const text = document.createElement('span');
 		container.append(text);
+		const badges = dom.append(container, dom.$('span.action-item-additional-badges', { 'aria-hidden': 'true' }));
 
-		return { container, text };
+		return { container, text, badges, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
 		templateData.container.classList.toggle('has-label', !!element.label);
 		templateData.text.textContent = element.label ?? '';
+		templateData.elementDisposables.clear();
+		renderAdditionalBadges(element.additionalBadges, templateData.badges, templateData.elementDisposables, this._hoverService);
 	}
 
-	disposeTemplate(_templateData: ISeparatorTemplateData): void {
-		// noop
+	disposeTemplate(templateData: ISeparatorTemplateData): void {
+		templateData.elementDisposables.dispose();
 	}
+}
+
+function renderAdditionalBadges(
+	badges: IActionListItem<never>['additionalBadges'],
+	container: HTMLElement,
+	disposables: DisposableStore,
+	hoverService: IHoverService,
+): void {
+	dom.clearNode(container);
+	for (const badge of badges ?? []) {
+		const label = dom.append(container, dom.$('span.action-item-badge', undefined, badge.label));
+		if (badge.className) {
+			label.classList.add(badge.className);
+		}
+		if (badge.tooltip) {
+			label.title = '';
+			disposables.add(hoverService.setupDelayedHover(label, { content: badge.tooltip }));
+		}
+	}
+	container.style.display = badges?.length ? '' : 'none';
 }
 
 /** Whether the row exposes a submenu or keyboard-accessible hover panel. */
@@ -312,6 +349,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -329,6 +367,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		badge.className = 'action-item-badge';
 		badge.ariaHidden = 'true';
 		container.append(badge);
+
+		const additionalBadges = dom.append(container, dom.$('span.action-item-additional-badges', { 'aria-hidden': 'true' }));
 
 		const description = document.createElement('span');
 		description.className = 'description';
@@ -358,7 +398,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, detail, badge, description, groupTitle, keybinding, toolbar, submenuIndicator, inlineToggleContainer, elementDisposables };
+		return { container, icon, text, detail, badge, additionalBadges, description, groupTitle, keybinding, toolbar, submenuIndicator, inlineToggleContainer, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -412,6 +452,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.badge.textContent = '';
 			data.badge.style.display = 'none';
 		}
+		renderAdditionalBadges(element.additionalBadges, data.additionalBadges, data.elementDisposables, this._hoverService);
 
 		if (element.keybinding) {
 			data.description!.textContent = element.keybinding.getLabel();
@@ -546,7 +587,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			} else {
 				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => e.preventDefault()));
 			}
-			actionBar.push(toolbarActions, { icon: true, label: false });
+			actionBar.push(toolbarActions, { icon: !element.toolbarLabels, label: !!element.toolbarLabels });
 			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}
 
@@ -861,6 +902,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._visibleMenuItems = items;
@@ -982,9 +1024,9 @@ export class ActionListWidget<T> extends Disposable {
 						this._itemToolbars.delete(item);
 					}
 				});
-			}, this._keybindingService, this._openerService),
+			}, this._keybindingService, this._openerService, this._hoverService),
 			new HeaderRenderer(),
-			new SeparatorRenderer(),
+			new SeparatorRenderer(this._hoverService),
 		], {
 			keyboardSupport: false,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
@@ -995,6 +1037,9 @@ export class ActionListWidget<T> extends Disposable {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.badge) {
 							label = label + ', ' + stripNewlines(element.badge);
+						}
+						for (const badge of element.additionalBadges ?? []) {
+							label = label + ', ' + stripNewlines(badge.label);
 						}
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
@@ -1418,7 +1463,9 @@ export class ActionListWidget<T> extends Disposable {
 			const matchesFilter = (item: IActionListItem<T>) => {
 				const label = (item.label ?? '').toLowerCase();
 				const descValue = typeof item.description === 'string' ? item.description : (item.description?.value ?? '');
-				return label.includes(filterLower) || descValue.toLowerCase().includes(filterLower);
+				return label.includes(filterLower)
+					|| descValue.toLowerCase().includes(filterLower)
+					|| (!!item.toolbarLabels && (item.toolbarActions?.some(action => action.label.toLowerCase().includes(filterLower)) ?? false));
 			};
 
 			for (const item of this._allMenuItems) {
@@ -1819,7 +1866,7 @@ export class ActionListWidget<T> extends Disposable {
 			return false;
 		}
 		toolbar.focus(actionIndex);
-		return true;
+		return dom.isAncestorOfActiveElement(toolbar.domNode);
 	}
 
 	private _updateToolbarFocusability(): void {
@@ -2313,6 +2360,12 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		if (actionCount === 0) {
 			return 0;
+		}
+		if (item.toolbarLabels) {
+			const toolbar = this._itemToolbars.get(item);
+			if (toolbar) {
+				return toolbar.domNode.scrollWidth + 16;
+			}
 		}
 		// Each toolbar action button is ~22px (16px icon + padding), plus a 6px row gap and 10px trailing margin.
 		const actionButtonWidth = 22;
