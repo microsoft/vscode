@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -24,6 +25,7 @@ import { getFailedChecks, submitFixCIChecks } from '../../changes/browser/checks
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
+import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSummary } from './sessionWorktreeCleanupService.js';
 
 /** Persisted set of session ids whose CI banner the user dismissed. */
 const STORAGE_KEY_CI_DISMISSED = 'sessions.inputBanners.ci.dismissed';
@@ -74,9 +76,11 @@ export class SessionInputBanners extends Disposable {
 
 	private readonly _ciSlot: HTMLElement;
 	private readonly _commentsSlot: HTMLElement;
+	private readonly _cleanupSlot: HTMLElement;
 
 	private readonly _ciContent = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _commentsContent = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _cleanupContent = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _active = observableValue<boolean>(this, false);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
@@ -160,6 +164,13 @@ export class SessionInputBanners extends Disposable {
 		return { sessionId: session.sessionId, sessionResource: session.resource, count: created.length, kind, firstCommentId: created[0].id };
 	});
 
+	private readonly _cleanupState = derived(this, reader => {
+		if (!this._session.read(reader) || this._ciState.read(reader) || this._commentsState.read(reader)) {
+			return undefined;
+		}
+		return this.worktreeCleanupService.summary.read(reader);
+	});
+
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
@@ -169,12 +180,14 @@ export class SessionInputBanners extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ISessionWorktreeCleanupService private readonly worktreeCleanupService: ISessionWorktreeCleanupService,
 	) {
 		super();
 
 		this.domNode = dom.$('.session-input-banners');
 		this._ciSlot = dom.append(this.domNode, dom.$('.session-input-banner-slot'));
 		this._commentsSlot = dom.append(this.domNode, dom.$('.session-input-banner-slot'));
+		this._cleanupSlot = dom.append(this.domNode, dom.$('.session-input-banner-slot'));
 
 		this._feedbackChanged = observableSignalFromEvent(this, this.feedbackService.onDidChangeFeedback);
 
@@ -190,11 +203,15 @@ export class SessionInputBanners extends Disposable {
 
 		this._register(autorun(reader => this._renderCIBanner(this._ciState.read(reader))));
 		this._register(autorun(reader => this._renderCommentsBanner(this._commentsState.read(reader))));
+		this._register(autorun(reader => this._renderCleanupBanner(this._cleanupState.read(reader))));
 	}
 
 	/** Marks whether the owning chat view is the active session. */
 	setActive(active: boolean): void {
 		this._active.set(active, undefined);
+		if (active) {
+			void this.worktreeCleanupService.refresh().catch(err => this.logService.error('[SessionInputBanners] Failed to refresh worktree cleanup summary', err));
+		}
 	}
 
 	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
@@ -265,6 +282,32 @@ export class SessionInputBanners extends Disposable {
 				},
 			],
 			dismiss: () => { if (!state.debug) { this._dismiss(STORAGE_KEY_COMMENTS_DISMISSED, this._commentsDismissed, state.sessionId); } },
+		});
+	}
+
+	private _renderCleanupBanner(state: ISessionWorktreeCleanupSummary | undefined): void {
+		const store = this._cleanupContent.value = new DisposableStore();
+		dom.clearNode(this._cleanupSlot);
+		if (!state) {
+			return;
+		}
+
+		const count = state.candidates.length;
+		const text = count === 1
+			? localize('worktreeCleanup.one', "1 old session worktree is using about {0}", ByteSize.formatSize(state.totalBytes))
+			: localize('worktreeCleanup.many', "{0} old session worktrees are using about {1}", count, ByteSize.formatSize(state.totalBytes));
+		this._renderBanner(this._cleanupSlot, store, {
+			icon: Codicon.database,
+			accent: false,
+			text,
+			ariaLabel: text,
+			dismissTooltip: localize('worktreeCleanup.snooze', "Remind Me Later"),
+			actions: [{
+				label: localize('worktreeCleanup.review', "Review and Clean Up"),
+				primary: true,
+				run: () => this.worktreeCleanupService.reviewAndCleanup(),
+			}],
+			dismiss: () => this.worktreeCleanupService.snooze(),
 		});
 	}
 

@@ -28,6 +28,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')], 480, true),
 	}),
 
+	WorktreeCleanup: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [worktreeCleanupBanner()]),
+	}),
+
 	PRComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderBanners(context, [commentsBanner(2, 'pr')]),
@@ -80,6 +85,21 @@ function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISession
 			{ label: 'Reveal', run: () => console.log('Reveal Comments') },
 		],
 		dismiss: () => console.log('Dismiss comments banner'),
+	};
+}
+
+function worktreeCleanupBanner(): ISessionInputBanner {
+	const text = '8 old session worktrees are using about 6.40GB';
+	return {
+		icon: Codicon.database,
+		accent: false,
+		text,
+		ariaLabel: text,
+		dismissTooltip: 'Remind Me Later',
+		actions: [
+			{ label: 'Review and Clean Up', primary: true, run: () => console.log('Review and Clean Up') },
+		],
+		dismiss: () => console.log('Snooze cleanup reminder'),
 	};
 }
 

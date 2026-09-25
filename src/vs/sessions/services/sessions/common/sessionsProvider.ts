@@ -384,6 +384,12 @@ export interface ISessionsProvider {
 	archiveSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Providers without host-owned worktrees leave this capability undefined.
+	 */
+	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+
+	/**
 	 * Unarchive a session.
 	 * @param sessionId The ID of the session to unarchive.
 	 */
