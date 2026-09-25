@@ -840,7 +840,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				assert.deepStrictEqual({
 					disabled, available, directInstalls: fixture.pluginService.directInstalls,
 				}, {
-					disabled: { kind: 'unavailable', message: 'Enable this resource\'s marketplace source to install it.' },
+					disabled: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 					available: { kind: 'unavailable', message: 'Installing configured marketplace plugins is not available in VS Code for the Web.' },
 					directInstalls: [],
 				});
