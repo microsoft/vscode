@@ -6,7 +6,7 @@
 import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -15,7 +15,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -45,6 +45,7 @@ interface ICleanupPickItem extends IQuickPickItem {
 interface ICleanupCandidate {
 	readonly session: ISession;
 	readonly sizeBytes: number | undefined;
+	readonly sizeMeasured: boolean;
 	readonly recommendation: CleanupRecommendation;
 }
 
@@ -195,7 +196,7 @@ export class SessionWorktreeLimitContribution extends Disposable {
 					this.logService.warn(`[SessionWorktreeLimitContribution] Failed to measure worktree for session ${candidate.session.sessionId}`, error);
 				}
 			}
-			return { ...candidate, sizeBytes };
+			return { ...candidate, sizeBytes, sizeMeasured: true };
 		}));
 	}
 
@@ -203,6 +204,7 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		return availableSessions.map(session => ({
 			session,
 			sizeBytes: undefined,
+			sizeMeasured: false,
 			recommendation: recommendedSessionIds.has(session.sessionId)
 				? CleanupRecommendation.Recommended
 				: this.sessionsListModelService.isSessionPinned(session)
@@ -219,16 +221,14 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	}
 
 	private async _measureAndReviewCleanup(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<void> {
-		const selected = await this._pickCandidates(this._createCandidates(availableSessions, recommendedSessionIds));
+		const selected = await this._pickCandidates(
+			this._createCandidates(availableSessions, recommendedSessionIds),
+			token => this._measureCandidates(availableSessions, recommendedSessionIds, token),
+		);
 		if (selected.length === 0) {
 			return;
 		}
-		const measured = await this._measureCandidates(selected.map(candidate => candidate.session), new Set(
-			selected
-				.filter(candidate => candidate.recommendation === CleanupRecommendation.Recommended)
-				.map(candidate => candidate.session.sessionId),
-		));
-		await this._confirmAndArchive(measured);
+		await this._confirmAndArchive(selected);
 	}
 
 	private async _trackPrompt(prompt: Promise<void>): Promise<void> {
@@ -320,27 +320,69 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		}
 	}
 
-	private _pickCandidates(candidates: readonly ICleanupCandidate[]): Promise<readonly ICleanupCandidate[]> {
+	private _pickCandidates(candidates: readonly ICleanupCandidate[], measure?: (token: CancellationToken) => Promise<readonly ICleanupCandidate[]>): Promise<readonly ICleanupCandidate[]> {
 		const store = new DisposableStore();
-		const picker = store.add(this.quickInputService.createQuickPick<ICleanupPickItem>());
+		const picker = store.add(this.quickInputService.createQuickPick<ICleanupPickItem>({ useSeparators: true }));
+		const measurementCancellation = new CancellationTokenSource();
+		store.add(toDisposable(() => measurementCancellation.dispose(true)));
 		picker.canSelectMany = true;
 		picker.title = localize('worktreeLimit.picker.title', "Clean Up Old Session Worktrees");
 		picker.placeholder = localize('worktreeLimit.picker.placeholder', "Select sessions to archive and clean up");
-		picker.items = candidates.map(candidate => ({
-			label: candidate.session.title.get() || localize('worktreeLimit.untitled', "Untitled session"),
-			description: candidate.sizeBytes === undefined ? undefined : ByteSize.formatSize(candidate.sizeBytes),
-			detail: candidate.recommendation === CleanupRecommendation.Recommended
-				? localize('worktreeLimit.recommended', "Recommended: completed, inactive, and last updated at least 14 days ago")
-				: candidate.recommendation === CleanupRecommendation.Pinned
-					? localize('worktreeLimit.pinned', "Not selected automatically: this session is pinned")
-					: localize('worktreeLimit.recent', "Not selected automatically: recently updated on {0}", candidate.session.updatedAt.get().toLocaleDateString()),
-			candidate,
-		}));
-		picker.selectedItems = picker.items.filter(item => item.candidate.recommendation === CleanupRecommendation.Recommended);
+		const createItems = (items: readonly ICleanupCandidate[]): readonly (ICleanupPickItem | IQuickPickSeparator)[] => {
+			const createItem = (candidate: ICleanupCandidate): ICleanupPickItem => ({
+				label: candidate.session.title.get() || localize('worktreeLimit.untitled', "Untitled session"),
+				description: !candidate.sizeMeasured
+					? localize('worktreeLimit.size.calculating', "Calculating...")
+					: candidate.sizeBytes === undefined
+						? localize('worktreeLimit.size.unavailable', "Size unavailable")
+						: ByteSize.formatSize(candidate.sizeBytes),
+				detail: candidate.recommendation === CleanupRecommendation.Recommended
+					? localize('worktreeLimit.lastUpdated', "Last updated {0}", candidate.session.updatedAt.get().toLocaleDateString())
+					: candidate.recommendation === CleanupRecommendation.Pinned
+						? localize('worktreeLimit.pinned', "Pinned — last updated {0}", candidate.session.updatedAt.get().toLocaleDateString())
+						: localize('worktreeLimit.recent', "Recently updated {0}", candidate.session.updatedAt.get().toLocaleDateString()),
+				candidate,
+			});
+			const recommended = items.filter(candidate => candidate.recommendation === CleanupRecommendation.Recommended);
+			const additional = items.filter(candidate => candidate.recommendation !== CleanupRecommendation.Recommended);
+			return [
+				...(recommended.length > 0 ? [
+					{ type: 'separator' as const, label: localize('worktreeLimit.recommended', "Recommended"), description: localize('worktreeLimit.recommended.description', "Inactive for at least 14 days") },
+					...recommended.map(createItem),
+				] : []),
+				...(additional.length > 0 ? [
+					{ type: 'separator' as const, label: localize('worktreeLimit.additional', "Additional"), description: localize('worktreeLimit.additional.description', "Not selected automatically") },
+					...additional.map(createItem),
+				] : []),
+			];
+		};
+		picker.items = createItems(candidates);
+		picker.selectedItems = picker.items.filter((item): item is ICleanupPickItem =>
+			item.type !== 'separator' && item.candidate.recommendation === CleanupRecommendation.Recommended);
 
 		return new Promise(resolve => {
-			store.add(picker.onDidAccept(() => {
-				const selected = picker.selectedItems.map(item => item.candidate);
+			const measuredCandidates = measure
+				? Promise.resolve().then(() => measure(measurementCancellation.token))
+				: Promise.resolve(candidates);
+			void measuredCandidates.then(measured => {
+				if (measurementCancellation.token.isCancellationRequested) {
+					return;
+				}
+				const selectedIds = new Set(picker.selectedItems.map(item => item.candidate.session.sessionId));
+				picker.items = createItems(measured);
+				picker.selectedItems = picker.items.filter((item): item is ICleanupPickItem =>
+					item.type !== 'separator' && selectedIds.has(item.candidate.session.sessionId));
+			});
+			let accepting = false;
+			store.add(picker.onDidAccept(async () => {
+				if (accepting) {
+					return;
+				}
+				accepting = true;
+				picker.busy = true;
+				const selectedIds = new Set(picker.selectedItems.map(item => item.candidate.session.sessionId));
+				const measured = await measuredCandidates;
+				const selected = measured.filter(candidate => selectedIds.has(candidate.session.sessionId));
 				resolve(selected);
 				picker.hide();
 			}));

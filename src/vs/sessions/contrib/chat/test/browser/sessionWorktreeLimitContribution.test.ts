@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -233,7 +233,7 @@ suite('SessionWorktreeLimitContribution', () => {
 			quickInputService: createAcceptingQuickInputService((items, selectedItems) => {
 				pickerSnapshot = {
 					selected: selectedItems.map(item => item.label),
-					details: items.map(item => item.detail),
+					details: items.filter(item => item.type !== 'separator').map(item => item.detail),
 				};
 			}),
 			isSessionPinned: session => session.sessionId === 'recent-0',
@@ -251,9 +251,9 @@ suite('SessionWorktreeLimitContribution', () => {
 			pickerSnapshot: {
 				selected: ['eligible'],
 				details: [
-					'Recommended: completed, inactive, and last updated at least 14 days ago',
-					'Not selected automatically: this session is pinned',
-					...Array.from({ length: 18 }, (_, index) => `Not selected automatically: recently updated on ${sessions[index + 2].updatedAt.get().toLocaleDateString()}`),
+					`Last updated ${eligible.updatedAt.get().toLocaleDateString()}`,
+					`Pinned — last updated ${sessions[1].updatedAt.get().toLocaleDateString()}`,
+					...Array.from({ length: 18 }, (_, index) => `Recently updated ${sessions[index + 2].updatedAt.get().toLocaleDateString()}`),
 				],
 			},
 		});
@@ -273,7 +273,7 @@ suite('SessionWorktreeLimitContribution', () => {
 				return { confirmed: true };
 			},
 		}, true, {
-			quickInputService: createAcceptingQuickInputService(items => pickerDescription = items[0]?.description),
+			quickInputService: createAcceptingQuickInputService(items => pickerDescription = items.find(item => item.type !== 'separator')?.description),
 			getSessionWorktreeDiskUsage: async () => 1.5 * 1024 * 1024 * 1024,
 			archiveSession: async () => eligible.isArchived.set(true, undefined),
 		}));
@@ -383,7 +383,7 @@ function createService(sessions: readonly ISession[], dialogService: Pick<IDialo
 	);
 }
 
-function createAcceptingQuickInputService(onShow?: (items: readonly IQuickPickItem[], selectedItems: readonly IQuickPickItem[]) => void, selectAll = false): IQuickInputService {
+function createAcceptingQuickInputService(onShow?: (items: readonly (IQuickPickItem | IQuickPickSeparator)[], selectedItems: readonly IQuickPickItem[]) => void, selectAll = false): IQuickInputService {
 	const createQuickPick = (<T extends IQuickPickItem>() => {
 		const onDidAccept = new Emitter<IQuickPickDidAcceptEvent>();
 		const onDidHide = new Emitter<IQuickInputHideEvent>();
@@ -394,7 +394,7 @@ function createAcceptingQuickInputService(onShow?: (items: readonly IQuickPickIt
 			onDidHide: onDidHide.event,
 			show: () => {
 				if (selectAll) {
-					picker.selectedItems = [...picker.items];
+					picker.selectedItems = picker.items.filter(item => (item as IQuickPickItem | IQuickPickSeparator).type !== 'separator');
 				}
 				onShow?.(picker.items, picker.selectedItems);
 				onDidAccept.fire({ inBackground: false });
