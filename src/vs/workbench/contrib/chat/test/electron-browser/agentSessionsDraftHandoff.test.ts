@@ -767,11 +767,15 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				value: h.notification.description.value,
 				isTrusted: h.notification.description.isTrusted,
 			} : h.notification?.description,
+			dismissible: h.notification?.dismissible,
+			hasOnDismiss: !!h.notification?.onDismiss,
 			autoDismissOnMessage: h.notification?.autoDismissOnMessage,
 			actions: h.notification?.actions.map(action => ({
 				label: action.label,
 				ariaLabel: action.ariaLabel,
 				iconOnly: action.iconOnly,
+				leading: action.leading,
+				outlined: action.outlined,
 				tooltip: action.tooltip,
 				primary: action.primary,
 				keepOpen: action.keepOpen,
@@ -786,11 +790,13 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				value: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
 				isTrusted: false,
 			},
+			dismissible: false,
+			hasOnDismiss: false,
 			autoDismissOnMessage: false,
 			actions: [
-				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
-				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
-				{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
+				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, leading: true, outlined: true, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
+				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, leading: undefined, outlined: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
+				{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, leading: undefined, outlined: undefined, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
 			],
 			posts: 1,
 		});
@@ -900,28 +906,6 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			updates: [],
 			parallelTitle: 'Run agents side by side',
 			parallelAction: 'Open Agents Window',
-		});
-	});
-
-	test('X suppresses Copilot education like Thumbs Down', () => {
-		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
-		const contribution = h.showBanner();
-		h.dismiss();
-		const afterDismiss = h.notification;
-		contribution.dispose();
-		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
-		h.showBanner();
-
-		assert.deepStrictEqual({
-			afterDismiss,
-			next: h.notification,
-			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
-			updates: h.configuration.updates,
-		}, {
-			afterDismiss: undefined,
-			next: undefined,
-			enabled: false,
-			updates: [],
 		});
 	});
 

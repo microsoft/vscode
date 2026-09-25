@@ -35,6 +35,10 @@ interface IChatInputNotificationActionBase {
 	readonly ariaLabel?: string;
 	/** Whether the visible label contains only an icon. */
 	readonly iconOnly?: boolean;
+	/** Whether the action anchors to the leading edge of a split action row. */
+	readonly leading?: boolean;
+	/** Whether a secondary action keeps a theme-aware border. */
+	readonly outlined?: boolean;
 	readonly tooltip?: string;
 	readonly primary?: boolean;
 	readonly keepOpen?: boolean;

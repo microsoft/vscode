@@ -1124,6 +1124,8 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			commandId: AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID,
 			commandArgs: [posted.inputUri, resource],
 			primary: false,
+			leading: true,
+			outlined: true,
 			keepOpen: true,
 		}, {
 			kind: ChatInputNotificationActionKind.Command,
@@ -1177,10 +1179,10 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				&& (kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 					? introductionMode === CopilotHarnessIntroductionMode.NewSession || context.sessionStarted
 					: !context.sessionStarted),
-			dismissible: true,
-			onDismiss: () => kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-				? this._ignoreCopilotHarnessIntroduction(resource)
-				: this._dismissChat(resource),
+			dismissible: kind !== AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction,
+			onDismiss: kind === AgentsParallelWorkNotificationKind.ParallelWork
+				? () => this._dismissChat(resource)
+				: undefined,
 			onDidShow: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction && introductionMode
 				? () => this._logIntroductionLifecycle('shown', widget, resource, introductionMode)
 				: undefined,

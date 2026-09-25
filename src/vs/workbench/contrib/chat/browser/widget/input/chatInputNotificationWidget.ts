@@ -347,6 +347,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			if (actions.length > 0) {
 				const actionsContainer = dom.append(bodyRow, $('.chat-input-notification-actions'));
 				actionsContainer.classList.toggle('compact', actions.some(action => action.iconOnly));
+				actionsContainer.classList.toggle('split', actions.some(action => action.leading));
 
 				for (let i = 0; i < actions.length; i++) {
 					const action = actions[i];
@@ -368,6 +369,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					}));
 					button.element.classList.add('chat-input-notification-action-button');
 					button.element.classList.toggle('icon-only', action.iconOnly === true);
+					button.element.classList.toggle('leading', action.leading === true);
+					button.element.classList.toggle('outlined', action.outlined === true);
 					button.label = action.label;
 					const actionAriaLabel = action.ariaLabel ?? action.label;
 					button.element.ariaLabel = `${ariaTitle} ${actionAriaLabel}`;

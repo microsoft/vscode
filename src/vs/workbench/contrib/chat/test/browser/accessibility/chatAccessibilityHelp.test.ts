@@ -30,9 +30,9 @@ suite('Chat Accessibility Help', () => {
 			assert.deepStrictEqual({
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
 				introductionPersists: help.includes('sending messages does not dismiss it'),
-				introductionActions: help.includes('let us know, Learn More, Got it!, Not Helpful, or Dismiss notification'),
+				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
 				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
-				introductionDismissal: help.includes('Not Helpful and Dismiss notification turn off future introductions'),
+				introductionDismissal: help.includes('Not Helpful turns off future introductions'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
 				singleOwner: help.includes('Only one chat input notification is shown at a time'),

@@ -137,6 +137,10 @@
 	gap: var(--vscode-spacing-size40);
 }
 
+.chat-input-notification-widget .chat-input-notification-actions.split {
+	flex: 1 0 100%;
+}
+
 /* Action buttons */
 .chat-input-notification-widget .chat-input-notification-action-button {
 	font-size: var(--vscode-fontSize-label2);
@@ -160,6 +164,14 @@
 
 .chat-input-notification-widget .chat-input-notification-actions.compact .chat-input-notification-action-button:not(.icon-only) {
 	padding-inline: var(--vscode-spacing-size80);
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.leading {
+	margin-right: auto;
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.secondary.outlined {
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 }
 
 .chat-input-notification-widget .chat-input-notification-action-button.icon-only {
