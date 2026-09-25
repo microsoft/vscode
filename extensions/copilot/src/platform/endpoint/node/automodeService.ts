@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatRequest, ChatResponseStream } from 'vscode';
+import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
 import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -81,35 +82,51 @@ export type IAutoModeRoutingState = {
 	}
 );
 
+export interface IAutoModeRoutingReporter extends IDisposable {
+	/** Stamps the request's resolved tier onto the edits pushed through it. */
+	readonly stream: ChatResponseStream;
+	/** Stops attributing later edits to Auto, e.g. after the turn switched to another model. */
+	clearTier(): void;
+}
+
 /**
- * Reports Auto's routing rounds into a turn's response stream. Install this
- * before the turn resolves any endpoint — the first route happens during
- * endpoint resolution, and a route that already finished cannot be replayed.
+ * Reports Auto's routing rounds into a turn's response stream and attributes
+ * the turn's edits to the resolved tier. Install this before the turn resolves
+ * any endpoint — the first route happens during endpoint resolution, and a
+ * route that already finished cannot be replayed.
  */
 export function reportAutoModeRouting(
 	request: ChatRequest,
 	stream: ChatResponseStream,
 	automodeService: IAutomodeService,
 	reportRouting = true,
-): IDisposable {
-	return automodeService.onDidRoute(e => {
+): IAutoModeRoutingReporter {
+	let tier: AutoModeTier | undefined;
+	const listener = automodeService.onDidRoute(e => {
 		if (e.requestId === undefined || e.requestId !== request.id) {
 			return;
 		}
-		switch (e.kind) {
-			case 'started':
-				if (reportRouting) {
-					stream.push(new ChatResponseAutoModeResolutionPart());
-				}
-				break;
-			case 'resolved':
-				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }, e.tier, !(reportRouting && e.didRoute)));
-				break;
-			case 'failed':
-				stream.push(new ChatResponseAutoModeResolutionPart(undefined, undefined, true));
-				break;
+		if (e.kind === 'started' && reportRouting) {
+			stream.push(new ChatResponseAutoModeResolutionPart());
+		} else if (e.kind === 'resolved') {
+			tier = e.tier;
+			if (reportRouting && e.didRoute) {
+				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }));
+			}
+		} else if (e.kind === 'failed') {
+			tier = undefined;
 		}
 	});
+	return {
+		stream: ChatResponseStreamImpl.map(stream, part => {
+			if (part instanceof ChatResponseTextEditPart || part instanceof ChatResponseNotebookEditPart) {
+				part.autoTier = tier;
+			}
+			return part;
+		}),
+		clearTier: () => { tier = undefined; },
+		dispose: () => listener.dispose(),
+	};
 }
 
 export interface IAutomodeService {

@@ -294,47 +294,17 @@ suite('ChatModel', () => {
 	});
 
 	suite('Auto tier attribution', () => {
-		let model: ChatModel;
-		setup(() => {
-			model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-		});
-
-		function addRequest() {
-			return model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
-		}
-
 		for (const isNotebook of [false, true]) {
-			test(`keeps explicit ${isNotebook ? 'notebook cell' : 'text'} edit metadata separate from the parent tier`, () => {
-				const request = addRequest();
-				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
-				model.acceptResponseProgress(request, { kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'efficiency' });
-
-				for (const metadata of [undefined, { autoTier: 'intelligence' }, {}, undefined] as const) {
-					model.acceptResponseProgress(request, {
-						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }],
-					}, undefined, metadata);
-				}
-
-				const parts = request.response!.response.value;
-				assert.deepStrictEqual({
-					kinds: parts.map(part => part.kind),
-					tiers: parts.flatMap(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup' ? part.editMetadata?.map(metadata => metadata.autoTier) : []),
-				}, {
-					kinds: ['autoModeResolution', isNotebook ? 'notebookEditGroup' : 'textEditGroup'],
-					tiers: ['efficiency', 'intelligence', undefined, 'efficiency'],
-				});
-			});
-
 			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
-				const request = addRequest();
+				const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const request = model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
 				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
 				const operationLog = new ChatSessionOperationLog();
 				const buffers = [operationLog.createInitial(model)];
 
 				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
-					model.acceptResponseProgress(request, { kind: 'autoModeResolution', autoTier, hidden: true });
 					model.acceptResponseProgress(request, {
-						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false,
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false, autoTier,
 					}, true);
 					const mutation = operationLog.write(model);
 					if (mutation.op === 'replace') {
@@ -346,19 +316,11 @@ suite('ChatModel', () => {
 
 				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
 				assert.deepStrictEqual(serialized.map(value => {
-					value.requests[0].modelConfiguration = { tier: 'balance' };
 					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-					const response = restored.getRequests()[0].response!;
-					return {
-						hasStoredTier: Object.hasOwn(value.requests[0], 'autoTier'),
-						parts: response.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
-							? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
-							: { kind: part.kind }),
-					};
-				}), serialized.map(() => ({
-					hasStoredTier: false,
-					parts: [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }],
-				})));
+					return restored.getRequests()[0].response!.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+						? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+						: { kind: part.kind });
+				}), serialized.map(() => [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }]));
 			});
 		}
 	});

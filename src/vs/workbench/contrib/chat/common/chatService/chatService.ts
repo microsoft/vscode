@@ -434,6 +434,8 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	/** The Auto routing tier that produced these edits. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -447,6 +449,7 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	autoTier?: IChatTextEdit['autoTier'];
 }
 
 export interface IChatWorkspaceFileEdit {
@@ -631,10 +634,6 @@ export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
 	/** The model the router picked, or `undefined` while routing is in flight. */
 	resolved?: { readonly id: string; readonly name: string };
-	/** The tier the request resolved with; attributes later edit batches. */
-	autoTier?: ReturnType<typeof getAutoModelTier>;
-	/** Updates attribution only, without adding a row. */
-	hidden?: boolean;
 }
 
 /**

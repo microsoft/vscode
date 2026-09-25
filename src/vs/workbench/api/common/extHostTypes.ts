@@ -3284,12 +3284,8 @@ export class ChatResponseVoiceProgressPart {
 
 export class ChatResponseAutoModeResolutionPart {
 	resolvedModel: { id: string; name: string } | undefined;
-	autoTier: vscode.ChatResponseAutoModeResolutionPart['autoTier'];
-	hidden: boolean;
-	constructor(resolvedModel?: { id: string; name: string }, autoTier?: vscode.ChatResponseAutoModeResolutionPart['autoTier'], hidden = false) {
+	constructor(resolvedModel?: { id: string; name: string }) {
 		this.resolvedModel = resolvedModel;
-		this.autoTier = autoTier;
-		this.hidden = hidden;
 	}
 }
 
@@ -3484,6 +3480,7 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -3499,6 +3496,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {

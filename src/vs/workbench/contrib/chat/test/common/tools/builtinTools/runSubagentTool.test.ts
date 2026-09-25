@@ -26,7 +26,7 @@ import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatEditMetadata, IChatModel, IChatRequestModeInstructions, IChatRequestModel } from '../../../../common/model/chatModel.js';
+import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -138,8 +138,6 @@ suite('RunSubagentTool', () => {
 		copilotVendorResolved?: boolean;
 		onSelectLanguageModels?: () => void;
 		telemetryService?: ITelemetryService;
-		progress?: IChatProgress[];
-		capturedProgress?: { part: IChatProgress; metadata?: IChatEditMetadata }[];
 	}) {
 		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 		const configService = new TestConfigurationService({
@@ -157,7 +155,6 @@ suite('RunSubagentTool', () => {
 			},
 			async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
 				opts.capturedRequests.push(request);
-				_progress(opts.progress ?? []);
 				return {};
 			},
 		};
@@ -175,7 +172,7 @@ suite('RunSubagentTool', () => {
 							applyCodeBlockSuggestionId: undefined,
 						} : undefined
 					}],
-					acceptResponseProgress: (_request: IChatRequestModel, part: IChatProgress, _quiet?: boolean, metadata?: IChatEditMetadata) => opts.capturedProgress?.push({ part, metadata }),
+					acceptResponseProgress: () => { },
 				} as unknown as IChatModel;
 			},
 		};
@@ -214,33 +211,6 @@ suite('RunSubagentTool', () => {
 
 	const countTokens = async () => 0;
 	const noProgress: ToolProgress = { report() { } };
-
-	for (const modelId of ['copilot/auto', 'copilot/gpt-5']) {
-		test(`${modelId} subagent edits use their own tier snapshots, including missing and cleared tiers`, async () => {
-			const uri = URI.file('/test.ts');
-			const capturedProgress: { part: IChatProgress; metadata?: IChatEditMetadata }[] = [];
-			const { tool } = createInvokableTool({
-				allowInvocationsFromSubagents: false,
-				capturedRequests: [],
-				capturedProgress,
-				progress: [
-					{ kind: 'textEdit', uri, edits: [] },
-					{ kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'fast' },
-					{ kind: 'notebookEdit', uri, edits: [] },
-					{ kind: 'autoModeResolution' },
-					{ kind: 'textEdit', uri, edits: [] },
-				],
-			});
-
-			await tool.invoke(createInvocation(URI.parse('test:/session'), undefined, modelId), countTokens, noProgress, CancellationToken.None);
-
-			assert.deepStrictEqual(capturedProgress.map(({ part, metadata }) => ({ kind: part.kind, metadata })), [
-				{ kind: 'textEdit', metadata: { autoTier: undefined } },
-				{ kind: 'notebookEdit', metadata: { autoTier: modelId === 'copilot/auto' ? 'fast' : undefined } },
-				{ kind: 'textEdit', metadata: { autoTier: undefined } },
-			]);
-		});
-	}
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {

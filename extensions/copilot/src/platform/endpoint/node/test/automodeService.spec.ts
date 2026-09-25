@@ -21,7 +21,7 @@ import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
-import { defaultAutoModeTier } from '../../common/autoModeTiers';
+import { defaultAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService, reportAutoModeRouting, type IAutoModeRoutingState } from '../automodeService';
 
@@ -638,34 +638,37 @@ describe('AutomodeService', () => {
 		});
 	});
 
-	describe('tier response metadata', () => {
+	describe('edit attribution', () => {
 		const request = { id: 'turn', prompt: 'edit', location: ChatLocation.Panel, sessionId: 'tier-session' } as ChatRequest;
+		const uri = Uri.parse('test:/file.ts');
+		const edit = (autoTier?: AutoModeTier) => Object.assign(new ChatResponseTextEditPart(uri, []), { autoTier });
 
-		it.each([true, false])('reports and clears request-local tiers before edits (visible routing: %s)', async reportRouting => {
+		it.each([true, false])('stamps the resolved tier on edits and clears it on failure or request (visible routing: %s)', async reportRouting => {
 			automodeService = createService();
-			const streams = [request.id, 'unrelated', undefined].map(id => {
-				const stream = new SpyChatResponseStream();
-				disposables.add(reportAutoModeRouting({ ...request, id } as ChatRequest, stream, automodeService, reportRouting));
-				return stream;
-			});
-			const uri = Uri.parse('test:/file.ts');
+			const spies = [request.id, 'unrelated', undefined].map(() => new SpyChatResponseStream());
+			const [reporter] = spies.map((spy, i) => disposables.add(reportAutoModeRouting({ ...request, id: [request.id, 'unrelated', undefined][i] } as ChatRequest, spy, automodeService, reportRouting)));
+
 			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
-			streams[0].textEdit(uri, []);
+			reporter.stream.textEdit(uri, []);
 			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.stream.textEdit(uri, []);
 			await automodeService.resolveAutoModeEndpoint({ ...request, id: undefined }, [mockChatEndpoint]);
+			reporter.clearTier();
+			reporter.stream.textEdit(uri, []);
+			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(request);
 			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
 			mockAuto({ error: 'server_error' }, 500);
 			await expect(automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint])).rejects.toThrow();
-			streams[0].textEdit(uri, []);
+			reporter.stream.textEdit(uri, []);
 
-			expect(streams.map(stream => stream.items)).toEqual([[
+			expect(spies.map(spy => spy.items)).toEqual([[
+				...(reportRouting ? [new ChatResponseAutoModeResolutionPart(), new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name })] : []),
+				edit('balance'),
+				edit('balance'),
+				edit(undefined),
 				...(reportRouting ? [new ChatResponseAutoModeResolutionPart()] : []),
-				new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }, 'balance', !reportRouting),
-				new ChatResponseTextEditPart(uri, []),
-				new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }, 'balance', true),
-				...(reportRouting ? [new ChatResponseAutoModeResolutionPart()] : []),
-				new ChatResponseAutoModeResolutionPart(undefined, undefined, true),
-				new ChatResponseTextEditPart(uri, []),
+				edit(undefined),
 			], [], []]);
 		});
 
@@ -673,17 +676,18 @@ describe('AutomodeService', () => {
 			automodeService = createService();
 			const pending = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
 			vi.mocked(mockCAPIClientService.makeRequest).mockImplementationOnce(() => pending.p);
-			const stream = new SpyChatResponseStream();
-			const listener = disposables.add(reportAutoModeRouting(request, stream, automodeService));
+			const spy = new SpyChatResponseStream();
+			const reporter = disposables.add(reportAutoModeRouting(request, spy, automodeService));
 
 			const result = automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
-			listener.dispose();
+			reporter.dispose();
 			await pending.complete(makeAutoResponse(autoResponse(mockChatEndpoint.model)));
 			await result;
 			automodeService.invalidateRouterCache(request);
 			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.stream.textEdit(uri, []);
 
-			expect(stream.items).toEqual([new ChatResponseAutoModeResolutionPart()]);
+			expect(spy.items).toEqual([new ChatResponseAutoModeResolutionPart(), edit(undefined)]);
 		});
 	});
 

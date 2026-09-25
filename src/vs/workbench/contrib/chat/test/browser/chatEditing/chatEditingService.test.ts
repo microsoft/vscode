@@ -322,15 +322,8 @@ suite('ChatEditingService', function () {
 					undefined, undefined, 'copilot/auto',
 				);
 				const streaming = waitForState(session.state.map(state => state === ChatEditingSessionState.StreamingEdits), Boolean);
-				for (const [autoTier, metadata] of [
-					['efficiency', undefined],
-					['efficiency', { autoTier: 'fast' }],
-					['efficiency', {}],
-					['intelligence', undefined],
-					[undefined, undefined],
-				] as const) {
-					model.acceptResponseProgress(request, { kind: 'autoModeResolution', autoTier, hidden: true });
-					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false }, undefined, metadata);
+				for (const autoTier of ['efficiency', 'fast', undefined, 'intelligence', undefined] as const) {
+					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false, autoTier });
 				}
 				request.response!.complete();
 				const later = model.addRequest({ text: 'later', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/another-model');

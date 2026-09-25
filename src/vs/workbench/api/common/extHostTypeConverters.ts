@@ -2871,12 +2871,10 @@ export namespace ChatResponseAutoModeResolutionPart {
 		return {
 			kind: 'autoModeResolution',
 			resolved: part.resolvedModel,
-			autoTier: part.autoTier,
-			hidden: part.hidden || undefined,
 		};
 	}
 	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {
-		return new types.ChatResponseAutoModeResolutionPart(part.resolved, part.autoTier, part.hidden);
+		return new types.ChatResponseAutoModeResolutionPart(part.resolved);
 	}
 }
 
@@ -3259,12 +3257,14 @@ export namespace ChatResponseTextEditPart {
 			kind: 'textEdit',
 			uri: part.uri,
 			edits: part.edits.map(e => TextEdit.from(e)),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
 		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
 		result.isDone = part.done;
+		result.autoTier = part.autoTier;
 		return result;
 	}
 
@@ -3301,7 +3301,8 @@ export namespace ChatResponseNotebookEditPart {
 			kind: 'notebookEdit',
 			uri: part.uri,
 			edits: part.edits.map(NotebookEdit.from),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 }

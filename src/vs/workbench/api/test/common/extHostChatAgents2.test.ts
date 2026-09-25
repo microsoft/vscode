@@ -15,12 +15,12 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { ChatAgentResponseStream } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter } from '../../common/extHostCommands.js';
 import { IChatAgentProgressShape, IChatProgressDto } from '../../common/extHost.protocol.js';
-import { ChatResponseAnchorPart, ChatResponseAutoModeResolutionPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
+import { ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
 
 suite('ExtHostChatAgents2', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reports Auto tier metadata before edits on the originating request', async () => {
+	test('forwards the Auto tier on edit parts and omits it when unset', async () => {
 		const progress: { requestId: string; chunks: IChatProgressDto[] }[] = [];
 		const stream = new ChatAgentResponseStream(
 			{ ...nullExtensionDescription, enabledApiProposals: ['chatParticipantAdditions'] },
@@ -44,18 +44,18 @@ suite('ExtHostChatAgents2', function () {
 			CancellationToken.None,
 		);
 		const uri = URI.file('/test/file.ts');
-		stream.apiObject.push(new ChatResponseAutoModeResolutionPart({ id: 'gpt', name: 'GPT' }, 'efficiency'));
-		stream.apiObject.push(new ChatResponseTextEditPart(uri, [new TextEdit(new Range(0, 0, 0, 0), 'text')]));
-		stream.apiObject.push(new ChatResponseAutoModeResolutionPart(undefined, undefined, true));
+		const edit = new ChatResponseTextEditPart(uri, [new TextEdit(new Range(0, 0, 0, 0), 'text')]);
+		edit.autoTier = 'efficiency';
+		stream.apiObject.push(edit);
+		stream.apiObject.push(new ChatResponseTextEditPart(uri, true));
 		stream.close();
 		await Promise.resolve();
 
 		assert.deepStrictEqual(progress, [{
 			requestId: 'auto-request',
 			chunks: [
-				{ kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'efficiency', hidden: undefined },
-				{ kind: 'textEdit', uri, edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: 'text', eol: undefined }], done: undefined },
-				{ kind: 'autoModeResolution', resolved: undefined, autoTier: undefined, hidden: true },
+				{ kind: 'textEdit', uri, edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: 'text', eol: undefined }], done: undefined, autoTier: 'efficiency' },
+				{ kind: 'textEdit', uri, edits: [], done: true },
 			],
 		}]);
 	});

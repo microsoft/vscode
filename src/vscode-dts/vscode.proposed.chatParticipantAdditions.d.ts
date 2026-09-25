@@ -49,10 +49,15 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	/** The Auto routing tier a request was resolved with. */
+	export type ChatAutoModeTier = 'efficiency' | 'balance' | 'intelligence' | 'fast';
+
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
@@ -61,6 +66,8 @@ declare module 'vscode' {
 		uri: Uri;
 		edits: NotebookEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
@@ -580,11 +587,7 @@ declare module 'vscode' {
 	export class ChatResponseAutoModeResolutionPart {
 		/** The model the router picked, or `undefined` while routing is in flight. */
 		resolvedModel: { id: string; name: string } | undefined;
-		/** The tier the request resolved with. Attributes the turn's later edits; `undefined` clears that attribution. */
-		autoTier: 'efficiency' | 'balance' | 'intelligence' | 'fast' | undefined;
-		/** Update attribution without adding a row, e.g. for a reused routing session. */
-		hidden: boolean;
-		constructor(resolvedModel?: { id: string; name: string }, autoTier?: ChatResponseAutoModeResolutionPart['autoTier'], hidden?: boolean);
+		constructor(resolvedModel?: { id: string; name: string });
 	}
 
 	export interface ChatResponseStream {

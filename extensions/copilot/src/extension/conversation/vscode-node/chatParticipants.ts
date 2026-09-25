@@ -10,7 +10,7 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { AutoChatEndpoint, isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpoint/node/automodeService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -209,10 +209,16 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			// Tier attribution is needed even when the routing row is hidden.
 			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
+			stream = autoRouting.stream;
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
-				request = await this.switchToBaseModel(request, stream);
+				const switched = await this.switchToBaseModel(request, stream);
+				if (switched !== request) {
+					// The turn no longer runs on Auto, so its edits are not Auto's to attribute.
+					autoRouting.clearTier();
+				}
+				request = switched;
 
 				// Handle switch-to-auto confirmation button clicks from rate limit errors
 				const switchToAutoConfirmation = getSwitchToAutoOnRateLimitConfirmation(request);
@@ -294,9 +300,6 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
 		if (!baseLmModel) {
 			return request;
-		}
-		if (request.model.id === AutoChatEndpoint.pseudoModelId) {
-			stream.push(new vscode.ChatResponseAutoModeResolutionPart(undefined, undefined, true));
 		}
 		request = { ...request, model: baseLmModel };
 		if (request.subAgentInvocationId === undefined) {
