@@ -2620,7 +2620,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, compatibility issues use a yellow warning-colored error icon and an inline message below the configuration path directing users to Migrations. No compatibility badges appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, compatibility issues use a yellow warning icon and an inline message with a Migrations link. Configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2634,7 +2634,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The MCP Servers tree presents all installed row states together: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error has a red error icon and a message clamped to two lines, stopped has a gray circle-slash icon, disabled is dimmed with its switch off, and unsupported or partially supported rows have a yellow warning-colored error icon with a message below the configuration path directing users to Migrations. No state badges appear.'],
+		expectedVisualDescriptions: ['The MCP Servers tree presents all installed row states together without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error has a red error icon and a message clamped to two lines, stopped shows a Start button styled like Sign In, disabled is dimmed with its switch off, and unsupported or partially supported rows have a yellow warning icon with a Migrations link. No state badges appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -2654,8 +2654,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			assert(disabledRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked') === 'false', 'The disabled MCP server switch must be off.');
 			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Slack');
 			const source = unsupportedRow?.querySelector('.mcp-server-source-path');
-			const message = unsupportedRow?.querySelector('.mcp-server-compatibility-message');
-			assert(!!source && !!message && source.compareDocumentPosition(message) === Node.DOCUMENT_POSITION_FOLLOWING, 'The compatibility message must follow the configuration path.');
+			const migrationLink = unsupportedRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+			assert(source?.textContent === '', 'MCP rows must not show configuration file paths.');
+			assert(migrationLink?.textContent === 'Migrations' && migrationLink.getAttribute('href') === '#', 'Compatibility messages must link to Migrations.');
 		},
 	}),
 

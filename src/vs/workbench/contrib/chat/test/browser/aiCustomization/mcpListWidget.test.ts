@@ -547,14 +547,17 @@ suite('mcpListWidget', () => {
 			{ state: McpServerStatus.AuthRequired, visible: false, icon: undefined, description: 'Description' },
 			{ state: 'disabled', visible: false, icon: undefined, description: 'Description' },
 			{ state: McpServerStatus.Starting, visible: true, icon: 'codicon-loading', description: 'Description' },
-			{ state: McpServerStatus.Stopped, visible: true, icon: 'codicon-circle-slash', description: 'Description' },
+			{ state: McpServerStatus.Stopped, visible: false, icon: undefined, description: 'Description' },
 			{ state: McpServerStatus.Error, visible: true, icon: 'codicon-error', description: 'Failed to connect' },
 		]);
 	});
 
 	test('renders harness compatibility separately from runtime status', () => {
 		const message = document.createElement('span');
-		updateMcpCompatibilityMessage(message, 'partiallySupported');
+		const store = disposables.add(new DisposableStore());
+		let migrationRequests = 0;
+		updateMcpCompatibilityMessage(message, 'partiallySupported', store, () => migrationRequests++);
+		message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
 
 		assert.deepStrictEqual({
 			presentations: [
@@ -566,6 +569,8 @@ suite('mcpListWidget', () => {
 			messageClass: message.className,
 			messageText: message.textContent,
 			messageDisplay: message.style.display,
+			linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
+			migrationRequests,
 		}, {
 			presentations: [
 				undefined,
@@ -576,6 +581,8 @@ suite('mcpListWidget', () => {
 			messageClass: 'mcp-server-compatibility-message partially-supported',
 			messageText: 'Partially supported. See Migrations for details.',
 			messageDisplay: '',
+			linkHref: '#',
+			migrationRequests: 1,
 		});
 	});
 
@@ -1211,6 +1218,7 @@ suite('mcpListWidget', () => {
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
+			let migrationRequests = 0;
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
@@ -1278,6 +1286,7 @@ suite('mcpListWidget', () => {
 				renderManagementActions,
 				() => compatibilityKind,
 				plugin => openedPlugins.push(plugin.label),
+				() => migrationRequests++,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -1323,6 +1332,7 @@ suite('mcpListWidget', () => {
 				managementClicks,
 				openedPlugins,
 				openedExtensions,
+				migrationRequests: () => migrationRequests,
 				hostEnablementCalls,
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
@@ -1398,7 +1408,7 @@ suite('mcpListWidget', () => {
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
 		const issue = (text: string) => ({ issue: { text, display: '', hover: text } });
 
-		test('shows workspace-relative and home-relative configuration paths in the row and accessible label', () => {
+		test('hides configuration paths from rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
@@ -1425,19 +1435,19 @@ suite('mcpListWidget', () => {
 				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
 			}, {
 				workspace: {
-					path: '.vscode/mcp.json',
-					hover: URI.file('/workspace/.vscode/mcp.json').fsPath,
-					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
+					path: '',
+					hover: '',
+					ariaLabel: 'Workspace Server',
 				},
 				home: {
-					path: '~/.config/mcp.json',
-					hover: URI.file('/Users/test/.config/mcp.json').fsPath,
-					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
+					path: '',
+					hover: '',
+					ariaLabel: 'User Server',
 				},
 			});
 		});
 
-		test('shows the plugin name with the full configuration location in the hover', () => {
+		test('shows plugin provenance without exposing its configuration path', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const sourceUri = URI.file('/Users/test/.config/plugins/example/.mcp.json');
@@ -1466,7 +1476,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Plugin: Example Plugin',
-					hover: sourceUri.fsPath,
+					hover: 'Open plugin details for Example Plugin',
 					tagName: 'A',
 					ariaLabel: 'Open plugin details for Example Plugin',
 					tabIndex: 0,
@@ -1508,7 +1518,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('shows the extension name as a link with the full configuration location in the hover', () => {
+		test('shows extension provenance without exposing its configuration path', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const sourceUri = URI.file('/Users/test/.vscode/extensions/publisher.extension/mcp.json');
@@ -1537,7 +1547,7 @@ suite('mcpListWidget', () => {
 			}, {
 				source: {
 					label: 'Extension: Example Extension',
-					hover: sourceUri.fsPath,
+					hover: 'Open extension details for Example Extension',
 					tagName: 'A',
 					ariaLabel: 'Open extension details for Example Extension',
 					tabIndex: 0,
@@ -1811,15 +1821,20 @@ suite('mcpListWidget', () => {
 			disposables.add(ctx.store);
 
 			ctx.render();
+			ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
 
 			assert.deepStrictEqual({
 				message: ctx.templateData.compatibilityMessage.textContent,
 				icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
 				badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
+				linkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
+				migrationRequests: ctx.migrationRequests(),
 			}, {
 				message: 'Unsupported. See Migrations for details.',
-				icon: 'mcp-server-state-icon codicon codicon-error compatibility',
+				icon: 'mcp-server-state-icon codicon codicon-warning compatibility',
 				badges: 0,
+				linkTabIndex: 0,
+				migrationRequests: 1,
 			});
 		});
 
@@ -1884,7 +1899,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('starting, stopped and authentication states do not add explanations', () => {
+		test('starting, stopped and authentication states use their inline actions', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);
 			ctx.render();
@@ -1892,13 +1907,34 @@ suite('mcpListWidget', () => {
 			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.AuthRequired]) {
 				ctx.setServers([createAgentHostServer({ ...erroring(), status })]);
 				ctx.notifyUnchanged();
-				results.push({ ...ctx.read(), signIn: !!ctx.templateData.actions.querySelector('.mcp-server-sign-in') });
+				results.push({
+					...ctx.read(),
+					signIn: !!ctx.templateData.actions.querySelector('.mcp-server-sign-in'),
+					start: !!ctx.templateData.actions.querySelector('.mcp-server-start'),
+				});
 			}
 			assert.deepStrictEqual(results, [
-				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Starting', signIn: false },
-				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Stopped', signIn: false },
-				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Authentication required', signIn: true },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Starting', signIn: false, start: false },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Stopped', signIn: false, start: true },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Authentication required', signIn: true, start: false },
 			]);
+		});
+
+		test('start button starts a stopped active-session server', async () => {
+			let starts = 0;
+			const server = createAgentHostServer({
+				status: McpServerStatus.Stopped,
+				state: { kind: McpServerStatus.Stopped },
+				start: async () => { starts++; },
+			});
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			ctx.render();
+
+			ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.click();
+			await Promise.resolve();
+
+			assert.strictEqual(starts, 1);
 		});
 
 		test('recycling an error row for a healthy row restores its description and hover', () => {

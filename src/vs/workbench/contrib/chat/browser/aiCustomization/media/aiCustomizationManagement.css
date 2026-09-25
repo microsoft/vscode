@@ -2923,6 +2923,20 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
 }
 
+.plugin-list-widget .mcp-server-compatibility-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.plugin-list-widget .mcp-server-compatibility-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.plugin-list-widget .mcp-server-compatibility-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .mcp-server-item .mcp-server-source-path {
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -2956,7 +2970,9 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-sign-in.monaco-button,
-.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button {
+.mcp-server-item .mcp-server-start.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button {
 	width: auto;
 	flex: 0 0 auto;
 	min-width: 0;
