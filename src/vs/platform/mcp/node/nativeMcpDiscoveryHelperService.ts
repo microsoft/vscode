@@ -6,6 +6,7 @@
 import { homedir } from 'os';
 import { IProcessEnvironment, platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import { getCopilotHomePath } from '../../environment/common/copilotHome.js';
 import { INativeMcpDiscoveryData, INativeMcpDiscoveryHelperService } from '../common/nativeMcpDiscoveryHelper.js';
 
 export class NativeMcpDiscoveryHelperService implements INativeMcpDiscoveryHelperService {
@@ -22,7 +23,7 @@ export class NativeMcpDiscoveryHelperService implements INativeMcpDiscoveryHelpe
 		return {
 			platform,
 			homedir: URI.file(homedir()),
-			copilotHome: this.uriFromEnvVariable('COPILOT_HOME', copilotEnvironment),
+			copilotHome: URI.file(getCopilotHomePath(homedir(), copilotEnvironment)),
 			winAppData: this.uriFromEnvVariable('APPDATA'),
 			xdgHome: this.uriFromEnvVariable('XDG_CONFIG_HOME'),
 		};

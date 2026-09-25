@@ -8,9 +8,11 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -42,12 +44,18 @@ suite('ChatSessionArchiveNudge', () => {
 	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
 		const errors: string[] = [];
 		const warnings: string[] = [];
+		const playedSignals: AccessibilitySignal[] = [];
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const configurationService = new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return reducedMotion; }
+		}());
+		instantiationService.stub(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+			override async playSignal(signal: AccessibilitySignal): Promise<void> {
+				playedSignals.push(signal);
+			}
 		}());
 		instantiationService.stub(IWorkbenchAssignmentService, assignmentService);
 		instantiationService.stub(ILogService, new class extends NullLogService {
@@ -61,7 +69,7 @@ suite('ChatSessionArchiveNudge', () => {
 				return super.error(error);
 			}
 		}());
-		return { instantiationService, configurationService, errors, warnings };
+		return { instantiationService, configurationService, errors, warnings, playedSignals };
 	}
 
 	function createAssignmentService(read: (name: string) => string | boolean | undefined | Promise<string | boolean | undefined>, onDidRefetchAssignments: Event<void> = Event.None): IWorkbenchAssignmentService {
@@ -80,13 +88,13 @@ suite('ChatSessionArchiveNudge', () => {
 	}
 
 	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
-		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording, reducedMotion);
+		const { instantiationService, configurationService, errors, warnings, playedSignals } = createServices(assignmentService, wording, reducedMotion);
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
 		const [archive, cleanupSettings] = widget.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const dismiss = widget.domNode.querySelector<HTMLElement>('.action-label')!;
-		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, container };
+		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, playedSignals, container };
 	}
 
 	async function setWording(configurationService: TestConfigurationService, wording: ChatSessionArchiveActionWording): Promise<void> {
@@ -167,7 +175,7 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('shows confetti when marking a merged pull request session as done', async () => {
 		const pending = new DeferredPromise<void>();
-		const { archive, configurationService } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const { archive, configurationService, playedSignals } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
@@ -179,9 +187,11 @@ suite('ChatSessionArchiveNudge', () => {
 		assert.deepStrictEqual({
 			animationBeforeArchive,
 			animationAfterArchive: !!animation,
+			playedSignals,
 		}, {
 			animationBeforeArchive: null,
 			animationAfterArchive: true,
+			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});
 

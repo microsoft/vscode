@@ -76,6 +76,15 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('combines provider failures behind their logical source', async () => {
+		const service = new CustomizationMarketplaceService([
+			{ id: 'gallery.custom', sourceId: 'gallery', query: async () => ({ items: [], error: 'Custom failed' }) },
+			{ id: 'gallery.default', sourceId: 'gallery', query: async () => ({ items: [], warning: 'Default failed' }) },
+		]);
+		const page = await service.query({ sourceIds: ['gallery'] }, CancellationToken.None);
+		assert.deepStrictEqual(page.sourceErrors, [{ sourceId: 'gallery', message: 'Custom failed; Default failed' }]);
+	});
+
 	test('continues each source with its own opaque cursor and retains exhausted source totals', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
 		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceProvider => ({
@@ -704,6 +713,41 @@ suite('CustomizationMarketplaceService', () => {
 			totals: [undefined, undefined],
 			next: undefined,
 			calls: 1,
+		});
+	});
+
+	test('non-terminal source warnings persist while buffered entries and later native pages remain available', async () => {
+		const cursors: (string | undefined)[] = [];
+		const service = new CustomizationMarketplaceService([{
+			id: 'partial',
+			query: async options => {
+				cursors.push(options.cursor);
+				return options.cursor
+					? { items: [{ ...entry, identifier: 'third', score: 60 }] }
+					: {
+						items: [{ ...entry, identifier: 'first', score: 80 }, { ...entry, identifier: 'second', score: 70 }],
+						nextCursor: 'native-next',
+						warning: 'Another marketplace is unavailable',
+					};
+			},
+		}, {
+			id: 'healthy',
+			query: async () => ({ items: [{ ...entry, identifier: 'healthy-first', score: 100 }, { ...entry, identifier: 'healthy-second', score: 90 }], total: 2 }),
+		}]);
+		const options = { sourceIds: ['partial', 'healthy'], query: 'mail', pageSize: 2 };
+		const first = await service.query(options, CancellationToken.None);
+		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: [first, second, third].map(page => page.items.map(item => item.identifier)),
+			errors: [first, second, third].map(page => page.sourceErrors),
+			totals: [first, second, third].map(page => page.total),
+			cursors,
+		}, {
+			items: [['healthy-first', 'healthy-second'], ['first', 'second'], ['third']],
+			errors: Array.from({ length: 3 }, () => [{ sourceId: 'partial', message: 'Another marketplace is unavailable' }]),
+			totals: [undefined, undefined, undefined],
+			cursors: [undefined, 'native-next'],
 		});
 	});
 

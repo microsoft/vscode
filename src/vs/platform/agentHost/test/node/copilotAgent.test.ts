@@ -80,7 +80,7 @@ import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkIns
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { getCopilotHomePath } from '../../common/copilotHome.js';
+import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
@@ -1789,7 +1789,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('installs client identity and the GitHub telemetry callback in CopilotClientOptions', async () => {
+	test('installs client identity, Copilot home, and the GitHub telemetry callback in CopilotClientOptions', async () => {
 		const client = new TestCopilotClient([]);
 		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
 		try {
@@ -1797,12 +1797,14 @@ suite('CopilotAgent', () => {
 			const clientOptions = getCreatedClientOptions(agent).at(-1);
 			assert.deepStrictEqual({
 				clientInfo: clientOptions?.clientInfo,
+				copilotHome: clientOptions?.env?.['COPILOT_HOME'],
 				onGitHubTelemetry: typeof clientOptions?.onGitHubTelemetry,
 			}, {
 				clientInfo: {
 					applicationName: 'vscode-agent-host',
 					applicationVersion: '1.2.3',
 				},
+				copilotHome: getCopilotHomePath('/mock-home', process.env),
 				onGitHubTelemetry: 'function',
 			});
 		} finally {
