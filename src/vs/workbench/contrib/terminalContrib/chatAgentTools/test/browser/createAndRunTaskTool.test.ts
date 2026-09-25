@@ -177,7 +177,7 @@ suite('CreateAndRunTaskTool', () => {
 			message: typeof prepared?.confirmationMessages?.message === 'string' ? prepared.confirmationMessages.message : prepared?.confirmationMessages?.message?.value,
 		}, {
 			allowAutoConfirm: false,
-			message: 'Task&nbsp;\'\\[build\\]\\(command:workbench.action.closeWindow\\)\'&nbsp;will&nbsp;be&nbsp;created&nbsp;in&nbsp;\'/workspace\'&nbsp;and&nbsp;run&nbsp;with&nbsp;this&nbsp;command:\n```shell\necho ``` run build\n```\n',
+			message: `Task&nbsp;'\\[build\\]\\(command:workbench.action.closeWindow\\)'&nbsp;will&nbsp;be&nbsp;created&nbsp;in&nbsp;'${workspaceFolder.fsPath}'&nbsp;and&nbsp;run&nbsp;with&nbsp;this&nbsp;command:\n\`\`\`shell\necho \`\`\` run build\n\`\`\`\n`,
 		});
 	});
 });
