@@ -75,6 +75,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const sessionsChanged = disposables.add(new Emitter<void>());
 		const contextChanged = disposables.add(new Emitter<IContextKeyChangeEvent>());
 		const workbenchStateChanged = disposables.add(new Emitter<WorkbenchState>());
+		const sessionCommitted = disposables.add(new Emitter<{ readonly original: URI; readonly committed: URI }>());
 		const dismissed = disposables.add(new Emitter<string>());
 		const assignmentsRefetched = disposables.add(new Emitter<void>());
 		const requestsChanged = disposables.add(new Emitter<IChatChangeEvent>());
@@ -171,6 +172,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const copilotHarnessContribution = upcastPartial<ResolvedChatSessionsExtensionPoint>({ agentHostProviderId: SessionType.CopilotCLI });
 		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			onDidCommitSession: sessionCommitted.event,
 			getChatSessionContribution: sessionType => sessionType.endsWith(`-${SessionType.CopilotCLI}`) ? copilotHarnessContribution : undefined,
 		}));
 		instantiation.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
@@ -284,6 +286,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			showBanner: () => disposables.add(instantiation.createInstance(AgentsParallelWorkContribution)),
 			showGenericTip: () => disposables.add(instantiation.createInstance(AgentsHandoffInputTipContribution)),
 			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(),
+			commitSession: (original: URI, committed: URI) => sessionCommitted.fire({ original, committed }),
 			dismiss: () => {
 				const notification = [...notifications.values()].at(-1);
 				assert.ok(notification);
@@ -664,12 +667,13 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('logs actual introduction exposure once with session context', () => {
+	test('logs actual introduction exposure and session materialization once with correlation context', () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
 		h.showBanner();
 		h.sendMessage();
 		h.showCurrentNotification();
 		h.showCurrentNotification();
+		h.commitSession(h.resource, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session-1' }));
 
 		assert.deepStrictEqual(h.telemetryEvents.filter(event => event.name === 'copilotHarnessIntroductionLifecycle').map(event => event.data), [{
 			stage: 'opportunity',
@@ -683,6 +687,13 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			chatSessionId: 'agent-host-copilotcli:/untitled-draft',
 			sessionType: SessionType.AgentHostCopilot,
 			harness: undefined,
+		}, {
+			stage: 'materialized',
+			mode: CopilotHarnessIntroductionMode.AfterRequest,
+			chatSessionId: 'agent-host-copilotcli:/untitled-draft',
+			sessionType: SessionType.AgentHostCopilot,
+			harness: undefined,
+			committedChatSessionId: 'agent-host-copilotcli:/session-1',
 		}]);
 	});
 

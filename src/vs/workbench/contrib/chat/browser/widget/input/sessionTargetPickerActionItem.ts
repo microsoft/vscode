@@ -275,20 +275,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
-		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
-		const fromHarness = getCopilotHarnessTargetCategory(previousTarget, this.chatSessionsService);
-		const toHarness = getCopilotHarnessTargetCategory(sessionTypeItem.type, this.chatSessionsService);
-		if (previousTarget !== sessionTypeItem.type && (fromHarness === 'copilot' || toHarness === 'copilot')) {
-			const sessionResource = this.delegate.getSessionResource?.();
-			const session = sessionResource ? getChatSessionTelemetryContext(sessionResource) : { chatSessionId: undefined, sessionType: undefined, harness: undefined };
-			this.telemetryService.publicLog2<CopilotHarnessTargetChangedEvent, CopilotHarnessTargetChangedClassification>('copilotHarnessTargetChanged', {
-				mode: getCopilotHarnessIntroductionMode(this.configurationService),
-				fromHarness,
-				toHarness,
-				surface: this.chatSessionPosition,
-				...session,
-			});
-		}
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
 
 		if (!this._isSessionsWindow) {
 			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
@@ -303,6 +290,23 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 		if (this.element) {
 			this.renderLabel(this.element);
+		}
+	}
+
+	protected _reportCopilotHarnessTargetChanged(target: AgentSessionTarget): void {
+		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+		const fromHarness = getCopilotHarnessTargetCategory(previousTarget, this.chatSessionsService);
+		const toHarness = getCopilotHarnessTargetCategory(target, this.chatSessionsService);
+		if (previousTarget !== target && (fromHarness === 'copilot' || toHarness === 'copilot')) {
+			const sessionResource = this.delegate.getSessionResource?.();
+			const session = sessionResource ? getChatSessionTelemetryContext(sessionResource) : { chatSessionId: undefined, sessionType: undefined, harness: undefined };
+			this.telemetryService.publicLog2<CopilotHarnessTargetChangedEvent, CopilotHarnessTargetChangedClassification>('copilotHarnessTargetChanged', {
+				mode: getCopilotHarnessIntroductionMode(this.configurationService),
+				fromHarness,
+				toHarness,
+				surface: this.chatSessionPosition,
+				...session,
+			});
 		}
 	}
 

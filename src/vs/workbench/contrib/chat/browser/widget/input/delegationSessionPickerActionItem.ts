@@ -64,6 +64,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
 		if (this.delegate.setPendingDelegationTarget) {
 			this.delegate.setPendingDelegationTarget(sessionTypeItem.type);
 		}

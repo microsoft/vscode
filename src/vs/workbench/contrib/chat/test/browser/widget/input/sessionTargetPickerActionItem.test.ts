@@ -240,6 +240,7 @@ suite('SessionTypePickerActionItem', () => {
 		const run = Reflect.get(SessionTypePickerActionItem.prototype, '_run') as (this: {
 			_getSelectedSessionType(): AgentSessionTarget;
 			_getDefaultSessionType(): AgentSessionTarget;
+			_reportCopilotHarnessTargetChanged(target: AgentSessionTarget): void;
 			readonly chatSessionsService: IChatSessionsService;
 			readonly configurationService: IConfigurationService;
 			readonly telemetryService: Pick<ITelemetryService, 'publicLog2'>;
@@ -251,6 +252,7 @@ suite('SessionTypePickerActionItem', () => {
 		const harness = {
 			_getSelectedSessionType: () => selected,
 			_getDefaultSessionType: () => AgentSessionProviders.AgentHostCopilot,
+			_reportCopilotHarnessTargetChanged: Reflect.get(SessionTypePickerActionItem.prototype, '_reportCopilotHarnessTargetChanged'),
 			chatSessionsService: new class extends mock<IChatSessionsService>() {
 				override getChatSessionContribution(): undefined {
 					return undefined;

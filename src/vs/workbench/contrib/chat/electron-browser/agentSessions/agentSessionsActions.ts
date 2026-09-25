@@ -58,7 +58,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, isAgentHostAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
@@ -834,11 +834,12 @@ const enum AgentsParallelWorkNotificationKind {
 }
 
 type CopilotHarnessIntroductionLifecycleEvent = {
-	stage: 'opportunity' | 'shown';
+	stage: 'opportunity' | 'shown' | 'materialized';
 	mode: CopilotHarnessIntroductionMode;
 	chatSessionId: string;
 	sessionType: string;
 	harness: string | undefined;
+	committedChatSessionId?: string;
 };
 
 type CopilotHarnessIntroductionLifecycleClassification = {
@@ -847,6 +848,7 @@ type CopilotHarnessIntroductionLifecycleClassification = {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The random identifier of the eligible chat session.' };
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat session type.' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The underlying Agent Host harness, when applicable.' };
+	committedChatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The random identifier assigned when an untitled opportunity materializes, used to join later request telemetry.' };
 	owner: 'justschen';
 	comment: 'Tracks eligible opportunities and actual exposure for the Copilot harness introduction experiment.';
 };
@@ -868,6 +870,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	private readonly _eligible = new ResourceSet();
 	private readonly _introductionEligibleWidgets = new Set<IChatWidget>();
 	private readonly _introductionShownModes = new Map<IChatWidget, Set<CopilotHarnessIntroductionMode>>();
+	private readonly _introductionOpportunityModes = new ResourceMap<CopilotHarnessIntroductionMode>();
 	/** Dismissals last only until this window reloads. */
 	private readonly _dismissed = new ResourceSet();
 	private readonly _recentWidgets = new Set<IChatWidget>();
@@ -938,6 +941,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			this._update();
 		}));
 		this._register(this._agentSessionsService.model.onDidChangeSessions(() => this._update()));
+		this._register(this._chatSessionsService.onDidCommitSession(event => this._logIntroductionMaterialized(event.original, event.committed)));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => {
@@ -1022,11 +1026,29 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			if (!this._introductionEligibleWidgets.has(widget)) {
 				this._introductionEligibleWidgets.add(widget);
 				if (!this._storageService.getBoolean(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
-					this._logIntroductionLifecycle('opportunity', widget, resource, getCopilotHarnessIntroductionMode(this._configurationService));
+					const mode = getCopilotHarnessIntroductionMode(this._configurationService);
+					this._introductionOpportunityModes.set(resource, mode);
+					this._logIntroductionLifecycle('opportunity', widget, resource, mode);
 				}
 			}
 		}
 		this._update();
+	}
+
+	private _logIntroductionMaterialized(original: URI, committed: URI): void {
+		const mode = this._introductionOpportunityModes.get(original);
+		if (mode === undefined || this._store.isDisposed) {
+			return;
+		}
+		const originalSession = getChatSessionTelemetryContext(original);
+		const committedSession = getChatSessionTelemetryContext(committed);
+		this._telemetryService.publicLog2<CopilotHarnessIntroductionLifecycleEvent, CopilotHarnessIntroductionLifecycleClassification>('copilotHarnessIntroductionLifecycle', {
+			stage: 'materialized',
+			mode,
+			...originalSession,
+			committedChatSessionId: committedSession.chatSessionId,
+		});
+		this._introductionOpportunityModes.set(committed, mode);
 	}
 
 	private _logIntroductionLifecycle(stage: CopilotHarnessIntroductionLifecycleEvent['stage'], widget: IChatWidget, resource: URI, mode: CopilotHarnessIntroductionMode): void {
@@ -1221,6 +1243,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._recentWidgets.clear();
 		this._introductionEligibleWidgets.clear();
 		this._introductionShownModes.clear();
+		this._introductionOpportunityModes.clear();
 		this._seen.clear();
 		this._eligible.clear();
 		this._dismissed.clear();
