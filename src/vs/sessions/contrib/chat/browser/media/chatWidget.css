@@ -154,16 +154,14 @@
 
 .new-session-welcome-message-actions {
 	left: 100%;
-	margin-left: var(--vscode-spacing-size40);
 	opacity: 0;
-	pointer-events: none;
+	padding-left: var(--vscode-spacing-size40);
 	position: absolute;
 }
 
 .new-session-welcome-message:hover .new-session-welcome-message-actions,
 .new-session-welcome-message:focus-within .new-session-welcome-message-actions {
 	opacity: 1;
-	pointer-events: auto;
 }
 
 .new-chat-widget-container .new-chat-bottom-container {
