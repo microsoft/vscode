@@ -822,16 +822,22 @@ export class NewChatWidget extends Disposable {
 		const phrase = accountName
 			? [
 				localize('newSession.welcome.named.building', "What are we building, {0}?", accountName),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.named.move', "What’s the move, {0}?", accountName),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.named.cook', "Let’s cook, {0}", accountName),
 				localize('newSession.welcome.named.lockIn', "Time to lock in, {0}", accountName),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.named.ship', "Let’s ship something, {0}", accountName),
 			][phraseIndex]
 			: [
 				localize('newSession.welcome.building', "What are we building?"),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.move', "What’s the move?"),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.cook', "Let’s cook"),
 				localize('newSession.welcome.lockIn', "Time to lock in"),
+				// allow-any-unicode-next-line
 				localize('newSession.welcome.ship', "Let’s ship something"),
 			][phraseIndex];
 		title.textContent = phrase;
