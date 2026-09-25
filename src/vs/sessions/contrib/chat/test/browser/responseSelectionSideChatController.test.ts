@@ -152,8 +152,9 @@ suite('ResponseSelectionSideChatController', () => {
 			selectionText = text;
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
-		const beginPointerSelection = () => {
-			markdown.dispatchEvent(new targetWindow.MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+		const beginPointerSelection = (target: HTMLElement = markdown) => {
+			target.dispatchEvent(new targetWindow.MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+			target.dispatchEvent(new targetWindow.MouseEvent('mousedown', { bubbles: true, button: 0, cancelable: true }));
 		};
 		const releasePointerSelection = () => {
 			targetWindow.dispatchEvent(new targetWindow.MouseEvent('pointerup', { bubbles: true, button: 0 }));
@@ -162,6 +163,12 @@ suite('ResponseSelectionSideChatController', () => {
 		const finishPointerSelection = async () => {
 			releasePointerSelection();
 			await waitForAnimationFrame();
+		};
+		const createPreventedMarkdownControl = () => {
+			const control = doc.createElement('button');
+			markdown.appendChild(control);
+			store.add(dom.addDisposableListener(control, 'mousedown', event => event.preventDefault()));
+			return control;
 		};
 		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
 		/**
@@ -231,6 +238,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		return {
 			controller,
+			transcriptDomNode,
 			setSelection,
 			setSelectionWithoutEvent,
 			setSelectionOutsideTranscript,
@@ -238,6 +246,7 @@ suite('ResponseSelectionSideChatController', () => {
 			releasePointerSelection,
 			finishPointerSelection,
 			waitForAnimationFrame,
+			createPreventedMarkdownControl,
 			setTranscriptRect,
 			detachSelectedRow,
 			scroll,
@@ -380,6 +389,73 @@ suite('ResponseSelectionSideChatController', () => {
 			actions: ['Ask with /btw', 'Quote', 'Copy'],
 			telemetryEvents: [
 				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('suppresses intermediate selection updates when the pointer starts outside markdown', async () => {
+		const {
+			controller,
+			transcriptDomNode,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(transcriptDomNode);
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('pressing a prevented markdown control preserves the focused question draft', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			createPreventedMarkdownControl,
+			finishPointerSelection,
+			setSelection,
+			focusResponseItemCalls,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		setSelection('hello world');
+		triggerMenuAction(controller, 'Ask with /btw');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'keep this draft';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		beginPointerSelection(createPreventedMarkdownControl());
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			draft: textArea.value,
+			inputFocused: textArea.ownerDocument.activeElement === textArea,
+			focusResponseItemCalls,
+			telemetryEvents,
+		}, {
+			inputVisible: true,
+			draft: 'keep this draft',
+			inputFocused: true,
+			focusResponseItemCalls: [],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
 			],
 		});
 	});

@@ -112,6 +112,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
 	private _pointerSelectionActive = false;
+	private _pointerSelectionChanged = false;
 	private _visibleSurface: 'input' | 'menu' | undefined;
 	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
@@ -251,13 +252,11 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private _beginPointerSelection(event: PointerEvent): void {
 		if (event.button !== 0
 			|| event.isPrimary === false
-			|| this._input.isBusy
-			|| !dom.isHTMLElement(event.target)
-			|| !event.target.closest('.chat-markdown-part')) {
+			|| this._input.isBusy) {
 			return;
 		}
-		this._dismiss();
 		this._pointerSelectionActive = true;
+		this._pointerSelectionChanged = false;
 	}
 
 	private _finishPointerSelection(): void {
@@ -265,11 +264,20 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 		this._pointerSelectionActive = false;
+		this._pointerSelectionChanged = false;
 		this._selectionChangeScheduler.schedule();
 	}
 
 	private _onSelectionChange(): void {
-		if (this._pointerSelectionActive || this._selectionChangeScheduler.isScheduled()) {
+		if (this._pointerSelectionActive) {
+			this._updateAutoScrollHold();
+			if (!this._pointerSelectionChanged && !this._hasAffordanceFocus()) {
+				this._pointerSelectionChanged = true;
+				this._dismiss();
+			}
+			return;
+		}
+		if (this._selectionChangeScheduler.isScheduled()) {
 			this._updateAutoScrollHold();
 			return;
 		}
@@ -525,8 +533,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 		this._selectionChangeScheduler.cancel();
-		this._pointerSelectionActive = false;
 		if (force) {
+			this._pointerSelectionActive = false;
+			this._pointerSelectionChanged = false;
 			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
 			this._generation++;
 		}
