@@ -580,6 +580,22 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.interactive-item-container .completed-response-summary .chat-collapsible-hover-chevron.codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+}
+
+.interactive-item-container .completed-response-summary:hover .chat-collapsible-hover-chevron,
+.interactive-item-container .completed-response-summary:focus-visible .chat-collapsible-hover-chevron,
+.interactive-item-container .completed-response-summary:focus-within .chat-collapsible-hover-chevron {
+	opacity: 1;
+}
+
 .interactive-item-container .completed-response-disclosure[open] .completed-response-summary .monaco-button {
 	color: var(--vscode-foreground);
 }
