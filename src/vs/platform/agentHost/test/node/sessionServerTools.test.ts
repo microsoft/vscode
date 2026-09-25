@@ -160,8 +160,8 @@ suite('SessionServerTools', () => {
 		});
 		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.ListSessions)?.inputSchema?.properties?.label, undefined);
 		const renameDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat);
-		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required }], [
-			{ name: SessionServerToolName.RenameChat, required: ['title'] },
+		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required, deferLoading: renameDefinition?.deferLoading }], [
+			{ name: SessionServerToolName.RenameChat, required: ['title'], deferLoading: true },
 		]);
 		assert.deepStrictEqual([renameDefinition?.inputSchema?.properties?.title], [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
