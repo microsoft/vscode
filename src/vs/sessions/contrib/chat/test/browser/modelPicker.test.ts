@@ -5,17 +5,24 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { Menus } from '../../../../browser/menus.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
-import { ModelPicker } from '../../browser/modelPicker.js';
+import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, hasSelectableModel, hasSendableModelSelection, normalizeModelPickerOptions } from '../../browser/sessionModelPickerState.js';
@@ -72,6 +79,56 @@ suite('ModelPicker selectability', () => {
 		}, {
 			auto: true,
 			explicitModel: false,
+		});
+	});
+});
+
+suite('ModelPicker automation toolbar', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('contributes the model picker inside the automation prompt with AI and phone gating', () => {
+		const item = MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar).find(item => isIMenuItem(item) && item.command.id === 'sessions.modelPicker');
+		assert.ok(item && isIMenuItem(item));
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const enabledKey = ChatContextKeys.enabled.bindTo(context);
+		const inDialogKey = ChatContextKeys.inAutomationsDialog.bindTo(context);
+		const phoneKey = IsPhoneLayoutContext.bindTo(context);
+		const combinedKey = SessionUsesCombinedConfigPickerContext.bindTo(context);
+		const visible = (enabled: boolean, inDialog: boolean, phone: boolean, combined: boolean) => {
+			enabledKey.set(enabled);
+			inDialogKey.set(inDialog);
+			phoneKey.set(phone);
+			combinedKey.set(combined);
+			return context.contextMatchesRules(item.when);
+		};
+		assert.deepStrictEqual({
+			desktop: visible(true, true, false, true),
+			phone: visible(true, true, true, false),
+			combinedPhone: visible(true, true, true, true),
+			aiDisabled: visible(false, true, false, false),
+			outsideDialog: visible(true, false, false, false),
+		}, {
+			desktop: true,
+			phone: true,
+			combinedPhone: false,
+			aiDisabled: false,
+			outsideDialog: false,
+		});
+	});
+
+	test('preserves responsive state and opens the registered model picker from its anchor', () => {
+		const compact = observableValue('compact', false);
+		const anchor = document.createElement('div');
+		let openedAt: HTMLElement | undefined;
+		const picker = new class extends mock<ModelPicker>() {
+			override show(element?: HTMLElement): void { openedAt = element; }
+			override dispose(): void { }
+		}();
+		const item = disposables.add(new ModelPickerActionViewItem(picker, compact));
+		item.setCompact(true);
+		item.show(anchor);
+		assert.deepStrictEqual({ compact: compact.get(), itemCompact: item.isCompact(), openedAt }, {
+			compact: true, itemCompact: true, openedAt: anchor,
 		});
 	});
 });

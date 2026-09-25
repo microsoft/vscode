@@ -25,10 +25,11 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -905,6 +906,24 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	return { service, stateManager, database: usageDatabase, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService };
 }
 
+function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
+	const metadata = options?.metadata ?? withRemoteSessionOrigin(stateManager.getSessionState(session)?._meta, {
+		session: 'remote-origin-copilot:/source',
+		chat: 'remote-origin-copilot:/source#original-chat',
+		depth: 1,
+	});
+	stateManager.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: metadata });
+	stateManager.dispatchServerAction(session, {
+		type: ActionType.SessionActiveClientSet,
+		activeClient: {
+			clientId: 'remote-reply-client',
+			tools: options?.enabled === false ? [] : [{ name: SendRemoteMessageToolReferenceName, description: 'Reply', inputSchema: { type: 'object' } }],
+			customizations: [],
+		},
+	});
+	return metadata;
+}
+
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -1608,6 +1627,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
 		const sideChat = buildChatUri(contributions.session, 'side');
 		contributions.stateManager.addChat(contributions.session, sideChat, {
 			title: 'Side Chat',
@@ -1630,12 +1650,97 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<terminal_chat>')) {
 				return 'chatSurface';
 			}
+			if (instruction.includes('<remote_session_origin>')) {
+				return 'remoteSessionOrigin';
+			}
 			if (instruction === 'rename instruction') {
 				return 'sessionTitle';
 			}
 			return undefined;
-		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
+		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('supplies stable remote reply instructions on every turn without changing the task text', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const messages = ['Exact initial task', 'Exact follow-up task'].map(text => ({ text, origin: { kind: MessageKind.Agent } }));
+		const results: IOutgoingTurnContributionResult[] = [];
+		for (const [index, message] of messages.entries()) {
+			results.push(await contributions.service.outgoingTurn({
+				session: contributions.session, chat: buildDefaultChatUri(contributions.session), message, turnId: `${index}`,
+			}));
+		}
+		const instruction = results[0].instructions?.[0] ?? '';
+		assert.deepStrictEqual({
+			messages: results.map(result => result.message),
+			stableInstructions: results[0].instructions?.length === 1 && results[0].instructions[0] === results[1].instructions?.[0],
+			exactOrigin: instruction.includes('session "origin"') && instruction.includes('exact originating chat'),
+			toolDiscovery: instruction.includes('Load send_remote_message with tool search if needed'),
+			noPolling: instruction.includes('do not sleep or poll'),
+			noRetry: instruction.includes('Do not retry uncertain delivery'),
+		}, { messages, stableInstructions: true, exactOrigin: true, toolDiscovery: true, noPolling: true, noRetry: true });
+	});
+
+	test('remote reply guidance requires reports for delegated work without acknowledgement loops', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session, chat: buildDefaultChatUri(contributions.session),
+			message: { text: 'Check whether the repository exists', origin: { kind: MessageKind.Agent } }, turnId: 'report-back',
+		});
+		const instruction = result.instructions?.[0] ?? '';
+		assert.deepStrictEqual({
+			noImplicitForwarding: instruction.includes('Final answers are not forwarded'),
+			requiredBeforeFinishing: instruction.includes('send_remote_message with session "origin" before ending your turn'),
+			followUps: instruction.includes('including follow-ups'),
+			noReminderRequired: instruction.includes('For each delegated task'),
+			blockers: instruction.includes('results, blockers, or questions'),
+			explicitOptOut: instruction.includes('unless explicitly told not to report back'),
+			noAcknowledgementLoop: instruction.includes('Do not acknowledge messages with no new task or question'),
+			honestDelivery: instruction.includes('Only claim delivery after "sent" or "queued"'),
+			visibleFailure: instruction.includes('report failures here'),
+		}, {
+			noImplicitForwarding: true, requiredBeforeFinishing: true, followUps: true, noReminderRequired: true,
+			blockers: true, explicitOptOut: true, noAcknowledgementLoop: true, honestDelivery: true, visibleFailure: true,
+		});
+	});
+
+	test('restores remote reply guidance from session metadata independently of compacted history', async () => {
+		const first = createBuiltInContributions(disposables);
+		const metadata = configureRemoteSessionReply(first.stateManager, first.session);
+		const restoredMetadata: Record<string, unknown> = JSON.parse(JSON.stringify(metadata));
+		const restored = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(restored.stateManager, restored.session, { metadata: restoredMetadata });
+		await restored.service.hydrateTurns({ session: restored.session, chat: buildDefaultChatUri(restored.session) }, [hydrationTurn('compacted-history')]);
+		const message: Message = { text: 'Continue the exact task', origin: { kind: MessageKind.Agent } };
+		const result = await restored.service.outgoingTurn({
+			session: restored.session, chat: buildDefaultChatUri(restored.session), message, turnId: 'restored-turn',
+		});
+		assert.deepStrictEqual({
+			message: result.message,
+			hasReplyGuidance: result.instructions?.some(instruction => instruction.includes('<remote_session_origin>')),
+			requiresReport: result.instructions?.some(instruction => instruction.includes('send_remote_message with session "origin" before ending your turn')),
+		}, { message, hasReplyGuidance: true, requiresReport: true });
+	});
+
+	test('omits remote reply guidance when the origin or enabled reply tool is absent', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const turn: IOutgoingTurn = {
+			session: contributions.session, chat: buildDefaultChatUri(contributions.session),
+			message: { text: 'Task', origin: { kind: MessageKind.User } }, turnId: 'guidance-gates',
+		};
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { metadata: {} });
+		const noOrigin = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { enabled: false });
+		const noTool = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const enabled = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { enabled: false });
+		const disabledAgain = await contributions.service.outgoingTurn(turn);
+		assert.deepStrictEqual([noOrigin, noTool, enabled, disabledAgain].map(result =>
+			result.instructions?.some(instruction => instruction.includes('<remote_session_origin>')) ?? false,
+		), [false, false, true, false]);
 	});
 
 	test('awaits external session adoption before later outgoing contributions', async () => {
