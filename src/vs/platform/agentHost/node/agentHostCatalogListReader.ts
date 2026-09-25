@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
-import { SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -24,7 +24,7 @@ export type AgentHostCatalogListResult =
 /**
  * Eligibility boundary between the `sessions_v2` catalog and the session list:
  * it checks that a stored row still describes the registered session, then
- * hands the payload's own decoded data to the caller without re-parsing it.
+ * hands sanitized decoded data to every catalog consumer.
  */
 export class AgentHostCatalogListReader {
 
@@ -59,7 +59,11 @@ export class AgentHostCatalogListReader {
 			if (decoded.value.data.isChatBacking) {
 				return { eligible: false, chatBacking: true };
 			}
-			const data = reviveAgentHostCatalogData(decoded.value.data);
+			const revivedData = reviveAgentHostCatalogData(decoded.value.data);
+			const data = {
+				...revivedData,
+				chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri)),
+			};
 			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 		} catch (error) {
 			return {
