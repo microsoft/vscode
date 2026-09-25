@@ -3064,7 +3064,7 @@ suite('ActionListWidget', () => {
 	}
 
 	for (const nearBottom of [false, true]) {
-		test(`tabThroughPanel hover repositions when focus grows its content${nearBottom ? ' near the viewport bottom' : ''}`, async () => {
+		test(`tabThroughPanel hover stays row-aligned as content grows and shrinks${nearBottom ? ' near the viewport bottom' : ''}`, async () => {
 			const content = document.createElement('div');
 			content.style.cssText = 'width: 120px; height: 40px;';
 			const reference = document.createElement('a');
@@ -3089,21 +3089,35 @@ suite('ActionListWidget', () => {
 			await settleLayout();
 
 			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
-			const before = panel.getBoundingClientRect();
-			// Simulates the reference title switching from its bounded to its full length on focus.
-			content.style.height = '160px';
-			await settleLayout();
-			const after = panel.getBoundingClientRect();
+			const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!.getBoundingClientRect();
+			const chromeHeight = panel.getBoundingClientRect().height - viewport.getBoundingClientRect().height;
+			const heights = [160, 400, mainWindow.innerHeight + 100, 40];
+			const actual = [];
+			for (const height of heights) {
+				content.style.height = `${height}px`;
+				await settleLayout();
+				const rect = panel.getBoundingClientRect();
+				const desiredHeight = height + chromeHeight;
+				let expectedTop = row.top + (row.height - desiredHeight) / 2;
+				if (expectedTop + desiredHeight > mainWindow.innerHeight) {
+					expectedTop = mainWindow.innerHeight - desiredHeight - 8;
+				}
+				expectedTop = Math.max(0, expectedTop);
+				actual.push({
+					rowAligned: Math.abs(rect.top - expectedTop) < 1,
+					contentHeight: viewport.clientHeight,
+					withinViewport: rect.top >= 0 && rect.bottom <= mainWindow.innerHeight,
+					focusRetained: document.activeElement === reference,
+				});
+			}
 
-			assert.deepStrictEqual({
-				grew: after.height > before.height,
-				repositioned: after.top !== before.top,
-				withinViewport: after.bottom <= mainWindow.innerHeight,
-			}, {
-				grew: true,
-				repositioned: true,
+			assert.deepStrictEqual(actual, heights.map(height => ({
+				rowAligned: true,
+				contentHeight: Math.round(Math.min(height, mainWindow.innerHeight - 8 - chromeHeight)),
 				withinViewport: true,
-			});
+				focusRetained: true,
+			})));
 		});
 	}
 

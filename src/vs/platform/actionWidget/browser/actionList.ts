@@ -2765,7 +2765,10 @@ export class ActionListWidget<T> extends Disposable {
 			}
 
 			panelRect = this._submenuContainer.getBoundingClientRect();
-			const panelHeight = panelRect.height;
+			// The scroll viewport still has its previous height when content changes.
+			const panelHeight = viewport && scrollbar && !preserveVerticalPosition
+				? content.getBoundingClientRect().height + panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height
+				: panelRect.height;
 			if (preserveVerticalPosition) {
 				openingPanelHeight ??= panelHeight / zoom;
 			}
