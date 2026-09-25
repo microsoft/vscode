@@ -1459,7 +1459,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
 				override readonly enablementModel = {
-					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readEnabled: (serverId: string) => serverId.includes('mcp-web-search') ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile,
 					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
@@ -2620,7 +2620,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, compatibility issues use a gray error icon and an inline message directing users to Migrations. No compatibility badges appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, compatibility issues use a yellow warning-colored error icon and an inline message below the configuration path directing users to Migrations. No compatibility badges appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2634,20 +2634,29 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The MCP Servers tree presents all installed row states together: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error has a red error icon and a message clamped to two lines, stopped has a gray circle-slash icon, disabled is dimmed without an icon, and unsupported or partially supported rows have a gray error icon with a message directing users to Migrations. No state badges appear.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			isSessionsWindow: true,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			activeSessionMcpServers: allStateMcpServers,
-			mcpServerCompatibility: [
-				{ id: 'mcp-slack', kind: 'unsupported' },
-				{ id: 'mcp-jira', kind: 'partiallySupported' },
-			],
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
-			width: 800,
-			height: 800,
-		}),
+		expectedVisualDescriptions: ['The MCP Servers tree presents all installed row states together: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error has a red error icon and a message clamped to two lines, stopped has a gray circle-slash icon, disabled is dimmed with its switch off, and unsupported or partially supported rows have a yellow warning-colored error icon with a message below the configuration path directing users to Migrations. No state badges appear.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: agentHostCopilotSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				activeSessionMcpServers: allStateMcpServers,
+				mcpServerCompatibility: [
+					{ id: 'mcp-slack', kind: 'unsupported' },
+					{ id: 'mcp-jira', kind: 'partiallySupported' },
+				],
+				configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+				width: 800,
+				height: 1200,
+			});
+			const rows = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')];
+			const disabledRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Web Search');
+			assert(disabledRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked') === 'false', 'The disabled MCP server switch must be off.');
+			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Slack');
+			const source = unsupportedRow?.querySelector('.mcp-server-source-path');
+			const message = unsupportedRow?.querySelector('.mcp-server-compatibility-message');
+			assert(!!source && !!message && source.compareDocumentPosition(message) === Node.DOCUMENT_POSITION_FOLLOWING, 'The compatibility message must follow the configuration path.');
+		},
 	}),
 
 	McpServersSearch: defineComponentFixture({

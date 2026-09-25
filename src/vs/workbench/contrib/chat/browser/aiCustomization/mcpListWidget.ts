@@ -270,10 +270,10 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
-		const compatibilityMessage = DOM.append(details, $('.mcp-server-compatibility-message'));
 
 		const sourcePath = DOM.append(details, $('a.mcp-server-source-path'));
 		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), sourcePath, ''));
+		const compatibilityMessage = DOM.append(details, $('.mcp-server-compatibility-message'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 		const descriptionHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), description, ''));
 		const issue = DOM.append(details, $('.mcp-server-issue'));

@@ -2918,6 +2918,11 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.mcp-server-item .mcp-server-compatibility-message,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
 .mcp-server-item .mcp-server-source-path {
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -2987,6 +2992,10 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .mcp-server-state-icon.error {
 	color: var(--vscode-errorForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.compatibility {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .plugin-list-widget .mcp-server-state-icon.starting {
