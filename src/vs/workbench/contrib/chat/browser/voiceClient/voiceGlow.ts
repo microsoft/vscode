@@ -15,8 +15,9 @@
 
 import { Color, HSLA } from '../../../../../base/common/color.js';
 import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
-import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
+import { chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
 
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -105,6 +106,29 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
 		listening: theme.getColor(chatVoiceListeningGlow) ?? base,
 		speaking: theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT),
 		background: theme.getColor(inputBackground) ?? DEFAULT_VOICE_GLOW_COLORS.background,
+	};
+}
+
+interface IChatInputWorkingBorderColors {
+	readonly listening: string;
+	readonly speaking: string;
+}
+
+/**
+ * Resolve the chat working border from the same tuned listening/speaking rim
+ * palette as Voice Mode, while preserving explicit working-border overrides.
+ */
+export function resolveChatInputWorkingBorderColors(theme: Pick<IColorTheme, 'getColor' | 'type'>): IChatInputWorkingBorderColors {
+	const colors = resolveVoiceGlowColors(theme);
+	const themeKind = isDark(theme.type) ? 'dark' : 'light';
+	const listeningAccent = resolveVoiceRimAccent(colors.listening, 'cool', themeKind, colors.background);
+	const speakingAccent = resolveVoiceRimAccent(colors.speaking, 'warm', themeKind, colors.background);
+	const listeningOverride = theme.getColor(chatInputWorkingBorderColor1, false);
+	const speakingOverride = theme.getColor(chatInputWorkingBorderColor2, false);
+
+	return {
+		listening: listeningOverride?.toString() ?? `hsl(${listeningAccent.hue} ${listeningAccent.saturation}% ${listeningAccent.lightness}%)`,
+		speaking: speakingOverride?.toString() ?? `hsl(${speakingAccent.hue} ${speakingAccent.saturation}% ${speakingAccent.lightness}%)`,
 	};
 }
 
