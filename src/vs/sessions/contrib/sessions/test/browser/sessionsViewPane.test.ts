@@ -380,7 +380,7 @@ suite('Sessions - SessionsViewPane', () => {
 	test('positions the Find header only while open in treatment', () => {
 		const sessionsContent = mainWindow.document.createElement('div');
 		const host = {
-			sessionsHeaders: new Set(),
+			sessionsHeaders: new Set<{ readonly row: HTMLElement; readonly label: HTMLElement; readonly actions: HTMLElement; readonly treeHeader: boolean }>(),
 			sessionsContent,
 			customizationsPresentation: 'treatment',
 			layoutService: { mainContainer: mainWindow.document.createElement('div') },
