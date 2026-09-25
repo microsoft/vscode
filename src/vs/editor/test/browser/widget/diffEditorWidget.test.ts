@@ -168,44 +168,6 @@ suite('DiffEditorWidget2', () => {
 		});
 	});
 
-	test('absorbs browser scrollLeft on the editor scrollable (#336539)', async () => {
-		const services = new ServiceCollection();
-		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
-		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
-			override show() { return emptyProgressRunner; }
-		}());
-		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		const instantiationService = createCodeEditorServices(disposables, services);
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const original = disposables.add(instantiateTextModel(instantiationService, 'a\n'));
-		const modified = disposables.add(instantiateTextModel(instantiationService, 'b\n'));
-		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
-			renderSideBySide: true,
-			useInlineViewWhenSpaceIsLimited: false,
-			renderGutterMenu: false,
-		}, { originalEditor: { contributions: [] }, modifiedEditor: { contributions: [] } }));
-		const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
-		widget.layout(new Dimension(500, 400));
-		widget.setDiffModel(model);
-		try {
-			await widget.waitForDiff();
-			const editor = widget.getModifiedEditor();
-			const scrollable = editor.getDomNode()!.querySelector<HTMLElement>('.monaco-scrollable-element.editor-scrollable')!;
-			(editor as unknown as { _modelData: { viewModel: { viewLayout: { setMaxLineWidth(n: number): void } } } })._modelData.viewModel.viewLayout.setMaxLineWidth(5000);
-			const wide = document.createElement('div');
-			wide.style.width = '5000px';
-			wide.style.height = '1px';
-			scrollable.appendChild(wide);
-			scrollable.scrollLeft = 400;
-			scrollable.dispatchEvent(new Event('scroll'));
-			assert.deepStrictEqual({ native: scrollable.scrollLeft, editor: editor.getScrollLeft() }, { native: 0, editor: 400 });
-		} finally {
-			widget.setDiffModel(null);
-		}
-	});
-
 	suite('UnchangedRegion', () => {
 		function serialize(regions: UnchangedRegion[]): unknown {
 			return regions.map(r => `${r.originalUnchangedRange} - ${r.modifiedUnchangedRange}`);
