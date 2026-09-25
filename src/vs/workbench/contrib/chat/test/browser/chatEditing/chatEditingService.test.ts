@@ -16,7 +16,6 @@ import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../.
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
