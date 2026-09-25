@@ -209,10 +209,16 @@ suite('AccessibleView', () => {
 		const modelService = instantiationService.get(IModelService);
 		disposables.add(toDisposable(() => modelService.getModels().forEach(model => model.dispose())));
 		const onKeyDown = (accessibleView.editorWidget as unknown as { _onKeyDown: { _size: number } })._onKeyDown;
+		// Attach the text model first, editor contributions add their own listeners when it's attached
+		accessibleView.show(provider, undefined, true);
+		await timeout(0);
+		contextViewService.hideContextView();
 		const baseline = onKeyDown._size;
+
 		accessibleView.show(provider, undefined, true);
 		onDidChangeContent.fire();
 		onDidChangeContent.fire();
+		await timeout(0);
 		const addedWhileShown = onKeyDown._size - baseline;
 		contextViewService.hideContextView();
 		await timeout(0);
