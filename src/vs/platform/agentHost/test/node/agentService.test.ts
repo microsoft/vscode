@@ -4167,13 +4167,16 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				await svc.createSession({ provider: 'copilot', session });
 				const advertised = getStateManager(svc).getSessionState(session.toString())?.serverTools?.find(tool => tool.name === SessionServerToolName.RenameChat);
+				const expectedAdvertised = observed.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, deferLoading: _deferLoading, ...definition }) => definition).at(-1);
 				assert.deepStrictEqual({
 					observedRenameCount: observed.length,
+					deferLoading: observed.at(-1)?.deferLoading,
 					advertised,
 					strategy: await db.getMetadata('titleGenerationStrategy'),
 				}, {
 					observedRenameCount: failFirstCreation ? 2 : 1,
-					advertised: observed.at(-1),
+					deferLoading: true,
+					advertised: expectedAdvertised,
 					strategy: 'deferred',
 				});
 			});
