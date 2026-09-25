@@ -447,7 +447,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(currentBranch(workspace), 'checkout-target');
 	});
 
-	conformanceTest(context, 'checkout lifecycle: a deleted branch is rejected before stashing the users work', async function () {
+	conformanceTest(context, 'checkout lifecycle: a deleted branch is rejected before stashing the user\'s work', async function () {
 		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-deleted-');
 		const channel = await checkoutChannel(workspace, 'checkout-deleted');
 		execFileSync('git', ['branch', '-D', 'checkout-target'], { cwd: workspace });
