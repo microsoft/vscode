@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, promiseWithResolvers } from '../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, ProcessTimeRunOnceScheduler, promiseWithResolvers } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
@@ -654,7 +654,9 @@ export abstract class PersistentConnection extends Disposable {
 			this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), 0, false);
 			return;
 		}
-		const loopStartTime = Date.now();
+		let graceTimeExpired = false;
+		const graceTimeScheduler = new ProcessTimeRunOnceScheduler(() => graceTimeExpired = true, graceTime);
+		graceTimeScheduler.schedule();
 		let attempt = -1;
 		do {
 			attempt++;
@@ -692,7 +694,7 @@ export abstract class PersistentConnection extends Disposable {
 					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 					break;
 				}
-				if (Date.now() - loopStartTime >= graceTime) {
+				if (graceTimeExpired) {
 					const graceSeconds = Math.round(graceTime / 1000);
 					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time (${graceSeconds}s) has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
@@ -729,6 +731,7 @@ export abstract class PersistentConnection extends Disposable {
 				break;
 			}
 		} while (!this._isPermanentFailure && !this._isDisposed);
+		graceTimeScheduler.dispose();
 	}
 
 	private _onReconnectionPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {
