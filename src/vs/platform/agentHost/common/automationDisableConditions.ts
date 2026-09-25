@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { AutomationDisableConditionKind, type AutomationDisableCondition } from './state/protocol/channels-automation/state.js';
 
-export function isAutomationFinalDate(value: unknown): value is string {
+export function isAutomationAfterDate(value: unknown): value is string {
 	if (typeof value !== 'string') {
 		return false;
 	}
@@ -28,18 +28,18 @@ export function getAutomationDisableConditionsError(value: unknown): string | un
 	const kinds = new Set<string>();
 	for (const condition of value) {
 		if (!condition || typeof condition !== 'object'
-			|| (condition.kind !== AutomationDisableConditionKind.MaxRuns && condition.kind !== AutomationDisableConditionKind.FinalDate)) {
-			return localize('automation.disableConditions.kind', "Each disable condition must have kind 'maxRuns' or 'finalDate'.");
+			|| (condition.kind !== AutomationDisableConditionKind.AfterRuns && condition.kind !== AutomationDisableConditionKind.AfterDate)) {
+			return localize('automation.disableConditions.kind', "Each disable condition must have kind 'afterRuns' or 'afterDate'.");
 		}
 		if (kinds.has(condition.kind)) {
 			return localize('automation.disableConditions.duplicate', "Each disable condition kind may appear at most once.");
 		}
 		kinds.add(condition.kind);
-		if (condition.kind === AutomationDisableConditionKind.MaxRuns
-			&& (typeof condition.maxRuns !== 'number' || !Number.isSafeInteger(condition.maxRuns) || condition.maxRuns <= 0)) {
+		if (condition.kind === AutomationDisableConditionKind.AfterRuns
+			&& (typeof condition.max !== 'number' || !Number.isSafeInteger(condition.max) || condition.max <= 0)) {
 			return localize('automation.disableConditions.maxRuns', "The maximum number of scheduled runs must be a positive safe integer.");
 		}
-		if (condition.kind === AutomationDisableConditionKind.FinalDate && !isAutomationFinalDate(condition.finalDate)) {
+		if (condition.kind === AutomationDisableConditionKind.AfterDate && !isAutomationAfterDate(condition.date)) {
 			return localize('automation.disableConditions.finalDate', "The final date must be a valid ISO 8601 timestamp with a time zone.");
 		}
 	}
@@ -51,14 +51,14 @@ export function isAutomationDisableConditions(value: unknown): value is Automati
 }
 
 export function getAutomationMaxRuns(conditions: readonly AutomationDisableCondition[] | undefined): number | undefined {
-	return conditions?.find(condition => condition.kind === AutomationDisableConditionKind.MaxRuns)?.maxRuns;
+	return conditions?.find(condition => condition.kind === AutomationDisableConditionKind.AfterRuns)?.max;
 }
 
-export function getAutomationFinalDate(conditions: readonly AutomationDisableCondition[] | undefined): string | undefined {
-	return conditions?.find(condition => condition.kind === AutomationDisableConditionKind.FinalDate)?.finalDate;
+export function getAutomationAfterDate(conditions: readonly AutomationDisableCondition[] | undefined): string | undefined {
+	return conditions?.find(condition => condition.kind === AutomationDisableConditionKind.AfterDate)?.date;
 }
 
-export function isAutomationFinalDateExpired(conditions: readonly AutomationDisableCondition[] | undefined, now = Date.now()): boolean {
-	const finalDate = getAutomationFinalDate(conditions);
-	return finalDate !== undefined && Date.parse(finalDate) <= now;
+export function isAutomationAfterDateExpired(conditions: readonly AutomationDisableCondition[] | undefined, now = Date.now()): boolean {
+	const date = getAutomationAfterDate(conditions);
+	return date !== undefined && Date.parse(date) <= now;
 }

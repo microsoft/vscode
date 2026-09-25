@@ -102,9 +102,9 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 		lines.push(blueprint.disableConditions.length ? 'disableConditions:' : 'disableConditions: []');
 		for (const condition of blueprint.disableConditions) {
 			lines.push(`  - kind: ${condition.kind}`);
-			lines.push(condition.kind === AutomationDisableConditionKind.MaxRuns
-				? `    maxRuns: ${condition.maxRuns}`
-				: `    finalDate: ${quoteYamlString(condition.finalDate)}`);
+			lines.push(condition.kind === AutomationDisableConditionKind.AfterRuns
+				? `    max: ${condition.max}`
+				: `    date: ${quoteYamlString(condition.date)}`);
 		}
 	}
 	lines.push('schedule:');
@@ -182,13 +182,13 @@ function readDisableConditions(root: YamlMapNode): AutomationDisableCondition[] 
 			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
 		}
 		const kind = readRequiredString(item, 'kind');
-		if (kind === AutomationDisableConditionKind.MaxRuns) {
-			assertKnownProperties(item, new Set(['kind', 'maxRuns']), 'disableConditions.');
-			return { kind, maxRuns: readRequiredInteger(item, 'maxRuns') };
+		if (kind === AutomationDisableConditionKind.AfterRuns) {
+			assertKnownProperties(item, new Set(['kind', 'max']), 'disableConditions.');
+			return { kind, max: readRequiredInteger(item, 'max') };
 		}
-		if (kind === AutomationDisableConditionKind.FinalDate) {
-			assertKnownProperties(item, new Set(['kind', 'finalDate']), 'disableConditions.');
-			return { kind, finalDate: readRequiredString(item, 'finalDate') };
+		if (kind === AutomationDisableConditionKind.AfterDate) {
+			assertKnownProperties(item, new Set(['kind', 'date']), 'disableConditions.');
+			return { kind, date: readRequiredString(item, 'date') };
 		}
 		throw new AutomationBlueprintParseError('invalidField', 'disableConditions.kind');
 	});

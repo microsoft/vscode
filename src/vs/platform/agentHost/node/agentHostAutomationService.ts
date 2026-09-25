@@ -32,7 +32,7 @@ import { nextAutomationCronOccurrence, validateAutomationCron } from './automati
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
-import { getAutomationDisableConditionsError, getAutomationFinalDate, getAutomationMaxRuns, isAutomationDisableConditions, isAutomationFinalDateExpired } from '../common/automationDisableConditions.js';
+import { getAutomationDisableConditionsError, getAutomationAfterDate, getAutomationMaxRuns, isAutomationDisableConditions, isAutomationAfterDateExpired } from '../common/automationDisableConditions.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -208,7 +208,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 
 		const timestamp = new Date().toISOString();
-		const automation = withDisabledSchedule(this._withInitialScheduleState(withInitialScheduledRunCount({
+		const automation = withDisabledSchedule(this._withInitialScheduleState(withInitialRunCount({
 			resource: action.resource,
 			definition,
 			runs: [],
@@ -250,7 +250,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
-		automation = withUpdatedScheduledRunCount(existing, automation);
+		automation = withUpdatedRunCount(existing, automation);
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());
 		}
@@ -465,9 +465,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				.filter(timestamp => Number.isFinite(timestamp));
 			for (const automation of catalog.entries) {
 				if (automation.definition.enabled) {
-					const finalDate = getAutomationFinalDate(automation.definition.disableConditions);
-					if (finalDate !== undefined) {
-						timestamps.push(Date.parse(finalDate));
+					const date = getAutomationAfterDate(automation.definition.disableConditions);
+					if (date !== undefined) {
+						timestamps.push(Date.parse(date));
 					}
 					if (isScheduledRunLimitExhausted(automation)) {
 						timestamps.push(Date.now());
@@ -1008,45 +1008,45 @@ function getExecutionSessionTemplate(definition: AutomationDefinition): Automati
 		: { ...definition.session, model: definition.message.model };
 }
 
-function withScheduledRunCount(automation: AutomationEntry, scheduledRunCount: number | undefined): AutomationEntry {
+function withRunCount(automation: AutomationEntry, runCount: number | undefined): AutomationEntry {
 	const rest = { ...automation };
-	delete rest.scheduledRunCount;
-	return scheduledRunCount === undefined ? rest : { ...rest, scheduledRunCount };
+	delete rest.runCount;
+	return runCount === undefined ? rest : { ...rest, runCount };
 }
 
-function withInitialScheduledRunCount(automation: AutomationEntry): AutomationEntry {
-	return withScheduledRunCount(automation, getAutomationMaxRuns(automation.definition.disableConditions) === undefined ? undefined : 0);
+function withInitialRunCount(automation: AutomationEntry): AutomationEntry {
+	return withRunCount(automation, getAutomationMaxRuns(automation.definition.disableConditions) === undefined ? undefined : 0);
 }
 
-function withUpdatedScheduledRunCount(existing: AutomationEntry, automation: AutomationEntry): AutomationEntry {
+function withUpdatedRunCount(existing: AutomationEntry, automation: AutomationEntry): AutomationEntry {
 	if (getAutomationMaxRuns(automation.definition.disableConditions) === undefined) {
-		return withScheduledRunCount(automation, undefined);
+		return withRunCount(automation, undefined);
 	}
 	const reenabled = existing.definition.enabled === false && automation.definition.enabled === true;
-	const scheduledRunCount = reenabled
+	const runCount = reenabled
 		? 0
 		: getAutomationMaxRuns(existing.definition.disableConditions) === undefined
 			? 0
-			: existing.scheduledRunCount ?? 0;
-	return withScheduledRunCount(automation, scheduledRunCount);
+			: existing.runCount ?? 0;
+	return withRunCount(automation, runCount);
 }
 
 function withClaimedScheduledRun(automation: AutomationEntry): AutomationEntry {
 	if (getAutomationMaxRuns(automation.definition.disableConditions) === undefined) {
 		return automation;
 	}
-	return withScheduledRunCount(automation, (automation.scheduledRunCount ?? 0) + 1);
+	return withRunCount(automation, (automation.runCount ?? 0) + 1);
 }
 
 function isScheduledRunLimitExhausted(automation: AutomationEntry): boolean {
-	const maxRuns = getAutomationMaxRuns(automation.definition.disableConditions);
-	return maxRuns !== undefined
-		&& automation.scheduledRunCount !== undefined
-		&& automation.scheduledRunCount >= maxRuns;
+	const max = getAutomationMaxRuns(automation.definition.disableConditions);
+	return max !== undefined
+		&& automation.runCount !== undefined
+		&& automation.runCount >= max;
 }
 
 function isAutomationDisabledByCondition(automation: AutomationEntry, now = Date.now()): boolean {
-	return isScheduledRunLimitExhausted(automation) || isAutomationFinalDateExpired(automation.definition.disableConditions, now);
+	return isScheduledRunLimitExhausted(automation) || isAutomationAfterDateExpired(automation.definition.disableConditions, now);
 }
 
 function withDisabledSchedule(automation: AutomationEntry): AutomationEntry {
@@ -1130,12 +1130,12 @@ function hasValidScheduledRunLimitState(entry: Record<string, unknown>): boolean
 	if (!isAutomationDefinition(definition)) {
 		return false;
 	}
-	const maxRuns = getAutomationMaxRuns(definition.disableConditions);
-	const scheduledRunCount = entry['scheduledRunCount'];
-	if (maxRuns === undefined) {
-		return scheduledRunCount === undefined;
+	const max = getAutomationMaxRuns(definition.disableConditions);
+	const runCount = entry['runCount'];
+	if (max === undefined) {
+		return runCount === undefined;
 	}
-	return isNonNegativeSafeInteger(scheduledRunCount);
+	return isNonNegativeSafeInteger(runCount);
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {

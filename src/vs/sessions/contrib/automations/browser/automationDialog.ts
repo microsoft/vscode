@@ -32,7 +32,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { getAutomationMaxRuns, isAutomationFinalDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AutomationDisableConditionKind, type AutomationDisableCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -263,9 +263,9 @@ export function buildAutomationDisableConditions(runOnce: boolean, initial: read
 	if (runOnce === (getAutomationMaxRuns(initial) === 1)) {
 		return [...(initial ?? [])];
 	}
-	const conditions: AutomationDisableCondition[] = initial?.filter(condition => condition.kind !== AutomationDisableConditionKind.MaxRuns) ?? [];
+	const conditions: AutomationDisableCondition[] = initial?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterRuns) ?? [];
 	if (runOnce) {
-		conditions.push({ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 });
+		conditions.push({ kind: AutomationDisableConditionKind.AfterRuns, max: 1 });
 	}
 	return conditions;
 }
@@ -1495,21 +1495,8 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const runOnceRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
-	const runOnceLabelText = localize('automation.form.runOnce', "Run once");
-	const runOnceCheckbox = disposables.add(new Checkbox(runOnceLabelText, state.runOnce, defaultCheckboxStyles));
-	runOnceCheckbox.domNode.setAttribute('aria-description', localize('automation.form.runOnceDescription', "Disable scheduling after one scheduled run. Manual runs do not count."));
-	DOM.append(runOnceRow, runOnceCheckbox.domNode);
-	const runOnceLabel = DOM.append(runOnceRow, $('span.automation-form-checkbox-label', undefined, runOnceLabelText));
-	disposables.add(runOnceCheckbox.onChange(() => {
-		state.runOnce = runOnceCheckbox.checked;
-	}));
-	disposables.add(DOM.addStandardDisposableListener(runOnceLabel, 'click', () => {
-		runOnceCheckbox.checked = !runOnceCheckbox.checked;
-		state.runOnce = runOnceCheckbox.checked;
-	}));
-
-	const enabledRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
+	const checkboxRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
+	const enabledRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
 	const enabledLabelText = localize('automation.form.enabled', "Enabled");
 	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
 	DOM.append(enabledRow, enabledCheckbox.domNode);
@@ -1527,11 +1514,26 @@ export function renderForm(
 	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
 		setEnabled(!enabledCheckbox.checked);
 	}));
+
+	const runOnceRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
+	const runOnceLabelText = localize('automation.form.runOnce', "Run once");
+	const runOnceCheckbox = disposables.add(new Checkbox(runOnceLabelText, state.runOnce, defaultCheckboxStyles));
+	runOnceCheckbox.domNode.setAttribute('aria-description', localize('automation.form.runOnceDescription', "Disable scheduling after one scheduled run. Manual runs do not count."));
+	DOM.append(runOnceRow, runOnceCheckbox.domNode);
+	const runOnceLabel = DOM.append(runOnceRow, $('span.automation-form-checkbox-label', undefined, runOnceLabelText));
+	disposables.add(runOnceCheckbox.onChange(() => {
+		state.runOnce = runOnceCheckbox.checked;
+	}));
+	disposables.add(DOM.addStandardDisposableListener(runOnceLabel, 'click', () => {
+		runOnceCheckbox.checked = !runOnceCheckbox.checked;
+		state.runOnce = runOnceCheckbox.checked;
+	}));
+
 	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
 	}));
 	const refreshDisableConditionsWarning = () => {
-		const expired = state.enabled && isAutomationFinalDateExpired(initialDisableConditions);
+		const expired = state.enabled && isAutomationAfterDateExpired(initialDisableConditions);
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
 			? localize('automation.form.expiredConditions', "The final date has passed. Scheduling will stop immediately. Use chat to change or remove the final date.")

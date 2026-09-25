@@ -187,9 +187,9 @@ export type AutomationTrigger =
  */
 export const enum AutomationDisableConditionKind {
 	/** Stop scheduling after a fixed number of scheduled runs. */
-	MaxRuns = 'maxRuns',
+	AfterRuns = 'afterRuns',
 	/** Stop scheduling once a wall-clock date passes. */
-	FinalDate = 'finalDate',
+	AfterDate = 'afterDate',
 }
 
 /**
@@ -197,14 +197,14 @@ export const enum AutomationDisableConditionKind {
  *
  * @category Automation State
  */
-export interface AutomationMaxRunsCondition {
-	kind: AutomationDisableConditionKind.MaxRuns;
+export interface AutomationAfterRunsCondition {
+	kind: AutomationDisableConditionKind.AfterRuns;
 	/**
 	 * Positive-integer cap on scheduled runs.
 	 * @integer
 	 * @minimum 1
 	 */
-	maxRuns: number;
+	max: number;
 }
 
 /**
@@ -212,10 +212,10 @@ export interface AutomationMaxRunsCondition {
  *
  * @category Automation State
  */
-export interface AutomationFinalDateCondition {
-	kind: AutomationDisableConditionKind.FinalDate;
+export interface AutomationAfterDateCondition {
+	kind: AutomationDisableConditionKind.AfterDate;
 	/** ISO 8601 timestamp after which scheduling stops. */
-	finalDate: string;
+	date: string;
 }
 
 /**
@@ -225,8 +225,8 @@ export interface AutomationFinalDateCondition {
  * @category Automation State
  */
 export type AutomationDisableCondition =
-	| AutomationMaxRunsCondition
-	| AutomationFinalDateCondition;
+	| AutomationAfterRunsCondition
+	| AutomationAfterDateCondition;
 
 /**
  * Describes one host-defined trigger event.
@@ -334,8 +334,8 @@ export interface AutomationDefinition {
 	 *
 	 * Only automatic (scheduled) runs are governed; manual runs via
 	 * {@link RunAutomationParams | runAutomation} are never blocked. For a
-	 * {@link AutomationMaxRunsCondition}, usage is tracked by the host-owned
-	 * {@link AutomationEntry.scheduledRunCount}. Adding that kind when absent or
+	 * {@link AutomationAfterRunsCondition}, usage is tracked by the host-owned
+	 * {@link AutomationEntry.runCount}. Adding that kind when absent or
 	 * a disabled→enabled transition starts a fresh allowance. Clearing the
 	 * conditions does not re-enable a disabled automation. See the
 	 * {@link /guide/automations | Automations Guide}.
@@ -368,20 +368,20 @@ export interface AutomationEntry {
 	nextRunAt?: string;
 	/**
 	 * Host-owned count of scheduled runs consumed against the current
-	 * {@link AutomationMaxRunsCondition} allowance. Authoritative usage for the
+	 * {@link AutomationAfterRunsCondition} allowance. Authoritative usage for the
 	 * **current** allowance, not a lifetime total: the host resets it to `0` when
 	 * a disabled→enabled transition starts a fresh allowance or a
-	 * {@link AutomationMaxRunsCondition} is added when none was present. It is NOT
+	 * {@link AutomationAfterRunsCondition} is added when none was present. It is NOT
 	 * reconstructed from {@link runs} (a bounded, prunable window). The host
 	 * increments it atomically when it admits a scheduled run, including runs
 	 * later cancelled or failed.
 	 *
 	 * Absent when {@link AutomationDefinition.disableConditions} contains no
-	 * {@link AutomationMaxRunsCondition}.
-	 * Clients render remaining allowance as `maxRuns - scheduledRunCount`; they
+	 * {@link AutomationAfterRunsCondition}.
+	 * Clients render remaining allowance as `max - runCount`; they
 	 * never maintain their own count.
 	 */
-	scheduledRunCount?: number;
+	runCount?: number;
 	/**
 	 * Newest-first retained run summaries. This is a bounded window; use
 	 * {@link FetchAutomationRunsParams | fetchAutomationRuns} when

@@ -134,9 +134,9 @@ suite('Automation blueprints', () => {
 			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
 			enabled: false, disableConditions: [
-				{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
-				{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2026-10-01T00:00:00Z' },
-			], scheduledRunCount: 3,
+				{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-10-01T00:00:00Z' },
+			], runCount: 3,
 			createdAt: '', updatedAt: '',
 		};
 		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
@@ -147,7 +147,7 @@ suite('Automation blueprints', () => {
 
 	test('rejects invalid scheduled maxima', () => {
 		for (const value of ['0', '-1', '1.5', '9007199254740992', 'null']) {
-			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions:\n  - kind: maxRuns\n    maxRuns: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
 				error => error instanceof AutomationBlueprintParseError);
 		}
 	});
@@ -157,8 +157,8 @@ suite('Automation blueprints', () => {
 		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)), blueprint);
 		for (const conditions of [
 			'null',
-			'\n  - kind: maxRuns\n    maxRuns: 1\n  - kind: maxRuns\n    maxRuns: 1',
-			'\n  - kind: finalDate\n    finalDate: invalid',
+			'\n  - kind: afterRuns\n    max: 1\n  - kind: afterRuns\n    max: 1',
+			'\n  - kind: afterDate\n    date: invalid',
 			'\n  - kind: unknown',
 		]) {
 			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);

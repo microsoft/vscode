@@ -120,11 +120,11 @@ Disabling scheduled execution on a definition preserves manual Run Now. Disablin
 
 ### Automatic disable conditions
 
-`disableConditions` is an optional array with at most one `maxRuns` and one `finalDate` condition. Conditions combine with logical OR. The existing update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used.
+`disableConditions` is an optional array with at most one `afterRuns` condition (`max`, a positive integer) and one `afterDate` condition (`date`, an ISO 8601 timestamp). Conditions combine with logical OR. The existing update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used.
 
-The host-owned `scheduledRunCount` tracks the current `maxRuns` allowance independently of retained history. Scheduled and catch-up admission persist the run and consumed slot atomically. Later failure or cancellation does not refund a slot; skipped occurrences and manual runs do not consume slots. The final admitted run still executes while exhaustion disables future scheduling and clears its cursors.
+The host-owned `runCount` tracks the current `afterRuns` allowance independently of retained history. Scheduled and catch-up admission persist the run and consumed slot atomically. Later failure or cancellation does not refund a slot; skipped occurrences and manual runs do not consume slots. The final admitted run still executes while exhaustion disables future scheduling and clears its cursors.
 
-A disabled-to-enabled transition grants a fresh allowance. Editing an existing maximum, editing only the final date, and reordering conditions preserve usage. Adding `maxRuns` when absent starts at zero; removing it removes usage. Duplication and blueprints carry conditions, never usage.
+A disabled-to-enabled transition grants a fresh allowance. Editing an existing maximum, editing only the final date, and reordering conditions preserve usage. Adding `afterRuns` when absent starts at zero; removing it removes usage. Duplication and blueprints carry conditions, never usage.
 
 The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
 

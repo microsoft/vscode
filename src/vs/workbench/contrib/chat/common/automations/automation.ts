@@ -116,7 +116,7 @@ export interface IAutomationDescriptor {
 	/** Automatic scheduling stops when any condition is met. */
 	readonly disableConditions?: readonly AutomationDisableCondition[];
 	/** Host-owned usage of the current allowance, independent of retained history. */
-	readonly scheduledRunCount?: number;
+	readonly runCount?: number;
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;

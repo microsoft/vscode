@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { isAutomationFinalDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationAfterDate, getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -108,7 +108,10 @@ interface IAutomationCardEntry {
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
+	readonly limitEl: HTMLElement;
+	readonly limitHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
+	readonly promptHover: MutableDisposable<IDisposable>;
 	readonly disabledBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
@@ -556,8 +559,11 @@ class AutomationCardsSection extends Disposable {
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
+		const limitEl = DOM.append(main, $('span.automations-card-limit'));
+		const limitHover = disposables.add(new MutableDisposable());
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
+		const promptHover = disposables.add(new MutableDisposable());
 
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
@@ -635,7 +641,10 @@ class AutomationCardsSection extends Disposable {
 			scheduleEl,
 			folderEl,
 			folderHover,
+			limitEl,
+			limitHover,
 			promptEl,
+			promptHover,
 			disabledBadge,
 			disposables,
 		};
@@ -675,11 +684,26 @@ class AutomationCardsSection extends Disposable {
 			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
 		}
 
+		if (!previous || previous.runCount !== automation.runCount || !equals(previous.disableConditions, automation.disableConditions)) {
+			const limit = formatAutomationLimit(automation);
+			card.main.classList.toggle('automations-card-has-limit', !!limit);
+			card.limitEl.textContent = limit?.label ?? '';
+			DOM.setVisibility(!!limit, card.limitEl);
+			if (limit) {
+				card.main.setAttribute('aria-description', limit.description);
+				card.limitHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.limitEl, limit.description);
+			} else {
+				card.main.removeAttribute('aria-description');
+				card.limitHover.clear();
+			}
+		}
+
 		if (!previous || previous.prompt !== automation.prompt) {
 			const maxLength = 120;
 			card.promptEl.textContent = automation.prompt.length > maxLength
 				? automation.prompt.slice(0, maxLength) + '…'
 				: automation.prompt;
+			card.promptHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.promptEl, automation.prompt);
 		}
 	}
 
@@ -1548,6 +1572,30 @@ function getAutomationTargetLabel(target: AutomationTarget): string {
 	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
 }
 
+function formatAutomationLimit(automation: IAutomationDescriptor): { label: string; description: string } | undefined {
+	const max = getAutomationMaxRuns(automation.disableConditions);
+	const date = getAutomationAfterDate(automation.disableConditions);
+	const formattedDate = date === undefined ? undefined : new Date(date).toLocaleString(undefined, {
+		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+	});
+	if (max !== undefined) {
+		const runs = automation.runCount === undefined
+			? localize('automationCardRunLimit', "Ends after {0} runs", max)
+			: localize('automationCardRunUsage', "Ends after {0}/{1} runs", automation.runCount, max);
+		const stopDescription = formattedDate === undefined
+			? localize('automationCardRunLimitDescription', "Scheduled run limit: {0}. Manual runs do not count.", max)
+			: localize('automationCardCombinedLimitDescription', "Stops when the scheduled run limit of {0} is reached or at {1}, whichever comes first. Manual runs do not count.", max, formattedDate);
+		return {
+			label: formattedDate === undefined ? runs : localize('automationCardCombinedLimit', "{0} or {1}", runs, formattedDate),
+			description: automation.runCount === undefined ? stopDescription : localize('automationCardRunUsageDescription', "Scheduled runs used: {0}. {1}", automation.runCount, stopDescription),
+		};
+	}
+	return formattedDate === undefined ? undefined : {
+		label: localize('automationCardEndDate', "Ends after {0}", formattedDate),
+		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}. Manual runs remain available.", formattedDate),
+	};
+}
+
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
 	const now = new Date();
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -2267,11 +2315,11 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		return;
 	}
 	try {
-		if (enabled && isAutomationFinalDateExpired(automation.disableConditions)) {
+		if (enabled && isAutomationAfterDateExpired(automation.disableConditions)) {
 			const confirmation = await dialogService.confirm({
 				type: 'warning',
 				message: localize('automationExpiredFinalDate', "The final date for this automation has passed."),
-				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Edit the automation to change or remove its final date."),
+				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Ask in chat to change or remove the final date before re-enabling scheduled runs."),
 				primaryButton: localize('automationEnableAnyway', "Enable Anyway"),
 			});
 			if (!confirmation.confirmed) {

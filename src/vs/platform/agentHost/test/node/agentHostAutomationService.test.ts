@@ -90,11 +90,11 @@ suite('AgentHostAutomationService', () => {
 		};
 	}
 
-	function scheduledDefinition(maxRuns?: number): AutomationDefinition {
+	function scheduledDefinition(max?: number): AutomationDefinition {
 		return {
 			...definition(),
 			triggers: [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }],
-			...(maxRuns === undefined ? {} : { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns }] }),
+			...(max === undefined ? {} : { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max }] }),
 		};
 	}
 
@@ -1357,11 +1357,11 @@ suite('AgentHostAutomationService', () => {
 		]);
 	}));
 
-	test('allows exactly three scheduled runs and keeps manual execution exempt after exhaustion', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 500 }, async () => {
+	test('allows exactly four scheduled runs and keeps manual execution exempt after exhaustion', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 500 }, async () => {
 		let createCalls = 0;
 		let startCalls = 0;
-		const thirdScheduledStart = new DeferredPromise<void>();
-		const sixthScheduledStart = new DeferredPromise<void>();
+		const fourthScheduledStart = new DeferredPromise<void>();
+		const eighthScheduledStart = new DeferredPromise<void>();
 		const service = createService({
 			createSession: async () => {
 				const session = URI.parse(`mock:/limited-scheduled-${++createCalls}`);
@@ -1379,22 +1379,22 @@ suite('AgentHostAutomationService', () => {
 				stateManager.dispatchServerAction(buildDefaultChatUri(session), {
 					type: ActionType.ChatTurnComplete, turnId, duration: 0,
 				});
-				if (startCalls === 3) {
-					await thirdScheduledStart.complete();
+				if (startCalls === 4) {
+					await fourthScheduledStart.complete();
 				}
-				if (startCalls === 7) {
-					await sixthScheduledStart.complete();
+				if (startCalls === 9) {
+					await eighthScheduledStart.complete();
 				}
 			},
 		});
 		await service.handleCreate({
 			...createAction(),
 			definition: {
-				...scheduledDefinition(3),
+				...scheduledDefinition(4),
 				triggers: [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
 			},
 		});
-		await thirdScheduledStart.p;
+		await fourthScheduledStart.p;
 		await terminalRun(stateManager.getAutomationCatalogState()!.entries[0].runs[0].resource);
 
 		const manual = await service.runAutomation({
@@ -1408,28 +1408,29 @@ suite('AgentHostAutomationService', () => {
 		await service.handleUpdate({
 			type: ActionType.AutomationUpdateRequested, resource: 'ahp-automation:/review-changes', changes: { enabled: true },
 		});
-		await sixthScheduledStart.p;
+		await eighthScheduledStart.p;
 		await terminalRun(stateManager.getAutomationCatalogState()!.entries[0].runs[0].resource);
 		const freshAllowance = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			startCalls,
 			enabled: automation?.definition.enabled,
 			disableConditions: automation?.definition.disableConditions,
-			scheduledRunCount: automation?.scheduledRunCount,
+			runCount: automation?.runCount,
 			nextRunAt: automation?.nextRunAt,
 			cursors: automation?._meta?.['vscode.scheduleCursors'],
 			origins: automation?.runs.map(run => run.origin.kind).sort(),
-			freshAllowance: [freshAllowance?.definition.enabled, freshAllowance?.scheduledRunCount],
+			freshAllowance: [freshAllowance?.definition.enabled, freshAllowance?.runCount],
 		}, {
-			startCalls: 7,
+			startCalls: 9,
 			enabled: false,
-			disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
-			scheduledRunCount: 3,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 4 }],
+			runCount: 4,
 			nextRunAt: undefined,
 			cursors: undefined,
-			freshAllowance: [false, 3],
+			freshAllowance: [false, 4],
 			origins: [
 				AutomationRunOriginKind.Manual,
+				AutomationRunOriginKind.Trigger,
 				AutomationRunOriginKind.Trigger,
 				AutomationRunOriginKind.Trigger,
 				AutomationRunOriginKind.Trigger,
@@ -1481,11 +1482,11 @@ suite('AgentHostAutomationService', () => {
 			const automation = stateManager.getAutomationCatalogState()?.entries[0];
 			assert.deepStrictEqual({
 				enabled: automation?.definition.enabled,
-				scheduledRunCount: automation?.scheduledRunCount,
+				runCount: automation?.runCount,
 				status: automation?.runs[0].lifecycle.status,
 			}, {
 				enabled: false,
-				scheduledRunCount: 1,
+				runCount: 1,
 				status: outcome === 'failed' ? AutomationRunStatus.Failed : AutomationRunStatus.Cancelled,
 			});
 		}));
@@ -1501,7 +1502,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource,
 					definition: scheduledDefinition(3),
-					scheduledRunCount: 0,
+					runCount: 0,
 					runs: [], nextRunAt: scheduledFor,
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: now.toISOString(), modifiedAt: now.toISOString(),
@@ -1519,11 +1520,11 @@ suite('AgentHostAutomationService', () => {
 		});
 		await started.p;
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: true } });
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 5 }] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] } });
 		const expanded = stateManager.getAutomationCatalogState()?.entries[0];
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] } });
 		const lowered = stateManager.getAutomationCatalogState()?.entries[0];
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 5 }] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] } });
 		const raised = stateManager.getAutomationCatalogState()?.entries[0];
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: true } });
 		const reenabled = stateManager.getAutomationCatalogState()?.entries[0];
@@ -1532,34 +1533,34 @@ suite('AgentHostAutomationService', () => {
 		const cleared = stateManager.getAutomationCatalogState()?.entries[0];
 
 		assert.deepStrictEqual({
-			expanded: [expanded?.definition.enabled, expanded?.scheduledRunCount, expanded?.definition.disableConditions],
+			expanded: [expanded?.definition.enabled, expanded?.runCount, expanded?.definition.disableConditions],
 			lowered: {
 				enabled: lowered?.definition.enabled,
 				disableConditions: lowered?.definition.disableConditions,
-				scheduledRunCount: lowered?.scheduledRunCount,
+				runCount: lowered?.runCount,
 				nextRunAt: lowered?.nextRunAt,
 			},
 			raised: {
 				enabled: raised?.definition.enabled,
 				disableConditions: raised?.definition.disableConditions,
-				scheduledRunCount: raised?.scheduledRunCount,
+				runCount: raised?.runCount,
 			},
 			reenabled: {
 				enabled: reenabled?.definition.enabled,
 				disableConditions: reenabled?.definition.disableConditions,
-				scheduledRunCount: reenabled?.scheduledRunCount,
+				runCount: reenabled?.runCount,
 			},
 			cleared: {
 				enabled: cleared?.definition.enabled,
 				disableConditions: cleared?.definition.disableConditions,
-				scheduledRunCount: cleared?.scheduledRunCount,
+				runCount: cleared?.runCount,
 			},
 		}, {
-			expanded: [true, 1, [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 5 }]],
-			lowered: { enabled: false, disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }], scheduledRunCount: 1, nextRunAt: undefined },
-			raised: { enabled: false, disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 5 }], scheduledRunCount: 1 },
-			reenabled: { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 5 }], scheduledRunCount: 0 },
-			cleared: { enabled: false, disableConditions: [], scheduledRunCount: undefined },
+			expanded: [true, 1, [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }]],
+			lowered: { enabled: false, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }], runCount: 1, nextRunAt: undefined },
+			raised: { enabled: false, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }], runCount: 1 },
+			reenabled: { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }], runCount: 0 },
+			cleared: { enabled: false, disableConditions: [], runCount: undefined },
 		});
 	});
 
@@ -1574,8 +1575,8 @@ suite('AgentHostAutomationService', () => {
 				cancelSession: async () => { cancels++; return true; },
 			});
 			const conditions = [
-				{ kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 3 },
-				{ kind: AutomationDisableConditionKind.FinalDate as const, finalDate: '2026-01-01T00:00:01Z' },
+				{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 },
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-01T00:00:01Z' },
 			];
 			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
 			if (mode === 'active') {
@@ -1588,7 +1589,7 @@ suite('AgentHostAutomationService', () => {
 			assert.deepStrictEqual({
 				enabled: automation.definition.enabled,
 				conditions: automation.definition.disableConditions,
-				count: automation.scheduledRunCount,
+				count: automation.runCount,
 				nextRunAt: automation.nextRunAt,
 				canRun: automation.operations.includes(AutomationOperation.Run),
 				active: automation.runs[0]?.lifecycle.status,
@@ -1604,8 +1605,8 @@ suite('AgentHostAutomationService', () => {
 	test('expired restart conditions suppress catch-up, retain usage and allow manual runs', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 2) }, async () => {
 		const timestamp = '2026-01-01T00:00:00Z';
 		const conditions = [
-			{ kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 3 },
-			{ kind: AutomationDisableConditionKind.FinalDate as const, finalDate: '2026-01-02T00:00:00Z' },
+			{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 },
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-02T00:00:00Z' },
 		];
 		storageService.set('automations', {
 			version: 1,
@@ -1613,7 +1614,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: createAction().resource,
 					definition: { ...scheduledDefinition(), disableConditions: conditions },
-					scheduledRunCount: 1, runs: [], nextRunAt: timestamp,
+					runCount: 1, runs: [], nextRunAt: timestamp,
 					operations: [AutomationOperation.Update, AutomationOperation.Run],
 					createdAt: timestamp, modifiedAt: timestamp,
 					_meta: { 'vscode.scheduleCursors': { schedule: timestamp } },
@@ -1629,15 +1630,15 @@ suite('AgentHostAutomationService', () => {
 		});
 		await timeout(1);
 		const expired = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual([expired.definition.enabled, expired.scheduledRunCount, creates], [false, 1, 0]);
+		assert.deepStrictEqual([expired.definition.enabled, expired.runCount, creates], [false, 1, 0]);
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: expired.resource, changes: { enabled: true } });
 		const reenabled = stateManager.getAutomationCatalogState()!.entries[0];
 		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: expired.resource, requestId: 'manual-after-cutoff' });
 		await manualStarted.p;
 		const manual = stateManager.getAutomationCatalogState()!.entries[0];
 		assert.deepStrictEqual({
-			reenabled: [reenabled.definition.enabled, reenabled.scheduledRunCount, reenabled.definition.disableConditions],
-			manual: [manual.scheduledRunCount, manual.runs[0].origin.kind, creates],
+			reenabled: [reenabled.definition.enabled, reenabled.runCount, reenabled.definition.disableConditions],
+			manual: [manual.runCount, manual.runs[0].origin.kind, creates],
 		}, {
 			reenabled: [false, 0, conditions],
 			manual: [0, AutomationRunOriginKind.Manual, 1],
@@ -1652,27 +1653,27 @@ suite('AgentHostAutomationService', () => {
 				startSession: async () => { },
 			});
 			const conditions = [
-				{ kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 1 },
-				{ kind: AutomationDisableConditionKind.FinalDate as const, finalDate: new Date(Date.now() + cutoffSeconds * 1000).toISOString() },
+				{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 1 },
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: new Date(Date.now() + cutoffSeconds * 1000).toISOString() },
 			];
 			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
 			await timeout(62_000);
 			const entry = stateManager.getAutomationCatalogState()!.entries[0];
-			assert.deepStrictEqual([entry.definition.enabled, entry.scheduledRunCount, creates, entry.definition.disableConditions],
+			assert.deepStrictEqual([entry.definition.enabled, entry.runCount, creates, entry.definition.disableConditions],
 				[false, cutoffSeconds > 60 ? 1 : 0, cutoffSeconds > 60 ? 1 : 0, conditions]);
 		}));
 	}
 
-	test('date-only edits and condition reordering preserve allowance; removing maxRuns clears usage', async () => {
+	test('date-only edits and condition reordering preserve allowance; removing afterRuns clears usage', async () => {
 		const timestamp = new Date().toISOString();
-		const maxRuns = { kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 5 };
-		const finalDate = { kind: AutomationDisableConditionKind.FinalDate as const, finalDate: '2099-01-01T00:00:00Z' };
+		const max = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 5 };
+		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
 		storageService.set('automations', {
 			catalog: {
 				automations: [{
 					resource: createAction().resource,
-					definition: { ...definition(), enabled: false, disableConditions: [maxRuns] },
-					scheduledRunCount: 2, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
+					definition: { ...definition(), enabled: false, disableConditions: [max] },
+					runCount: 2, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
 					createdAt: timestamp, modifiedAt: timestamp,
 				}]
 			}
@@ -1681,10 +1682,10 @@ suite('AgentHostAutomationService', () => {
 		const service = createService();
 		const counts: (number | undefined)[] = [];
 		for (const disableConditions of [
-			[maxRuns, finalDate], [finalDate, maxRuns], [maxRuns], [finalDate], [finalDate, maxRuns], [],
+			[max, date], [date, max], [max], [date], [date, max], [],
 		]) {
 			await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { disableConditions } });
-			counts.push(stateManager.getAutomationCatalogState()!.entries[0].scheduledRunCount);
+			counts.push(stateManager.getAutomationCatalogState()!.entries[0].runCount);
 		}
 		assert.deepStrictEqual({ counts, enabled: stateManager.getAutomationCatalogState()!.entries[0].definition.enabled },
 			{ counts: [2, 2, 2, undefined, 0, undefined], enabled: false });
@@ -1699,7 +1700,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: 'ahp-automation:/persist-failure',
 					definition: scheduledDefinition(1),
-					scheduledRunCount: 0,
+					runCount: 0,
 					runs: [], nextRunAt: scheduledFor,
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: now.toISOString(), modifiedAt: now.toISOString(),
@@ -1719,12 +1720,12 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			createCalls,
 			runs: automation?.runs,
-			scheduledRunCount: automation?.scheduledRunCount,
+			runCount: automation?.runCount,
 			enabled: automation?.definition.enabled,
 		}, {
 			createCalls: 0,
 			runs: [],
-			scheduledRunCount: 0,
+			runCount: 0,
 			enabled: true,
 		});
 	});
@@ -1735,7 +1736,7 @@ suite('AgentHostAutomationService', () => {
 			...createAction(),
 			definition: {
 				...scheduledDefinition(),
-				disableConditions: [{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2026-01-01T00:01:00Z' }],
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-01-01T00:01:00Z' }],
 			},
 		});
 		const initial = stateManager.getAutomationCatalogState()!.entries[0];
@@ -1757,7 +1758,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: 'ahp-automation:/restart-limit',
 					definition: scheduledDefinition(2),
-					scheduledRunCount: 1,
+					runCount: 1,
 					runs: [], nextRunAt: scheduledFor,
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: now.toISOString(), modifiedAt: now.toISOString(),
@@ -1781,14 +1782,14 @@ suite('AgentHostAutomationService', () => {
 		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			enabled: automation?.definition.enabled,
-			scheduledRunCount: automation?.scheduledRunCount,
+			runCount: automation?.runCount,
 			nextRunAt: automation?.nextRunAt,
-			runCount: automation?.runs.length,
+			retainedRuns: automation?.runs.length,
 		}, {
 			enabled: false,
-			scheduledRunCount: 2,
+			runCount: 2,
 			nextRunAt: undefined,
-			runCount: 1,
+			retainedRuns: 1,
 		});
 	});
 
@@ -1797,16 +1798,16 @@ suite('AgentHostAutomationService', () => {
 		for (const maximum of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity]) {
 			await assert.rejects(service.handleCreate({ ...createAction(), definition: scheduledDefinition(maximum) }), /positive safe integer/);
 		}
-		for (const finalDate of ['not-a-date', '2026-02-30T00:00:00Z', '2026-01-01T00:00:00']) {
+		for (const date of ['not-a-date', '2026-02-30T00:00:00Z', '2026-01-01T00:00:00']) {
 			await assert.rejects(service.handleCreate({
 				...createAction(),
-				definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.FinalDate, finalDate }] },
+				definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date }] },
 			}), /valid ISO 8601/);
 		}
 		await service.handleCreate({ ...createAction(), definition: scheduledDefinition(2) });
 		for (const maximum of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity]) {
 			await assert.rejects(service.handleUpdate({
-				type: ActionType.AutomationUpdateRequested, resource: 'ahp-automation:/review-changes', changes: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: maximum }] },
+				type: ActionType.AutomationUpdateRequested, resource: 'ahp-automation:/review-changes', changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: maximum }] },
 			}), /positive safe integer/);
 		}
 		await assert.rejects(service.handleUpdate({
@@ -1814,8 +1815,8 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/review-changes',
 			changes: {
 				disableConditions: [
-					{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
-					{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
+					{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+					{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
 				]
 			},
 		}), /at most once/);
@@ -1827,10 +1828,10 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual({
 			disableConditions: stateManager.getAutomationCatalogState()?.entries[0].definition.disableConditions,
-			scheduledRunCount: stateManager.getAutomationCatalogState()?.entries[0].scheduledRunCount,
+			runCount: stateManager.getAutomationCatalogState()?.entries[0].runCount,
 		}, {
-			disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 2 }],
-			scheduledRunCount: 0,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 2 }],
+			runCount: 0,
 		});
 	});
 
@@ -1842,7 +1843,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: 'ahp-automation:/valid-limit',
 					definition: scheduledDefinition(2),
-					scheduledRunCount: 0,
+					runCount: 0,
 					runs: [],
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: timestamp,
@@ -1854,19 +1855,19 @@ suite('AgentHostAutomationService', () => {
 		};
 		const cases = [
 			{ name: 'missing-count', definition: scheduledDefinition(2) },
-			{ name: 'invalid-max', definition: scheduledDefinition(0), scheduledRunCount: 0 },
-			{ name: 'negative-count', definition: scheduledDefinition(2), scheduledRunCount: -1 },
-			{ name: 'fraction-count', definition: scheduledDefinition(2), scheduledRunCount: 1.5 },
-			{ name: 'unsafe-count', definition: scheduledDefinition(2), scheduledRunCount: Number.MAX_SAFE_INTEGER + 1 },
-			{ name: 'count-on-unlimited', definition: scheduledDefinition(), scheduledRunCount: 0 },
-			{ name: 'invalid-date', definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.FinalDate, finalDate: 'invalid' }] } },
+			{ name: 'invalid-max', definition: scheduledDefinition(0), runCount: 0 },
+			{ name: 'negative-count', definition: scheduledDefinition(2), runCount: -1 },
+			{ name: 'fraction-count', definition: scheduledDefinition(2), runCount: 1.5 },
+			{ name: 'unsafe-count', definition: scheduledDefinition(2), runCount: Number.MAX_SAFE_INTEGER + 1 },
+			{ name: 'count-on-unlimited', definition: scheduledDefinition(), runCount: 0 },
+			{ name: 'invalid-date', definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: 'invalid' }] } },
 			{
 				name: 'duplicate-kind', definition: {
 					...definition(), disableConditions: [
-						{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
-						{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 4 },
+						{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+						{ kind: AutomationDisableConditionKind.AfterRuns, max: 4 },
 					]
-				}, scheduledRunCount: 0
+				}, runCount: 0
 			},
 		];
 
@@ -1913,7 +1914,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/multi-trigger';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
-			disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 10 }],
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 10 }],
 			triggers: [
 				{
 					id: 'first-trigger',
@@ -1934,7 +1935,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
-					scheduledRunCount: 0,
+					runCount: 0,
 					nextRunAt: firstScheduledFor,
 					runs: [],
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -1977,13 +1978,13 @@ suite('AgentHostAutomationService', () => {
 		const cursors = automation?._meta?.['vscode.scheduleCursors'] as Record<string, string> | undefined;
 		assert.deepStrictEqual({
 			runsClaimed: automation?.runs.length,
-			scheduledRunCount: automation?.scheduledRunCount,
+			runCount: automation?.runCount,
 			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
 			firstCursorAdvanced: cursors ? Date.parse(cursors['first-trigger']) > now.getTime() : false,
 			secondCursorAdvanced: cursors ? Date.parse(cursors['second-trigger']) > now.getTime() : false,
 		}, {
 			runsClaimed: 1,
-			scheduledRunCount: 1,
+			runCount: 1,
 			claimedTriggerId: 'first-trigger',
 			firstCursorAdvanced: true,
 			secondCursorAdvanced: true,
@@ -1997,7 +1998,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/skip-first';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
-			disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 10 }],
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 10 }],
 			triggers: [
 				{
 					id: 'stale-skip-trigger',
@@ -2018,7 +2019,7 @@ suite('AgentHostAutomationService', () => {
 				automations: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
-					scheduledRunCount: 0,
+					runCount: 0,
 					nextRunAt: stale,
 					runs: [],
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -2061,11 +2062,11 @@ suite('AgentHostAutomationService', () => {
 		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			runsClaimed: automation?.runs.length,
-			scheduledRunCount: automation?.scheduledRunCount,
+			runCount: automation?.runCount,
 			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
 		}, {
 			runsClaimed: 1,
-			scheduledRunCount: 1,
+			runCount: 1,
 			claimedTriggerId: 'due-run-trigger',
 		});
 	});
@@ -2091,8 +2092,8 @@ suite('AgentHostAutomationService', () => {
 			catalog: {
 				automations: [{
 					resource: automationResource,
-					definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 100 }] },
-					scheduledRunCount: 51,
+					definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 100 }] },
+					runCount: 51,
 					runs: runs.map(run => ({
 						resource: run.resource,
 						automation: run.automation,
@@ -2114,11 +2115,11 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
 			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
-			scheduledRunCount: stateManager.getAutomationCatalogState()?.entries[0].scheduledRunCount,
+			runCount: stateManager.getAutomationCatalogState()?.entries[0].runCount,
 		}, {
 			count: 50,
 			cursor: '50',
-			scheduledRunCount: 51,
+			runCount: 51,
 		});
 
 		await service.fetchAutomationRuns({
@@ -2130,19 +2131,19 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
 			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
-			scheduledRunCount: stateManager.getAutomationCatalogState()?.entries[0].scheduledRunCount,
+			runCount: stateManager.getAutomationCatalogState()?.entries[0].runCount,
 		}, {
 			count: 51,
 			cursor: undefined,
-			scheduledRunCount: 51,
+			runCount: 51,
 		});
 
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [] } });
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] } });
 		const newlyLimited = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			history: newlyLimited?.runs.length,
-			usage: newlyLimited?.scheduledRunCount,
+			usage: newlyLimited?.runCount,
 			enabled: newlyLimited?.definition.enabled,
 		}, { history: 51, usage: 0, enabled: true });
 	});

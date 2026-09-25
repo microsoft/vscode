@@ -492,14 +492,21 @@
 
 .automation-form-row.automation-form-checkbox-row {
 	flex-direction: row;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 8px;
-	margin-top: 2px;
-	padding-top: 10px;
-	border-top: 1px solid var(--vscode-widget-border, transparent);
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size240);
+	margin-top: var(--vscode-spacing-size20);
+	padding-top: var(--vscode-spacing-size100);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
 }
 
-.automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
+.automation-form-checkbox {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-form-checkbox > .monaco-checkbox {
 	margin-right: 0;
 }
 

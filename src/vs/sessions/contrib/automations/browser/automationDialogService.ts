@@ -171,6 +171,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
+			const disableConditions = buildAutomationDisableConditions(state.runOnce, initial?.disableConditions);
 			const create: ICreateAutomationOptions = {
 				name: state.name,
 				prompt,
@@ -184,7 +185,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
-				disableConditions: buildAutomationDisableConditions(state.runOnce, initial?.disableConditions),
+				...(disableConditions.length > 0 ? { disableConditions } : {}),
 			};
 			return { kind: 'create', value: create };
 		};

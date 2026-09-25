@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getAutomationMaxRuns, isAutomationFinalDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -162,17 +162,17 @@ class TestAutomationConnection {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
 			const definition = { ...current.definition, ...action.changes };
-			const maxRuns = getAutomationMaxRuns(definition.disableConditions);
-			const scheduledRunCount = maxRuns === undefined ? undefined
-				: (!current.definition.enabled && definition.enabled) || getAutomationMaxRuns(current.definition.disableConditions) === undefined ? 0 : current.scheduledRunCount ?? 0;
-			if ((maxRuns !== undefined && scheduledRunCount! >= maxRuns) || isAutomationFinalDateExpired(definition.disableConditions)) {
+			const max = getAutomationMaxRuns(definition.disableConditions);
+			const runCount = max === undefined ? undefined
+				: (!current.definition.enabled && definition.enabled) || getAutomationMaxRuns(current.definition.disableConditions) === undefined ? 0 : current.runCount ?? 0;
+			if ((max !== undefined && runCount! >= max) || isAutomationAfterDateExpired(definition.disableConditions)) {
 				definition.enabled = false;
 			}
 			const operations = [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run];
 			const automation = {
 				...current,
 				definition,
-				scheduledRunCount,
+				runCount,
 				operations,
 				modifiedAt: new Date().toISOString(),
 			};
@@ -384,12 +384,12 @@ suite('AgentHostAutomationStore', () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
 		store.setConnection(connection);
-		await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }] });
+		await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] });
 		for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity]) {
-			await assert.rejects(store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: value }] }), /positive safe integer/);
+			await assert.rejects(store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: value }] }), /positive safe integer/);
 		}
 		store.clearConnection();
-		await assert.rejects(async () => store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }] }), AutomationUnavailableError);
+		await assert.rejects(async () => store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] }), AutomationUnavailableError);
 		assert.strictEqual(connection.dispatched.length, 1);
 	});
 
@@ -397,23 +397,23 @@ suite('AgentHostAutomationStore', () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
 		store.setConnection(connection);
-		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }] });
+		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] });
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
 		connection.setAutomation({
-			resource: create.resource, definition: create.definition, scheduledRunCount: 2, runs: [],
+			resource: create.resource, definition: create.definition, runCount: 2, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: created.updatedAt,
 		});
-		const result = await store.updateAutomationIfUnchanged(created.id, { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 2 }] }, created);
+		const result = await store.updateAutomationIfUnchanged(created.id, { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 2 }] }, created);
 		assert.ok(result.kind === 'updated');
 		const lowered = result.automation;
 		const cleared = await store.updateAutomation(created.id, { disableConditions: [] });
 		const update = connection.dispatched.at(-1)!.action;
 		assert.ok(update.type === ActionType.AutomationUpdateRequested);
 		assert.deepStrictEqual({
-			lowered: [lowered?.enabled, getAutomationMaxRuns(lowered.disableConditions), lowered?.scheduledRunCount],
-			cleared: [cleared?.enabled, cleared?.disableConditions, cleared?.scheduledRunCount],
+			lowered: [lowered?.enabled, getAutomationMaxRuns(lowered.disableConditions), lowered?.runCount],
+			cleared: [cleared?.enabled, cleared?.disableConditions, cleared?.runCount],
 			patch: { disableConditions: update.changes.disableConditions, enabled: update.changes.enabled },
 			canRun: store.canRunAutomation(created.id),
 		}, { lowered: [false, 2, 2], cleared: [false, [], undefined], patch: { disableConditions: [], enabled: undefined }, canRun: true });
@@ -423,11 +423,11 @@ suite('AgentHostAutomationStore', () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
 		store.setConnection(connection);
-		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] });
+		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] });
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
 		connection.beforeUpdate = () => connection.setAutomation({
-			resource: create.resource, definition: { ...create.definition, enabled: false }, scheduledRunCount: 1, runs: [],
+			resource: create.resource, definition: { ...create.definition, enabled: false }, runCount: 1, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: created.updatedAt,
 		});
@@ -437,9 +437,9 @@ suite('AgentHostAutomationStore', () => {
 		assert.ok(update.type === ActionType.AutomationUpdateRequested);
 		const reenabled = await store.updateAutomation(created.id, { enabled: true });
 		assert.deepStrictEqual({
-			edited: [edited?.name, edited?.enabled, edited?.scheduledRunCount],
+			edited: [edited?.name, edited?.enabled, edited?.runCount],
 			patch: [update.changes.enabled, update.changes.disableConditions],
-			reenabled: [reenabled?.enabled, reenabled?.scheduledRunCount],
+			reenabled: [reenabled?.enabled, reenabled?.runCount],
 		}, { edited: ['Renamed', false, 1], patch: [undefined, undefined], reenabled: [true, 0] });
 	});
 
@@ -450,8 +450,8 @@ suite('AgentHostAutomationStore', () => {
 		const created = await store.createAutomation({
 			...createOptions(), enabled: false,
 			disableConditions: [
-				{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
-				{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2000-01-01T00:00:00Z' },
+				{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
 			],
 		});
 		connection.suppressUpdatePublication = true;
@@ -462,12 +462,12 @@ suite('AgentHostAutomationStore', () => {
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
 		connection.setAutomation({
-			resource: create.resource, definition: create.definition, scheduledRunCount: 0, runs: [],
+			resource: create.resource, definition: create.definition, runCount: 0, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: new Date().toISOString(),
 		});
 		const updated = await pending;
-		assert.deepStrictEqual([updated.enabled, updated.scheduledRunCount, updated.disableConditions], [false, 0, created.disableConditions]);
+		assert.deepStrictEqual([updated.enabled, updated.runCount, updated.disableConditions], [false, 0, created.disableConditions]);
 	});
 
 	test('capability removal and feature disablement revoke operations immediately', async () => {

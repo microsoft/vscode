@@ -209,7 +209,8 @@
 	min-width: 0;
 }
 
-.automations-card-folder {
+.automations-card-folder,
+.automations-card-limit {
 	min-width: 0;
 	overflow: hidden;
 	white-space: nowrap;
@@ -217,9 +218,14 @@
 }
 
 .automations-card-meta-item + .automations-card-meta-item::before {
-	content: '·';
-	margin-right: 6px;
+	content: '-';
+	margin-right: var(--vscode-spacing-size60);
 	opacity: 0.6;
+}
+
+.automations-card-limit {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
 }
 
 .automations-card-last-run.automations-card-run-failed {
@@ -241,6 +247,10 @@
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
+}
+
+.automations-card-has-limit > .automations-card-prompt {
+	-webkit-line-clamp: 1;
 }
 
 /* Card Action Buttons (icon-only, matching native pattern) */

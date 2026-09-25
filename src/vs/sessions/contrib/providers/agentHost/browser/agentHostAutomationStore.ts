@@ -16,7 +16,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
-import { getAutomationDisableConditionsError, getAutomationMaxRuns, isAutomationFinalDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationDisableConditionsError, getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -304,7 +304,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
 			...(state.definition.disableConditions !== undefined ? { disableConditions: state.definition.disableConditions } : {}),
-			...(state.scheduledRunCount !== undefined ? { scheduledRunCount: state.scheduledRunCount } : {}),
+			...(state.runCount !== undefined ? { runCount: state.runCount } : {}),
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
@@ -441,9 +441,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				if (!projected) {
 					return false;
 				}
-				const maxRuns = getAutomationMaxRuns(projected.disableConditions);
-				const disabledByCondition = !projected.enabled && (isAutomationFinalDateExpired(projected.disableConditions)
-					|| (maxRuns !== undefined && projected.scheduledRunCount !== undefined && projected.scheduledRunCount >= maxRuns));
+				const max = getAutomationMaxRuns(projected.disableConditions);
+				const disabledByCondition = !projected.enabled && (isAutomationAfterDateExpired(projected.disableConditions)
+					|| (max !== undefined && projected.runCount !== undefined && projected.runCount >= max));
 				return serializeAutomationEditableState(projected) === serializeAutomationEditableState({
 					...expected,
 					enabled: enabledChanged && !disabledByCondition ? expected.enabled : projected.enabled,

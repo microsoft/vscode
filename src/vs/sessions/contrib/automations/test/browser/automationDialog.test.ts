@@ -1574,26 +1574,26 @@ suite('Automation dialog run once', () => {
 	test('maps Run once to one scheduled run and preserves unrelated fields', () => {
 		assert.deepStrictEqual({
 			unchangedUnlimited: buildChangedAutomationFields(true, false, { enabled: true }),
-			unchangedRunOnce: buildChangedAutomationFields(true, true, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] }),
+			unchangedRunOnce: buildChangedAutomationFields(true, true, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] }),
 			enabledToggled: buildChangedAutomationFields(false, false, { enabled: true }),
 			setRunOnce: buildChangedAutomationFields(true, true, { enabled: true }),
-			clearRunOnce: buildChangedAutomationFields(true, false, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] }),
+			clearRunOnce: buildChangedAutomationFields(true, false, { enabled: true, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] }),
 			createUnlimited: buildAutomationDisableConditions(false, undefined),
 			createRunOnce: buildAutomationDisableConditions(true, undefined),
 		}, {
 			unchangedUnlimited: {},
 			unchangedRunOnce: {},
 			enabledToggled: { enabled: false },
-			setRunOnce: { disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] },
+			setRunOnce: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
 			clearRunOnce: { disableConditions: [] },
 			createUnlimited: [],
-			createRunOnce: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }],
+			createRunOnce: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
 		});
 	});
 
 	test('retains MCP conditions during unrelated edits, duplication, and import', () => {
-		const dateCondition = { kind: AutomationDisableConditionKind.FinalDate as const, finalDate: '2099-01-01T00:00:00Z' };
-		const disableConditions = [dateCondition, { kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 3 }];
+		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
+		const disableConditions = [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }];
 		assert.deepStrictEqual({
 			unrelatedEdit: buildChangedAutomationFields(true, false, { enabled: true, disableConditions }),
 			enable: buildChangedAutomationFields(true, false, { enabled: false, disableConditions }),
@@ -1602,19 +1602,19 @@ suite('Automation dialog run once', () => {
 			runOnce: buildChangedAutomationFields(true, true, { enabled: true, disableConditions }),
 			uncheck: buildChangedAutomationFields(true, false, {
 				enabled: true,
-				disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }],
+				disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
 			}),
 		}, {
 			unrelatedEdit: {},
 			enable: { enabled: true },
 			duplicate: disableConditions,
 			dateOnly: [dateCondition],
-			runOnce: { disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 1 }] },
+			runOnce: { disableConditions: [dateCondition, { kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
 			uncheck: { disableConditions: [dateCondition] },
 		});
 	});
 
-	test('renders only Run once and Enabled checkboxes with keyboard access', () => {
+	test('groups Enabled then Run once with matching keyboard order', () => {
 		const state = createFormState({ isQuickChat: true, folderUri: undefined, providerId: 'host', sessionTypeId: 'copilotcli', runOnce: true });
 		const { form, handle, runOnceCheckbox, enabledCheckbox } = renderRunOnceForm({
 			state,
@@ -1622,31 +1622,33 @@ suite('Automation dialog run once', () => {
 			allowedProviders: ['host'],
 		});
 		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
-		runOnceCheckbox.focus();
-		dispatchKey(runOnceCheckbox, 'keydown', 'Tab');
+		enabledCheckbox.focus();
+		dispatchKey(enabledCheckbox, 'keydown', 'Tab');
 		assert.deepStrictEqual({
 			labels: Array.from(form.querySelectorAll('.automation-form-checkbox-label'), label => label.textContent),
+			grouped: enabledCheckbox.parentElement?.parentElement === runOnceCheckbox.parentElement?.parentElement,
 			checked: runOnceCheckbox.getAttribute('aria-checked'),
 			description: runOnceCheckbox.getAttribute('aria-description'),
 			focusable: [runOnceCheckbox, enabledCheckbox].every(checkbox => handle.getFocusableElements().includes(checkbox)),
-			tabFocusesEnabled: document.activeElement === enabledCheckbox,
+			tabFocusesRunOnce: document.activeElement === runOnceCheckbox,
 			removedInputs: form.querySelectorAll('input[aria-label="Scheduled run limit"], input[aria-label="Final date"]').length,
 		}, {
-			labels: ['Run once', 'Enabled'],
+			labels: ['Enabled', 'Run once'],
+			grouped: true,
 			checked: 'true',
 			description: 'Disable scheduling after one scheduled run. Manual runs do not count.',
 			focusable: true,
-			tabFocusesEnabled: true,
+			tabFocusesRunOnce: true,
 			removedInputs: 0,
 		});
 	});
 
 	test('supports changing Run once by checkbox, label, and keyboard without changing Enabled', () => {
-		const { form, state, runOnceCheckbox } = renderRunOnceForm({ state: createFormState() });
+		const { state, runOnceCheckbox } = renderRunOnceForm({ state: createFormState() });
 		const snapshot = () => [state.runOnce, runOnceCheckbox.getAttribute('aria-checked'), state.enabled];
 		runOnceCheckbox.click();
 		const clicked = snapshot();
-		form.querySelector<HTMLElement>('.automation-form-checkbox-label')!.click();
+		runOnceCheckbox.parentElement!.querySelector<HTMLElement>('.automation-form-checkbox-label')!.click();
 		const labelClicked = snapshot();
 		runOnceCheckbox.focus();
 		runOnceCheckbox.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
@@ -1659,8 +1661,8 @@ suite('Automation dialog run once', () => {
 
 	test('leaves advanced MCP conditions unchanged after toggling Run once on and back off', () => {
 		const disableConditions = [
-			{ kind: AutomationDisableConditionKind.MaxRuns as const, maxRuns: 3 },
-			{ kind: AutomationDisableConditionKind.FinalDate as const, finalDate: '2099-01-01T00:00:00Z' },
+			{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 },
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' },
 		];
 		const { state, runOnceCheckbox } = renderRunOnceForm({ state: createFormState(), disableConditions });
 		const initialChecked = runOnceCheckbox.getAttribute('aria-checked');
@@ -1677,7 +1679,7 @@ suite('Automation dialog run once', () => {
 	test('warns accessibly when enabling an expired date set through MCP', () => {
 		const { form, handle, enabledCheckbox } = renderRunOnceForm({
 			state: createFormState({ enabled: false }),
-			disableConditions: [{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2000-01-01T00:00:00Z' }],
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
 		});
 		const warning = form.querySelector<HTMLElement>('#automation-conditions-warning')!;
 		const disabledMessage = warning.textContent;
