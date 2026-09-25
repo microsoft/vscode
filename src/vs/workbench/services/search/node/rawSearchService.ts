@@ -223,7 +223,7 @@ export class SearchService implements IRawSearchService {
 			return undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern || '', progressCallback, token);
+		const cached = this.getResultsFromCache(cache, config.filePattern || '', progressCallback, token, config.shouldGlobMatchFilePattern, config.ignoreGlobCase);
 		if (cached) {
 			return cached.then(([result, results, cacheStats]) => {
 				const sortSW = StopWatch.create(false);
@@ -275,7 +275,7 @@ export class SearchService implements IRawSearchService {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> | null {
+	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken, shouldGlobMatch?: boolean, ignoreGlobCase?: boolean): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> | null {
 		const cacheLookupSW = StopWatch.create(false);
 
 		// Find cache entries by prefix of search value
@@ -319,12 +319,20 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = prepareQuery(searchValue).normalizedLowercase;
+			const normalizedSearchValueLowercase = shouldGlobMatch ? null : prepareQuery(searchValue).normalizedLowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
-				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
-					continue;
+				// When glob matching is requested, use glob matching with the raw pattern
+				// instead of fuzzy matching with the normalized pattern (which strips wildcards)
+				if (normalizedSearchValueLowercase) {
+					if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
+						continue;
+					}
+				} else if (searchValue) {
+					if (searchValue !== '*' && !isFilePatternMatch(entry, searchValue, false, ignoreGlobCase)) {
+						continue;
+					}
 				}
 
 				results.push(entry);
