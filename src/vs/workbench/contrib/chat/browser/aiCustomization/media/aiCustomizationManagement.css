@@ -1258,12 +1258,6 @@ per-word capitalization does not survive translation. */
 	margin-inline: auto;
 }
 
-.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-gallery-container {
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400) - var(--vscode-spacing-size40)), 840px);
-	margin-inline: auto;
-	box-sizing: border-box;
-}
-
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
@@ -1743,83 +1737,6 @@ per-word capitalization does not survive translation. */
 	width: 100%;
 }
 
-.ai-customization-management-editor .tools-list-browse-button-container {
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .tools-list-browse-button-container .monaco-button {
-	white-space: nowrap;
-}
-
-/* Marketplace browse (gallery) list */
-.ai-customization-management-editor .tools-gallery-container {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-height: 0;
-}
-
-.ai-customization-management-editor .tools-gallery-list {
-	flex: 1;
-	min-height: 0;
-}
-
-/* Shared gallery row used by the tools, MCP server and plugin marketplace lists. See galleryItemRenderer.ts */
-.ai-customization-management-editor .gallery-item {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 12px;
-	box-sizing: border-box;
-	border-radius: 4px;
-	cursor: default;
-}
-
-.ai-customization-management-editor .gallery-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .gallery-item-details {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.ai-customization-management-editor .gallery-item-name {
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 18px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.ai-customization-management-editor .gallery-item-description,
-.ai-customization-management-editor .gallery-item-publisher {
-	font-size: var(--vscode-fontSize-body2);
-	color: var(--vscode-descriptionForeground);
-	line-height: 16px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.ai-customization-management-editor .gallery-item-action {
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .gallery-item-action .monaco-button {
-	white-space: nowrap;
-	font-size: var(--vscode-fontSize-body2);
-	padding: 2px 10px;
-}
-
-.ai-customization-management-editor .gallery-item-action .monaco-button:focus-visible {
-	outline-offset: -1px;
-}
-
 .ai-customization-management-editor .tools-list-tree {
 	flex: 1;
 	min-height: 0;
@@ -1851,8 +1768,7 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size60);
 }
 
-.ai-customization-management-editor .tools-inventory-section-title,
-.ai-customization-management-editor .tools-marketplace-title {
+.ai-customization-management-editor .tools-inventory-section-title {
 	margin: 0;
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -1872,8 +1788,7 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .tools-inventory-section-description,
-.ai-customization-management-editor .tools-marketplace-description {
+.ai-customization-management-editor .tools-inventory-section-description {
 	margin: var(--vscode-spacing-size20) 0 0;
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
@@ -1918,11 +1833,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
-}
-
-.ai-customization-management-editor .tools-marketplace-header {
-	flex-shrink: 0;
-	margin-bottom: var(--vscode-spacing-size120);
 }
 
 /* Top-level tool-set row */
