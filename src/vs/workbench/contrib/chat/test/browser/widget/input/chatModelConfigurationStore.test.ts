@@ -535,6 +535,7 @@ suite('ChatModelConfigurationStore', () => {
 			const picker = new ModelPickerConfiguration({
 				getSelectedModel: () => selectedModel,
 				getConfigurationAccess: () => configuration,
+				getChatSessionId: () => undefined,
 				isDisabled: () => false,
 				shouldShowCacheBreakHint: () => false,
 				getCacheBreakLearnMoreLink: () => undefined,

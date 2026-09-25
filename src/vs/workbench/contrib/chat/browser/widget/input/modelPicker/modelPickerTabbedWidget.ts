@@ -27,7 +27,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModel
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
@@ -74,8 +74,10 @@ export interface ITabbedModelPickerContext {
 	readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
 	readonly onManageModels: () => void;
 	readonly onDidToggleOtherModels: (collapsed: boolean) => void;
+	/** Reports that the user opened search or typed a search query. */
+	readonly onDidSearch: () => void;
 	/** Reports a configuration change made from a model's details. */
-	readonly onConfigurationChanged: (model: ILanguageModelChatMetadataAndIdentifier, group: string, key: string, fromValue: unknown, toValue: unknown) => void;
+	readonly onConfigurationChanged: (model: ILanguageModelChatMetadataAndIdentifier, ...change: Parameters<ModelConfigChangeListener>) => void;
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
@@ -153,6 +155,13 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.hide();
 	}
 
+	override dispose(): void {
+		// Close an open popup while its hide listeners are still registered, so
+		// callers observe every open ending.
+		this.hide();
+		super.dispose();
+	}
+
 	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
@@ -164,7 +173,7 @@ export class TabbedModelPicker extends Disposable {
 		this._rememberSelection(context.selectedModelId);
 		this._showCurrent();
 		const detailsModel = context.models.find(model => model.identifier === detailsModelId);
-		if (detailsModel && !isAutoModel(detailsModel)) {
+		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
 			this._showModelDetails(detailsModel, focusConfiguration);
 		}
 	}
@@ -229,18 +238,24 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.show<IActionWidgetDropdownAction>({
 			user: 'ChatTabbedModelPicker',
 			anchor,
-			tabs: destinations.map((destination): ITabDescriptor => ({
-				id: destination.id,
-				label: destination.label,
-				icon: destination.icon,
-				tooltip: destination.label,
-				toggle: destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? {
-					label: localize('chat.modelPicker.auto', "Auto"),
-					ariaLabel: localize('chat.modelPicker.autoModeToggle', "Use Auto mode in {0}", destination.label),
-					getState: () => this._getAutoModeToggleState(this._context ?? context),
-					onChange: enabled => this._toggleAutoMode(enabled),
-				} : undefined,
-			})),
+			tabs: destinations.map((destination): ITabDescriptor => {
+				// Auto can't be turned off when it's the only choice, so the tab is named after it.
+				const label = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && this._isAutoOnly(context)
+					? localize('chat.modelPicker.auto', "Auto")
+					: destination.label;
+				return {
+					id: destination.id,
+					label,
+					icon: destination.icon,
+					tooltip: label,
+					toggle: destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? {
+						label: localize('chat.modelPicker.auto', "Auto"),
+						ariaLabel: localize('chat.modelPicker.autoModeToggle', "Use Auto mode in {0}", destination.label),
+						getState: () => this._getAutoModeToggleState(this._context ?? context),
+						onChange: enabled => this._toggleAutoMode(enabled),
+					} : undefined,
+				};
+			}),
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
@@ -258,10 +273,15 @@ export class TabbedModelPicker extends Disposable {
 				const currentDestinations = this._buildDestinations(current);
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
-				// Keep one sizing layout regardless of which Copilot mode is currently selected.
-				const showAuto = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && (forSizing
-					? !!(this._autoModel(current) || this._hydraFusionModel(current))
+				const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+				// Size to the Copilot tab, whichever Copilot mode is selected: the taller of
+				// its model list and its Auto view, unless Auto is all there is.
+				const showAuto = isBuiltIn && (forSizing
+					? this._isAutoOnly(current)
 					: this._isAutoMode(current));
+				const alternateSizingItems = forSizing && isBuiltIn && !showAuto && (this._autoModel(current) || this._hydraFusionModel(current))
+					? [this._buildAutoModeItems(destination, sections, current)]
+					: undefined;
 				// Search spans every destination at once, so each model names its provider.
 				const searching = this._searchVisible && !forSizing;
 				const items = searching
@@ -282,8 +302,10 @@ export class TabbedModelPicker extends Disposable {
 					filterAsCombobox: true,
 					onType: text => {
 						this._searchVisible = true;
+						current.onDidSearch();
 						this._showCurrent(text);
 					},
+					onDidChangeFilter: () => current.onDidSearch(),
 					headerText: hint?.text,
 					headerIcon: hint ? Codicon.info : undefined,
 					headerLink: hint?.link,
@@ -303,6 +325,7 @@ export class TabbedModelPicker extends Disposable {
 				return {
 					items,
 					listOptions,
+					alternateSizingItems,
 				};
 			},
 			renderEmpty: (container, activeTab) => {
@@ -316,14 +339,8 @@ export class TabbedModelPicker extends Disposable {
 			},
 			delegate: {
 				onSelect: action => {
-					const current = this._context ?? context;
-					const keepOpen = action.id.startsWith(AUTO_TIER_ACTION_PREFIX)
-						|| action.id === this._autoModel(current)?.identifier
-						|| action.id === this._hydraFusionModel(current)?.identifier;
 					void action.run();
-					if (!keepOpen) {
-						this._widget.hide();
-					}
+					this._widget.hide();
 				},
 				onHide: () => { },
 			},
@@ -362,7 +379,12 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _isAutoMode(context: ITabbedModelPickerContext): boolean {
-		return this._autoMode && !!(this._autoModel(context) || this._hydraFusionModel(context));
+		return (this._autoMode || this._isAutoOnly(context)) && !!(this._autoModel(context) || this._hydraFusionModel(context));
+	}
+
+	/** Whether the plan offers Copilot only through routing, with no individual Copilot model to switch to. */
+	private _isAutoOnly(context: ITabbedModelPickerContext): boolean {
+		return !!(this._autoModel(context) || this._hydraFusionModel(context)) && !this._fallbackModel(context);
 	}
 
 	private _rememberSelection(modelId: string | undefined): void {
@@ -443,6 +465,9 @@ export class TabbedModelPicker extends Disposable {
 			checked: this._searchVisible,
 			run: () => {
 				this._searchVisible = !this._searchVisible;
+				if (this._searchVisible) {
+					context.onDidSearch();
+				}
 				this._showCurrent();
 			},
 		});
@@ -569,7 +594,7 @@ export class TabbedModelPicker extends Disposable {
 				const item = this._createModelItem(hydra, context);
 				items.push({
 					...item,
-					detail: hydra.metadata.tooltip,
+					detail: localize('chat.modelPicker.hydraFusionDetail', "May use multiple models"),
 					badge: item.badge ?? hydra.metadata.detail,
 					ariaDescription: [item.ariaDescription, hydra.metadata.tooltip].filter(Boolean).join(', '),
 					tooltip: [item.tooltip, hydra.metadata.tooltip].filter(Boolean).join(' \u00b7 '),
@@ -592,20 +617,14 @@ export class TabbedModelPicker extends Disposable {
 		if (!context) {
 			return;
 		}
-		const selectionVersion = ++this._selectionVersion;
+		this._selectionVersion++;
+		// Choosing a tier closes the picker, so select Auto now rather than after the save.
+		if (context.selectedModelId !== model.identifier) {
+			this._applyModelSelection(model, context);
+		}
 		if (!property.schema.readOnly) {
 			await setModelConfigValues(model, context.configurationAccess, { [property.key]: value },
-				(group, key, fromValue, toValue) => context.onConfigurationChanged(model, group, key, fromValue, toValue));
-		}
-		const current = this._context;
-		if (this.isVisible && selectionVersion === this._selectionVersion && current?.configurationAccess === context.configurationAccess) {
-			const available = this._autoModel(current);
-			if (available?.identifier === model.identifier) {
-				if (current.selectedModelId !== available.identifier) {
-					this._applyModelSelection(available, current);
-				}
-				this.refresh();
-			}
+				(...change) => context.onConfigurationChanged(model, ...change));
 		}
 	}
 
@@ -652,7 +671,7 @@ export class TabbedModelPicker extends Disposable {
 			section,
 			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badge ? [`chat-model-picker-badge-${badge.tone}`] : [])].join(' '),
 			toolbarLabels: true,
-			toolbarActions: isAutoModel(model) ? undefined : [this._createDetailsAction(model, summary)],
+			toolbarActions: isAutoModel(model) || isHydraFusionModel(model) ? undefined : [this._createDetailsAction(model, summary)],
 			tooltip: [model.metadata.name, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
@@ -695,8 +714,8 @@ export class TabbedModelPicker extends Disposable {
 			onTogglePin: context.onTogglePin && !routingModel
 				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
-			onDidChangeConfiguration: (group, key, fromValue, toValue) => {
-				context.onConfigurationChanged(model, group, key, fromValue, toValue);
+			onDidChangeConfiguration: (...change) => {
+				context.onConfigurationChanged(model, ...change);
 			},
 		};
 		const key = this._speedVariants.get(model.identifier)?.standard.identifier ?? model.identifier;
@@ -798,17 +817,16 @@ export class TabbedModelPicker extends Disposable {
 		if (!this._autoModel(context) && !this._hydraFusionModel(context)) {
 			return undefined;
 		}
-		const checked = this._isAutoMode(context);
-		const enabled = !checked || !!this._fallbackModel(context);
+		if (this._isAutoOnly(context)) {
+			return undefined;
+		}
 		const defaultModel = this._getOrganizationDefaultModel(context);
 		return {
-			checked,
-			enabled,
-			description: !enabled
-				? localize('chat.modelPicker.autoOnly', "No individual Copilot models are available. You can still browse other providers.")
-				: defaultModel && isAutoModel(defaultModel)
-					? getOrganizationDefaultDescription(defaultModel.metadata.name)
-					: undefined,
+			checked: this._isAutoMode(context),
+			enabled: true,
+			description: defaultModel && isAutoModel(defaultModel)
+				? getOrganizationDefaultDescription(defaultModel.metadata.name)
+				: undefined,
 		};
 	}
 

@@ -125,6 +125,7 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	const controller = new ModelPickerConfiguration({
 		getSelectedModel: () => model,
 		getConfigurationAccess: () => access,
+		getChatSessionId: () => undefined,
 		isDisabled: () => false,
 		shouldShowCacheBreakHint: () => false,
 		getCacheBreakLearnMoreLink: () => undefined,
@@ -133,7 +134,7 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	const button = document.createElement('a');
 
 	controller.renderButton(button, false, false, showModelDetails);
-	controller.show(button);
+	controller.show(button, undefined, { entryPoint: 'configuration', inputMethod: 'mouse' });
 
 	return {
 		label: button.textContent,
