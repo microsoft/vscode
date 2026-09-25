@@ -79,7 +79,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -966,7 +966,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
 	private _agentMergeTurn = false;
-	private readonly _mcpServerNames: ReadonlySet<string>;
+	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
+	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
 	/**
@@ -1341,10 +1342,10 @@ export class CopilotAgentSession extends Disposable {
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
-		this._mcpServerNames = new Set([
+		this._agentMergeRestrictedMcpServerNames = new Set([
 			GITHUB_MCP_SERVER_NAME,
-			...Object.keys(this._appliedSnapshot.mcpServers),
-			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+			...Object.entries(this._appliedSnapshot.mcpServers).filter(([name, server]) => isAgentMergeRestrictedMcpServer(name, server)).map(([name]) => name),
+			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.filter(server => isAgentMergeRestrictedMcpServer(server.name, server.configuration)).map(server => server.name)),
 		]);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
 		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
@@ -5281,7 +5282,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			const restriction = this._agentMergeTurn
 				? getAgentMergeGitHubToolRestriction(input.toolName, input.toolArgs)
-				?? (isCopilotMcpToolName(input.toolName, this._mcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+				?? (isCopilotMcpToolName(input.toolName, this._agentMergeRestrictedMcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
 				: undefined;
 			if (restriction) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Denying restricted Agent Merge tool: ${input.toolName}`);

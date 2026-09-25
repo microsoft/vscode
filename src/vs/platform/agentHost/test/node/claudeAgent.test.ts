@@ -86,6 +86,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ClaudeProxyService, IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -8876,6 +8877,57 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		}, {
 			explicitServers: ['additional-disabled', 'additional-enabled', 'github-mcp-server'],
 			deniedServers: undefined,
+		});
+	});
+
+	test('Agent Merge turns deny only GitHub MCP tools', async () => {
+		const { agent, sdk, fileService } = buildCtxWith(new FakeAgentPluginManager());
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+			'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+			corp: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
+		})));
+		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatUri(created.session);
+		const turnActive = new DeferredPromise<void>();
+		const finishTurn = new DeferredPromise<void>();
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		sdk.queryAdvance = async index => {
+			if (index === 1) {
+				turnActive.complete();
+				await finishTurn.p;
+			}
+		};
+		const send = agent.chats.sendMessage(chat, 'repair', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat, { agentMergeTurn: true }));
+		await turnActive.p;
+
+		const preToolUse = sdk.capturedStartupOptions[0]?.hooks?.PreToolUse?.[0].hooks[0];
+		assert.ok(preToolUse);
+		const toolNames = ['mcp__component-explorer__sessions', 'mcp__client__runTests', 'mcp__host__readAgentMergeCI', 'mcp__corp__get_me', 'mcp__github-mcp-server__get_me'];
+		const results = await Promise.all(toolNames.map(async toolName => [toolName, await preToolUse({
+			hook_event_name: 'PreToolUse',
+			tool_name: toolName,
+			tool_input: {},
+			tool_use_id: toolName,
+			session_id: created.sdkSessionId,
+			transcript_path: '/tmp/transcript',
+			cwd: workspace.fsPath,
+		}, undefined, { signal: new AbortController().signal })]));
+		finishTurn.complete();
+		await send;
+
+		const denied = {
+			continue: false,
+			stopReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION,
+			hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION },
+		};
+		assert.deepStrictEqual(Object.fromEntries(results), {
+			'mcp__component-explorer__sessions': {},
+			'mcp__client__runTests': {},
+			'mcp__host__readAgentMergeCI': {},
+			'mcp__corp__get_me': denied,
+			'mcp__github-mcp-server__get_me': denied,
 		});
 	});
 

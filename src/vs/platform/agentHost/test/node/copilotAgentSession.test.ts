@@ -14497,6 +14497,53 @@ Use the attached image as context.
 			assert.strictEqual(mcpResult?.permissionDecision, 'deny');
 		});
 
+		test('allows non-GitHub MCP tools during Agent Merge turns', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const workspaceMcpUri = URI.file('/workspace/.mcp.json');
+			const { session } = await createAgentSession(disposables, {
+				captureRuntime: capturedRuntime,
+				clientSnapshot: {
+					tools: [],
+					plugins: [{
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [{
+							name: 'component-explorer',
+							configuration: { type: McpServerType.LOCAL, command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+							sdkRegistration: 'sessionConfig',
+							uri: workspaceMcpUri,
+							customization: { type: CustomizationType.McpServer, id: 'component-explorer', uri: workspaceMcpUri.toString(), name: 'component-explorer', state: { kind: McpServerStatus.Stopped } },
+						}],
+						agents: [],
+						skills: [],
+						instructions: [],
+					}],
+					mcpServers: {
+						corp: { type: McpServerType.REMOTE, url: 'https://api.githubcopilot.com/mcp/' },
+					},
+				},
+			});
+			(session as unknown as ISessionInternalsForTest)._agentMergeTurn = true;
+
+			const toolNames = ['component-explorer-sessions', 'corp-get_me', 'github-mcp-server-get_me'];
+			const decisions = await Promise.all(toolNames.map(async toolName => {
+				const result = await capturedRuntime.current!.handlePreToolUse({
+					sessionId: 'test-session-1',
+					timestamp: new Date(0),
+					workingDirectory: '/tmp',
+					toolName,
+					toolArgs: {},
+				});
+				return [toolName, result?.permissionDecision ?? 'allow'];
+			}));
+
+			assert.deepStrictEqual(Object.fromEntries(decisions), {
+				'component-explorer-sessions': 'allow',
+				'corp-get_me': 'deny',
+				'github-mcp-server-get_me': 'deny',
+			});
+		});
+
 		test('logs and rethrows onPostToolUse failures', async () => {
 			const logService = new CapturingLogService();
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getAgentMergeGitHubToolRestriction, isCopilotMcpToolName, isGitHubMcpToolName } from '../../node/shared/agentMergeToolRestrictions.js';
+import { getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName, isGitHubMcpToolName } from '../../node/shared/agentMergeToolRestrictions.js';
 
 suite('Agent Merge tool restrictions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +28,33 @@ suite('Agent Merge tool restrictions', () => {
 		}, {
 			github: [true, true, true, true, true, false, false],
 			aliasedCopilot: [true, false],
+		});
+	});
+
+	test('restricts only MCP servers that expose GitHub', () => {
+		const servers: Record<string, Parameters<typeof isAgentMergeRestrictedMcpServer>[1]> = {
+			'corp-GitHub': { url: 'https://mcp.example.com/mcp' },
+			'copilot-api': { url: 'https://api.githubcopilot.com/mcp/x/repos' },
+			'enterprise': { url: 'https://copilot-api.acme.ghe.com/mcp' },
+			'docker': { command: 'docker', args: ['run', '-i', '--rm', 'ghcr.io/github/github-mcp-server:latest'] },
+			'binary': { command: '/usr/local/bin/github-mcp-server', args: ['stdio'] },
+			'reference': { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] },
+			'component-explorer': { command: 'npm', args: ['exec', '--no', '--', 'component-explorer', 'mcp'] },
+			'pages': { url: 'https://octocat.github.io/mcp' },
+			'malformed': { command: 'node', args: 5 as unknown as readonly string[] },
+			'unknown': undefined,
+		};
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(servers).map(([name, server]) => [name, isAgentMergeRestrictedMcpServer(name, server)])), {
+			'corp-GitHub': true,
+			'copilot-api': true,
+			'enterprise': true,
+			'docker': true,
+			'binary': true,
+			'reference': true,
+			'component-explorer': false,
+			'pages': false,
+			'malformed': false,
+			'unknown': false,
 		});
 	});
 
