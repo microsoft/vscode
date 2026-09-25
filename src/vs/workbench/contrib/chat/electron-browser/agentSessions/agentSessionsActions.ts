@@ -833,7 +833,7 @@ type CopilotHarnessIntroductionLifecycleClassification = {
 
 export class AgentsParallelWorkContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
-	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/concepts/agent-host';
+	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://aka.ms/vscode-copilot-harness';
 	private static readonly COPILOT_HARNESS_FEEDBACK_URL = 'https://github.com/microsoft/vscode/issues';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID = 'copilotHarnessIntroduction';

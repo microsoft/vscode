@@ -844,7 +844,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			afterOpen,
 			nextTitle: h.notification?.message,
 		}, {
-			opened: ['https://code.visualstudio.com/docs/agents/concepts/agent-host'],
+			opened: ['https://aka.ms/vscode-copilot-harness'],
 			enabled: false,
 			afterOpen: undefined,
 			nextTitle: 'You\'re using a new Copilot experience',
