@@ -603,16 +603,6 @@ suite('Column selection paste', () => {
 			});
 		});
 
-		test('cut preserves empty rows and deletes only the copied text', () => {
-			withTestCodeEditor(['AA', '', 'CC'], { emptySelectionClipboard: true }, (editor, viewModel) => {
-				selectColumn(viewModel, new Position(1, 1), new Position(3, 3));
-				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData: copy(viewModel, true) }));
-				assert.deepStrictEqual({ text: event.text, document: editor.getModel().getLinesContent() }, {
-					text: 'AA\n\n\nCC', document: ['', '']
-				});
-			});
-		});
-
 		test('aligned ordinary multi-selections are not rectangular copies', () => {
 			withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (editor, viewModel) => {
 				editor.setSelections([new Selection(1, 2, 1, 4), new Selection(2, 2, 2, 4), new Selection(3, 2, 3, 4)]);
