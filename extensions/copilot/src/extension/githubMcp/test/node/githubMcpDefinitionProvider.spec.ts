@@ -9,6 +9,7 @@ import { BaseAuthenticationService, IAuthenticationService, StrictAuthentication
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import { CopilotTokenStore, ICopilotTokenStore } from '../../../../platform/authentication/common/copilotTokenStore';
+import { StaticGitHubAuthenticationService } from '../../../../platform/authentication/common/staticGitHubAuthenticationService';
 import { SimulationTestCopilotTokenManager } from '../../../../platform/authentication/test/node/simulationTestCopilotTokenManager';
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -169,6 +170,31 @@ describe('GitHubMcpDefinitionProvider', () => {
 			expect(definitions[0].uri.toString()).toBe('https://api.githubcopilot.com/mcp/');
 		});
 
+		test('resolves public static-token sessions without issuer metadata', async () => {
+			const log = disposables.add(new LogServiceImpl([]));
+			const tokenStore = disposables.add(new CopilotTokenStore());
+			const staticAuthentication = disposables.add(new StaticGitHubAuthenticationService(
+				() => 'static-github-token',
+				log,
+				tokenStore,
+				new SimulationTestCopilotTokenManager(),
+				configService,
+			));
+			const staticProvider = new GitHubMcpDefinitionProvider(configService, staticAuthentication, log);
+			const [definition] = staticProvider.provideMcpServerDefinitions();
+			const resolved = await staticProvider.resolveMcpServerDefinition(definition, CancellationToken.None);
+
+			expect({
+				issuer: staticAuthentication.anyGitHubSession?.authorizationServer,
+				url: resolved.uri.toString(),
+				authorization: resolved.headers.Authorization,
+			}).toEqual({
+				issuer: undefined,
+				url: 'https://api.githubcopilot.com/mcp/',
+				authorization: 'Bearer static-github-token',
+			});
+		});
+
 		test('returns GitHub Enterprise configuration when auth provider is set to GHE', async () => {
 			const gheUri = 'https://github.enterprise.com';
 			const gheProvider = await createProvider({
@@ -209,8 +235,8 @@ describe('GitHubMcpDefinitionProvider', () => {
 			expect(definitions[0].version).toBe('code_search,issues,pull_requests');
 		});
 
-		test.each([AuthProviderId.GitHub, AuthProviderId.GitHubEnterprise])('rejects a %s session without provenance even with a configured enterprise URI', async authProvider => {
-			const incompatibleProvider = await createProvider({ authProvider });
+		test('rejects an enterprise session without provenance even with a configured enterprise URI', async () => {
+			const incompatibleProvider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise });
 			authService.setPermissiveGitHubSession({ ...authService.permissiveGitHubSession!, authorizationServer: undefined });
 			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://enterprise.example');
 			expect(() => incompatibleProvider.provideMcpServerDefinitions()).toThrow('session is incompatible');

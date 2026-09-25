@@ -88,6 +88,8 @@ GitHub.com as a fallback. Preserve the issuer's deployment path when removing
 `/login/oauth`, then pass it to the CAPI library's existing domain mapping without
 rewriting API paths or ports. MCP retains its existing
 `copilot-api.<authority>/mcp/` mapping.
+Public MCP uses its fixed endpoint, including for static-token sessions without
+issuer metadata; enterprise MCP requires the session's issuer.
 
 The authentication service owns GitHub sessions and publishes their derived enterprise
 URI to the token store. A separate URI-change event lets the domain service update

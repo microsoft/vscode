@@ -91,13 +91,13 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 
 	private getServerUri(session: AuthenticationSession | undefined): URI {
 		const providerId = authProviderId(this.configurationService);
-		const uri = session ? resolveGitHubSessionUri(session, providerId) : undefined;
 		if (providerId === AuthProviderId.GitHub) {
 			return URI.parse('https://api.githubcopilot.com/mcp/');
 		}
-		if (!uri) {
+		if (!session) {
 			throw new Error(l10n.t('GitHub Enterprise authentication has not selected a server.'));
 		}
+		const uri = resolveGitHubSessionUri(session, providerId);
 		return uri.with({ authority: `copilot-api.${uri.authority}`, path: '/mcp/' });
 	}
 
