@@ -21,6 +21,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -3084,6 +3085,15 @@ interface IListOpenRequest {
 	invocation: number;
 }
 
+/**
+ * Identifies a sessions list row by the model identity it renders. Only test
+ * subclasses use it, to drive rows that production reaches through user input.
+ */
+export type SessionsListItemReference =
+	| { readonly session: URI; readonly chat?: URI }
+	| { readonly group: string }
+	| { readonly section: string };
+
 export interface ISessionsList {
 	readonly element: HTMLElement;
 	readonly onDidUpdate: Event<void>;
@@ -3151,7 +3161,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private readonly listContainer: HTMLElement;
 	private pendingOpenRequest: IListOpenRequest | undefined;
-	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
+	protected readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
@@ -4455,6 +4465,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 	clearFocus(): void {
 		this.tree.setFocus([]);
 		this.tree.setSelection([]);
+	}
+
+	/** Finds the tree element that renders the referenced row. */
+	protected findItem(item: SessionsListItemReference): SessionListItem | undefined {
+		const extUri = this.uriIdentityService.extUri;
+		if (hasKey(item, { group: true })) {
+			return this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === item.group);
+		}
+		if (hasKey(item, { section: true })) {
+			return this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === item.section);
+		}
+		const { session, chat } = item;
+		if (chat) {
+			return this.findTreeElement((element): element is ISessionChatItem => isSessionChatItem(element) && extUri.isEqual(element.session.resource, session) && extUri.isEqual(element.chat.resource, chat));
+		}
+		return this.findTreeElement((element): element is ISession => isSessionItem(element) && extUri.isEqual(element.resource, session));
 	}
 
 	hasFocusOrSelection(): boolean {

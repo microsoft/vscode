@@ -78,6 +78,8 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.j
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { Menus } from '../../../../browser/menus.js';
+import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
+import { TestSessionsList } from './testSessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -3164,6 +3166,99 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+	});
+
+	suite('item references', () => {
+		const group: ISessionGroup = { id: 'group', name: 'Release work', createdAt: 1 };
+
+		function renderReferencedList(configure?: (harness: ReturnType<typeof createListHarness>) => void) {
+			const grouped = buildTestSession({ id: 'grouped', title: 'Grouped', workspace: 'vscode', chats: [{ id: 'peer', title: 'Peer chat' }] });
+			const other = buildTestSession({ id: 'other', title: 'Other', workspace: 'vscode' });
+			const harness = createListHarness(disposables, [grouped.session, other.session], {
+				groups: [group],
+				memberships: new Map([[grouped.session.sessionId, group.id]]),
+			});
+			configure?.(harness);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			return { container, list, grouped, other };
+		}
+
+		function rowLabel(row: HTMLElement | null | undefined): string | null | undefined {
+			return row?.querySelector('.session-title, .session-chat-title, .session-section-label')?.textContent;
+		}
+
+		test('focuses, selects, collapses, and locates rows by model identity', () => {
+			const { container, list, grouped, other } = renderReferencedList();
+			const peer = { session: grouped.session.resource, chat: grouped.chats.get('peer')!.chat.resource };
+
+			const focused = list.setFocusedItem(peer);
+			const selected = list.setSelectedItems([{ session: other.session.resource }]);
+			const state = {
+				focused,
+				selected,
+				selectedHeader: list.setSelectedItems([{ group: group.id }]),
+				missing: list.setFocusedItem({ session: URI.parse('vscode-session://session/missing') }),
+				rows: [{ group: group.id }, { session: grouped.session.resource }, peer, { section: 'workspace:vscode' }].map(item => rowLabel(list.getItemRow(item))),
+				focusedRows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.focused')].map(rowLabel),
+				selectedRows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.selected')].map(rowLabel),
+			};
+			const collapsed = list.setItemCollapsed({ session: grouped.session.resource }, true);
+			const collapsedChatRow = list.getItemRow(peer);
+			const revealed = list.revealItem(peer);
+
+			assert.deepStrictEqual({
+				...state,
+				collapsed,
+				collapsedChatRow,
+				revealed,
+				revealedChatRow: rowLabel(list.getItemRow(peer)),
+				collapsedLeaf: list.setItemCollapsed({ session: other.session.resource }, true),
+			}, {
+				focused: true,
+				selected: true,
+				selectedHeader: false,
+				missing: false,
+				rows: ['Release work', 'Grouped', 'Peer chat', 'vscode'],
+				focusedRows: ['Peer chat'],
+				selectedRows: ['Other'],
+				collapsed: true,
+				collapsedChatRow: undefined,
+				revealed: true,
+				revealedChatRow: 'Peer chat',
+				collapsedLeaf: false,
+			});
+		});
+
+		test('reveals row actions for a .hovered row like pointer hover', () => {
+			const action = new class extends mock<MenuItemAction>() {
+				override readonly id = 'sessions.test.action';
+				override readonly label = 'Session Action';
+				override readonly enabled = true;
+				override async run(): Promise<void> { }
+			}();
+			const { list, other } = renderReferencedList(harness => {
+				harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+				harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(menuId: MenuId): IMenu {
+						return { onDidChange: Event.None, getActions: () => menuId === Menus.SessionItemToolbar ? [['navigation', [action]]] : [], dispose: () => { } };
+					}
+				}());
+			});
+			const row = list.getItemRow({ session: other.session.resource });
+			const toolbar = row?.querySelector<HTMLElement>('.session-title-toolbar');
+			assert.ok(row && toolbar);
+
+			const atRest = mainWindow.getComputedStyle(toolbar).display;
+			row.classList.add('hovered');
+
+			assert.deepStrictEqual({ atRest, hovered: mainWindow.getComputedStyle(toolbar).display }, { atRest: 'none', hovered: 'block' });
+		});
 	});
 
 	suite('session chat rows', () => {
