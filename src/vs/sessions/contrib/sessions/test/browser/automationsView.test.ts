@@ -822,7 +822,7 @@ suite('AutomationsCardsWidget', () => {
 		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
 		const runCondition = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 4 };
 		const formattedDate = new Date(dateCondition.date).toLocaleString(undefined, {
-			year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+			year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 		});
 		const states: Partial<IAutomationDescriptor>[] = [
 			{ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }], runCount: 0 },
@@ -856,7 +856,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(metadata, [
 			{ limit: 'Ends after 0/1 runs', description: 'Scheduled runs used: 0. Scheduled run limit: 1. Manual runs do not count.' },
 			{ limit: 'Ends after 2/4 runs', description: `Scheduled runs used: 2. ${runDescription}` },
-			{ limit: 'Ends after 4/4 runs', description: `Scheduled runs used: 4. ${runDescription}` },
+			{ limit: undefined, description: null },
 			{ limit: `Ends after ${formattedDate}`, description: `Stops scheduling at ${formattedDate}. Manual runs remain available.` },
 			{ limit: `Ends after 2/4 runs or ${formattedDate}`, description: combinedDescription },
 			{ limit: `Ends after 2/4 runs or ${formattedDate}`, description: combinedDescription },
@@ -926,6 +926,47 @@ suite('AutomationsCardsWidget', () => {
 			promptLines: hasLimit ? '1' : '2',
 			prompt,
 		})));
+	});
+
+	test('host disablement hides saved limits and re-enabling restores them without changing the definition', () => {
+		const { automationService, widget } = setup();
+		const capped = automation({
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }],
+			runCount: 0,
+		});
+		const dated = automation({
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		for (const item of [capped, dated]) {
+			automationService.setAutomations([item]);
+			const card = widget.element.querySelector('.automations-card');
+			const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
+			main.focus();
+			const states = [true, false, true].map(enabled => {
+				const updated = { ...item, enabled };
+				automationService.setAutomations([updated]);
+				const limit = main.querySelector<HTMLElement>('.automations-card-limit')!;
+				const prompt = main.querySelector<HTMLElement>('.automations-card-prompt')!;
+				return {
+					visible: limit.style.display !== 'none',
+					hasLimitLayout: main.classList.contains('automations-card-has-limit'),
+					hasDescription: main.hasAttribute('aria-description'),
+					promptLines: getWindow(prompt).getComputedStyle(prompt).webkitLineClamp,
+					savedConditions: automationService.getAutomation(item.id)?.disableConditions,
+					sameCard: widget.element.querySelector('.automations-card') === card,
+					focusPreserved: document.activeElement === main,
+				};
+			});
+			assert.deepStrictEqual(states, [true, false, true].map(enabled => ({
+				visible: enabled,
+				hasLimitLayout: enabled,
+				hasDescription: enabled,
+				promptLines: enabled ? '1' : '2',
+				savedConditions: item.disableConditions,
+				sameCard: true,
+				focusPreserved: true,
+			})));
+		}
 	});
 
 	test('persistent history groups survive updates and dispose on removal', () => {

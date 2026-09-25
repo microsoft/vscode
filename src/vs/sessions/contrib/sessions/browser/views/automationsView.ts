@@ -690,8 +690,8 @@ class AutomationCardsSection extends Disposable {
 			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
 		}
 
-		if (!previous || previous.runCount !== automation.runCount || !equals(previous.disableConditions, automation.disableConditions)) {
-			const limit = formatAutomationLimit(automation);
+		if (!previous || previous.enabled !== automation.enabled || previous.runCount !== automation.runCount || !equals(previous.disableConditions, automation.disableConditions)) {
+			const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
 			card.main.classList.toggle('automations-card-has-limit', !!limit);
 			card.limitEl.textContent = limit?.label ?? '';
 			DOM.setVisibility(!!limit, card.limitEl);
@@ -1584,7 +1584,7 @@ function formatAutomationLimit(automation: IAutomationDescriptor): { label: stri
 	const max = getAutomationMaxRuns(automation.disableConditions);
 	const date = getAutomationAfterDate(automation.disableConditions);
 	const formattedDate = date === undefined ? undefined : new Date(date).toLocaleString(undefined, {
-		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 	});
 	if (max !== undefined) {
 		const runs = automation.runCount === undefined

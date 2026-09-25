@@ -148,7 +148,7 @@ suite('Automation blueprints', () => {
 	test('rejects invalid scheduled maxima', () => {
 		for (const value of ['0', '-1', '1.5', '9007199254740992', 'null']) {
 			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
-				error => error instanceof AutomationBlueprintParseError);
+				AutomationBlueprintParseError);
 		}
 	});
 
