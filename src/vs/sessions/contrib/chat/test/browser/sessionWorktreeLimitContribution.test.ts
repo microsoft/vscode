@@ -67,15 +67,81 @@ suite('SessionWorktreeLimitContribution', () => {
 			Array.from({ length: 19 }, (_, index) => createSession(`old-${index}`, new Date(0))),
 			dialogService,
 		));
+		await belowLimit.refresh();
+		belowLimit.dispose();
+
 		const noCandidates = disposables.add(createService(
 			Array.from({ length: 20 }, (_, index) => createSession(`recent-${index}`, new Date())),
 			dialogService,
 		));
 
-		await belowLimit.refresh();
 		await noCandidates.refresh();
 
 		assert.strictEqual(confirmationCount, 0);
+	});
+
+	test('manual cleanup works below the automatic worktree limit', async () => {
+		const eligible = createSession('eligible', new Date(0));
+		let confirmationCount = 0;
+		const archived: string[] = [];
+		const service = disposables.add(createService([eligible], {
+			confirm: async () => {
+				confirmationCount++;
+				return { confirmed: true };
+			},
+		}, true, {
+			quickInputService: createAcceptingQuickInputService(),
+			archiveSession: async session => {
+				archived.push(session.sessionId);
+				eligible.isArchived.set(true, undefined);
+			},
+		}));
+
+		await service.cleanupWorktrees();
+
+		assert.deepStrictEqual({ confirmationCount, archived }, {
+			confirmationCount: 1,
+			archived: ['eligible'],
+		});
+	});
+
+	test('manual cleanup allows selecting a recent session', async () => {
+		const recent = createSession('recent', new Date());
+		const archived: string[] = [];
+		const service = disposables.add(createService([recent], {
+			confirm: async () => ({ confirmed: true }),
+		}, true, {
+			quickInputService: createAcceptingQuickInputService(undefined, true),
+			archiveSession: async session => {
+				archived.push(session.sessionId);
+				recent.isArchived.set(true, undefined);
+			},
+		}));
+
+		await service.cleanupWorktrees();
+
+		assert.deepStrictEqual(archived, ['recent']);
+	});
+
+	test('manual cleanup explains when no worktrees are eligible', async () => {
+		let title: string | undefined;
+		let detail: string | undefined;
+		const archived = createSession('archived', new Date(0));
+		archived.isArchived.set(true, undefined);
+		const service = disposables.add(createService([archived], {
+			confirm: async () => ({ confirmed: false }),
+			info: async (message, details) => {
+				title = message;
+				detail = details;
+			},
+		}));
+
+		await service.cleanupWorktrees();
+
+		assert.deepStrictEqual({ title, detail }, {
+			title: 'No Session Worktrees to Clean Up',
+			detail: 'Cleanup is available for completed, inactive sessions that exclusively own their worktrees.',
+		});
 	});
 
 	test('does not prompt when the experiment is disabled', async () => {
@@ -144,13 +210,20 @@ suite('SessionWorktreeLimitContribution', () => {
 		];
 		let confirmationCount = 0;
 		const archived: string[] = [];
+		let pickerSnapshot: { readonly selected: readonly string[]; readonly details: readonly (string | undefined)[] } | undefined;
 		const service = disposables.add(createService(sessions, {
 			confirm: async () => {
 				confirmationCount++;
 				return { confirmed: true };
 			},
 		}, true, {
-			quickInputService: createAcceptingQuickInputService(),
+			quickInputService: createAcceptingQuickInputService((items, selectedItems) => {
+				pickerSnapshot = {
+					selected: selectedItems.map(item => item.label),
+					details: items.map(item => item.detail),
+				};
+			}),
+			isSessionPinned: session => session.sessionId === 'recent-0',
 			archiveSession: async session => {
 				archived.push(session.sessionId);
 				eligible.isArchived.set(true, undefined);
@@ -159,9 +232,17 @@ suite('SessionWorktreeLimitContribution', () => {
 
 		await service.refresh();
 
-		assert.deepStrictEqual({ confirmationCount, archived }, {
+		assert.deepStrictEqual({ confirmationCount, archived, pickerSnapshot }, {
 			confirmationCount: 2,
 			archived: ['eligible'],
+			pickerSnapshot: {
+				selected: ['eligible'],
+				details: [
+					'Recommended: completed, inactive, and last updated at least 14 days ago',
+					'Not selected automatically: this session is pinned',
+					...Array.from({ length: 18 }, (_, index) => `Not selected automatically: recently updated on ${sessions[index + 2].updatedAt.get().toLocaleDateString()}`),
+				],
+			},
 		});
 	});
 
@@ -258,12 +339,13 @@ interface IServiceOptions {
 	readonly quickInputService?: IQuickInputService;
 	readonly archiveSession?: (session: ISession) => Promise<void>;
 	readonly getSessionWorktreeDiskUsage?: (session: ISession) => Promise<number | undefined>;
+	readonly isSessionPinned?: (session: ISession) => boolean;
 	readonly logError?: (message: string) => void;
 	readonly getSnoozedUntil?: () => number;
 	readonly setSnoozedUntil?: (value: number) => void;
 }
 
-function createService(sessions: readonly ISession[], dialogService: Pick<IDialogService, 'confirm'>, enabled = true, options: IServiceOptions = {}): SessionWorktreeLimitContribution {
+function createService(sessions: readonly ISession[], dialogService: Pick<IDialogService, 'confirm'> & Partial<Pick<IDialogService, 'info'>>, enabled = true, options: IServiceOptions = {}): SessionWorktreeLimitContribution {
 	return new SessionWorktreeLimitContribution(
 		upcastPartial<ISessionsManagementService>({
 			getSessions: () => [...sessions],
@@ -272,7 +354,7 @@ function createService(sessions: readonly ISession[], dialogService: Pick<IDialo
 			getSessionWorktreeDiskUsage: options.getSessionWorktreeDiskUsage,
 		}),
 		upcastPartial<ISessionsService>({ activeSession: constObservable(options.activeSession) }),
-		upcastPartial<ISessionsListModelService>({ isSessionPinned: () => false }),
+		upcastPartial<ISessionsListModelService>({ isSessionPinned: options.isSessionPinned ?? (() => false) }),
 		options.quickInputService ?? upcastPartial<IQuickInputService>({}),
 		upcastPartial<IDialogService>(dialogService),
 		upcastPartial<IConfigurationService>({
@@ -288,7 +370,7 @@ function createService(sessions: readonly ISession[], dialogService: Pick<IDialo
 	);
 }
 
-function createAcceptingQuickInputService(onShow?: (items: readonly IQuickPickItem[]) => void): IQuickInputService {
+function createAcceptingQuickInputService(onShow?: (items: readonly IQuickPickItem[], selectedItems: readonly IQuickPickItem[]) => void, selectAll = false): IQuickInputService {
 	const createQuickPick = (<T extends IQuickPickItem>() => {
 		const onDidAccept = new Emitter<IQuickPickDidAcceptEvent>();
 		const onDidHide = new Emitter<IQuickInputHideEvent>();
@@ -298,8 +380,10 @@ function createAcceptingQuickInputService(onShow?: (items: readonly IQuickPickIt
 			onDidAccept: onDidAccept.event,
 			onDidHide: onDidHide.event,
 			show: () => {
-				onShow?.(picker.items);
-				picker.selectedItems = [...picker.items];
+				if (selectAll) {
+					picker.selectedItems = [...picker.items];
+				}
+				onShow?.(picker.items, picker.selectedItems);
 				onDidAccept.fire({ inBackground: false });
 			},
 			hide: () => onDidHide.fire({ reason: QuickInputHideReason.Other }),

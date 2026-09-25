@@ -7,13 +7,18 @@ import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -25,6 +30,12 @@ const MINIMUM_SESSION_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const SNOOZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_DELAY_MS = 10_000;
 const STORAGE_KEY_SNOOZED_UNTIL = 'sessions.worktreeLimit.snoozedUntil';
+const CLEANUP_SESSION_WORKTREES_COMMAND_ID = 'sessions.action.cleanupWorktrees';
+const CLEANUP_SESSION_WORKTREES_WHEN = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals(`config.${EXPERIMENTAL_WORKTREE_LIMIT_PROMPT_SETTING}`, true),
+);
 
 interface ICleanupPickItem extends IQuickPickItem {
 	readonly candidate: ICleanupCandidate;
@@ -33,6 +44,13 @@ interface ICleanupPickItem extends IQuickPickItem {
 interface ICleanupCandidate {
 	readonly session: ISession;
 	readonly sizeBytes: number | undefined;
+	readonly recommendation: CleanupRecommendation;
+}
+
+const enum CleanupRecommendation {
+	Recommended,
+	Recent,
+	Pinned,
 }
 
 export class SessionWorktreeLimitContribution extends Disposable {
@@ -73,6 +91,22 @@ export class SessionWorktreeLimitContribution extends Disposable {
 				refreshScheduler.schedule();
 			}
 		}));
+		const contribution = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: CLEANUP_SESSION_WORKTREES_COMMAND_ID,
+					title: localize2('sessions.cleanupWorktrees', "Clean Up Session Worktrees..."),
+					category: SessionsCategories.Sessions,
+					precondition: CLEANUP_SESSION_WORKTREES_WHEN,
+					menu: [{ id: MenuId.CommandPalette, when: CLEANUP_SESSION_WORKTREES_WHEN }],
+				});
+			}
+
+			override run(): Promise<void> {
+				return contribution.cleanupWorktrees();
+			}
+		}));
 		refreshScheduler.schedule();
 	}
 
@@ -81,6 +115,33 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			return this._promptPromise;
 		}
 
+		const { worktreeCount, availableSessions, recommendedSessionIds } = this._getCleanupState();
+		if (worktreeCount < WORKTREE_COUNT_LIMIT || worktreeCount === this._lastPromptedWorktreeCount || recommendedSessionIds.size === 0) {
+			return;
+		}
+
+		this._lastPromptedWorktreeCount = worktreeCount;
+		return this._trackPrompt(this._measureAndPromptForCleanup(worktreeCount, availableSessions, recommendedSessionIds));
+	}
+
+	async cleanupWorktrees(): Promise<void> {
+		if (this._promptPromise) {
+			return this._promptPromise;
+		}
+
+		const { availableSessions, recommendedSessionIds } = this._getCleanupState();
+		if (availableSessions.length === 0) {
+			await this.dialogService.info(
+				localize('worktreeCleanup.none.title', "No Session Worktrees to Clean Up"),
+				localize('worktreeCleanup.none.detail', "Cleanup is available for completed, inactive sessions that exclusively own their worktrees."),
+			);
+			return;
+		}
+
+		return this._trackPrompt(this._measureAndReviewCleanup(availableSessions, recommendedSessionIds));
+	}
+
+	private _getCleanupState(): { worktreeCount: number; availableSessions: readonly ISession[]; recommendedSessionIds: ReadonlySet<string> } {
 		const sessions = this.sessionsManagementService.getSessions();
 		const worktreeOwners = new Map<string, Set<string>>();
 		const sessionWorktrees = new Map<string, Set<string>>();
@@ -109,28 +170,25 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			}
 		}
 		const worktreeCount = worktreeOwners.size;
-		if (worktreeCount < WORKTREE_COUNT_LIMIT || worktreeCount === this._lastPromptedWorktreeCount) {
-			return;
-		}
-
 		const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
 		const cutoff = Date.now() - MINIMUM_SESSION_AGE_MS;
-		const eligibleSessions = sessions.filter(session =>
+		const availableSessions = sessions.filter(session =>
 			session.sessionId !== activeSessionId
 			&& session.status.get() === SessionStatus.Completed
 			&& !session.isArchived.get()
-			&& !this.sessionsListModelService.isSessionPinned(session)
-			&& session.updatedAt.get().getTime() <= cutoff
 			&& [...(sessionWorktrees.get(session.sessionId) ?? [])].every(worktree => worktreeOwners.get(worktree)?.size === 1)
 			&& (sessionWorktrees.get(session.sessionId)?.size ?? 0) > 0
 		).sort((a, b) => a.updatedAt.get().getTime() - b.updatedAt.get().getTime());
-		if (eligibleSessions.length === 0) {
-			return;
-		}
+		const recommendedSessionIds = new Set(availableSessions
+			.filter(session => !this.sessionsListModelService.isSessionPinned(session) && session.updatedAt.get().getTime() <= cutoff)
+			.map(session => session.sessionId));
+		return { worktreeCount, availableSessions, recommendedSessionIds };
+	}
 
+	private async _measureCandidates(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<readonly ICleanupCandidate[]> {
 		const getDiskUsage = this.sessionsManagementService.getSessionWorktreeDiskUsage;
 		const limiter = new Limiter<number | undefined>(2);
-		const candidates = await Promise.all(eligibleSessions.map(async session => {
+		return Promise.all(availableSessions.map(async session => {
 			let sizeBytes: number | undefined;
 			if (getDiskUsage) {
 				try {
@@ -139,11 +197,26 @@ export class SessionWorktreeLimitContribution extends Disposable {
 					this.logService.warn(`[SessionWorktreeLimitContribution] Failed to measure worktree for session ${session.sessionId}`, error);
 				}
 			}
-			return { session, sizeBytes };
+			const recommendation = recommendedSessionIds.has(session.sessionId)
+				? CleanupRecommendation.Recommended
+				: this.sessionsListModelService.isSessionPinned(session)
+					? CleanupRecommendation.Pinned
+					: CleanupRecommendation.Recent;
+			return { session, sizeBytes, recommendation };
 		}));
+	}
 
-		this._lastPromptedWorktreeCount = worktreeCount;
-		const prompt = this._promptForCleanup(worktreeCount, candidates);
+	private async _measureAndPromptForCleanup(worktreeCount: number, availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<void> {
+		const candidates = await this._measureCandidates(availableSessions, recommendedSessionIds);
+		await this._promptForCleanup(worktreeCount, candidates);
+	}
+
+	private async _measureAndReviewCleanup(availableSessions: readonly ISession[], recommendedSessionIds: ReadonlySet<string>): Promise<void> {
+		const candidates = await this._measureCandidates(availableSessions, recommendedSessionIds);
+		await this._reviewAndCleanup(candidates);
+	}
+
+	private async _trackPrompt(prompt: Promise<void>): Promise<void> {
 		this._promptPromise = prompt;
 		try {
 			await prompt;
@@ -155,18 +228,19 @@ export class SessionWorktreeLimitContribution extends Disposable {
 	}
 
 	private async _promptForCleanup(worktreeCount: number, candidates: readonly ICleanupCandidate[]): Promise<void> {
-		const estimatedBytes = candidates.reduce((total, candidate) => total + (candidate.sizeBytes ?? 0), 0);
-		const measuredCount = candidates.filter(candidate => candidate.sizeBytes !== undefined).length;
+		const recommended = candidates.filter(candidate => candidate.recommendation === CleanupRecommendation.Recommended);
+		const estimatedBytes = recommended.reduce((total, candidate) => total + (candidate.sizeBytes ?? 0), 0);
+		const measuredCount = recommended.filter(candidate => candidate.sizeBytes !== undefined).length;
 		const confirmation = await this.dialogService.confirm({
 			message: localize('worktreeLimit.message', "You have {0} session worktrees", worktreeCount),
-			detail: measuredCount === candidates.length
-				? candidates.length === 1
+			detail: measuredCount === recommended.length
+				? recommended.length === 1
 					? localize('worktreeLimit.detail.measured.one', "Storage is limited by the number of worktrees. Archiving this old session can reclaim about {0} and make room for new sessions.", ByteSize.formatSize(estimatedBytes))
-					: localize('worktreeLimit.detail.measured.many', "Storage is limited by the number of worktrees. Archiving {0} old sessions can reclaim about {1} and make room for new sessions.", candidates.length, ByteSize.formatSize(estimatedBytes))
+					: localize('worktreeLimit.detail.measured.many', "Storage is limited by the number of worktrees. Archiving the {0} recommended old sessions can reclaim about {1} and make room for new sessions.", recommended.length, ByteSize.formatSize(estimatedBytes))
 				: estimatedBytes > 0
-					? candidates.length === 1
+					? recommended.length === 1
 						? localize('worktreeLimit.detail.partiallyMeasured.one', "Storage is limited by the number of worktrees. Archiving this old session can reclaim at least {0} and make room for new sessions.", ByteSize.formatSize(estimatedBytes))
-						: localize('worktreeLimit.detail.partiallyMeasured.many', "Storage is limited by the number of worktrees. Archiving {0} old sessions can reclaim at least {1} and make room for new sessions.", candidates.length, ByteSize.formatSize(estimatedBytes))
+						: localize('worktreeLimit.detail.partiallyMeasured.many', "Storage is limited by the number of worktrees. Archiving the {0} recommended old sessions can reclaim at least {1} and make room for new sessions.", recommended.length, ByteSize.formatSize(estimatedBytes))
 					: localize('worktreeLimit.detail.unmeasured', "Storage is limited by the number of worktrees. Archive old sessions to clean up their worktrees and make room for new sessions."),
 			primaryButton: localize('worktreeLimit.review', "Review and Clean Up"),
 			cancelButton: localize('worktreeLimit.later', "Remind Me Later"),
@@ -178,6 +252,10 @@ export class SessionWorktreeLimitContribution extends Disposable {
 			return;
 		}
 
+		await this._reviewAndCleanup(candidates);
+	}
+
+	private async _reviewAndCleanup(candidates: readonly ICleanupCandidate[]): Promise<void> {
 		const selected = await this._pickCandidates(candidates);
 		if (selected.length === 0) {
 			return;
@@ -235,10 +313,14 @@ export class SessionWorktreeLimitContribution extends Disposable {
 		picker.items = candidates.map(candidate => ({
 			label: candidate.session.title.get() || localize('worktreeLimit.untitled', "Untitled session"),
 			description: candidate.sizeBytes === undefined ? undefined : ByteSize.formatSize(candidate.sizeBytes),
-			detail: localize('worktreeLimit.lastUpdated', "Last updated {0}", candidate.session.updatedAt.get().toLocaleDateString()),
+			detail: candidate.recommendation === CleanupRecommendation.Recommended
+				? localize('worktreeLimit.recommended', "Recommended: completed, inactive, and last updated at least 14 days ago")
+				: candidate.recommendation === CleanupRecommendation.Pinned
+					? localize('worktreeLimit.pinned', "Not selected automatically: this session is pinned")
+					: localize('worktreeLimit.recent', "Not selected automatically: recently updated on {0}", candidate.session.updatedAt.get().toLocaleDateString()),
 			candidate,
 		}));
-		picker.selectedItems = [...picker.items];
+		picker.selectedItems = picker.items.filter(item => item.candidate.recommendation === CleanupRecommendation.Recommended);
 
 		return new Promise(resolve => {
 			store.add(picker.onDidAccept(() => {

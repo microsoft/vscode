@@ -568,7 +568,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.worktreeLimitPrompt', "Controls whether a cleanup prompt is shown when the Agents Window reaches the session worktree count limit and old sessions are available to archive."),
+			description: localize('sessions.chat.experimental.worktreeLimitPrompt', "Controls whether session worktree cleanup commands and prompts are available in the Agents Window."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
