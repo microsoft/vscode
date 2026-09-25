@@ -150,6 +150,12 @@
         "category": "Git"
       },
       {
+        "command": "git.copyChanges",
+        "title": "%command.copyChanges%",
+        "category": "Git",
+        "icon": "$(copy)"
+      },
+      {
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
@@ -1930,6 +1936,11 @@
         },
         {
           "command": "git.refresh",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.copyChanges",
           "group": "navigation",
           "when": "scmProvider == git"
         },
