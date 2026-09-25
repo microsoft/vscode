@@ -428,6 +428,32 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}
 	}
 
+	test('runs draft transfer after the first five Copilot harness sessions', async () => {
+		const h = createHarness({ transfer: true, running: false, copilotHarnessSessionCount: 5 });
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
+		h.copilotHarnessSessionCount = 6;
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
+		h.copilotHarnessSessionCount = 5;
+		h.resource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-claude' });
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
+
+		assert.deepStrictEqual(h.calls.map(call => call.draft && reviveChatDraft(call.draft).inputText), [
+			undefined,
+			'Original prompt',
+			'Original prompt',
+		]);
+	});
+
+	test('preserves explicit draft transfer during the Copilot introduction window', async () => {
+		const h = createHarness({ transfer: false, running: false, copilotHarnessSessionCount: 5 });
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, {
+			agentsWindowOpenSource: AgentsWindowOpenSource.CurrentChatHandoff,
+			transferDraft: true,
+		}, h.resource));
+
+		assert.strictEqual(h.calls[0].draft && reviveChatDraft(h.calls[0].draft).inputText, 'Original prompt');
+	});
+
 	for (const session of [
 		{ name: 'built-in local Chat', resource: LocalChatSessionUri.getNewSessionUri(), invitation: false },
 		{ name: 'local chat-editor resource', resource: URI.from({ scheme: Schemas.vscodeChatEditor, path: '/new-editor-chat' }), invitation: false },
@@ -634,28 +660,42 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('keeps the parallel-work invitation enabled when Copilot education is in control', () => {
+	test('runs the parallel-work invitation after the first five Copilot harness sessions', () => {
 		const h = createHarness({ introduction: false, copilotHarnessSessionCount: 4 });
 		h.showBanner();
+		const atFour = h.notification;
+		h.copilotHarnessSessionCount = 6;
 
 		assert.deepStrictEqual({
+			atFour,
 			title: h.notification?.message,
 			actions: h.notification?.actions.map(action => action.label),
 		}, {
+			atFour: undefined,
 			title: 'Run agents side by side',
 			actions: ['Open Agents Window', 'Ignore'],
 		});
 	});
 
-	test('prioritizes the parallel-work invitation over education when its experiment is active', () => {
+	test('reserves the first five Copilot harness sessions for education when both experiments are active', () => {
 		const h = createHarness({ copilotHarnessSessionCount: 4 });
 		h.showBanner();
+		const atFour = {
+			title: h.notification?.message,
+			actions: h.notification?.actions.map(action => action.label),
+		};
+		h.copilotHarnessSessionCount = 6;
 
 		assert.deepStrictEqual({
+			atFour,
 			title: h.notification?.message,
 			description: h.notification?.description,
 			actions: h.notification?.actions.map(action => action.label),
 		}, {
+			atFour: {
+				title: 'You\'re using a new Copilot experience',
+				actions: ['Learn More', '$(thumbsup)', '$(thumbsdown)'],
+			},
 			title: 'Run agents side by side',
 			description: 'Run multiple tasks in the Agents Window, in one workspace or across projects.',
 			actions: ['Open Agents Window', 'Ignore'],
@@ -824,7 +864,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		h.showBanner();
 		const underFive = h.notification;
 		h.status = AgentSessionStatus.InProgress;
-		h.copilotHarnessSessionCount = 5;
+		h.copilotHarnessSessionCount = 6;
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-parallel' });
 
 		assert.deepStrictEqual({
@@ -883,7 +923,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	});
 
 	test('does not replace the empty-workspace setup tip with Copilot harness education', () => {
-		const h = createHarness({ running: false, copilotHarnessSessionCount: 5 });
+		const h = createHarness({ copilotHarnessSessionCount: 5 });
 		h.workbenchState = WorkbenchState.EMPTY;
 		h.showGenericTip();
 		h.showBanner();

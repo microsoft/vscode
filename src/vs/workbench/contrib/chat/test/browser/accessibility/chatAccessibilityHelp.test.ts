@@ -25,17 +25,33 @@ suite('Chat Accessibility Help', () => {
 			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
 		});
 
-		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+		test(`documents Copilot introduction and parallel invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
+				introductionWindow: help.includes('During the first five Copilot harness sessions'),
+				introductionActions: help.includes('let us know, Learn More, Helpful, Not Helpful, or Dismiss notification'),
+				introductionDismissal: help.includes('Not Helpful and Dismiss notification turn off future introductions'),
+				agentHostOnly: help.includes('when another Agent Host session is running, a new Copilot harness chat'),
+				parallelAfterIntroduction: help.includes('After the first five Copilot harness sessions'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
 				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
 				preserve: help.includes('An existing draft in the Agents Window is kept'),
 				ignore: help.includes('Ignore turns off future invitations'),
 				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
-				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
-			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('Copilot harness sessions'),
+			}, {
+				introductionWindow: true,
+				introductionActions: true,
+				introductionDismissal: true,
+				agentHostOnly: true,
+				parallelAfterIntroduction: true,
+				copy: true,
+				singleOwner: true,
+				preserve: true,
+				ignore: true,
+				dismiss: true,
+				hiddenInAgents: true,
+			});
 		});
 	}
 
