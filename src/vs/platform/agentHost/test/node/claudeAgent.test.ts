@@ -54,6 +54,7 @@ import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPlugin
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -8448,6 +8449,46 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 
 		assert.deepStrictEqual(turns, []);
 		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'provisional chat must not hit SDK');
+	});
+
+	test('getMessages restores retained Bash output from the chat database', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('u1');
+		await database.storeTerminalOutput('u1', 'toolu_bash', VSBuffer.fromString('full output').buffer);
+		const { agent, sdk } = createTestContext(disposables, { database });
+		const sessionId = 'phase13-retained-output';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'run it'),
+			{
+				...makeAssistantMessage(sessionId, [
+					{ type: 'tool_use', id: 'toolu_bash', name: 'Bash', input: { command: 'build' } },
+				]),
+				parent_agent_id: null,
+			},
+			{
+				...makeUserToolResultMessage(sessionId, 'toolu_bash', 'Output too large'),
+				parent_agent_id: null,
+				session_id: sessionId,
+				uuid: 'bash-result',
+			},
+		]);
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		const chat = defaultChatUri(sessionUri);
+		await bindDefaultChat(agent, sessionUri);
+
+		const turns = await agent.chats.getMessages(chat, chatContext(chat));
+
+		const toolCall = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(toolCall?.kind === ResponsePartKind.ToolCall && toolCall.toolCall.status === ToolCallStatus.Completed ? toolCall.toolCall.content : undefined, [
+			{ type: ToolResultContentType.Text, text: 'Output too large' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chat, 'toolu_bash'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, truncated: true },
+			},
+		]);
 	});
 
 	test('getMessages returns [] on SDK fetch failure (warn-logged)', async () => {
