@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../ba
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
-import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
+import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari, getZoomFactor } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
@@ -1868,6 +1868,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
+		if (isMacintosh && isNative) {
+			this.mainContainer.style.setProperty('--zoom-factor', String(getZoomFactor(mainWindow)));
+		}
 
 		this._layoutGrid();
 
