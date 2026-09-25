@@ -571,7 +571,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	/** Attempts an append-only update, preserving rendered code blocks even when streaming animations are disabled. */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
-		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
+		if (!extendsInlineReferences(this.markdown.inlineReferences, newMarkdown.inlineReferences)) {
 			return false;
 		}
 
@@ -658,6 +658,17 @@ function equalsInlineReferences(a: Record<string, IChatContentInlineReference> |
 	}
 
 	return aKeys.every(key => equalsInlineReference(a[key], b[key]));
+}
+
+function extendsInlineReferences(previous: Record<string, IChatContentInlineReference> | undefined, next: Record<string, IChatContentInlineReference> | undefined): boolean {
+	if (!previous) {
+		return true;
+	}
+	if (!next) {
+		return false;
+	}
+
+	return Object.keys(previous).every(key => equalsInlineReference(previous[key], next[key]));
 }
 
 function equalsInlineReference(a: IChatContentInlineReference | undefined, b: IChatContentInlineReference | undefined): boolean {
