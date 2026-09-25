@@ -709,6 +709,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
@@ -744,6 +745,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
 		this.updateResourceLabelHomes();

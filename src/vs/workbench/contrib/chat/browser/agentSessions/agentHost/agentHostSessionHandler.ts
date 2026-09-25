@@ -40,7 +40,7 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isWorktreeUnderRepository } from '../../../../../../platform/agentHost/common/worktreePaths.js';
+import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -734,6 +734,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly forkSession: IChatSession['forkSession'];
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
+	prepareForClientTools: IChatSession['prepareForClientTools'];
 
 	constructor(
 		readonly sessionResource: URI,
@@ -1744,6 +1745,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._activeSessions.set(sessionResource, session);
 		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
+		session.prepareForClientTools = token => this._ensureActiveClient(sessionResource, resolvedSession, token);
 
 		if (!isNewSession) {
 			// Only wire up pending-message/draft sync once the chat URI has been
@@ -3474,15 +3476,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
+			const backgroundActions = new Map(this._customizationService.getMcpServers(opts.sessionResource)
+				.filter(server => server.background !== undefined)
+				.map(server => [server.id, server.background]));
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
 			return servers
 				.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.Starting)
-				.map((server): IChatMcpStartingServer => ({
-					id: opts.sessionResource.authority + '/' + server.id,
-					name: server.name,
-				}));
+				.map((server): IChatMcpStartingServer => {
+					const id = opts.sessionResource.authority + '/' + server.id;
+					return {
+						id,
+						name: server.name,
+						blocking: server.state.kind === McpServerStatus.Starting && server.state.blocking === true,
+						background: backgroundActions.get(id),
+					};
+				});
 		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
@@ -3600,11 +3610,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}));
 
 			// Surface a "Starting MCP servers …" progress hint when servers
-			// remain in the `Starting` state past a short grace period after the
+			// remain in the `Starting` state past a short grace period after a
 			// turn begins without any content arriving from the host. The part
 			// updates as servers finish and hides once every server has started,
 			// content starts being received, or the turn ends — whichever comes
-			// first. It carries no interactive affordance (no "Skip").
+			// first.
 			{
 				const MCP_STARTING_GRACE_MS = 5000;
 
@@ -6275,16 +6285,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Resolves the local folders the agent will run in, for the workspace-trust
-	 * gate: an existing session's persisted working directories, or a new session's
-	 * requested ones.
-	 *
-	 * Returns `undefined` for a workspace-less session (a quick chat) to signal the
-	 * caller to skip the folder-trust gate entirely: its only working directory is
-	 * an internal scratch dir (`~/.copilot/chats/<id>`), an implementation detail
-	 * rather than a user workspace, so it must not be treated as a trust root.
-	 * Otherwise an explicit empty set is honored and only a genuinely unresolved set
-	 * falls back to the requested/workspace folders.
+	 * Resolves persisted workspace-trust roots, excluding a quick chat's internal scratch directory but not any added folders.
+	 * New sessions and unresolved persisted roots fall back to the requested/workspace folders.
 	 */
 	private async _resolveSessionTrustFolders(sessionResource: URI, token: CancellationToken): Promise<readonly URI[] | undefined> {
 		if (!this._isNewSessionResource(sessionResource)) {
@@ -6299,69 +6301,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state?.workingDirectories === undefined) {
 				state = await this._readEagerlyCreatedSessionState(backendSession, token) ?? state;
 			}
-			// A workspace-less session (quick chat) runs only in an internal scratch
-			// dir that is not a user workspace; never gate trust on it.
-			if (state && readSessionWorkspaceless(state._meta)) {
-				return undefined;
-			}
-			const dirs = state?.workingDirectories;
-			if (state && dirs !== undefined) {
-				// Inherit trust for a VS Code-created worktree from the trusted base
-				// repository so the gate does not prompt for it. Done here (the gate
-				// already read the state) so `_ensureFoldersTrusted` short-circuits.
-				await this._inheritWorktreeTrust(state);
-				return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+			if (state && (readSessionWorkspaceless(state._meta) || state.workingDirectories !== undefined)) {
+				return resolveAgentHostSessionTrustFolders(state, this._workspaceTrustManagementService);
 			}
 		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];
-	}
-
-	/**
-	 * Grants (and persists) trust for a worktree-isolated session's VS Code-created
-	 * worktree when the base repository the user already trusts is trusted, so the
-	 * trust gate does not prompt for the worktree.
-	 *
-	 * This lives in the handler because `_invokeAgent` is the only universal
-	 * chokepoint every turn passes through — follow-up turns bypass the sessions
-	 * open gate ({@link ISessionsService.canOpenSession}). Protocol `SessionState`
-	 * does not carry the sessions layer's `gitRepository.workTreeUri`, so
-	 * eligibility uses the isolation config plus a structural guard: only a strict
-	 * descendant of the repository's `.worktrees` sibling
-	 * ({@link isWorktreeUnderRepository}) can inherit trust — a trusted base URI is
-	 * never enough on its own, and the shared `<repo>.worktrees` container is
-	 * excluded so a grant can never cascade to every worktree. Mirrors the
-	 * sessions-layer `ensureSessionWorktreesTrusted`; kept separate because
-	 * `workbench` must not import `sessions`.
-	 */
-	private async _inheritWorktreeTrust(state: SessionState): Promise<void> {
-		if (state.config?.values[SessionConfigKey.Isolation] !== 'worktree') {
-			return;
-		}
-		const repositoryRootRaw = state.project?.uri;
-		if (!repositoryRootRaw) {
-			return;
-		}
-		const repositoryRoot = typeof repositoryRootRaw === 'string' ? URI.parse(repositoryRootRaw) : repositoryRootRaw;
-		// Keep only individual worktrees under `<repo>.worktrees` (never the shared
-		// container itself), so a trusted base repo grants trust for exactly this
-		// session's worktree and not for every sibling worktree.
-		const worktreeFolders = (state.workingDirectories ?? [])
-			.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory)
-			.filter(folder => isWorktreeUnderRepository(folder, repositoryRoot));
-		if (worktreeFolders.length === 0) {
-			return;
-		}
-		const [repoTrust, ...folderTrusts] = await Promise.all([
-			this._workspaceTrustManagementService.getUriTrustInfo(repositoryRoot),
-			...worktreeFolders.map(folder => this._workspaceTrustManagementService.getUriTrustInfo(folder)),
-		]);
-		if (!repoTrust.trusted) {
-			return;
-		}
-		const untrusted = worktreeFolders.filter((_, index) => !folderTrusts[index].trusted);
-		if (untrusted.length > 0) {
-			await this._workspaceTrustManagementService.setUrisTrust(untrusted, true);
-		}
 	}
 
 	/**

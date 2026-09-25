@@ -927,7 +927,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				requestActivity.value = isDeferredNewSessionRequestOptions(options)
 					? provider.startNewSessionRequest?.(session.sessionId, options.activity)
 					: provider.startNewSessionRequest?.(session.sessionId);
-				createOptions?.onSessionCreated?.(session);
+				await createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);
 				throw error;
@@ -944,6 +944,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, createOptions));
+		try {
+			await createOptions?.onSessionCreated?.(session);
+		} catch (error) {
+			provider.deleteNewSession(session.sessionId);
+			throw error;
+		}
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
 	}
 

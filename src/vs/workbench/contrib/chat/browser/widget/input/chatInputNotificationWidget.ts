@@ -82,6 +82,7 @@ export interface IChatInputNotificationModelSelection {
 
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
+	readonly hostVisible?: IObservable<boolean>;
 	readonly inputUri?: URI;
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
@@ -126,6 +127,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _isTransientChat = false;
 	private _lastAnnouncementSignature: string | undefined;
 	private _visible = false;
+	private _hostVisible = true;
+	private _currentNotification: IChatInputNotification | undefined;
 	private _slot: HTMLElement | undefined;
 
 	constructor(
@@ -148,6 +151,12 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}));
 		this._notice.setVisible(false);
 
+		this._register(autorun(reader => {
+			this._hostVisible = this._delegate?.hostVisible?.read(reader) ?? true;
+			if (this._currentNotification) {
+				this._handleShown(this._currentNotification);
+			}
+		}));
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
@@ -179,6 +188,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return false;
 		});
 		const body = notification ? bodies.get(notification.id) : undefined;
+		this._currentNotification = body ? notification : undefined;
 		this._setVisible(!!notification && !!body);
 		const announcementSignature = notification && body ? getChatInputNotificationAnnouncementSignature(notification, body) : undefined;
 		if (announcementSignature !== this._lastAnnouncementSignature) {
@@ -196,7 +206,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
 		this._renderNotification(notification, body);
-		this._logShownTelemetry(notification);
+		this._handleShown(notification);
 		if (hadFocus) {
 			// The region is rebuilt on every render; keep focus inside it.
 			this.focus();
@@ -480,13 +490,21 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 	}
 
-	private _logShownTelemetry(notification: IChatInputNotification): void {
+	private _handleShown(notification: IChatInputNotification): void {
+		if (!this._hostVisible) {
+			return;
+		}
 		const data = this._getTelemetryData(notification);
 		if (this._lastShownTelemetryData?.id === data.id && this._lastShownTelemetryData.telemetryId === data.telemetryId) {
 			return;
 		}
 		this._lastShownTelemetryData = data;
 		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
+		try {
+			notification.onDidShow?.();
+		} catch (error) {
+			this._logError(error);
+		}
 	}
 
 	private _getTelemetryData(notification: IChatInputNotification): ChatInputNotificationTelemetryEvent {
