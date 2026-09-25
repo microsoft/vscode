@@ -38,13 +38,10 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 /** Maximum number of `/connect` "waking" retries before giving up. */
 const MAX_WAKING_RETRIES = 20;
 
-/**
- * Maximum number of `/connect` re-mints while the sealed token is missing, sized to cover the
- * backend's own registration retry cycle.
- */
+/** Maximum number of credential refreshes while waiting for a sealed token. */
 export const MAX_SEALED_TOKEN_RETRIES = 12;
 
-/** Delay between `/connect` re-mints while waiting for complete credentials. */
+/** Delay between credential refreshes while waiting for complete credentials. */
 const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
 
 interface IStagedCloudSandboxConnection {
@@ -354,11 +351,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
 	}
 
-	/**
-	 * Re-mint credentials until they carry a sealed token, which a freshly provisioned environment
-	 * can omit for a short window after it comes up. Returns the last credentials either way, since
-	 * an environment may legitimately never seal one.
-	 */
+	/** Refresh the initial client's credentials until a sealed token arrives or the bounded wait ends. */
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
@@ -366,18 +359,18 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; refreshing in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
 			await timeout(this.sealedTokenRetryDelayMs, token);
 
 			let result: CloudSandboxConnectResult;
 			try {
-				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId }, minted.client_id, token);
 			} catch (err) {
 				if (isCancellationError(err) || token.isCancellationRequested) {
 					throw err;
 				}
 				// The initial mint still works, so degrade rather than discard it.
-				this._logService.warn(`${LOG_PREFIX} Re-mint for ${options.environmentId} failed; continuing without a sealed token`, err);
+				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${options.environmentId} failed; continuing without a sealed token`, err);
 				break;
 			}
 			if (result.kind !== 'token') {
