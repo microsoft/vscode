@@ -20,6 +20,37 @@ import { createChatUserInteractionTestHarness } from './chatUserInteractionTestU
 suite('ChatUserInteractionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('retains the remote routing identity before a response without exporting it', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const resource = URI.parse('remote-example-copilot:/session');
+		const timer = h.createInteraction({
+			context: getChatSessionTelemetryContext(resource),
+			getSessionResource: () => resource,
+		});
+		timer.cancel('queued');
+		assert.deepStrictEqual({
+			routes: h.otelRoutes,
+			payloadContainsResource: JSON.stringify(h.otel).includes(resource.toString()),
+			telemetryContainsAuthority: JSON.stringify(h.events).includes('example'),
+		}, {
+			routes: [{ resource, sessionType: 'remote-agent-host' }],
+			payloadContainsResource: false,
+			telemetryContainsAuthority: false,
+		});
+		h.assertFinished('queued');
+	});
+
+	test('uses the committed response routing identity instead of the original submission', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const resource = URI.parse('remote-example-copilot:/committed');
+		const response = h.createResponse(resource);
+		const timer = h.createInteraction({ getSessionResource: () => URI.parse('agent-host-copilot:/original') });
+		timer.observeResponse(response.response, () => undefined);
+		timer.cancel('hidden');
+		assert.deepStrictEqual(h.otelRoutes, [{ resource, sessionType: 'remote-agent-host' }]);
+		h.assertFinished('hidden');
+	});
+
 	test('uses provider-neutral meaningful progress semantics', () => {
 		const cases: [IChatProgress | IChatProgressResponseContent, boolean][] = [
 			[{ kind: 'thinking' }, false],
@@ -70,6 +101,11 @@ suite('ChatUserInteractionTelemetry', () => {
 		h.setTime(350);
 		h.frame();
 		timer.cancel('cancelled');
+		assert.deepStrictEqual(h.otel, [{
+			schemaVersion: 1, rendererId: 'test-renderer', interactionOrdinal: 1, requestId: 'request-id',
+			result: 'success', requestPhase: 'first', firstProgressKind: 'text', timeToFirstProgress: 250,
+			timeToTermination: undefined, windowVisible: true, windowFocused: false,
+		}]);
 		timer.setContext({ requestId: 'too-late' });
 		timer.observeResponse(response.response, () => view.widget);
 		const data = {
