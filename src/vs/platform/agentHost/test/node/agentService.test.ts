@@ -9,7 +9,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -22,6 +22,7 @@ import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -29,6 +30,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -43,7 +45,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity, SessionOriginKind, type AutomationRunState, type Message, type MessageAttachment, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -54,12 +56,12 @@ import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -138,14 +140,14 @@ function discoveredChat(session: URI, external = true, modifiedTime = Date.now()
 	};
 }
 
-function createPerSessionDataService(): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[]; readonly databaseIds: () => readonly string[] } {
+function createPerSessionDataService(createDatabase = () => new TestSessionDatabase()): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[]; readonly databaseIds: () => readonly string[] } {
 	const databases = new Map<string, TestSessionDatabase>();
 	const databaseOpens: string[] = [];
 	const database = (session: URI): TestSessionDatabase => {
 		const key = session.toString();
 		let result = databases.get(key);
 		if (!result) {
-			result = new TestSessionDatabase();
+			result = createDatabase();
 			databases.set(key, result);
 		}
 		return result;
@@ -4976,6 +4978,377 @@ suite('AgentService (node dispatcher)', () => {
 				backingMarked: true,
 				providerDataPersisted: false,
 				disposeCalls: 1,
+			});
+		});
+	});
+
+	suite('automation session origin', () => {
+		const automation = 'ahp-automation:/review';
+
+		function createHost(sessionDataService: ISessionDataService, database = new TestAgentHostOrchestratorDatabase(), storageResource?: URI, catalogue = true): AgentService {
+			const host = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, new class extends mock<IProductService>() { }(), createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, storageResource, database,
+			));
+			getConfigurationService(host).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: catalogue });
+			registerTestAgentProvider(host, copilotAgent);
+			return host;
+		}
+
+		async function createAutomation(host: AgentService): Promise<void> {
+			getConfigurationService(host).updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true });
+			const created = Event.toPromise(Event.filter(getStateManager(host).onDidEmitEnvelope, envelope => envelope.action.type === ActionType.AutomationSet), disposables);
+			host.dispatchAction('ahp-automations://', {
+				type: ActionType.AutomationCreateRequested,
+				resource: automation,
+				definition: {
+					title: 'Review',
+					message: { text: 'Review the changes.', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'copilot' },
+					enabled: true,
+					triggers: [],
+				},
+			}, 'test-client', 1);
+			await created;
+		}
+
+		async function createLegacyAutomationSession(sessionData = createPerSessionDataService()) {
+			const directory = mkdtempSync(join(tmpdir(), 'agent-session-origin-'));
+			disposables.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+			const storage = URI.file(join(directory, 'storage.json'));
+			const database = new TestAgentHostOrchestratorDatabase();
+			const host = createHost(sessionData.service, database);
+			const session = await host.createSession({ provider: 'copilot' });
+			await host.listSessions();
+			host.markStartupComplete();
+			await host.whenDeferredWorkSettled();
+			await host.whenCatalogReconciliationIdle();
+			host.dispose();
+			const run: AutomationRunState = {
+				resource: 'ahp-automation-run:/legacy',
+				automation,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-01-01T00:00:00.000Z', startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z' },
+				sessions: [session.toString()],
+				primarySession: session.toString(),
+			};
+			writeFileSync(storage.fsPath, JSON.stringify({ automations: { catalog: { automations: [] }, runs: [run], manualRunRequests: [] } }));
+			const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation, run: run.resource };
+			return { sessionData, database, storage, session, origin };
+		}
+
+		test('persists origin before publication and retains it after restart without run history', async () => {
+			const sessionData = createPerSessionDataService();
+			const database = new TestAgentHostOrchestratorDatabase();
+			const host = createHost(sessionData.service, database);
+			await createAutomation(host);
+			const publications: { origin: SessionOrigin | undefined; persisted: string | undefined }[] = [];
+			disposables.add(getStateManager(host).onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					publications.push({
+						origin: notification.summary.origin,
+						persisted: sessionData.database(URI.parse(notification.summary.resource)).setMetadataCalls.find(write => write.key === SESSION_ORIGIN_KEY)?.value,
+					});
+				}
+			}));
+			const sent = Event.toPromise(copilotAgent.onDidSendMessage, disposables);
+			const run = await host.runAutomation({ channel: 'ahp-automations://', automation, requestId: 'origin-run' });
+			const { session, chat } = await sent;
+			assert.ok(chat);
+			const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation, run: run.resource };
+			const turn = getStateManager(host).getChatState(chat.toString())?.activeTurn;
+			assert.ok(turn);
+			const completed = Event.toPromise(Event.filter(getStateManager(host).onDidEmitEnvelope, envelope =>
+				envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed
+			), disposables);
+			copilotAgent.fireProgress({ kind: 'action', resource: chat, action: { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 } });
+			await completed;
+			const firstPublications = [...publications];
+			const ordinary = await host.createSession({ provider: 'copilot' });
+			const ordinaryOrigin = getStateManager(host).getSessionSummary(ordinary.toString())?.origin;
+			await host.listSessions();
+			host.markStartupComplete();
+			await host.whenDeferredWorkSettled();
+			await host.whenCatalogReconciliationIdle();
+			host.dispose();
+
+			const restored = createHost(sessionData.service, database);
+			const listing = await restored.listSessions();
+			await restored.subscribe(session, 'history-viewer');
+			assert.deepStrictEqual({
+				firstPublications,
+				ordinaryOrigin,
+				listed: listing.find(metadata => metadata.session.toString() === session.toString())?.origin,
+				restored: getStateManager(restored).getSessionState(session.toString())?.origin,
+				runHistory: getStateManager(restored).getAutomationCatalogState()?.entries,
+			}, {
+				firstPublications: [{ origin, persisted: JSON.stringify(origin) }],
+				ordinaryOrigin: undefined,
+				listed: origin,
+				restored: origin,
+				runHistory: [],
+			});
+		});
+
+		test('rolls back an Automation session when origin cannot be persisted', async () => {
+			class FailingOriginDatabase extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[SESSION_ORIGIN_KEY]) {
+						throw new Error('origin write failed');
+					}
+					return super.setMetadataValues(values);
+				}
+			}
+			const host = createHost(createSessionDataService(new FailingOriginDatabase()));
+			await createAutomation(host);
+			const publications: INotification[] = [];
+			disposables.add(getStateManager(host).onDidEmitNotification(notification => publications.push(notification)));
+			const failed = Event.toPromise(Event.filter(getStateManager(host).onDidEmitEnvelope, envelope =>
+				envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Failed
+			), disposables);
+			const run = await host.runAutomation({ channel: 'ahp-automations://', automation, requestId: 'failed-origin-run' });
+			await failed;
+
+			assert.deepStrictEqual({
+				published: publications.filter(notification => notification.type === NotificationType.SessionAdded),
+				registered: await host.getRegisteredSessions(),
+				linked: getStateManager(host).getAutomationRunState(run.resource)?.sessions,
+				disposals: copilotAgent.disposeSessionCalls.length,
+			}, {
+				published: [],
+				registered: [],
+				linked: [],
+				disposals: 1,
+			});
+		});
+
+		for (const { catalogue, centralOnly } of [{ catalogue: true, centralOnly: false }, { catalogue: false, centralOnly: false }, { catalogue: true, centralOnly: true }]) {
+			test(`backfills retained host-run origin with catalogue ${catalogue ? 'enabled' : 'disabled'}${centralOnly ? ' and no session database' : ''}`, async () => {
+				const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession();
+				const dataService: ISessionDataService = centralOnly ? {
+					...sessionData.service,
+					tryOpenDatabase: async () => undefined,
+					openDatabase: () => { throw new Error('Backfill must not create a session database'); },
+				} : sessionData.service;
+				const host = createHost(dataService, database, storage, catalogue);
+				getConfigurationService(host).updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false });
+				const listing = await host.listSessions();
+				const featureEnabled = getStateManager(host).rootState.config?.values[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY];
+				const catalogOrigin = catalogDataOf(await database.getSessionV2(session.toString()))?.origin;
+				host.dispose();
+				const restarted = createHost(dataService, database);
+				const afterRestart = await restarted.listSessions();
+				assert.deepStrictEqual({
+					listed: listing.find(metadata => metadata.session.toString() === session.toString())?.origin,
+					restarted: afterRestart.find(metadata => metadata.session.toString() === session.toString())?.origin,
+					persisted: await sessionData.database(session).getMetadata(SESSION_ORIGIN_KEY),
+					catalogOrigin,
+					featureEnabled,
+				}, {
+					listed: origin,
+					restarted: origin,
+					persisted: centralOnly ? undefined : JSON.stringify(origin),
+					catalogOrigin: origin,
+					featureEnabled: false,
+				});
+			});
+		}
+
+		for (const { centralOnly, automationOrigin } of [{ centralOnly: false, automationOrigin: true }, { centralOnly: true, automationOrigin: true }, { centralOnly: true, automationOrigin: false }]) {
+			test(`recovers version 1 catalogue ${automationOrigin ? 'provenance' : 'ordinary metadata'} before provider migration without retained history${centralOnly ? ' or a session database' : ''}`, async () => {
+				const { sessionData, database, session, origin } = await createLegacyAutomationSession();
+				await sessionData.database(session).setMetadataValues({
+					...(automationOrigin ? { [SESSION_ORIGIN_KEY]: JSON.stringify(origin) } : {}),
+					customTitle: 'Recovered title',
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				});
+				const catalog = await database.getSessionV2(session.toString());
+				const data = catalogDataOf(catalog);
+				assert.ok(catalog && data);
+				const multiRoot = { workspaceFile: 'file:///workspace/project.code-workspace' };
+				const payload = JSON.stringify({
+					payloadVersion: 1,
+					data: { ...data, summary: 'Recovered title', titleSource: 'user', isRead: true, isArchived: true, _meta: { ...data._meta, [SESSION_META_MULTI_ROOT_KEY]: multiRoot }, ...(centralOnly && automationOrigin ? { origin } : {}) },
+				});
+				await database.upsertSessionV2({
+					...catalog,
+					sourceRevision: catalog.sourceRevision + 1,
+					payloadVersion: 1,
+					payload,
+					payloadHash: hashAgentHostCatalogPayload(payload),
+				}, catalog.sessionGeneration);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const dataService: ISessionDataService = centralOnly ? {
+					...sessionData.service,
+					tryOpenDatabase: async resource => {
+						sessionData.databaseOpens.push(resource.toString());
+						return undefined;
+					},
+					openDatabase: () => { throw new Error('Migration must not create a session database'); },
+				} : sessionData.service;
+				const releaseMigration = new DeferredPromise<void>();
+				copilotAgent.listChatsToMigrate = async () => {
+					await releaseMigration.p;
+					return [];
+				};
+				const host = createHost(dataService, database);
+				let first: IAgentSessionMetadata | undefined;
+				try {
+					first = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+				} finally {
+					releaseMigration.complete();
+				}
+				host.markStartupComplete();
+				await host.whenDeferredWorkSettled();
+				await host.whenCatalogReconciliationIdle();
+				sessionData.databaseOpens.length = 0;
+				const second = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+
+				assert.deepStrictEqual({
+					first: { origin: first?.origin, title: first?.summary, status: first?.status },
+					multiRoot: readSessionMultiRootMetadata(first?._meta),
+					second: second?.origin,
+					catalogVersion: (await database.getSessionV2(session.toString()))?.payloadVersion,
+					databaseOpens: sessionData.databaseOpens,
+				}, {
+					first: { origin: automationOrigin ? origin : undefined, title: 'Recovered title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived },
+					multiRoot: centralOnly ? multiRoot : undefined,
+					second: automationOrigin ? origin : undefined,
+					catalogVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					databaseOpens: [],
+				});
+			});
+		}
+
+		test('does not dirty a clean catalogue row after backfilling its origin', async () => {
+			const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession();
+			const host = createHost(sessionData.service, database, storage);
+			const listing = await host.listSessions();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				listed: listing.find(metadata => metadata.session.toString() === session.toString())?.origin,
+				persisted: await sessionData.database(session).getMetadata(SESSION_ORIGIN_KEY),
+				catalog: catalogDataOf(await database.getSessionV2(session.toString()))?.origin,
+				dirty: await database.getSessionV2PayloadDirty(session.toString()),
+			}, {
+				listed: origin,
+				persisted: JSON.stringify(origin),
+				catalog: origin,
+				dirty: 0,
+			});
+		});
+
+		for (const operation of ['catalogue listing', 'legacy listing', 'restoration'] as const) {
+			test(`preserves sessions and metadata when origin backfill fails during ${operation}`, async () => {
+				let failOriginWrites = false;
+				class FailingOriginDatabase extends TestSessionDatabase {
+					override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+						if (failOriginWrites && values[SESSION_ORIGIN_KEY] && Object.keys(values).length === 1) {
+							throw new Error('origin backfill write failed');
+						}
+						return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					}
+				}
+				const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession(createPerSessionDataService(() => new FailingOriginDatabase()));
+				await sessionData.database(session).setMetadataValues({
+					customTitle: 'Persisted title',
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+					[AH_META_WORKSPACELESS_DB_KEY]: 'true',
+				});
+				const host = createHost(sessionData.service, database, storage, operation !== 'legacy listing');
+				const ordinary = await host.createSession({ provider: 'copilot' });
+				failOriginWrites = true;
+
+				if (operation === 'restoration') {
+					await host.subscribe(session, 'history-viewer');
+					const state = getStateManager(host).getSessionState(session.toString());
+					assert.deepStrictEqual({
+						title: state?.title,
+						status: state?.status,
+						workspaceless: readSessionWorkspaceless(state?._meta),
+						origin: state?.origin,
+					}, {
+						title: 'Persisted title',
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						workspaceless: true,
+						origin,
+					});
+				} else {
+					const listing = await host.listSessions();
+					const metadata = listing.find(entry => entry.session.toString() === session.toString());
+					assert.deepStrictEqual({
+						origin: metadata?.origin,
+						ordinary: listing.some(entry => entry.session.toString() === ordinary.toString()),
+						...(operation === 'legacy listing' ? {
+							title: metadata?.summary,
+							status: metadata?.status,
+							workspaceless: readSessionWorkspaceless(metadata?._meta),
+						} : {}),
+					}, {
+						origin,
+						ordinary: true,
+						...(operation === 'legacy listing' ? {
+							title: 'Persisted title',
+							status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+							workspaceless: true,
+						} : {}),
+					});
+				}
+			});
+		}
+
+		test('omits a session deleted while legacy origin is being read without rejecting the listing', async () => {
+			const readingOrigin = new DeferredPromise<void>();
+			const releaseRead = new DeferredPromise<void>();
+			let blockOriginRead = false;
+			class DeferredOriginDatabase extends TestSessionDatabase {
+				override async getMetadata(key: string): Promise<string | undefined> {
+					if (blockOriginRead && key === SESSION_ORIGIN_KEY) {
+						blockOriginRead = false;
+						readingOrigin.complete();
+						await releaseRead.p;
+					}
+					return super.getMetadata(key);
+				}
+			}
+			const { sessionData, database, storage, session } = await createLegacyAutomationSession(createPerSessionDataService(() => new DeferredOriginDatabase()));
+			const recreated: string[] = [];
+			let deleted = false;
+			const host = createHost({
+				...sessionData.service,
+				openDatabase: resource => {
+					if (deleted) {
+						recreated.push(resource.toString());
+					}
+					return sessionData.service.openDatabase(resource);
+				},
+				deleteSessionData: async () => { deleted = true; },
+			}, database, storage);
+			const ordinary = await host.createSession({ provider: 'copilot' });
+			blockOriginRead = true;
+			const listing = host.listSessions();
+			await readingOrigin.p;
+			try {
+				await host.disposeSession(session);
+			} finally {
+				releaseRead.complete();
+			}
+			const listed = await listing;
+			assert.deepStrictEqual({
+				listed: listed.map(entry => entry.session.toString()),
+				recreated,
+				catalog: await database.getSessionV2(session.toString()),
+				origin: await sessionData.database(session).getMetadata(SESSION_ORIGIN_KEY),
+				registered: (await host.getRegisteredSessions()).map(resource => resource.toString()),
+			}, {
+				listed: [ordinary.toString()],
+				recreated: [],
+				catalog: undefined,
+				origin: undefined,
+				registered: [ordinary.toString()],
 			});
 		});
 	});

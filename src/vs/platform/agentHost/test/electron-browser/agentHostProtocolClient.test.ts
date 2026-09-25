@@ -25,7 +25,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { ChatInteractivity } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
@@ -771,6 +771,31 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions preserves typed session origin without filtering the catalogue', async () => {
+		const { client, transport } = createClient();
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0];
+		assert.ok(hasKey(sent, { id: true }) && (typeof sent.id === 'number' || typeof sent.id === 'string'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [origin, undefined].map((origin, index) => ({
+					resource: `agent-session://copilotcli/session-${index}`,
+					provider: 'copilotcli',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					origin,
+				})),
+			},
+		});
+
+		assert.deepStrictEqual((await resultPromise).map(session => session.origin), [origin, undefined]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {

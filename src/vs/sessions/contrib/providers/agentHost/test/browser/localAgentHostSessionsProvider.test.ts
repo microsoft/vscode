@@ -26,7 +26,7 @@ import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/com
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionOrigin, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -476,7 +476,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; chats?: IAgentSessionMetadata['chats']; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; origin?: SessionOrigin; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; chats?: IAgentSessionMetadata['chats']; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	let _meta = opts?._meta;
 	_meta = opts?.quickChat ? withSessionWorkspaceless(_meta, true) : _meta;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
@@ -488,6 +488,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		origin: opts?.origin,
 		status: opts?.status,
 		activity: opts?.activity,
 		project: opts?.project,
@@ -496,6 +497,8 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		_meta,
 	};
 }
+
+const automationOrigin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/automation', run: 'ahp-automation-run:/run' };
 
 function createPolicyRestrictedConfigurationService(): TestConfigurationService {
 	return new class extends TestConfigurationService {
@@ -655,7 +658,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; origin?: SessionOrigin; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -665,6 +668,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			resource: sessionUri.toString(),
 			provider,
 			title: opts?.title ?? `Session ${rawId}`,
+			origin: opts?.origin,
 			status: opts?.status ?? ProtocolSessionStatus.Idle,
 			createdAt: opts?.createdAt ?? new Date().toISOString(),
 			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
@@ -3439,8 +3443,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.throws(() => provider.createQuickChat('copilotcli'));
 	});
 
-	test('derives automation provenance from the authoritative host catalogue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('automation-1', { summary: 'Automation' }));
+	test('uses session origin independently of the automation run catalogue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('automation-1', { summary: 'Automation', origin: automationOrigin }));
+		agentHost.addSession(createSession('legacy-1', { summary: 'Automation' }));
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
 		const provider = createProvider(disposables, agentHost, undefined, {
 			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
@@ -3448,7 +3453,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.getSessions();
 		await timeout(0);
 
-		const session = provider.getSessions()[0];
+		const session = provider.getSessions().find(session => session.resource.path === '/automation-1');
+		assert.ok(session);
+		const beforeCatalogue = session.isAutomation?.get();
 		const changed: boolean[] = [];
 		disposables.add(provider.onDidChangeSessions(event => {
 			if (event.changed.includes(session)) {
@@ -3474,7 +3481,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					automation: 'ahp-automation:/automation',
 					origin: { kind: AutomationRunOriginKind.Manual },
 					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
-					primarySession: AgentSession.uri('copilotcli', 'automation-1').toString(),
+					primarySession: AgentSession.uri('copilotcli', 'legacy-1').toString(),
 					sessionCount: 1,
 				}],
 			}],
@@ -3484,15 +3491,75 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setAutomationCatalog({ entries: [] });
 
 		assert.deepStrictEqual({
+			beforeCatalogue,
 			marked,
 			afterDelete: session.isAutomation?.get(),
+			unprovenOrigin: provider.getSessions().find(session => session.resource.path === '/legacy-1')?.isAutomation?.get(),
 			changed,
 		}, {
+			beforeCatalogue: true,
 			marked: true,
-			afterDelete: false,
-			changed: [true, false],
+			afterDelete: true,
+			unprovenOrigin: false,
+			changed: [],
 		});
 	}));
+
+	for (const source of ['added', 'summary', 'state'] as const) {
+		test(`persists automation origin from ${source} through incomplete snapshots and cache hydration`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			if (source !== 'added') {
+				agentHost.addSession(createSession('automation-1'));
+			}
+			const provider = createProvider(disposables, agentHost, undefined, { storageService });
+			provider.getSessions();
+			await timeout(0);
+
+			const announced: boolean[] = [];
+			disposables.add(provider.onDidChangeSessions(event => {
+				for (const session of [...event.added, ...event.changed]) {
+					announced.push(session.isAutomation?.get() ?? false);
+				}
+			}));
+			if (source === 'added') {
+				fireSessionAdded(agentHost, 'automation-1', { origin: automationOrigin });
+			} else if (source === 'summary') {
+				fireSessionSummaryChanged(agentHost, 'automation-1', { origin: automationOrigin });
+			} else {
+				provider.getSessionConfig(provider.getSessions()[0].sessionId);
+				agentHost.setSessionState('automation-1', 'copilotcli', {
+					provider: 'copilotcli',
+					title: 'Automation',
+					status: ProtocolSessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready,
+					activeClients: [],
+					chats: [],
+					origin: automationOrigin,
+				});
+			}
+			const session = provider.getSessions()[0];
+			const marked = session.isAutomation?.get();
+			fireSessionAdded(agentHost, 'automation-1');
+			await timeout(100);
+			await storageService.flush();
+
+			const nextHost = new MockAgentHostService();
+			disposables.add(toDisposable(() => nextHost.dispose()));
+			nextHost.setAuthenticationPending(true);
+			const hydrated = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+			assert.deepStrictEqual({
+				marked,
+				afterIncompleteSnapshot: session.isAutomation?.get(),
+				announced: announced.includes(true),
+				afterReload: hydrated?.isAutomation?.get(),
+			}, {
+				marked: true,
+				afterIncompleteSnapshot: true,
+				announced: true,
+				afterReload: true,
+			});
+		}));
+	}
 
 	test('restores a quick chat from listSessions as workspace-less despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// On reload the host re-advertises the quick chat tagged via

@@ -26,6 +26,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
+import { SessionOriginKind, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
@@ -91,6 +92,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _catalog: AutomationState | undefined;
 	private _runs = new Map<string, AutomationRunState>();
+	private readonly _legacySessionOrigins = new Map<string, SessionOrigin>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
 	private _mutationTail: Promise<void> = Promise.resolve();
 	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
@@ -111,6 +113,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._register(toDisposable(() => this._cancellations.clear()));
 		const stored = this._load();
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
+		for (const run of this._runs.values()) {
+			const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource };
+			for (const session of run.sessions) {
+				this._legacySessionOrigins.set(session, origin);
+			}
+		}
 		this._catalog = stored?.catalog ? {
 			entries: stored.catalog.automations.map(automation => {
 				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
@@ -138,6 +146,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	get isAvailable(): boolean {
 		return this._catalog !== undefined;
+	}
+
+	/** Creation provenance recoverable from the full retained history at startup, before run-window projection. */
+	getLegacySessionOrigin(session: string): SessionOrigin | undefined {
+		return this._legacySessionOrigins.get(session);
 	}
 
 	get capabilities(): AutomationCapabilities | undefined {

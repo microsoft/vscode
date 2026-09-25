@@ -1669,6 +1669,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
+					origin: s.origin,
 					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),

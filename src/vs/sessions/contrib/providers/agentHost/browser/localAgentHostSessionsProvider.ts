@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -45,7 +44,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { AgentHostSessionAdapter } from './baseAgentHostSessionsProvider.js';
 import { DevContainerAgentHostSessionsProvider } from './devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
 
@@ -80,7 +78,6 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
-	private _automationSessionResources = new ResourceSet();
 	override get order(): number {
 		return -1;
 	}
@@ -200,14 +197,6 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		};
 		this._register(onDidChangeResourceLabelHomes(updateResourceLabelHomes));
 		updateResourceLabelHomes();
-		this._register(autorun(reader => {
-			this._automationSessionResources = new ResourceSet(this.automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));
-			const changed = this.syncAutomationSessionMarkers(this._sessionCache.values());
-			if (changed.length > 0) {
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed });
-			}
-		}));
-
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
@@ -270,27 +259,6 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
 		return workspaceUri.scheme === Schemas.file;
-	}
-
-	override getSessions(): ISession[] {
-		const sessions = super.getSessions();
-		this.syncAutomationSessionMarkers(sessions);
-		return sessions;
-	}
-
-	private syncAutomationSessionMarkers(sessions: Iterable<ISession>): ISession[] {
-		const changed: ISession[] = [];
-		for (const session of sessions) {
-			if (!(session instanceof AgentHostSessionAdapter)) {
-				continue;
-			}
-			const isAutomation = this._automationSessionResources.has(session.resource);
-			if (session.isAutomation.get() !== isAutomation) {
-				session.setIsAutomation(isAutomation);
-				changed.push(session);
-			}
-		}
-		return changed;
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------

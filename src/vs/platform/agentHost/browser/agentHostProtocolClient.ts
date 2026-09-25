@@ -1730,6 +1730,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 			} : {}),
 			summary: s.title,
+			origin: s.origin,
 			status: s.status,
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
