@@ -229,10 +229,7 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 }
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
-# On hosted agents the WSL2 utility VM occasionally stops right after booting the freshly
-# installed kernel, failing the import with exit code -1 (for example "The virtual machine
-# or container with the specified identifier is not running." or 0x80041001). Diagnose each
-# failure, then reset WSL and retry on the same host before failing the job.
+# The hosted WSL2 utility VM sometimes stops right after boot, failing the import with -1, so retry.
 $maxImportAttempts = 3
 for ($importAttempt = 1; ; $importAttempt++) {
 	$importStartTime = Get-Date
@@ -251,7 +248,7 @@ for ($importAttempt = 1; ; $importAttempt++) {
 		throw "Explicit WSL2 import failed with exit code $importExitCode after $importAttempt attempts. WSL1 is not supported by this test."
 	}
 	Write-Warning "Explicit WSL2 import attempt $importAttempt failed with exit code $importExitCode. Resetting WSL before retrying."
-	# Remove any partial registration, stop the utility VM, and start again from an empty directory.
+	# Drop any partial registration and stop the utility VM before starting again from an empty directory.
 	& $wsl --unregister $Distribution 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
 	& $wsl --shutdown 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
 	Write-Host "wsl --shutdown exit code: $LASTEXITCODE"
