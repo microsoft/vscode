@@ -5348,16 +5348,25 @@ suite('AgentService (node dispatcher)', () => {
 				deleted: [...deleted],
 			};
 			const secondAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
-			await svc.createChat(session, URI.parse(buildChatUri(session, 'reusing')), { workingDirectories: [secondAttempt.directory] });
+			const reusingChat = URI.parse(buildChatUri(session, 'reusing'));
+			await secondAttempt.associateWithChat?.(reusingChat);
+			await svc.createChat(session, reusingChat, { workingDirectories: [secondAttempt.directory] });
 			await secondAttempt.release();
 
 			assert.deepStrictEqual({
 				afterRelease,
 				// A chat uses the worktree by the time of release, so it stays.
 				afterReuse: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				records: await readSessionAdditionalWorktrees(perSession.service, session),
 			}, {
 				afterRelease: { session: [primary.toString()], records: [], deleted: [handle] },
 				afterReuse: [primary.toString(), worktree.toString()],
+				records: [{
+					handle,
+					workingDirectory: worktree.toString(),
+					repositoryRoot: repository.toString(),
+					chat: reusingChat.toString(),
+				}],
 			});
 		});
 
