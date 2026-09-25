@@ -82,6 +82,17 @@
 		flex-direction: column;
 		flex: 1;
 		overflow: hidden;
+		position: relative;
+	}
+
+	.agent-sessions-content.sessions-find-header-overlay > .agent-sessions-header-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 1;
+		padding-top: var(--vscode-spacing-size100);
+		box-sizing: border-box;
 	}
 
 	.agent-sessions-content.collapsed {
