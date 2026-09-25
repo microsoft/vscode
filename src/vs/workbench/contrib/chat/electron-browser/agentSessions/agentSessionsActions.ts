@@ -1059,7 +1059,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			telemetryActionId: 'docsLink',
 			commandId: AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID,
 			commandArgs: [posted.inputUri, resource],
-			primary: true,
+			primary: false,
 			keepOpen: true,
 		}, {
 			kind: ChatInputNotificationActionKind.Command,

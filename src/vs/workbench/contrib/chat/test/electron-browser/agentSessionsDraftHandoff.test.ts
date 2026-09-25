@@ -694,7 +694,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 					isTrusted: { enabledCommands: ['github.copilot.report'] },
 				},
 				actions: [
-					{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'docsLink' },
+					{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
 					{ label: '$(thumbsup)', ariaLabel: 'Helpful', iconOnly: true, tooltip: 'Helpful', primary: false, keepOpen: true, actionId: 'thumbsUp' },
 					{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
 				],
