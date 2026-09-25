@@ -427,7 +427,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/19e9bdb4a6597014ec488f6e39436bd3aa17fcb563646a091dbba3a86697af30)
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/DarkHighContrast
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/60333369aae26e37475539e7b89e3db703d760c8767309460b77285f78c4b175)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5463fcf35329903d1337ff6ea7d9db0d39fd1e7a3859bea34f2a678cc7c3e69f)
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/257f79bc9e0a40b90ff53c9e523305055d4322303c593448b169e5a996def95d)
