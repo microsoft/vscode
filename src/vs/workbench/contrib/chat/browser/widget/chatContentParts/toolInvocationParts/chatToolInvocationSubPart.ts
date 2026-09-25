@@ -10,6 +10,7 @@ import { constObservable, IObservable } from '../../../../../../../base/common/o
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
+import { hasToolInvocationError } from './chatToolPartUtilities.js';
 
 export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	protected static idPool = 0;
@@ -47,7 +48,7 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 			return Codicon.circleSlash;
 		}
 
-		return confirmState?.type === ToolConfirmKind.Denied ?
+		return confirmState?.type === ToolConfirmKind.Denied || hasToolInvocationError(toolInvocation) ?
 			Codicon.error :
 			IChatToolInvocation.isComplete(toolInvocation) ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');

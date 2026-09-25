@@ -98,6 +98,25 @@ suite('ChatTurnPills', () => {
 		]);
 	});
 
+	test('renders changes pill stats with inline markup and an accessible label', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('test.changesPill', 'Changes'));
+		const item = disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable({ files: 2, insertions: 5, deletions: 1 }), instantiationService));
+		const container = document.createElement('div');
+		item.render(container);
+		const button = container.querySelector<HTMLElement>('.monaco-button');
+
+		assert.deepStrictEqual({
+			text: button?.textContent,
+			ariaLabel: button?.getAttribute('aria-label'),
+			statsTags: [...button?.querySelectorAll('.changes-stats-files, .monaco-animated-counter') ?? []].map(element => element.tagName),
+		}, {
+			text: '2 Files+5-1',
+			ariaLabel: 'Changes: 2 Files, +5, -1',
+			statsTags: ['SPAN', 'SPAN', 'SPAN'],
+		});
+	});
+
 	test('keeps an actionable accessible name when a single entry has a location tooltip', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const action = disposables.add(new Action('test.pill', 'Artifact'));

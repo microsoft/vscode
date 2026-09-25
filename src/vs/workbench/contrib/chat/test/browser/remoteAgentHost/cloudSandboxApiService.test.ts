@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -187,6 +187,81 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
 	};
 }
+
+suite('CloudSandboxApiService connection credentials', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const request = { environmentId: 'env-1', sessionId: 'session-1' };
+
+	function clientToken(clientId: string): ICloudSandboxClientToken {
+		const groupPrefix = `user.u1.env.env-1.client.${clientId}`;
+		return {
+			access_token: 'relay-token',
+			expires_at: '2026-01-01T01:00:00Z',
+			wps_endpoint: 'wss://relay.example.com/client/hubs/hub',
+			hub: 'hub',
+			subprotocol: 'json.reliable.webpubsub.azure.v1',
+			client_id: clientId,
+			groups: {
+				broadcast: `${groupPrefix}.broadcast`,
+				to_client: `${groupPrefix}.to-client`,
+				to_host: `${groupPrefix}.to-host`,
+			},
+		};
+	}
+
+	for (const action of ['connect', 'reconnect'] as const) {
+		test(`${action} preserves valid credentials and the scoped request`, async () => {
+			const token = clientToken('client-1');
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse(token),
+			});
+
+			const result = action === 'connect'
+				? await service.connect(request, CancellationToken.None)
+				: await service.reconnect(request, 'client-1', CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				requests: requestedUrls.map(url => {
+					const parsed = new URL(url);
+					return { path: parsed.pathname, query: Object.fromEntries(parsed.searchParams) };
+				}),
+			}, {
+				result: { kind: 'token', token },
+				requests: [{
+					path: `/agents/environments/env-1/${action}`,
+					query: { ...(action === 'reconnect' ? { client_id: 'client-1' } : {}), session_id: 'session-1' },
+				}],
+			});
+		});
+
+		test(`${action} preserves a waking response`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({}, 202, { 'retry-after': '5' }),
+			});
+
+			const result = action === 'connect'
+				? await service.connect(request, CancellationToken.None)
+				: await service.reconnect(request, 'client-1', CancellationToken.None);
+
+			assert.deepStrictEqual(result, { kind: 'waking', waking: { retryAfterSeconds: 5 } });
+		});
+	}
+
+	test('rejects refreshed credentials for a different client', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse(clientToken('client-2')),
+		});
+
+		await assert.rejects(
+			service.reconnect(request, 'client-1', CancellationToken.None),
+			/Cloud sandbox reconnect returned credentials for a different client/,
+		);
+	});
+});
 
 suite('CloudSandboxApiService repository resolution', () => {
 

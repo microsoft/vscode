@@ -23,6 +23,8 @@ export const enum CopilotCliConfigKey {
 	EnableShellInitScript = 'enableShellInitScript',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
+	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
+	RuntimePath = 'runtimePath',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
@@ -57,6 +59,8 @@ export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.custo
 export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
+
+export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
@@ -171,6 +175,12 @@ export const copilotCliConfigSchema = createSchema({
 			localize('agentHost.config.copilotSdkLogLevel.trace', "Trace"),
 		],
 		default: 'info',
+	}),
+	[CopilotCliConfigKey.RuntimePath]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.copilotRuntimePath.title', "Copilot Runtime Path"),
+		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -30,6 +30,7 @@ import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
+import type { getAutoModelTier } from '../languageModels.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
@@ -433,6 +434,8 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	/** The Auto routing tier that produced these edits. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -446,6 +449,7 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	autoTier?: IChatTextEdit['autoTier'];
 }
 
 export interface IChatWorkspaceFileEdit {
@@ -1470,8 +1474,9 @@ export interface IChatMcpAuthenticationRequiredServer {
  * starts being received, or the turn ends — whichever happens first.
  *
  * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
- * flow), this is a lightweight progress hint with no interactive affordance
- * (there is no "Skip" button).
+ * flow), this is a lightweight progress hint. A server that is blocking
+ * message processing may provide an action to continue its startup in the
+ * background.
  */
 export interface IChatMcpServersStartingSlow {
 	readonly kind: 'mcpServersStartingSlow';
@@ -1482,6 +1487,8 @@ export interface IChatMcpServersStartingSlow {
 export interface IChatMcpStartingServer {
 	readonly id: string;
 	readonly name: string;
+	readonly blocking?: boolean;
+	readonly background?: () => Promise<void>;
 }
 
 export interface IChatDisabledClaudeHooksPart {
@@ -1963,6 +1970,8 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
+	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;
 	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;

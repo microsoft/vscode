@@ -689,7 +689,7 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
 					chats: [
 						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
-						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', interactivity: ChatInteractivity.Hidden },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', archived: true, interactivity: ChatInteractivity.Hidden },
 					],
 					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
@@ -709,7 +709,7 @@ suite('AgentHostProtocolClient', () => {
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
 			chats: [
 				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
-				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		}]);
 	});
@@ -1879,6 +1879,31 @@ suite('AgentHostProtocolClient', () => {
 		}
 	});
 
+	test('UI timing uses its own capability and waits for the host acknowledgement', async () => {
+		const timing = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1,
+			result: 'hidden' as const, requestPhase: 'unknown' as const,
+			timeToTermination: 0, windowVisible: false, windowFocused: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, enabled
+				? getAgentHostExtensionInitializeResultMeta(true, false, true)
+				: { 'vscode.agentHostTiming': true });
+			transport.sentMessages.length = 0;
+			const report = client.reportUserInteraction(timing);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportChatUserInteraction', params: timing,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
+	});
+
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));
@@ -2788,7 +2813,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2797,7 +2822,7 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports };
 		}
@@ -2814,6 +2839,84 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		for (const initiallyConnected of [false, true]) {
+			test(`awaits reconnect preparation before replacing a transport after ${initiallyConnected ? 'a connected transport closes' : 'an initial connection failure'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const preparation = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, () => {
+					started.complete();
+					return preparation.p;
+				});
+				if (initiallyConnected) {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+				} else {
+					const connecting = client.connect();
+					transports[0].connectDeferred.error(new Error('initial failure'));
+					await assert.rejects(connecting, /initial failure/);
+				}
+				client.reconnectNow();
+				await started.p;
+				const transportsBeforePreparation = transports.length;
+				const clientId = client.clientId;
+				await preparation.complete();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 100);
+				if (initiallyConnected) {
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				} else {
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'client not found' } });
+					const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0, 100);
+					replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] } });
+				}
+				await waitForConnectedWithin(client, 100);
+				const state = client.connectionState;
+				client.dispose();
+
+				assert.deepStrictEqual({ transportsBeforePreparation, transportCount: transports.length, clientId: client.clientId, state }, {
+					transportsBeforePreparation: 1, transportCount: 2, clientId, state: AgentHostClientState.Connected,
+				});
+			}));
+		}
+
+		test('does not create a replacement transport when reconnect preparation fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const reconnectPolicy: IRemoteAgentHostReconnectPolicy = { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, reconnectPolicy, { hasHighLoad: () => false }, async () => {
+				throw new Error('No unexpired credentials');
+			});
+			await completeHandshake(transports[0], client.connect());
+			const closed = Event.toPromise(client.onDidFatalClose);
+			transports[0].fireClose();
+			client.reconnectNow();
+			const error = await closed;
+			client.dispose();
+
+			assert.deepStrictEqual({ transportCount: transports.length, error: error.message }, {
+				transportCount: 1, error: 'Automatic reconnect gave up after 1 attempts.',
+			});
+		}));
+
+		test('does not install a transport after disposal during reconnect preparation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const preparation = new DeferredPromise<void>();
+			const started = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, () => {
+				started.complete();
+				return preparation.p;
+			});
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			client.reconnectNow();
+			await started.p;
+			client.dispose();
+			await preparation.complete();
+			await flushMicrotasks();
+
+			assert.deepStrictEqual({ transportCount: transports.length, state: client.connectionState }, {
+				transportCount: 1, state: AgentHostClientState.Closed,
+			});
+		}));
 
 		test('Dev Container facade survives parent reconnection and closes its old relay', async function () {
 			this.timeout(10_000);

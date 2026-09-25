@@ -233,6 +233,63 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			}, CancellationToken.None), []);
 		});
 
+		test('offers runtime customization commands with their supported subcommands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'skills',
+						description: 'Manage skills',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List skills' },
+								{ name: 'reload', description: 'Reload skills' },
+							],
+						},
+					},
+					{
+						name: 'plugin',
+						description: 'Manage plugins',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
+					},
+					{
+						name: 'mcp',
+						description: 'Manage MCP servers',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List MCP servers' },
+								{ name: 'reload', description: 'Reload MCP servers' },
+							],
+						},
+					},
+				],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/',
+				offset: 1,
+			}, CancellationToken.None)).map(item => item.insertText), [
+				'/mcp ',
+				'/mcp list ',
+				'/mcp reload ',
+				'/plugin ',
+				'/plugin list ',
+				'/skills ',
+				'/skills list ',
+				'/skills reload ',
+			]);
+		});
+
 		test('returns all runtime items for lone "/" (config-action items filtered)', async () => {
 			const items = await run('/');
 			// `plan` collides with a config-action command and is dropped from the runtime set.

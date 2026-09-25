@@ -9,7 +9,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
 
 const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
@@ -26,6 +26,19 @@ export const agentsWindowHandoffConfigurationProperties = {
 		type: 'boolean',
 		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
 		default: product.quality === 'insider',
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.CopilotHarnessIntroductionMode]: {
+		type: 'string',
+		enum: [CopilotHarnessIntroductionMode.Off, CopilotHarnessIntroductionMode.NewSession, CopilotHarnessIntroductionMode.AfterRequest],
+		enumDescriptions: [
+			nls.localize('chat.copilotHarnessIntroduction.off', "Do not show the Copilot harness introduction."),
+			nls.localize('chat.copilotHarnessIntroduction.newSession', "Show the introduction when a new Copilot harness session starts."),
+			nls.localize('chat.copilotHarnessIntroduction.afterRequest', "Show the introduction after the first request is submitted in a new Copilot harness session."),
+		],
+		description: nls.localize('chat.copilotHarnessIntroduction.mode', "Controls when the introduction to the new Copilot experience is shown."),
+		default: product.quality === 'insider' ? CopilotHarnessIntroductionMode.NewSession : CopilotHarnessIntroductionMode.Off,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},

@@ -258,15 +258,12 @@
 .plugin-list-widget > .section-title-header,
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
-.plugin-list-widget > .customization-tree-tabs,
 .plugin-list-widget > .mcp-list-container,
 .ai-customization-list-widget > .section-title-header,
 .ai-customization-list-widget > .list-search-and-button-container,
-.ai-customization-list-widget > .customization-tree-tabs,
 .ai-customization-list-widget > .list-container,
 .tools-list-widget > .section-title-header,
 .tools-list-widget > .tools-list-search-and-button-container,
-.tools-list-widget > .tools-tree-tabs,
 .tools-list-widget > .tools-list-tree {
 	width: min(100%, 840px);
 	margin-inline: auto;
@@ -382,7 +379,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	padding: var(--vscode-spacing-size160) 0 0;
+	padding: var(--vscode-spacing-size80) 0 0;
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
@@ -451,131 +448,14 @@
 	flex: 1;
 }
 
-.customization-tree-tabs {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	height: var(--vscode-spacing-size320);
-	margin-bottom: var(--vscode-spacing-size80);
-	box-sizing: border-box;
-	flex-shrink: 0;
-}
-
-.customization-tree-tabs.actions-only {
-	justify-content: flex-end;
-}
-
-.customization-tree-tabs.actions-only .customization-tree-tabs-list {
-	display: none;
-}
-
-.customization-tree-tabs-list {
-	min-width: 0;
-	overflow: hidden;
-}
-
-.customization-tree-tabs-list .monaco-action-bar {
-	overflow: hidden;
-}
-
-.customization-tree-tabs-list .actions-container {
-	gap: var(--vscode-spacing-size40);
-}
-
-.customization-tree-tabs-list .action-item {
-	padding: 0;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	height: var(--vscode-spacing-size240);
-	padding: 0 var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--vscode-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	opacity: 0.8;
-	white-space: nowrap;
-	box-sizing: border-box;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab:hover {
-	background-color: var(--vscode-modernTab-hoverBackground, var(--vscode-toolbar-hoverBackground));
-	opacity: 1;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	background-color: var(--vscode-modernTab-activeBackground, var(--vscode-toolbar-hoverBackground));
-	color: var(--vscode-modernTab-activeForeground, var(--vscode-foreground));
-	opacity: 1;
-}
-
-.hc-black .customization-tree-tabs-list .action-label.customization-tree-tab.checked,
-.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-}
-
-.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	background-color: transparent;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.customization-tree-tab .customization-tab-count {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	min-height: var(--vscode-spacing-size160);
-	padding: 0 var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-	line-height: var(--vscode-spacing-size160);
-	box-sizing: border-box;
-}
-
-.hc-black .customization-tree-tab .customization-tab-count,
-.hc-light .customization-tree-tab .customization-tab-count {
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-}
-
-.customization-tree-tab-actions {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	height: 100%;
-}
-
-.customization-tree-tab-actions .plugin-card-section-actions,
-.customization-tree-tab-actions .list-button-group {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-}
-
 .customization-tree-container .monaco-list-row,
 .ai-customization-list-widget .list-container .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .customization-tree-container .monaco-list-row .group-chevron,
-.ai-customization-list-widget .list-container .monaco-list-row .group-chevron,
-.tree-layout .group-chevron {
+.ai-customization-list-widget .list-container .monaco-list-row .group-chevron {
 	display: none;
-}
-
-.tabs-layout .monaco-tl-twistie {
-	width: 0;
-	padding: 0;
-	transform: none;
 }
 
 .customization-tree-container .monaco-list-row .plugin-list-item:hover,
@@ -592,12 +472,6 @@
 
 .ai-customization-list-widget .list-container .ai-customization-list-item {
 	padding-inline: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-}
-
-.ai-customization-list-widget.tabs-layout .list-container .ai-customization-list-item,
-.plugin-list-widget.tabs-layout .mcp-list-container .plugin-list-item,
-.mcp-list-widget.tabs-layout .mcp-list-container .mcp-server-item {
-	padding-left: var(--vscode-spacing-size40);
 }
 
 .ai-customization-list-widget .list-container {
@@ -967,6 +841,19 @@ per-word capitalization does not survive translation. */
 	gap: 6px;
 }
 
+.mcp-server-item .mcp-server-secondary-line {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.mcp-server-item .mcp-server-secondary-line > * {
+	flex-shrink: 1;
+	min-width: 0;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -988,6 +875,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item .item-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1235,11 +1123,12 @@ per-word capitalization does not survive translation. */
 }
 
 /* The scroll hosts reach the pane edge while their content retains the panel inset. */
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .section-title-header,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .mcp-list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget .plugin-card-scroll,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .section-title-header,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-marketplace-back-container,
@@ -1263,7 +1152,6 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
 	max-width: none;
@@ -1731,7 +1619,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: 8px;
 	flex: none;
-	margin-block: var(--vscode-spacing-size160);
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
 }
 
 .ai-customization-management-editor .tools-list-search-container {
@@ -2035,14 +1923,11 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .tools-list-row-label {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.ai-customization-management-editor .tools-list-setrow .tools-list-row-label {
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /* Search match highlighting in tool set / tool names */
@@ -3008,6 +2893,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -3021,6 +2907,57 @@ per-word capitalization does not survive translation. */
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	line-height: 14px;
+}
+
+.mcp-server-item .mcp-server-issue,
+.mcp-server-item .mcp-server-compatibility-message,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-issue,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-error-message {
+	color: var(--vscode-errorForeground);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	white-space: normal;
+	overflow: hidden;
+}
+
+.mcp-server-item .mcp-server-compatibility-message,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message {
+	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
+}
+
+.mcp-server-item .mcp-server-compatibility-message.unsupported,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message.unsupported {
+	color: var(--vscode-errorForeground);
+}
+
+.mcp-server-item .mcp-server-source-path.source-link + .mcp-server-compatibility-message::before {
+	content: "· ";
+	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .mcp-server-compatibility-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.plugin-list-widget .mcp-server-compatibility-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.plugin-list-widget .mcp-server-compatibility-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mcp-server-item .mcp-server-source-path {
@@ -3055,8 +2992,32 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
+.plugin-list-widget .mcp-server-disabled-label {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	white-space: nowrap;
+}
+
+.plugin-list-widget .mcp-server-error-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.mcp-server-item .mcp-server-error-actions .mcp-server-status {
+	width: var(--vscode-codiconFontSize);
+}
+
 .mcp-server-item .mcp-server-sign-in.monaco-button,
-.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button {
+.mcp-server-item .mcp-server-start.monaco-button,
+.mcp-server-item .mcp-server-show-output.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-show-output.monaco-button {
+	width: auto;
+	flex: 0 0 auto;
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
@@ -3074,24 +3035,34 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.mcp-server-item .mcp-server-status.running {
-	color: var(--vscode-charts-green);
-}
-
 .mcp-server-item .mcp-server-status.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
-}
-
-.mcp-server-item .mcp-server-status.auth-required {
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .mcp-server-item.disabled {
 	opacity: 0.5;
 }
 
-.mcp-server-item .mcp-server-status.disabled {
+.plugin-list-widget .mcp-server-state-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-disabledForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.error {
+	color: var(--vscode-errorForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.compatibility {
+	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.compatibility.unsupported {
+	color: var(--vscode-errorForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.starting {
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
 .plugin-list-widget .plugin-search-header {
@@ -3167,14 +3138,6 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
-	background-color: transparent;
-}
-
-.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
 .plugin-list-widget .virtualized-section-list .monaco-list-row:not(:first-child) {
 	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
@@ -3185,10 +3148,6 @@ per-word capitalization does not survive translation. */
 	background: transparent;
 	border-radius: 0;
 	cursor: pointer;
-}
-
-.plugin-list-widget .plugin-home-row.customization-home-row.disabled {
-	opacity: 0.6;
 }
 
 .plugin-list-widget .customization-card-primary-action {
@@ -3208,16 +3167,6 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	align-self: stretch;
 	flex: 1;
-}
-
-.plugin-list-widget .customization-row-primary {
-	display: flex;
-	align-items: center;
-	align-self: stretch;
-	flex: 1;
-	min-width: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
 }
 
 .plugin-list-widget .customization-card-primary-action:focus-visible,
@@ -3251,6 +3200,23 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-home-row.disabled {
 	opacity: 1;
+}
+
+.plugin-list-widget .mcp-installed-home-row.disabled .plugin-list-item-details {
+	opacity: 0.6;
+}
+
+.plugin-list-widget .mcp-installed-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.plugin-list-widget .mcp-installed-card-content > .customization-card-primary-action {
+	display: flex;
+	flex: 1;
+	min-width: 0;
 }
 
 .plugin-list-widget .plugin-list-item .item-sync-checkbox {
@@ -3321,41 +3287,6 @@ per-word capitalization does not survive translation. */
 	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 }
 
-.plugin-list-widget .mcp-runtime-status-badge {
-	color: var(--vscode-foreground);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.running {
-	color: var(--vscode-foreground);
-	background-color: color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.starting {
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.auth-required {
-	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.error {
-	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge {
-	color: var(--vscode-foreground);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge.partially-supported,
-.plugin-list-widget .mcp-compatibility-status-badge.support-unknown {
-	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge.unsupported {
-	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
-}
-
 .plugin-list-widget .plugin-list-item-action {
 	display: flex;
 	align-items: center;
@@ -3400,10 +3331,6 @@ per-word capitalization does not survive translation. */
 .vscode-high-contrast .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button:focus-visible,
 .vscode-high-contrast .plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button:focus-visible {
 	border-color: var(--vscode-contrastActiveBorder);
-}
-
-.plugin-list-widget .customization-home-row:hover {
-	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 65%, transparent);
 }
 
 /* The enablement switch is the shared `Switch` widget; its styling lives in base. */
@@ -3509,8 +3436,7 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .available-mcp-servers-section .plugin-card-section-header,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-header,
-.plugin-list-widget.narrow-layout .customization-card-section .plugin-card-section-header {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-header {
 	align-items: stretch;
 	flex-wrap: wrap;
 }
@@ -3518,21 +3444,13 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-actions,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-card-section-actions,
 .plugin-list-widget.narrow-layout .available-mcp-servers-section .plugin-card-section-actions,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-actions,
-.plugin-list-widget.narrow-layout .customization-card-section .plugin-card-section-actions {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-actions {
 	width: 100%;
 }
 
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-available-action,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-installed-action,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-installed-action,
-.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action,
-.plugin-list-widget.narrow-layout .customization-card-section .customization-generate-action {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
-.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action > .monaco-button {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-installed-action {
 	flex: 1 1 auto;
 	min-width: 0;
 }

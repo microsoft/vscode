@@ -46,7 +46,7 @@ import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js'
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
-import { getToolInvocationIcon } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolInvocationIcon, hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -1214,7 +1214,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				return;
 			}
 
-			collapseButton.element.classList.add('chat-thinking-title-with-diff');
+			container.classList.add('chat-thinking-title-with-diff');
 			const button = this.diffButtonStore.add(this.instantiationService.createInstance(ChatEditStatsButton, container, localize('chat.thinking.changes.title', "Section File Changes"), 'chat-thinking-title-diff'));
 			this.diffButton = button;
 
@@ -1230,8 +1230,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.diffButtonStore.clear();
 		this.diffButton = undefined;
 		const collapseButton = this._collapseButton;
-		collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
 		const container = collapseButton?.element.parentElement;
+		container?.classList.remove('chat-thinking-title-with-diff');
 		if (collapseButton && container && this._hoverChevron) {
 			if (this.titleDetailContainer?.parentElement === container) {
 				container.appendChild(this._hoverChevron);
@@ -1411,7 +1411,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	public getPendingCollapseAnimation(): Promise<void> | undefined {
 		const container = this.contentAnimationContainer ?? this.scrollableElement?.getDomNode();
-		if (this.isExpanded() || this._store.isDisposed || !container?.isConnected) {
+		// Unmaterialized previews cannot be collapsing; querying their animations forces a style flush.
+		if (!this.wrapper || this.isExpanded() || this._store.isDisposed || !container?.isConnected) {
 			return undefined;
 		}
 		const animations = container.getAnimations().filter(animation => animation.playState !== 'finished' && animation.playState !== 'idle');
@@ -2440,7 +2441,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
 							if (iconElement) {
-								setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, completedText));
+								setThinkingIcon(iconElement, hasToolInvocationError(toolInvocationOrMarkdown) ? Codicon.error : getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, completedText));
 							}
 						}
 
@@ -2580,7 +2581,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		let icon: ThemeIcon;
 		if (isToolInvocation) {
-			icon = getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, content.textContent ?? undefined);
+			icon = hasToolInvocationError(toolInvocationOrMarkdown) ? Codicon.error : getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, content.textContent ?? undefined);
 		} else if (isMarkdownEdit || isExternalEdit) {
 			icon = getToolInvocationIcon('edit');
 		} else if (content.classList.contains('chat-hook-outcome-blocked')) {

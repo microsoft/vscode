@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -310,6 +311,38 @@ suite('ChatModel', () => {
 		));
 		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
 		assert.deepStrictEqual(invocation?.icon, Codicon.beaker);
+	});
+
+	suite('Auto tier attribution', () => {
+		for (const isNotebook of [false, true]) {
+			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
+				const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const request = model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
+				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(model)];
+
+				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
+					model.acceptResponseProgress(request, {
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false, autoTier,
+					}, true);
+					const mutation = operationLog.write(model);
+					if (mutation.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(mutation.data);
+					operationLog.confirmWrite();
+				}
+
+				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
+				assert.deepStrictEqual(serialized.map(value => {
+					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					return restored.getRequests()[0].response!.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+						? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+						: { kind: part.kind });
+				}), serialized.map(() => [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }]));
+			});
+		}
 	});
 
 	test('retained terminal identity survives chat serialization and restoration', () => {
@@ -1534,7 +1567,7 @@ suite('Response', () => {
 		});
 
 		const responseString = response.toString();
-		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)\nTool execution failed');
 		assert.ok(!responseString.includes('sandbox-runtime'));
 		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
 		assert.ok(!responseString.includes('python -c "print(1)"'));
@@ -2554,6 +2587,40 @@ suite('ChatResponseModel', () => {
 			}, { liveError: error, restoredError: error, liveDetails: undefined, restoredDetails: undefined, liveText: text, restoredText: text });
 		});
 	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`includes terminal failures in the response text (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+			const text = 'Ran terminal command: npm test' + (exitCode === 2 ? '\nTool execution failed with exit code 2' : '');
+			assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+		});
+	}
+
+	test('includes result-detail failures in the response text', async () => {
+		const invocation = new ChatToolInvocation({ invocationMessage: 'Read issue' }, {
+			id: 'read', displayName: 'Read', modelDescription: 'Read an issue', source: ToolDataSource.Internal,
+		}, 'read', undefined, {});
+		await invocation.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [], isError: true } });
+		const liveResponse = testDisposables.add(new Response([]));
+		liveResponse.updateContent(invocation);
+		const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+		const text = 'Read issue\nCompleted with input: {}\nTool execution failed';
+		assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+	});
 
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

@@ -56,10 +56,6 @@ class FakeContextViewService implements Partial<IContextViewService> {
 		return !!this._activeDelegate;
 	}
 
-	get activeLayer(): number | undefined {
-		return this._activeDelegate?.layer;
-	}
-
 	showContextView(delegate: IContextViewDelegate): { close: () => void } {
 		// Tear down any previous render before showing a new one.
 		this.hideContextView();
@@ -222,7 +218,7 @@ suite('TabbedActionListWidget', () => {
 		assert.strictEqual(widget.isVisible, false);
 	});
 
-	test('details preserve the live search and capture Escape from a real radio', async () => {
+	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;
 		widget.showDetails({
@@ -243,12 +239,10 @@ suite('TabbedActionListWidget', () => {
 		};
 		radio.optionElements[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 		await settleLayout();
-		const after = { visible: widget.isVisible, details: widget.isShowingDetails, filter: input.value, focused: document.activeElement === input };
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({ during, after, closed: !widget.isVisible, selected }, {
+		const after = { visible: widget.isVisible, details: widget.isShowingDetails, inputConnected: input.isConnected };
+		assert.deepStrictEqual({ during, after, selected }, {
 			during: { details: true, mainInert: true, inputConnected: true },
-			after: { visible: true, details: false, filter: 'match', focused: true },
-			closed: true,
+			after: { visible: false, details: false, inputConnected: false },
 			selected: [],
 		});
 	});
@@ -339,7 +333,7 @@ suite('TabbedActionListWidget', () => {
 		updated = true;
 		widget.refreshActiveList({ focusItemId: 'new' });
 		const during = { builds, focused: button.hasFocus() };
-		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		contextView.getContextViewElement().querySelector<HTMLElement>('.tabbed-action-list-details-header .monaco-button')!.click();
 		await settleLayout();
 		assert.deepStrictEqual({
 			during,
@@ -407,7 +401,7 @@ suite('TabbedActionListWidget', () => {
 		button.focus();
 		button.element.click();
 		const during = { focused: button.hasFocus(), collapsed: result.body.inert, pageInert: !!button.element.closest('[inert]') };
-		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		result.contextView.getContextViewElement().querySelector<HTMLElement>('.tabbed-action-list-details-header .monaco-button')!.click();
 		await settleLayout();
 		assert.deepStrictEqual({ during, visible: result.widget.isVisible, collapsed: result.body.inert }, {
 			during: { focused: true, collapsed: true, pageInert: false },
@@ -574,26 +568,6 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
-	});
-
-	test('passes the requested context view layer to the popup', () => {
-		const { widget, contextView } = createWidget(disposables);
-		const anchor = document.createElement('div');
-		document.body.appendChild(anchor);
-		disposables.add({ dispose: () => anchor.remove() });
-
-		widget.show<ITestItem>({
-			user: 'test',
-			anchor,
-			tabs: [{ id: 'Models' }],
-			initialTab: 'Models',
-			contextViewLayer: 1,
-			createActionList: () => ({ items: [action('a')] }),
-			delegate: { onSelect: () => { }, onHide: () => { } },
-		});
-
-		assert.strictEqual(contextView.activeLayer, 1);
-		widget.hide();
 	});
 
 	test('items receive pointer input immediately after opening', () => {

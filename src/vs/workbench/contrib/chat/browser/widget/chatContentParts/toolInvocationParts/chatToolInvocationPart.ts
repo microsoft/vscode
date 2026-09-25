@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derivedOpts, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -42,7 +43,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { getToolInvocationIcon, isCarouselToolConfirmation } from './chatToolPartUtilities.js';
+import { getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -229,9 +230,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			partStore.clear();
+			const error = hasToolInvocationError(toolInvocation);
+			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			if (toolIcon) {
 				const message = IChatToolInvocation.isComplete(toolInvocation) ? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage : undefined;
-				const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation, typeof message === 'string' ? message : message?.value);
+				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, toolInvocation, typeof message === 'string' ? message : message?.value);
 				toolIcon.className = 'chat-tool-call-icon';
 				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 			}

@@ -23,7 +23,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -55,7 +55,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -102,7 +102,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -149,6 +149,7 @@ function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 		override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 		override readonly onDidChangeMcpGalleryManifest = Event.None;
 		override async getMcpGalleryManifest() { return null; }
+		override async getDefaultMcpGalleryManifest() { return null; }
 	}();
 }
 
@@ -672,6 +673,17 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+const allStateMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[0] },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:GitHub', name: 'GitHub', status: McpServerStatus.Starting, state: { kind: McpServerStatus.Starting } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Redis', name: 'Redis', status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped } },
+	{ ...activeSessionMcpServers[1], id: 'mcp-top-level:fixture:session:Docker', name: 'Docker' },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Web Search', name: 'Web Search', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Global } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Filesystem', name: 'Filesystem', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: URI.file('/workspace').toString(), enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Workspace } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Puppeteer', name: 'Puppeteer', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }], disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session } },
+];
+
 const inlineErrorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0], status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: `Unable to connect to the component explorer server. Check the configured command and working directory, then try again.\nTransport request failed for https://example.test/${'unbroken-path-'.repeat(16)}\nThe process exited before completing the MCP handshake.` } } },
 	{ ...activeSessionMcpServers[0], id: 'inline-healthy', name: 'component-health-check' },
@@ -838,10 +850,11 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
+	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
-	readonly togglePublicFeed?: boolean;
+	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
-	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
+	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -860,6 +873,7 @@ interface IRenderEditorOptions {
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
+	readonly expectedDiscoveryContentWidth?: number;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -883,7 +897,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = agentFinderPublicFeedEnabled || options.otherSourceEnabled === true;
+	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? false;
+	const discoverEnabled = marketplaceVisibilityEnabled;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -954,13 +969,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	let customizationMarketplaceQueryCount = 0;
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
+	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.mediaType === CustomizationMarketplaceMediaType.Skill
+		? { kind: 'skill', uri: URI.file(`/workspace/.github/skills/${resource.identifier.split('/').pop()}/SKILL.md`) }
+		: resource.mediaType === CustomizationMarketplaceMediaType.McpServer
+			? { kind: 'mcp', id: 'mcp.config.ws0.remote-browser' }
+			: { kind: 'plugin', uri: URI.file(`/user/plugins/${resource.identifier.split('/').pop()}`) };
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
 		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
 		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
-		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed' });
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed', target: getFixtureInstallationTarget(customizationMarketplaceResources[1]) });
+	} else if (options.customizationMarketplaceInstallationState === 'missing') {
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
 	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -976,11 +998,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
-			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true
-				|| configurationService.getValue<boolean>('test.marketplace.other.enabled') === true;
+			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -989,9 +1011,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
-					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled' },
+					CustomizationMarketplaceSources.PluginMarketplaces,
+					CustomizationMarketplaceSources.McpGallery,
+					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
@@ -1031,8 +1055,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-					assert(sourceEnabled(), 'A disabled Marketplace fixture must not request installation state.');
+					// The outgoing Discover view may read installation state while the visibility change disposes it.
+					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+				}
+				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
+					return customizationMarketplaceResources.filter(resource => {
+						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
+					});
 				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not install resources.');
@@ -1042,12 +1073,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed' });
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
+					customizationMarketplaceInstallChanged.fire();
+				}
+				override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+					assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
+					const target = getFixtureInstallationTarget(resource);
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
+					customizationMarketplaceInstallChanged.fire();
+					await Promise.resolve();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
 					customizationMarketplaceInstallChanged.fire();
 				}
 				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling' });
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
@@ -1421,7 +1461,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
 				override readonly enablementModel = {
-					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readEnabled: (serverId: string) => {
+						if (serverId.includes('mcp-web-search')) {
+							return ContributionEnablementState.DisabledProfile;
+						}
+						if (serverId.includes('mcp-filesystem') || serverId.includes('mcp-puppeteer')) {
+							return ContributionEnablementState.DisabledWorkspace;
+						}
+						return ContributionEnablementState.EnabledProfile;
+					},
 					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
@@ -1490,11 +1538,19 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
-	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
-	if (!marketplaceEnabled) {
+	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
+		editor.revealLastItem();
+		await timeout(50);
+		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
+	}
+	if (!discoverEnabled && !options.selectedSection) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave Overview available.');
+		assert(overview !== null, 'Disabled Marketplace must retain Overview.');
+		if (!options.selectedSection) {
+			assert(overview.style.display !== 'none', 'Disabled Marketplace must show Overview on the home page.');
+		}
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
@@ -1526,24 +1582,50 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
+		const browseStatus = browse?.querySelector<HTMLElement>('.customization-discovery-state');
+		const browseScrollHost = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse-scrollable');
+		assert(
+			!header || !searchRow || !browse || !browseStatus
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browse.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browse.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browseStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browseStatus.getBoundingClientRect().right) <= 1,
+			'Discover browse content and state must align with the header and search control.',
+		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || !header || !searchRow || !browse
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(browse.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover browse content must use the expected responsive width.',
+		);
+		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
-	if (options.togglePublicFeed) {
+	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
-		const setting = CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled;
-		await configuration.setUserConfiguration(setting, !agentFinderPublicFeedEnabled);
+		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+		const queryCountBeforeToggle = customizationMarketplaceQueryCount;
+		await configuration.setUserConfiguration(setting, !marketplaceVisibilityEnabled);
+		await Promise.resolve();
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }
 		}());
-		await Promise.resolve();
 		const home = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
 		const discover = home?.querySelector('.customization-discovery');
-		assert(Boolean(discover) === !agentFinderPublicFeedEnabled, 'Switching the source setting must replace the home surface.');
-		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === agentFinderPublicFeedEnabled, 'Overview must be visible only with no enabled feeds.');
-		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(agentFinderPublicFeedEnabled ? 'Overview' : 'Discover') === true, 'Home navigation must match the selected surface.');
-		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (agentFinderPublicFeedEnabled ? 'Back to overview' : 'Back to Customizations'), 'Home tooltip must update when the feed changes.');
-		assert(customizationMarketplaceQueryCount === 1, 'Toggling the marketplace must query its catalog only while a feed is enabled.');
-		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing the feed must not show a catalog error.');
+		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled;
+		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
+		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
+		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Discover' : 'Overview') === true, 'Home navigation must match the selected surface.');
+		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
+		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
+		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
+		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
 	}
 
 	if (options.discoveryQuery) {
@@ -1556,6 +1638,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
 		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const resultStatus = resultList?.querySelector<HTMLElement>('.customization-discovery-state');
+		const resultScrollHost = resultList?.querySelector<HTMLElement>('.monaco-scrollable-element');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
 		assert(
@@ -1564,7 +1649,24 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
 			'Discover results must place source metadata beside the name and the description on the next line.',
 		);
-		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		assert(
+			header === null || searchRow === null || resultRow === null || !resultStatus
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultStatus.getBoundingClientRect().right) <= 1,
+			'Discover results, selection bounds, and state must align with the page header and search control.',
+		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || header === null || searchRow === null || resultList === null
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(resultList.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover search content must use the expected responsive width.',
+		);
+		assert(!resultScrollHost || resultScrollHost.scrollWidth <= resultScrollHost.clientWidth, 'Discover search results must not overflow horizontally.');
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
 		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
 		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
@@ -1591,7 +1693,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const list = instantiationService.get(IListService).lastFocusedList;
 			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
 			list.scrollTop = list.scrollHeight;
-			await Promise.resolve();
+			await new Promise(resolve => setTimeout(resolve, 0));
 			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 		}
 		if (options.clearDiscoveryQuery) {
@@ -1775,7 +1877,7 @@ const galleryServers = [
 	makeGalleryServer('gallery-redis', 'Redis', 'In-memory data store operations and key management', 'Redis Ltd'),
 ];
 
-async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Promise<void> {
+async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void> {
 	await renderEditor(ctx, {
 		sessionResource: localSessionResource,
 		isSessionsWindow: true,
@@ -1783,16 +1885,13 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 		activeSessionMcpServers: inlineErrorMcpServers,
 		mcpSearchQuery: 'component',
 	});
-	const workspaceTab = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container [role="tab"]')]
-		.find(tab => tab.textContent?.includes('Workspace'));
-	assert(workspaceTab !== undefined, 'The fixture must render the Workspace MCP tab.');
-	workspaceTab.click();
 	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
-		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
+		.find(row => row.querySelector('.mcp-server-state-icon.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
 	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
-	assert(!row.textContent?.includes('Unable to connect') && !row.getAttribute('aria-label')?.includes('Unable to connect'), 'Error details must only appear in the MCP detail view.');
+	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
+	assert(row.querySelector('.mcp-server-show-output')?.textContent === 'Show Output', 'Error rows must show the output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
@@ -2420,14 +2519,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -2500,25 +2599,27 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 		}),
 	}),
 
-	McpServersTree: defineComponentFixture({
+	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
+		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tree group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
 		}),
 	}),
 
 	McpServersProvenance: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2530,7 +2631,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, the component-explorer MCP server has a Partially supported badge and PostgreSQL has separate Unsupported and Error badges. Compatibility badges sit beside the server name without replacing runtime status.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2539,6 +2640,44 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ id: 'mcp-postgres', kind: 'unsupported' },
 			],
 		}),
+	}),
+
+	McpServersAllStates: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: agentHostCopilotSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				activeSessionMcpServers: allStateMcpServers,
+				mcpServerCompatibility: [
+					{ id: 'linear-mcp', kind: 'unsupported' },
+					{ id: 'acme-mcp', kind: 'partiallySupported' },
+				],
+				width: 800,
+				height: 1200,
+			});
+			const rows = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')];
+			const runningRowHeight = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer')?.getBoundingClientRect().height;
+			assert(runningRowHeight !== undefined && rows.every(row => Math.abs(row.getBoundingClientRect().height - runningRowHeight) < 0.5), 'All installed MCP rows must match the running row height.');
+			for (const [name, label] of [
+				['Web Search', 'Disabled (Globally)'],
+				['Filesystem', 'Disabled (Workspace)'],
+				['Puppeteer', 'Disabled (Session)'],
+			]) {
+				const disabledRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === name);
+				assert(disabledRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked') === 'false', `The ${name} switch must be off.`);
+				assert(disabledRow?.querySelector('.mcp-server-disabled-label')?.textContent === label, `The ${name} row must show ${label}.`);
+			}
+			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Linear MCP');
+			const source = unsupportedRow?.querySelector('.mcp-server-source-path');
+			const migrationLink = unsupportedRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+			assert(source?.textContent === 'Plugin: Linear', 'Plugin provenance must share the compatibility secondary line.');
+			assert(source.parentElement === migrationLink?.closest('.mcp-server-secondary-line'), 'Plugin provenance and compatibility must share the secondary line.');
+			assert(migrationLink?.textContent === 'Migrations' && migrationLink.getAttribute('href') === '#', 'Compatibility messages must link to Migrations.');
+		},
 	}),
 
 	McpServersSearch: defineComponentFixture({
@@ -2560,11 +2699,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	McpServersErrorsWithoutDetails: defineComponentFixture({
+	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row stays compact and shows its ordinary description with an Error badge. No inline error message or Show More control appears; diagnostics are available from the MCP detail page.'],
-		render: renderMcpErrorsWithoutDetails,
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon followed by Show Output immediately before the switch. No inline error snippet, status badge, or expansion control appears.'],
+		render: renderMcpErrorActions,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
@@ -2596,16 +2735,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
-		}),
-	}),
-
-	AgentsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Agents page uses a classic tree with collapsible Workspace, User, Plugins, Extensions, and Built-In groups where applicable.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Agents,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -2689,6 +2818,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Prompts page shows Workspace, User, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -2747,20 +2877,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as compact tabs with count badges above a flat tree of tool sets.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Tools,
-			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
-			managementSections: [
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Tools,
-			],
-		}),
-	}),
-
-	ToolsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2770,14 +2886,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Tools,
 			],
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
-		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows compact tabs for Built-in Tools and Extension Tools, including an Extension Tools count of eight.'],
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows collapsible Built-in Tools and Extension Tools groups, including an Extension Tools count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -2871,20 +2986,10 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows User, Workspace, and Available tabs with count badges. The selected User tab contains installed plugin tree rows.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups. Header action buttons use the standard gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
-		}),
-	}),
-
-	PluginsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Plugins,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -2900,21 +3005,31 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	OverviewWithoutMarketplace: defineComponentFixture({
+	DiscoverWithMcpGalleryOnly: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'empty',
 		}),
 	}),
 
-	DiscoverWithOtherSourceOnly: defineComponentFixture({
+	OverviewWithMarketplaceDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: false,
+		}),
+	}),
+
+	DiscoverWithPluginSourceOnly: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			agentFinderPublicFeedEnabled: false,
-			otherSourceEnabled: true,
 			customizationMarketplaceState: 'empty',
 		}),
 	}),
@@ -2924,7 +3039,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
-			togglePublicFeed: true,
+			marketplaceVisibilityEnabled: false,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
@@ -2932,7 +3048,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			togglePublicFeed: true,
+			marketplaceVisibilityEnabled: true,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
@@ -2940,16 +3057,33 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
+			marketplaceVisibilityEnabled: true,
 			isSessionsWindow: true,
 		}),
 	}),
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
+		expectedVisualDescriptions: ['Wide Discover search uses the same centered content measure as the management pages. The title, search control, result selection bounds, and state messages share horizontal edges; rows retain compact icons, two-line text hierarchy, ratings, and centered actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			width: 1200,
 			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 840,
+		}),
+	}),
+
+	DiscoverSearchResultsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Narrow Discover search keeps the title, search control, result selection bounds, and state messages on the same horizontal inset as Plugins without clipping descriptions or actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			width: 550,
+			height: 500,
+			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 302,
 		}),
 	}),
 
@@ -2958,6 +3092,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			clearDiscoveryQuery: true,
 		}),
@@ -2968,6 +3103,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'correctness',
 			selectDiscoveryResult: true,
 		}),
@@ -2978,6 +3114,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			customizationMarketplaceState: 'loadingMore',
 		}),
@@ -2987,6 +3124,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: '@installed',
 		}),
 	}),
@@ -2995,6 +3133,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'error',
 		}),
 	}),
@@ -3003,6 +3142,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
 		}),
 	}),
@@ -3011,7 +3151,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceInstallationState: 'mixed',
+		}),
+	}),
+
+	DiscoverMissingInstallation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A recorded marketplace skill with missing files is shown as Missing files with primary Repair and secondary Uninstall actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			customizationMarketplaceInstallationState: 'missing',
 		}),
 	}),
 
@@ -3020,6 +3172,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['The first resource has an installation error and Retry Install action while the remaining Discover results stay available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
 			customizationMarketplaceInstallationState: 'error',
 		}),
@@ -3087,6 +3240,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { durationMs: 1500 },
+		expectedVisualDescriptions: ['The scrolled Prompts tree has no vertical indent guide beneath group chevrons, its sticky group header matches the panel background, and its final rows remain inside the panel above the bottom inset.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,

@@ -41,10 +41,10 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { IActiveSession, ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { OpenSessionsInGridOutcome, SessionsService } from '../../browser/sessionsService.js';
+import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-import { ISessionsPartService, SessionGridLayout } from '../../browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -235,7 +235,7 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; instantiationService: TestInstantiationService; storage: InMemoryStorageService; partService: TestSessionsPartService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -244,9 +244,8 @@ function createSessionsManagementService(
 	const providersService = provider instanceof TestSessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
-	const storage = disposables.add(new InMemoryStorageService());
 
-	instantiationService.stub(IStorageService, storage);
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
@@ -267,12 +266,11 @@ function createSessionsManagementService(
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = new TestSessionsPartService(focusSession.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, instantiationService, storage, partService: sessionsPartService, focusSession, sessionsPartService, notifications };
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
 class TestSessionsPartService extends mock<ISessionsPartService>() {
-	readonly updates: { ids: (string | undefined)[]; layout: SessionGridLayout | undefined }[] = [];
 	readonly sessionViews = new Map<string | undefined, SessionView>();
 	readonly focusedSessions: (string | undefined)[] = [];
 	focusedSessionView: SessionView | undefined;
@@ -280,9 +278,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], _active: IActiveSession | undefined, layout?: SessionGridLayout): void {
-		this.updates.push({ ids: visible.map(session => session?.sessionId), layout });
-	}
+	override updateVisibleSessions(): void { }
 	override focusSession(session: IActiveSession | undefined): void { this.focusedSessions.push(session?.sessionId); }
 	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.sessionViews.get(sessionId); }
 	override getFocusedSessionView(): SessionView | undefined { return this.focusedSessionView; }
@@ -701,6 +697,29 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
 	});
 
+	test('routes chat archive changes to the owning provider', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const chat = { ...stubChat, resource: URI.parse('test-chat:/peer') };
+		const calls: { sessionId: string; chat: string; archived: boolean }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: true });
+			}
+			override async unarchiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: false });
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.archiveChat(session, chat);
+		await service.unarchiveChat(session, chat);
+
+		assert.deepStrictEqual(calls, [
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: true },
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: false },
+		]);
+	});
+
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
@@ -1085,6 +1104,32 @@ suite('SessionsManagementService', () => {
 			result: undefined,
 		});
 	});
+
+	for (const preserveNavigation of [false, true]) {
+		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+			const quickChat = stubSession({
+				sessionId: 'quick-chat',
+				providerId: 'test',
+				isQuickChat: constObservable(true),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return quickChat; }
+			}(quickChat);
+			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const navigation = view.navigationRequest.get();
+
+			view.openQuickChat(undefined, preserveNavigation);
+
+			assert.deepStrictEqual({
+				activeSession: view.activeSession.get()?.sessionId,
+				preservedNavigation: view.navigationRequest.get() === navigation,
+			}, {
+				activeSession: 'quick-chat',
+				preservedNavigation: preserveNavigation,
+			});
+		});
+	}
 
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
@@ -2044,94 +2089,6 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openSessionsInGrid atomically opens only the requested sessions and restores the tiled mode', async () => {
-		const sessions = ['a', 'b', 'c', 'd', 'unrelated'].map(sessionId => stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Completed) }));
-		const prepared: string[] = [];
-		const provider = new class extends TestSessionsProvider {
-			override getSessions() { return sessions; }
-			override async prepareSessionForOpen(session: ISession): Promise<void> { prepared.push(session.sessionId); }
-		}(sessions[0]);
-		const fixture = createSessionsManagementService(sessions[0], disposables, provider);
-		await fixture.view.openSession(sessions[4].resource);
-		fixture.partService.updates.length = 0;
-		prepared.length = 0;
-		const states: { layout: string; sessions: (string | null)[] }[] = [];
-		disposables.add(autorun(reader => {
-			states.push({
-				layout: fixture.view.sessionGridLayout.read(reader),
-				sessions: fixture.view.visibleSessions.read(reader).map(session => session?.sessionId ?? null),
-			});
-		}));
-		const outcome = await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
-		const showedGridSessionsInColumns = states.some(state =>
-			state.layout === 'columns' && state.sessions.join(',') === 'a,b,c,d');
-		const initialUpdates = [...fixture.partService.updates];
-		await fixture.storage.flush();
-		fixture.view.dispose();
-		const restoredParts = new TestSessionsPartService();
-		const restored = createView(fixture.instantiationService, fixture.service, disposables, fixture.customViewService, restoredParts);
-		await restored.restoreVisibleSessions();
-		const restoredLayout = restoredParts.updates.at(-1);
-		await restored.openSession(sessions[4].resource);
-		assert.deepStrictEqual({
-			initialUpdates,
-			outcome,
-			showedGridSessionsInColumns,
-			prepared: prepared.slice(0, 4),
-			restoredLayout,
-			ordinaryLayout: restoredParts.updates.at(-1)?.layout,
-		}, {
-			initialUpdates: [{ ids: ['a', 'b', 'c', 'd'], layout: 'grid' }],
-			outcome: OpenSessionsInGridOutcome.Committed,
-			showedGridSessionsInColumns: false,
-			prepared: ['a', 'b', 'c', 'd'],
-			restoredLayout: { ids: ['a', 'b', 'c', 'd'], layout: 'grid' },
-			ordinaryLayout: 'columns',
-		});
-	});
-
-	test('openSessionsInGrid preserves the current layout when preparing an attempt fails', async () => {
-		const sessions = ['a', 'b'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
-		const provider = new class extends TestSessionsProvider {
-			override getSessions() { return sessions; }
-			override async prepareSessionForOpen(session: ISession): Promise<void> {
-				if (session === sessions[1]) { throw new Error('Provider disconnected'); }
-			}
-		}(sessions[0]);
-		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
-		await view.openSession(sessions[0].resource);
-		await assert.rejects(view.openSessionsInGrid(sessions), /Provider disconnected/);
-		assert.deepStrictEqual(view.visibleSessions.get().map(session => session?.sessionId), ['a']);
-	});
-
-	test('openSessionsInGrid does not supersede a newer explicit navigation', async () => {
-		const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
-		const started = new DeferredPromise<void>();
-		const pending = new DeferredPromise<void>();
-		const provider = new class extends TestSessionsProvider {
-			override getSessions() { return sessions; }
-			override async prepareSessionForOpen(session: ISession): Promise<void> {
-				if (session === sessions[1]) {
-					started.complete();
-					await pending.p;
-				}
-			}
-		}(sessions[0]);
-		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
-		const opening = view.openSessionsInGrid(sessions.slice(0, 2));
-		await started.p;
-		await view.openSession(sessions[2].resource);
-		pending.complete();
-		const outcome = await opening;
-		assert.deepStrictEqual({
-			outcome,
-			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId),
-		}, {
-			outcome: OpenSessionsInGridOutcome.NotCommitted,
-			visibleSessions: ['c'],
-		});
-	});
-
 	test('restoreVisibleSessions prepares only the active session', async () => {
 		const session = stubSession({
 			sessionId: 'remote',
@@ -2259,8 +2216,8 @@ suite('SessionsManagementService', () => {
 		storage.store(
 			'agentSessions.activeSessionStates',
 			JSON.stringify([
-				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false, gridLayout: 'grid' },
-				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true, gridLayout: 'grid' },
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
 			]),
 			1 /* StorageScope.WORKSPACE */,
 			1 /* StorageTarget.MACHINE */,
@@ -2281,33 +2238,25 @@ suite('SessionsManagementService', () => {
 		const view = createView(instantiationService, service, disposables);
 
 		// Record every grid state published while restoring.
-		const states: { layout: string; sessions: (string | null)[] }[] = [];
+		const states: (string | null)[][] = [];
 		disposables.add(autorun(reader => {
-			states.push({
-				layout: view.sessionGridLayout.read(reader),
-				sessions: view.visibleSessions.read(reader).map(s => s?.sessionId ?? null),
-			});
+			states.push(view.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
 		}));
 
 		await view.restoreVisibleSessions();
 
 		// The grid must never go through a state showing only the active
 		// session 'b' on its own — that intermediate layout is the flicker.
-		const showedActiveAlone = states.some(state => state.sessions.length === 1 && state.sessions[0] === 'b');
-		const showedGridSessionsInColumns = states.some(state => state.layout === 'columns' && state.sessions.join(',') === 'a,b');
+		const showedActiveAlone = states.some(s => s.length === 1 && s[0] === 'b');
 
 		assert.deepStrictEqual({
 			showedActiveAlone,
-			showedGridSessionsInColumns,
 			final: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			active: view.activeSession.get()?.sessionId,
-			layout: view.sessionGridLayout.get(),
 		}, {
 			showedActiveAlone: false,
-			showedGridSessionsInColumns: false,
 			final: ['a', 'b'],
 			active: 'b',
-			layout: 'grid',
 		});
 	});
 
@@ -2330,6 +2279,28 @@ suite('SessionsManagementService', () => {
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
+
+	for (const newSession of [true, false]) {
+		test(`${newSession ? 'new session' : 'peer chat'} forwards the exact response observer through management`, async () => {
+			const session = stubSession({ sessionId: 'observer', providerId: 'test' });
+			const onDidCreateResponse: NonNullable<ISendRequestOptions['onDidCreateResponse']> = () => { };
+			const observers: ISendRequestOptions['onDidCreateResponse'][] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+					observers.push(options.onDidCreateResponse);
+					return session;
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const options = { query: 'test', onDidCreateResponse };
+			if (newSession) {
+				await service.sendNewChatRequest(session, options);
+			} else {
+				await service.sendRequest(session, session.mainChat.get(), options);
+			}
+			assert.deepStrictEqual(observers, [onDidCreateResponse]);
+		});
+	}
 
 	for (const isolation of ['worktree', 'folder'] as const) {
 		for (const sendKind of ['foreground', 'background', 'headless'] as const) {
@@ -3025,48 +2996,6 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
-	test('createNewSession forwards exact permission choices and rejects unavailable permissions', () => {
-		const session = stubSession({
-			sessionId: 's1',
-			providerId: 'test',
-		});
-		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
-		const provider = new class extends TestSessionsProvider {
-			override readonly sessionTypes: readonly ISessionType[] = [
-				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
-				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
-			];
-			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
-			override getPermissionOptionsForCreation(sessionTypeId: string) {
-				return sessionTypeId === 'supported' ? [{
-					id: 'allowAll',
-					label: 'Allow all',
-					description: 'Allow all tools.',
-					isAllowAll: true,
-				}] : [];
-			}
-			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
-				providerOptions.push(options);
-				return session;
-			}
-		}(session);
-		const { service } = createSessionsManagementService(session, disposables, provider);
-
-		service.createNewSession(URI.parse('test:///folder'), {
-			sessionTypeId: 'supported',
-			permissionId: 'allowAll',
-		});
-		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
-			sessionTypeId: 'unsupported',
-			permissionId: 'allowAll',
-		}), /does not support permission 'allowAll'/);
-
-		assert.deepStrictEqual(providerOptions, [{
-			metadata: undefined,
-			permissionId: 'allowAll',
-		}]);
-	});
-
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
 		const session = stubSession({
 			sessionId: 's1',
@@ -3523,6 +3452,59 @@ suite('SessionsManagementService', () => {
 			newSession: undefined,
 			calls: ['createQuickChat:test', 'setModel:gpt-4o', 'send'],
 		});
+	});
+
+	for (const quickChat of [false, true]) {
+		test(`background creation awaits preparation before sending (${quickChat ? 'quick chat' : 'workspace'})`, async () => {
+			const session = stubSession({ sessionId: 'prepared', providerId: 'test' });
+			const preparing = new DeferredPromise<void>();
+			const prepared = new DeferredPromise<void>();
+			const calls: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return session; }
+				override resolveWorkspace(uri: URI): ISessionWorkspace {
+					return { uri, label: 'Workspace', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override async sendRequest(): Promise<ISession> { calls.push('send'); return session; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const options: ICreateNewSessionOptions = {
+				providerId: 'test',
+				onSessionCreated: async () => {
+					calls.push('prepare');
+					await preparing.complete();
+					await prepared.p;
+					calls.push('prepared');
+				},
+			};
+			const operation = quickChat
+				? service.createAndSendQuickChatRequest({ query: 'Test' }, options)
+				: service.createAndSendNewChatRequest(URI.file('/workspace'), { query: 'Test' }, options);
+			await preparing.p;
+			await timeout(0);
+			assert.deepStrictEqual(calls, ['prepare']);
+			await prepared.complete();
+			await operation;
+			assert.deepStrictEqual(calls, ['prepare', 'prepared', 'send']);
+		});
+	}
+
+	test('quick-chat preparation failures discard the draft before sending', async () => {
+		const session = stubSession({ sessionId: 'failed-preparation', providerId: 'test' });
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return session; }
+			override deleteNewSession(): void { calls.push('delete'); }
+			override async sendRequest(): Promise<ISession> { calls.push('send'); return session; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.createAndSendQuickChatRequest({ query: 'Test' }, {
+			providerId: 'test',
+			onSessionCreated: async () => { throw new Error('Preparation failed'); },
+		}), /Preparation failed/);
+		assert.deepStrictEqual(calls, ['delete']);
 	});
 
 	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {
@@ -4047,6 +4029,34 @@ suite('SessionsManagementService', () => {
 		});
 
 		assert.deepStrictEqual({ providerId: result?.providerId, sent }, { providerId: 'test', sent: true });
+	});
+
+	test('an explicit false worktree flag rejects unsupported folder requests before creation', async () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let created = false;
+		let sent = false;
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm }];
+			override resolveWorkspace(uri: URI): ISessionWorkspace {
+				return { uri, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession {
+				created = true;
+				return session;
+			}
+			override async sendRequest(): Promise<ISession> {
+				sent = true;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			providerId: provider.id,
+			sessionTypeId: 'test',
+			isolationMode: 'workspace',
+			worktreeCreateNewBranch: false,
+		}), /does not support worktree configuration/);
+		assert.deepStrictEqual({ created, sent }, { created: false, sent: false });
 	});
 
 	test('createAndSendNewChatRequest disposes stranded draft when a setter throws', async () => {
@@ -5317,27 +5327,6 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ afterClose, afterReopen: grid(view) }, {
 				afterClose: { visible: ['B'], sticky: [false], active: 'B' },
 				afterReopen: { visible: ['A', 'B'], sticky: [true, false], active: 'A' },
-			});
-		});
-
-		test('showOnlySession replaces visible slots without recording them as closed', async () => {
-			const sessionA = multiChatSession('A', [chat('mainA')]);
-			const sessionB = multiChatSession('B', [chat('mainB')]);
-			const { view, canReopen } = setup([sessionA, sessionB]);
-
-			await view.openSession(sessionA.resource);
-			view.toggleSessionStickiness(sessionA);
-			await view.openSession(sessionB.resource);
-			view.showOnlySession(sessionB);
-
-			assert.deepStrictEqual({
-				grid: grid(view),
-				layout: view.sessionGridLayout.get(),
-				canReopen: canReopen(),
-			}, {
-				grid: { visible: ['B'], sticky: [false], active: 'B' },
-				layout: 'columns',
-				canReopen: false,
 			});
 		});
 
