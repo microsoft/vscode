@@ -8,6 +8,14 @@
 	height: 100%;
 	min-height: 0;
 
+	.monaco-tree-sticky-container {
+		--vscode-sideBar-background: var(--vscode-agents-background);
+	}
+
+	.monaco-tree-sticky-row {
+		--vscode-list-hoverBackground: var(--vscode-agents-background);
+	}
+
 	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
 		left: var(--vscode-spacing-size40);
 		right: var(--vscode-spacing-size40);

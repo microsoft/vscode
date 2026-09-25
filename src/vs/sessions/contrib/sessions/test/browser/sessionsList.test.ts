@@ -3219,6 +3219,43 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('keeps the sticky session hierarchy opaque while nested chats scroll beneath it', async () => {
+			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+			const peers = Array.from({ length: 12 }, (_, index) => createChat(`Codex ${index}`, ChatOriginKind.User));
+			const base = createTestSession('Show ChatGPT rate limits', { status: SessionStatus.InProgress }).session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, ...peers]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session);
+			container.style.setProperty('--vscode-agents-background', 'rgb(1, 2, 3)');
+			container.style.setProperty('--vscode-list-hoverBackground', 'rgba(4, 5, 6, 0.1)');
+			container.style.setProperty('--vscode-sideBar-background', 'transparent');
+
+			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+			tree.scrollTop = 100;
+			await timeout(0);
+
+			const stickyContainer = container.querySelector<HTMLElement>('.monaco-tree-sticky-container');
+			assert.ok(stickyContainer);
+			const stickyRows = [...stickyContainer.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')];
+			assert.deepStrictEqual({
+				containerBackground: mainWindow.getComputedStyle(stickyContainer).backgroundColor,
+				rows: stickyRows.map(row => ({
+					background: mainWindow.getComputedStyle(row).backgroundColor,
+					hoverBackground: mainWindow.getComputedStyle(row).getPropertyValue('--vscode-list-hoverBackground').trim(),
+				})),
+			}, {
+				containerBackground: 'rgb(1, 2, 3)',
+				rows: [
+					{ background: 'rgb(1, 2, 3)', hoverBackground: 'rgb(1, 2, 3)' },
+					{ background: 'rgb(1, 2, 3)', hoverBackground: 'rgb(1, 2, 3)' },
+				],
+			});
+		});
+
 		function createMultiFolderSession(sessionFolders: readonly ISessionFolder[], chatFolders: readonly (readonly ISessionFolder[] | undefined)[]): ISession {
 			const base = createTestSession('Session').session;
 			const sessionWorkspace = { ...base.workspace.get()!, label: 'Session workspace', folders: [...sessionFolders] };
