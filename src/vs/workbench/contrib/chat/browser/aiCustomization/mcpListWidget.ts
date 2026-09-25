@@ -1874,7 +1874,6 @@ export class McpListWidget extends Disposable {
 		}
 		this.searchInput.value = '';
 		this.searchQuery = '';
-		this.selectedGroupKey = 'available';
 		void this.queryGallerySnapshot(true);
 	}
 
