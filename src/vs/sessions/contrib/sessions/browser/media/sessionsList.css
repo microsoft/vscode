@@ -890,23 +890,33 @@
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
 
-	.session-section-label {
+	.session-section-label-container {
 		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	.session-section-label {
+		flex: 0 1 auto;
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.session-section-label.has-customization-migrations::after {
-		content: '';
-		display: inline-block;
+	.session-section-migration-indicator {
+		display: none;
+		flex-shrink: 0;
 		width: var(--vscode-spacing-size60);
 		height: var(--vscode-spacing-size60);
 		margin-left: var(--vscode-spacing-size40);
 		border-radius: var(--vscode-cornerRadius-circle);
 		background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
-		vertical-align: middle;
+	}
+
+	.session-section-migration-indicator.visible {
+		display: block;
 	}
 
 	.session-section-icon {

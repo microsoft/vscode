@@ -468,9 +468,12 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = sessionsHeader.closest('.sessions-list-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
+			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
 			const customizationsPresentation = {
 				count: customizationsSection?.querySelector('.session-section-count')?.textContent,
-				hasMigrationIndicator: customizationsSection?.querySelector('.session-section-label')?.classList.contains('has-customization-migrations'),
+				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
+				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
 				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
 			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
@@ -513,7 +516,8 @@ suite('Sessions - SessionsList', () => {
 				headerInTreatment: true,
 				customizationsPresentation: {
 					count: '7',
-					hasMigrationIndicator: true,
+					migrationIndicatorVisible: true,
+					migrationIndicatorOutsideLabel: true,
 					hasExtensionsIcon: true,
 				},
 				customizationsActive: [false, true],
