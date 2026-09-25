@@ -44,7 +44,7 @@ suite('Chat configuration', () => {
 		});
 	});
 
-	test('defaults persistent progress to Draw as an experimental setting', () => {
+	test('gates persistent progress off while allowing an experiment override', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -52,7 +52,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: 'draw',
+			default: 'off',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -70,7 +70,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: 'draw',
+			default: 'off',
 			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
 			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
 			descriptions: 6,
