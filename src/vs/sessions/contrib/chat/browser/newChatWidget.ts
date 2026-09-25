@@ -301,7 +301,6 @@ export class NewChatWidget extends Disposable {
 					enabled: this._useConsolidatedRemoteWorkspaces,
 				},
 			},
-			experimentalComposerLayout: this._useExperimentalComposerLayout,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -525,11 +524,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._newChatInput.render(chatWidgetContent, parent, {
-			workspaceControls: this._quickChatHeaderPickerHost
-				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
-				: [workspacePickerContainer],
-		});
+		this._newChatInput.render(chatWidgetContent, parent);
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const isQuickChat = this._isQuickChatComposer.read(reader);
