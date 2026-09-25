@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
@@ -531,29 +531,34 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 
 	let listParent = container;
 	let sessionsHeader: HTMLElement | undefined;
-	let sessionsHeaderContainer: HTMLElement | undefined;
+	let createSessionsHeader: ((container: HTMLElement, disposables: DisposableStore) => HTMLElement) | undefined;
 	if (showHeader) {
 		container.classList.add('agent-sessions-viewpane');
 		container.classList.add('agent-sessions-section');
 		const sessionsSection = container;
 		const content = DOM.append(sessionsSection, DOM.$('.agent-sessions-content'));
-		sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
+		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const header = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore);
 		header.toolbar?.refresh();
 		sessionsHeader = header.row;
+		createSessionsHeader = (headerContainer, disposables) => {
+			const treeHeader = renderSessionsHeader(headerContainer, false, instantiationService, instantiationService.get(IContextKeyService), disposables);
+			treeHeader.toolbar?.refresh();
+			return treeHeader.row;
+		};
+		if (options.showCustomizationsNavigation) {
+			DOM.hide(sessionsHeader);
+		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
-	const sessionsHeaderOptions = sessionsHeader && sessionsHeaderContainer
-		? { sessionsHeader, sessionsHeaderContainer }
-		: { sessionsHeader: undefined, sessionsHeaderContainer: undefined };
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		compact: () => options.compact ?? false,
 		showNavigationShortcuts: () => options.showCustomizationsNavigation ?? false,
-		...sessionsHeaderOptions,
+		createSessionsHeader,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
