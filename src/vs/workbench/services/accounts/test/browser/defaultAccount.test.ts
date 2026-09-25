@@ -45,6 +45,26 @@ suite('DefaultAccountProvider', () => {
 		authorizationServer: URI.parse('https://github.com/login/oauth'),
 	}];
 
+	test('fetches the GitHub profile display name', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({ name: '  The Octocat  ' }));
+		const provider = await createProvider(requestService);
+
+		const profileName = await provider['getGitHubProfileName'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions[0],
+		);
+
+		assert.deepStrictEqual({
+			profileName,
+			url: requestService.requests[0].url,
+			authorization: requestService.requests[0].headers?.Authorization,
+		}, {
+			profileName: 'The Octocat',
+			url: 'https://api.github.com/user',
+			authorization: 'token token',
+		});
+	});
+
 	test('cached settings perform one startup compatibility fetch', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			forceRemoteSettingsRefresh: true,

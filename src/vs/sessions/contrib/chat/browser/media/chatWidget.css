@@ -129,6 +129,24 @@
 	position: relative;
 }
 
+.new-session-welcome-message {
+	align-self: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	text-align: center;
+}
+
+.new-session-welcome-message[hidden] {
+	display: none;
+}
+
+.new-session-welcome-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
+	margin: 0;
+}
+
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;

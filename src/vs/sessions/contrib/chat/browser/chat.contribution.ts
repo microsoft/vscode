@@ -509,11 +509,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input. This setting only applies when the unified workspace picker is enabled."),
+			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input and shows rotating welcome phrases. This setting only applies when the unified workspace picker is enabled."),
 			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {
 			type: 'boolean',

@@ -72,6 +72,14 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICK
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
+let nextNewSessionWelcomePhraseIndex = 0;
+
+function takeNextNewSessionWelcomePhraseIndex(): number {
+	const index = nextNewSessionWelcomePhraseIndex;
+	nextNewSessionWelcomePhraseIndex = (nextNewSessionWelcomePhraseIndex + 1) % NEW_SESSION_WELCOME_PHRASE_COUNT;
+	return index;
+}
 
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
@@ -120,6 +128,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
+	private readonly _welcomePhraseIndex = takeNextNewSessionWelcomePhraseIndex();
 
 	constructor(
 		private readonly options: IChatViewOptions & {
@@ -473,6 +482,18 @@ export class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
+
+		const defaultAccountChanged = observableSignalFromEvent(this, this.defaultAccountService.onDidChangeDefaultAccount);
+		this._register(autorun(reader => {
+			defaultAccountChanged.read(reader);
+			this._updateWelcomeMessage(
+				welcomeMessage,
+				this._useExperimentalComposerLayout.read(reader),
+				this._welcomePhraseIndex,
+				this._getGitHubAccountName(),
+			);
+		}));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -655,6 +676,39 @@ export class NewChatWidget extends Disposable {
 			}
 			return false;
 		}
+	}
+
+	private _getGitHubAccountName(): string | undefined {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
+			return undefined;
+		}
+		return account.profileName ?? account.accountName;
+	}
+
+	private _updateWelcomeMessage(container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): void {
+		dom.clearNode(container);
+		container.hidden = !visible;
+		if (!visible) {
+			return;
+		}
+
+		const phrase = accountName
+			? [
+				localize('newSession.welcome.named.building', "What are we building, {0}?", accountName),
+				localize('newSession.welcome.named.move', "What’s the move, {0}?", accountName),
+				localize('newSession.welcome.named.cook', "Let’s cook, {0}", accountName),
+				localize('newSession.welcome.named.lockIn', "Time to lock in, {0}", accountName),
+				localize('newSession.welcome.named.ship', "Let’s ship something, {0}", accountName),
+			][phraseIndex]
+			: [
+				localize('newSession.welcome.building', "What are we building?"),
+				localize('newSession.welcome.move', "What’s the move?"),
+				localize('newSession.welcome.cook', "Let’s cook"),
+				localize('newSession.welcome.lockIn', "Time to lock in"),
+				localize('newSession.welcome.ship', "Let’s ship something"),
+			][phraseIndex];
+		dom.append(container, dom.$('h2.new-session-welcome-message-title')).textContent = phrase;
 	}
 
 	private _renderChatTip(): void {

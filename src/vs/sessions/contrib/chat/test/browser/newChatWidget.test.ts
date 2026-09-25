@@ -151,6 +151,8 @@ const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, 
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
+const getGitHubAccountName = Reflect.get(NewChatWidget.prototype, '_getGitHubAccountName') as (this: { readonly defaultAccountService: { readonly currentDefaultAccount: { readonly authenticationProvider: { readonly id: string }; readonly accountName: string; readonly profileName?: string } | null } }) => string | undefined;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -779,6 +781,58 @@ suite('NewChatWidget', () => {
 			quickChat: [],
 			workspaceDraft: [staleFolder.toString()],
 		});
+	});
+
+	test('rotates and personalizes new session welcome phrases', () => {
+		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+			const container = document.createElement('div');
+			updateWelcomeMessage(container, true, phraseIndex, undefined);
+			return container.textContent;
+		});
+		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+			const container = document.createElement('div');
+			updateWelcomeMessage(container, true, phraseIndex, 'Megan');
+			return container.textContent;
+		});
+		const hiddenContainer = document.createElement('div');
+		updateWelcomeMessage(hiddenContainer, false, 0, 'Megan');
+
+		assert.deepStrictEqual({ phrases, namedPhrases, hidden: hiddenContainer.hidden, hiddenText: hiddenContainer.textContent }, {
+			phrases: [
+				'What are we building?',
+				'What’s the move?',
+				'Let’s cook',
+				'Time to lock in',
+				'Let’s ship something',
+			],
+			namedPhrases: [
+				'What are we building, Megan?',
+				'What’s the move, Megan?',
+				'Let’s cook, Megan',
+				'Time to lock in, Megan',
+				'Let’s ship something, Megan',
+			],
+			hidden: true,
+			hiddenText: '',
+		});
+	});
+
+	test('prefers the GitHub profile name for welcome phrases', () => {
+		const names = [
+			{ providerId: 'github', accountName: 'octocat', profileName: 'The Octocat' },
+			{ providerId: 'github-enterprise', accountName: 'mona', profileName: undefined },
+			{ providerId: 'microsoft', accountName: 'Megan', profileName: 'Megan Rogge' },
+		].map(account => getGitHubAccountName.call({
+			defaultAccountService: {
+				currentDefaultAccount: {
+					authenticationProvider: { id: account.providerId },
+					accountName: account.accountName,
+					profileName: account.profileName,
+				},
+			},
+		}));
+		assert.deepStrictEqual(names, ['The Octocat', 'mona', undefined]);
+		assert.deepStrictEqual(names, ['The Octocat', 'mona', undefined]);
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {

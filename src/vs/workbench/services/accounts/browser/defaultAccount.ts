@@ -18,6 +18,7 @@ import { isUndefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize2 } from '../../../../nls.js';
+import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -857,7 +858,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				});
 			}
 
-			const entitlementsResult = await this.getEntitlements(sessions, accountPolicyData, options, sessionContext);
+			const [entitlementsResult, profileName] = await Promise.all([
+				this.getEntitlements(sessions, accountPolicyData, options, sessionContext),
+				this.getGitHubProfileName(authenticationProvider, sessions[0]),
+			]);
 			const entitlementsData = entitlementsResult?.data;
 			const entitlementsFetchedAt = entitlementsResult?.fetchedAt;
 			const [tokenEntitlementsResult, managedSettingsResult] = await Promise.all([
@@ -902,6 +906,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			const defaultAccount: IDefaultAccount = {
 				authenticationProvider,
 				accountName: sessions[0].account.label,
+				profileName,
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData,
@@ -931,6 +936,34 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
 			this.blockPendingManagedSettingsFreshness();
 			return null;
+		}
+	}
+
+	private async getGitHubProfileName(authenticationProvider: IDefaultAccountAuthenticationProvider, session: AuthenticationSession): Promise<string | undefined> {
+		const enterpriseUri = authenticationProvider.enterprise ? this.resolveGitHubUrl('') : undefined;
+		const endpoint = `${deriveGitHubEndpoints(enterpriseUri).apiBaseUri}/user`;
+		try {
+			const response = await this.requestService.request({
+				type: 'GET',
+				url: endpoint,
+				disableCache: true,
+				timeout: MANAGED_SETTINGS_REQUEST_TIMEOUT_MS,
+				callSite: 'defaultAccount.getGitHubProfileName',
+				headers: {
+					'Authorization': `token ${session.accessToken}`,
+					'Accept': 'application/vnd.github.v3+json',
+					'User-Agent': this.productService.nameShort,
+				},
+			}, CancellationToken.None);
+			if (!isSuccess(response)) {
+				this.logService.warn(`[DefaultAccount] Failed to fetch GitHub profile name: ${response.res.statusCode ?? 'unknown status'}`);
+				return undefined;
+			}
+			const profile = await asJson<{ readonly name?: string | null }>(response);
+			return profile?.name?.trim() || undefined;
+		} catch (error) {
+			this.logService.warn('[DefaultAccount] Failed to fetch GitHub profile name:', getErrorMessage(error));
+			return undefined;
 		}
 	}
 
