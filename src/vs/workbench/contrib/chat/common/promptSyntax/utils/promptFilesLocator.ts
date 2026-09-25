@@ -9,7 +9,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
 import { FileOperation, FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath, resolvePath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, COPILOT_CONFIG_FOLDER, GITHUB_CONFIG_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -127,7 +127,8 @@ export class PromptFilesLocator {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * repository root (a folder containing a `.git` directory or worktree
+	 * pointer) is found. Returns the
 	 * intermediate parent folders only when a repo root is found; returns
 	 * an empty array when the walk reaches the filesystem root, the user
 	 * home directory, or a folder already present in {@link seen}.
@@ -138,7 +139,7 @@ export class PromptFilesLocator {
 		while (true) {
 			try {
 				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
-				const isRepoRoot = gitStat?.isDirectory === true;
+				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true && await this.isWorktreeRoot(current);
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
@@ -165,6 +166,20 @@ export class PromptFilesLocator {
 		// no repo found
 		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
 		return [];
+	}
+
+	private async isWorktreeRoot(folderUri: URI): Promise<boolean> {
+		try {
+			const gitFile = await this.fileService.readFile(joinPath(folderUri, '.git'));
+			const gitDirPath = /^\s*gitdir:\s*(.+?)\s*$/im.exec(gitFile.value.toString())?.[1];
+			if (!gitDirPath) {
+				return false;
+			}
+			const commonDirStat = await this.fileService.stat(joinPath(resolvePath(folderUri, gitDirPath), 'commondir'));
+			return commonDirStat.isFile;
+		} catch {
+			return false;
+		}
 	}
 
 	/**
