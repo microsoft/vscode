@@ -110,11 +110,11 @@ suite('FrostedGlassContribution', () => {
 		});
 	});
 
-	test('does not query the GPU or change surfaces when explicitly disabled', async () => {
+	test('reads the shared GPU state once without changing surfaces when explicitly disabled', async () => {
 		const services = createServices(false);
 		services.createContribution();
 		await services.configure(LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY, 75);
-		assert.deepStrictEqual({ state: services.styleState(), checks: services.nativeHost.checks }, { state: [{ glass: false, opacity: '' }], checks: 0 });
+		assert.deepStrictEqual({ state: services.styleState(), checks: services.nativeHost.checks }, { state: [{ glass: false, opacity: '' }], checks: 1 });
 	});
 
 	for (const { name, value, opacity, warns } of [
@@ -153,7 +153,7 @@ suite('FrostedGlassContribution', () => {
 		await services.configure(LayoutSettings.MODERN_UI, false);
 		services.createContribution();
 		await Promise.resolve();
-		assert.deepStrictEqual({ state: services.state(), checks: services.nativeHost.checks }, { state: [false], checks: 0 });
+		assert.deepStrictEqual({ state: services.state(), checks: services.nativeHost.checks }, { state: [false], checks: 1 });
 	});
 
 	test('Agents overlays do not depend on the editor-window Modern UI setting', async () => {
@@ -222,7 +222,7 @@ suite('FrostedGlassContribution', () => {
 		await pending.error(new Error('GPU status unavailable'));
 		assert.deepStrictEqual({ state: services.state(), warnings: services.warnings }, {
 			state: [false],
-			warnings: ['Unable to check GPU compositing for frosted glass. Keeping solid overlays.'],
+			warnings: ['Unable to read initial GPU compositing state for frosted glass.'],
 		});
 	});
 
@@ -282,6 +282,32 @@ suite('FrostedGlassContribution', () => {
 		assert.deepStrictEqual(services.state(), [false]);
 	});
 
+	test('a GPU recovery event wins over a stale startup response', async () => {
+		const services = createServices();
+		const pending = new DeferredPromise<boolean>();
+		services.nativeHost.result = pending.p;
+		services.createContribution();
+		services.gpuChanged.fire(false);
+		services.gpuChanged.fire(true);
+		await pending.complete(false);
+		assert.deepStrictEqual(services.state(), [true]);
+	});
+
+	test('recovers through the shared GPU event after the initial read fails', async () => {
+		const services = createServices();
+		const pending = new DeferredPromise<boolean>();
+		services.nativeHost.result = pending.p;
+		services.createContribution();
+		await pending.error(new Error('GPU state unavailable'));
+		const failedState = services.state();
+		services.gpuChanged.fire(true);
+		assert.deepStrictEqual({ failedState, recoveredState: services.state(), checks: services.nativeHost.checks }, {
+			failedState: [false],
+			recoveredState: [true],
+			checks: 1,
+		});
+	});
+
 	test('disabling during the capability check prevents late enablement', async () => {
 		const services = createServices();
 		const pending = new DeferredPromise<boolean>();
@@ -304,17 +330,30 @@ suite('FrostedGlassContribution', () => {
 		assert.deepStrictEqual(services.state(), [false]);
 	});
 
-	test('rechecks capabilities after turning glass back on', async () => {
+	test('tracks capabilities while disabled without issuing another state read', async () => {
 		const services = createServices();
 		services.createContribution();
 		await Promise.resolve();
 		await services.configure(LayoutSettings.MODERN_UI_FROSTED_GLASS, false);
 		const disabledState = services.state();
-		services.nativeHost.result = Promise.resolve(false);
+		services.gpuChanged.fire(false);
 		await services.configure(LayoutSettings.MODERN_UI_FROSTED_GLASS, true);
 		await Promise.resolve();
 		assert.deepStrictEqual({ disabledState, reenabledState: services.state(), checks: services.nativeHost.checks }, {
-			disabledState: [false], reenabledState: [false], checks: 2,
+			disabledState: [false], reenabledState: [false], checks: 1,
+		});
+	});
+
+	test('uses GPU updates received while initially disabled when enabling glass', async () => {
+		const services = createServices(false);
+		services.nativeHost.result = Promise.resolve(false);
+		services.createContribution();
+		await Promise.resolve();
+		services.gpuChanged.fire(true);
+		const disabledState = services.state();
+		await services.configure(LayoutSettings.MODERN_UI_FROSTED_GLASS, true);
+		assert.deepStrictEqual({ disabledState, enabledState: services.state(), checks: services.nativeHost.checks }, {
+			disabledState: [false], enabledState: [true], checks: 1,
 		});
 	});
 

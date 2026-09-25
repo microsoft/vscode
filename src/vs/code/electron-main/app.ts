@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -69,6 +69,7 @@ import { INativeHostMainService, NativeHostMainService } from '../../platform/na
 import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { IGPUProcessMainService } from '../../platform/gpu/electron-main/gpuProcessMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -234,7 +235,8 @@ export class CodeApplication extends Disposable {
 		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
+		@IGPUProcessMainService private readonly gpuProcessMainService: IGPUProcessMainService
 	) {
 		super();
 
@@ -1710,22 +1712,13 @@ export class CodeApplication extends Disposable {
 		if (isMacintosh) {
 			instantiationService.invokeFunction(accessor => {
 				const telemetryService = accessor.get(ITelemetryService);
-				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
-					skia_graphite: string;
-				};
-				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
-				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
-				if (skiaGraphiteEnabled === 'enabled') {
-					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
+				const initialGpuFeatureStatus: (GPUFeatureStatus & { skia_graphite?: string }) | undefined = this.gpuProcessMainService.featureStatus;
+				if (initialGpuFeatureStatus?.skia_graphite === 'enabled') {
+					const gpuInfoUpdate = Event.filter<undefined, GPUFeatureStatus>(this.gpuProcessMainService.onDidUpdateFeatureStatus, (status): status is GPUFeatureStatus => status !== undefined, this._store);
 					const pendingGpuInfoListener = this._register(new MutableDisposable());
-					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-						if (details.type === 'GPU' && details.reason === 'crashed') {
-							// Wait for gpu-info-update which fires after the GPU process
-							// restarts and the feature status is refreshed. At the time
-							// child-process-gone fires, getGPUFeatureStatus() still
-							// returns the pre-crash status.
-							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
-								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+					this._register(this.gpuProcessMainService.onDidExitProcess(({ reason }) => {
+						if (reason === 'crashed') {
+							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(currentGpuFeatureStatus => {
 								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
 								if (currentRasterizationStatus !== 'enabled') {
 									// Get last 10 GPU log messages (only the message field)

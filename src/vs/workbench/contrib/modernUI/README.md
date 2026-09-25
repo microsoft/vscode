@@ -84,9 +84,12 @@ leave the legacy preferences unchanged because these settings are desktop-only.
 The normal theme backgrounds remain the fallback. Glass is enabled only after
 Electron reports hardware-accelerated GPU compositing, and only where CSS supports
 both backdrop filtering and color mixing. Pending, failed, disabled, or software
-compositing checks retain solid surfaces; GPU information updates and GPU-process
-exits update the treatment without reloading. The effect does not bypass
-Chromium's GPU blocklist or change native window transparency.
+compositing state reads retain solid surfaces. A shared main-process service owns
+GPU lifecycle monitoring for both crash telemetry and all windows. GPU-process
+exits invalidate its cached capabilities until a fresh GPU information update
+arrives. Each renderer reads the initial state once and subscribes to changes,
+including while glass is disabled, without reloading or polling. The effect does
+not bypass Chromium's GPU blocklist or change native window transparency.
 
 High-contrast themes, forced colors, OS reduced transparency, and
 `workbench.reduceTransparency: "on"` retain the normal backgrounds. OS reduced

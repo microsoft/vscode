@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -23,9 +23,8 @@ export class FrostedGlassContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.frostedGlass';
 
-	private readonly gpuListener = this._register(new MutableDisposable());
-	private gpuCompositingEnabled = false;
-	private gpuRequest = 0;
+	private gpuCompositingEnabled: boolean | undefined;
+	private requested = false;
 	private opacity: number = ModernUIFrostedGlassOpacity.Default;
 
 	constructor(
@@ -46,6 +45,10 @@ export class FrostedGlassContribution extends Disposable implements IWorkbenchCo
 		}));
 		this._register(this.accessibilityService.onDidChangeReducedTransparency(() => this.update()));
 		this._register(this.themeService.onDidColorThemeChange(() => this.update()));
+		this._register(this.nativeHostService.onDidChangeGPUCompositing(enabled => {
+			this.gpuCompositingEnabled = enabled;
+			this.apply();
+		}));
 		this._register(this.layoutService.onDidAddContainer(({ container, disposables }) => {
 			this.applyTo(container);
 			disposables.add(toDisposable(() => {
@@ -55,6 +58,7 @@ export class FrostedGlassContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		this.update();
+		void this.initializeGPUCompositing();
 	}
 
 	private getOpacity(): number {
@@ -75,37 +79,23 @@ export class FrostedGlassContribution extends Disposable implements IWorkbenchCo
 
 	private update(): void {
 		this.opacity = this.getOpacity();
-		const requested = (this.environmentService.isSessionsWindow || this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true)
+		this.requested = (this.environmentService.isSessionsWindow || this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true)
 			&& this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI_FROSTED_GLASS) === true
 			&& !this.accessibilityService.isTransparencyReduced()
 			&& !isHighContrast(this.themeService.getColorTheme().type);
 
-		if (!requested) {
-			this.gpuListener.clear();
-			this.gpuRequest++;
-			this.gpuCompositingEnabled = false;
-		} else if (!this.gpuListener.value) {
-			this.gpuListener.value = this.nativeHostService.onDidChangeGPUCompositing(enabled => {
-				this.gpuRequest++;
-				this.gpuCompositingEnabled = enabled;
-				this.apply();
-			});
-			void this.checkGPUCompositing();
-		}
-
 		this.apply();
 	}
 
-	private async checkGPUCompositing(): Promise<void> {
-		const request = ++this.gpuRequest;
+	private async initializeGPUCompositing(): Promise<void> {
 		try {
 			const enabled = await this.nativeHostService.isGPUCompositingEnabled();
-			if (!this._store.isDisposed && request === this.gpuRequest) {
+			if (!this._store.isDisposed && this.gpuCompositingEnabled === undefined) {
 				this.gpuCompositingEnabled = enabled;
 				this.apply();
 			}
 		} catch (error) {
-			this.logService.warn('Unable to check GPU compositing for frosted glass. Keeping solid overlays.', error);
+			this.logService.warn('Unable to read initial GPU compositing state for frosted glass.', error);
 		}
 	}
 
@@ -116,17 +106,17 @@ export class FrostedGlassContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private applyTo(container: HTMLElement): void {
-		if (this.gpuCompositingEnabled) {
+		const enabled = this.requested && this.gpuCompositingEnabled === true;
+		if (enabled) {
 			container.style.setProperty(FROSTED_GLASS_OPACITY_PROPERTY, `${this.opacity}%`);
 		} else {
 			container.style.removeProperty(FROSTED_GLASS_OPACITY_PROPERTY);
 		}
-		container.classList.toggle(FROSTED_GLASS_CLASS, this.gpuCompositingEnabled);
+		container.classList.toggle(FROSTED_GLASS_CLASS, enabled);
 	}
 
 	override dispose(): void {
-		this.gpuRequest++;
-		this.gpuCompositingEnabled = false;
+		this.requested = false;
 		this.apply();
 		super.dispose();
 	}

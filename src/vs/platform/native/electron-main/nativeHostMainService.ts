@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Details, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -29,6 +29,7 @@ import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electro
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -72,7 +73,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
+		@IGPUProcessMainService private readonly gpuProcessMainService: IGPUProcessMainService
 	) {
 		super();
 
@@ -149,9 +151,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
-			this.onDidChangeGPUCompositing = Event.any(
-				Event.map(Event.fromNodeEventEmitter(app, 'gpu-info-update'), () => app.getGPUFeatureStatus().gpu_compositing === 'enabled'),
-				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'child-process-gone', (_event: Electron.Event, details: Details) => details.type), type => type === 'GPU'), () => false)
+			this.onDidChangeGPUCompositing = Event.latch(
+				Event.map(this.gpuProcessMainService.onDidUpdateFeatureStatus, status => status?.gpu_compositing === 'enabled', this._store),
+				undefined, this._store
 			);
 
 			this.onDidChangeDisplay = Event.debounce(Event.any(
@@ -886,7 +888,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async isGPUCompositingEnabled(): Promise<boolean> {
-		return app.getGPUFeatureStatus().gpu_compositing === 'enabled';
+		return this.gpuProcessMainService.featureStatus?.gpu_compositing === 'enabled';
 	}
 
 	async getOSColorScheme(): Promise<IColorScheme> {
