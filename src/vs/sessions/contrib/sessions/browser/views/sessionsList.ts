@@ -3207,6 +3207,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private pendingOpenRequest: IListOpenRequest | undefined;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
+	private filteredSessionIds = new Set<string>();
+	private revealedSession: ISession | undefined;
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
@@ -3907,6 +3909,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this._register(this._agentHostFilterService.onDidChange(() => {
+			this.revealedSession = undefined;
 			if (this.visible) {
 				this.update();
 			}
@@ -3916,6 +3919,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			activeSession?.activeChat.read(reader);
+			this.revealedSession = undefined;
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
 					this.update();
@@ -3959,6 +3963,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		if (this.revealedSession && !this.sessions.includes(this.revealedSession)) {
+			this.revealedSession = undefined;
+		}
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
@@ -4016,6 +4023,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		}
+
+		this.filteredSessionIds = new Set(filtered.map(session => session.sessionId));
+		if (this.revealedSession && !this.filteredSessionIds.has(this.revealedSession.sessionId)) {
+			this.revealedSession = undefined;
+		}
+		const revealSessionIds = [activeSession, archiveOnboardingSession, this.revealedSession]
+			.flatMap(session => session ? [session.sessionId] : []);
 
 		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
@@ -4119,7 +4133,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 
 				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => session.sessionId === archiveOnboardingSession?.sessionId)) {
+					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => revealSessionIds.includes(session.sessionId))) {
 						moreFolderSectionIds.add(section.id);
 					}
 				}
@@ -4158,7 +4172,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				expanded: this.expandedSessionGroups.has(sectionId),
 				sectionId,
 				sectionLabel,
-				revealSessionId: archiveOnboardingSession?.sessionId,
+				revealSessionIds,
 			});
 			const children = toSessionChildren(limited.sessions);
 			if (limited.showMore) {
@@ -4424,6 +4438,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(node => node.element)
 			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
 		if (!chatItem || !isSessionChatItem(chatItem)) {
+			if (this.tree.getRelativeTop(session) === null) {
+				this.tree.reveal(session, 0.5);
+			}
 			this.tree.setFocus([session]);
 			this.tree.setSelection([session]);
 			return;
@@ -4473,20 +4490,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	reveal(sessionResource: URI): boolean {
-		const resourceStr = sessionResource.toString();
-		for (const session of this.sessions) {
-			if (session.resource.toString() === resourceStr) {
-				if (this.tree.hasElement(session)) {
-					if (this.tree.getRelativeTop(session) === null) {
-						this.tree.reveal(session, 0.5);
-					}
-					this.tree.setFocus([session]);
-					this.tree.setSelection([session]);
-					return true;
-				}
-			}
+		const session = this.sessions.find(session => this.uriIdentityService.extUri.isEqual(session.resource, sessionResource));
+		if (!session) {
+			return false;
 		}
-		return false;
+		if (!this.tree.hasElement(session)) {
+			if (!this.filteredSessionIds.has(session.sessionId)) {
+				return false;
+			}
+			this.revealedSession = session;
+			this.update();
+		}
+		if (!this.tree.hasElement(session)) {
+			return false;
+		}
+		if (this.tree.getRelativeTop(session) === null) {
+			this.tree.reveal(session, 0.5);
+		}
+		this.tree.setFocus([session]);
+		this.tree.setSelection([session]);
+		return true;
 	}
 
 	/** Reveals a session and keeps its archive action visible until the caller releases it. */
@@ -5336,6 +5359,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Session type filtering --
 
 	setSessionTypeExcluded(sessionTypeId: string, excluded: boolean): void {
+		this.revealedSession = undefined;
 		if (excluded) {
 			this.excludedSessionTypes.add(sessionTypeId);
 		} else {
@@ -5375,6 +5399,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Status filtering --
 
 	setStatusExcluded(status: SessionStatus, excluded: boolean): void {
+		this.revealedSession = undefined;
 		if (excluded) {
 			this.excludedStatuses.add(status);
 		} else {
@@ -5414,6 +5439,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Archived / Read filtering --
 
 	setExcludeArchived(exclude: boolean): void {
+		this.revealedSession = undefined;
 		this._excludeArchived = exclude;
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
 		this.update();
@@ -5424,6 +5450,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	setExcludeRead(exclude: boolean): void {
+		this.revealedSession = undefined;
 		this._excludeRead = exclude;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
 		this.update();
@@ -5444,6 +5471,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	resetFilters(): void {
+		this.revealedSession = undefined;
 		this.excludedSessionTypes.clear();
 		this.saveExcludedSessionTypes();
 		this.excludedStatuses.clear();
@@ -5663,7 +5691,7 @@ export function limitSessionsForList(
 		readonly expanded: boolean;
 		readonly sectionId: string;
 		readonly sectionLabel: string;
-		readonly revealSessionId?: string;
+		readonly revealSessionIds?: readonly string[];
 	},
 ): ISessionLimitResult {
 	if (!options.enabled || sessions.length <= limit) {
@@ -5685,12 +5713,7 @@ export function limitSessionsForList(
 	}
 
 	const visibleSessions = sessions.slice(0, limit);
-	if (options.revealSessionId !== undefined) {
-		const revealIndex = sessions.findIndex(session => session.sessionId === options.revealSessionId);
-		if (revealIndex >= limit) {
-			visibleSessions.push(sessions[revealIndex]);
-		}
-	}
+	visibleSessions.push(...sessions.slice(limit).filter(session => options.revealSessionIds?.includes(session.sessionId)));
 	const remainingCount = sessions.length - visibleSessions.length;
 
 	return {
