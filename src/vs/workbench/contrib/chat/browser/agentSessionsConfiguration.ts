@@ -29,6 +29,13 @@ export const agentsWindowHandoffConfigurationProperties = {
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
+	[ChatConfiguration.CopilotHarnessIntroductionEnabled]: {
+		type: 'boolean',
+		description: nls.localize('chat.copilotHarnessIntroduction.enabled', "Show an introduction to the new Copilot experience when starting one of the first Copilot Agent Host chats."),
+		default: product.quality === 'insider',
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
 	[ChatConfiguration.AgentsHandoffTipDelaySeconds]: {
 		type: 'number',
 		minimum: 0,

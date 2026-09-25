@@ -10,7 +10,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -801,9 +801,9 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT = 5;
 	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/concepts/agent-host';
+	private static readonly COPILOT_HARNESS_FEEDBACK_URL = 'https://github.com/microsoft/vscode/issues';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID = 'copilotHarnessIntroduction';
-	private static readonly COPILOT_REPORT_ISSUE_COMMAND_ID = 'github.copilot.report';
 	private static readonly NOTIFICATION_ID = 'chat.agentsParallelWork';
 	private static readonly OPEN_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.open';
 	private static readonly LEARN_MORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.learnMore';
@@ -886,7 +886,8 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)) {
+			if (event.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)
+				|| event.affectsConfiguration(ChatConfiguration.CopilotHarnessIntroductionEnabled)) {
 				this._update();
 			}
 		}));
@@ -978,16 +979,17 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		}
 
 		const sessionCount = this._getCopilotHarnessSessionCount();
+		const introductionEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.CopilotHarnessIntroductionEnabled) === true;
 		const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
 		const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
 			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (localCopilotNeedsSetup) {
 			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 		}
-		if (parallelWorkEligible && (!introductionIgnored || sessionCount >= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)) {
+		if (parallelWorkEligible && (!introductionEnabled || !introductionIgnored || sessionCount >= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)) {
 			return AgentsParallelWorkNotificationKind.ParallelWork;
 		}
-		if (!introductionIgnored && sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
+		if (introductionEnabled && !introductionIgnored && sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
 			return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
 		}
 		return undefined;
@@ -1041,7 +1043,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using a new Copilot experience")
 			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
 		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", createCommandUri(AgentsParallelWorkContribution.COPILOT_REPORT_ISSUE_COMMAND_ID).toString())
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", AgentsParallelWorkContribution.COPILOT_HARNESS_FEEDBACK_URL)
 			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
 		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.title === title && this._posted.description === description) {
 			return;
@@ -1107,7 +1109,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			severity: ChatInputNotificationSeverity.Info,
 			message: title,
 			description: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-				? new MarkdownString(description, { isTrusted: { enabledCommands: [AgentsParallelWorkContribution.COPILOT_REPORT_ISSUE_COMMAND_ID] } })
+				? new MarkdownString(description)
 				: description,
 			sessionResources: [resource],
 			when: context => this._posted === posted && !context.sessionStarted && !context.isTransientChat,
