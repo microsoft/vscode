@@ -3284,15 +3284,12 @@ export class ChatResponseVoiceProgressPart {
 
 export class ChatResponseAutoModeResolutionPart {
 	resolvedModel: { id: string; name: string } | undefined;
-	constructor(resolvedModel?: { id: string; name: string }) {
+	autoTier: vscode.ChatResponseAutoModeResolutionPart['autoTier'];
+	hidden: boolean;
+	constructor(resolvedModel?: { id: string; name: string }, autoTier?: vscode.ChatResponseAutoModeResolutionPart['autoTier'], hidden = false) {
 		this.resolvedModel = resolvedModel;
-	}
-}
-
-export class ChatResponseAutoModeTierPart {
-	autoTier: vscode.ChatResponseAutoModeTierPart['autoTier'];
-	constructor(autoTier?: vscode.ChatResponseAutoModeTierPart['autoTier']) {
 		this.autoTier = autoTier;
+		this.hidden = hidden;
 	}
 }
 

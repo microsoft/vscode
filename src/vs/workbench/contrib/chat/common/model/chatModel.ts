@@ -35,7 +35,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { formatChatToolError } from '../chatProgressFormatting.js';
 import { IChatRequestOrigin, ISerializableChatRequestOrigin, reviveChatRequestOrigin, serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatAutoModeTierPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -183,7 +183,7 @@ export interface IChatTextEditGroupState {
 }
 
 export interface IChatEditMetadata {
-	readonly autoTier?: IChatAutoModeTierPart['autoTier'];
+	readonly autoTier?: IChatAutoModeResolutionPart['autoTier'];
 }
 
 export interface IChatTextEditGroup {
@@ -1334,7 +1334,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _vote?: ChatAgentVoteDirection;
 	private _result?: IChatAgentResult;
 	/** Live default for new edit batches; historical attribution is stored in each group's editMetadata. */
-	private _autoTier?: IChatAutoModeTierPart['autoTier'];
+	private _autoTier?: IChatAutoModeResolutionPart['autoTier'];
 	private readonly _usageObs = observableValue<IChatUsage | undefined>(this, undefined);
 	private _parentUsage: IChatUsage | undefined;
 	private readonly _subagentCopilotCredits = new Map<string, number>();
@@ -1677,7 +1677,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._response.updateContent(responsePart, quiet, editMetadata);
 	}
 
-	setAutoTier(autoTier: IChatAutoModeTierPart['autoTier']): void {
+	setAutoTier(autoTier: IChatAutoModeResolutionPart['autoTier']): void {
 		this._autoTier = getAutoModelTier(this.request?.modelId, autoTier);
 	}
 
@@ -3450,8 +3450,11 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'usage') {
 			request.response.setUsage(progress);
-		} else if (progress.kind === 'autoModeTier') {
+		} else if (progress.kind === 'autoModeResolution') {
 			request.response.setAutoTier(progress.autoTier);
+			if (!progress.hidden) {
+				request.response.updateContent(progress, quiet);
+			}
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {

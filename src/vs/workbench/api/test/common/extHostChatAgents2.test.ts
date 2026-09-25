@@ -15,7 +15,7 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { ChatAgentResponseStream } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter } from '../../common/extHostCommands.js';
 import { IChatAgentProgressShape, IChatProgressDto } from '../../common/extHost.protocol.js';
-import { ChatResponseAnchorPart, ChatResponseAutoModeTierPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
+import { ChatResponseAnchorPart, ChatResponseAutoModeResolutionPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
 
 suite('ExtHostChatAgents2', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,18 +44,18 @@ suite('ExtHostChatAgents2', function () {
 			CancellationToken.None,
 		);
 		const uri = URI.file('/test/file.ts');
-		stream.apiObject.push(new ChatResponseAutoModeTierPart('efficiency'));
+		stream.apiObject.push(new ChatResponseAutoModeResolutionPart({ id: 'gpt', name: 'GPT' }, 'efficiency'));
 		stream.apiObject.push(new ChatResponseTextEditPart(uri, [new TextEdit(new Range(0, 0, 0, 0), 'text')]));
-		stream.apiObject.push(new ChatResponseAutoModeTierPart());
+		stream.apiObject.push(new ChatResponseAutoModeResolutionPart(undefined, undefined, true));
 		stream.close();
 		await Promise.resolve();
 
 		assert.deepStrictEqual(progress, [{
 			requestId: 'auto-request',
 			chunks: [
-				{ kind: 'autoModeTier', autoTier: 'efficiency' },
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'efficiency', hidden: undefined },
 				{ kind: 'textEdit', uri, edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: 'text', eol: undefined }], done: undefined },
-				{ kind: 'autoModeTier', autoTier: undefined },
+				{ kind: 'autoModeResolution', resolved: undefined, autoTier: undefined, hidden: true },
 			],
 		}]);
 	});

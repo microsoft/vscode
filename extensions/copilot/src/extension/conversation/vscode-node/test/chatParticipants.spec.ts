@@ -65,7 +65,7 @@ describe('Chat participants Auto tier attribution', () => {
 		disposables.add(chatAgents.register());
 		const request = { ...new TestChatRequest('edit'), model: autoModel };
 		const stream = new SpyChatResponseStream();
-		stream.push(new vscode.ChatResponseAutoModeTierPart('balance'));
+		stream.push(new vscode.ChatResponseAutoModeResolutionPart({ id: 'gpt', name: 'GPT' }, 'balance', true));
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise quota preflight without running the conversation handler.
 		const result = await chatAgents.debugGetCurrentChatAgents()!['switchToBaseModel'](request, stream);
@@ -75,12 +75,12 @@ describe('Chat participants Auto tier attribution', () => {
 		const switched = quotaExhausted && baseAvailable;
 		expect({
 			modelId: result.model.id,
-			parts: stream.items.filter(part => part instanceof vscode.ChatResponseAutoModeTierPart || part instanceof vscode.ChatResponseTextEditPart),
+			parts: stream.items.filter(part => part instanceof vscode.ChatResponseAutoModeResolutionPart || part instanceof vscode.ChatResponseTextEditPart),
 		}).toEqual({
 			modelId: switched ? baseModel.id : autoModel.id,
 			parts: [
-				new vscode.ChatResponseAutoModeTierPart('balance'),
-				...(switched ? [new vscode.ChatResponseAutoModeTierPart()] : []),
+				new vscode.ChatResponseAutoModeResolutionPart({ id: 'gpt', name: 'GPT' }, 'balance', true),
+				...(switched ? [new vscode.ChatResponseAutoModeResolutionPart(undefined, undefined, true)] : []),
 				new vscode.ChatResponseTextEditPart(uri, []),
 			],
 		});

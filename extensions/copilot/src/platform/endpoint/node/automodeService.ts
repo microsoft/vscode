@@ -9,7 +9,7 @@ import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
 import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseAutoModeTierPart } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -103,13 +103,10 @@ export function reportAutoModeRouting(
 				}
 				break;
 			case 'resolved':
-				if (reportRouting && e.didRoute) {
-					stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }));
-				}
-				stream.push(new ChatResponseAutoModeTierPart(e.tier));
+				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }, e.tier, !(reportRouting && e.didRoute)));
 				break;
 			case 'failed':
-				stream.push(new ChatResponseAutoModeTierPart());
+				stream.push(new ChatResponseAutoModeResolutionPart(undefined, undefined, true));
 				break;
 		}
 	});

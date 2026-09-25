@@ -329,7 +329,7 @@ suite('ChatEditingService', function () {
 					['intelligence', undefined],
 					[undefined, undefined],
 				] as const) {
-					model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier });
+					model.acceptResponseProgress(request, { kind: 'autoModeResolution', autoTier, hidden: true });
 					model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit\n' }], done: false }, undefined, metadata);
 				}
 				request.response!.complete();

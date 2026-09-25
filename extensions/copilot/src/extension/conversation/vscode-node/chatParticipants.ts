@@ -296,7 +296,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 			return request;
 		}
 		if (request.model.id === AutoChatEndpoint.pseudoModelId) {
-			stream.push(new vscode.ChatResponseAutoModeTierPart());
+			stream.push(new vscode.ChatResponseAutoModeResolutionPart(undefined, undefined, true));
 		}
 		request = { ...request, model: baseLmModel };
 		if (request.subAgentInvocationId === undefined) {

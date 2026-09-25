@@ -21,7 +21,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { isByokModel } from '../../chatSelectedModel.js';
-import { IChatAutoModeTierPart, IChatProgress, IChatService } from '../../chatService/chatService.js';
+import { IChatAutoModeResolutionPart, IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, getAutoModelTier, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import type { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
@@ -284,10 +284,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
 			let inEdit = false;
-			let autoTier: IChatAutoModeTierPart['autoTier'];
+			let autoTier: IChatAutoModeResolutionPart['autoTier'];
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
-					if (part.kind === 'autoModeTier') {
+					if (part.kind === 'autoModeResolution') {
 						autoTier = getAutoModelTier(modeModelId, part.autoTier);
 						continue;
 					}

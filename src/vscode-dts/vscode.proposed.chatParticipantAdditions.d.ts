@@ -448,7 +448,6 @@ declare module 'vscode' {
 		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
 		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
 		ChatResponseAutoModeResolutionPart: ChatResponseAutoModeResolutionPart;
-		ChatResponseAutoModeTierPart: ChatResponseAutoModeTierPart;
 	}
 
 	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
@@ -581,14 +580,11 @@ declare module 'vscode' {
 	export class ChatResponseAutoModeResolutionPart {
 		/** The model the router picked, or `undefined` while routing is in flight. */
 		resolvedModel: { id: string; name: string } | undefined;
-		constructor(resolvedModel?: { id: string; name: string });
-	}
-
-	/** Reports the client-resolved Auto routing tier without adding visible response content. */
-	export class ChatResponseAutoModeTierPart {
-		/** The tier used to resolve this request's endpoint, including cached resolutions. Undefined clears attribution. */
+		/** The tier the request resolved with. Attributes the turn's later edits; `undefined` clears that attribution. */
 		autoTier: 'efficiency' | 'balance' | 'intelligence' | 'fast' | undefined;
-		constructor(autoTier?: ChatResponseAutoModeTierPart['autoTier']);
+		/** Update attribution without adding a row, e.g. for a reused routing session. */
+		hidden: boolean;
+		constructor(resolvedModel?: { id: string; name: string }, autoTier?: ChatResponseAutoModeResolutionPart['autoTier'], hidden?: boolean);
 	}
 
 	export interface ChatResponseStream {

@@ -307,7 +307,7 @@ suite('ChatModel', () => {
 			test(`keeps explicit ${isNotebook ? 'notebook cell' : 'text'} edit metadata separate from the parent tier`, () => {
 				const request = addRequest();
 				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
-				model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier: 'efficiency' });
+				model.acceptResponseProgress(request, { kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'efficiency' });
 
 				for (const metadata of [undefined, { autoTier: 'intelligence' }, {}, undefined] as const) {
 					model.acceptResponseProgress(request, {
@@ -315,8 +315,14 @@ suite('ChatModel', () => {
 					}, undefined, metadata);
 				}
 
-				const tiers = request.response!.response.value.flatMap(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup' ? part.editMetadata?.map(metadata => metadata.autoTier) : []);
-				assert.deepStrictEqual(tiers, ['efficiency', 'intelligence', undefined, 'efficiency']);
+				const parts = request.response!.response.value;
+				assert.deepStrictEqual({
+					kinds: parts.map(part => part.kind),
+					tiers: parts.flatMap(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup' ? part.editMetadata?.map(metadata => metadata.autoTier) : []),
+				}, {
+					kinds: ['autoModeResolution', isNotebook ? 'notebookEditGroup' : 'textEditGroup'],
+					tiers: ['efficiency', 'intelligence', undefined, 'efficiency'],
+				});
 			});
 
 			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
@@ -326,7 +332,7 @@ suite('ChatModel', () => {
 				const buffers = [operationLog.createInitial(model)];
 
 				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
-					model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier });
+					model.acceptResponseProgress(request, { kind: 'autoModeResolution', autoTier, hidden: true });
 					model.acceptResponseProgress(request, {
 						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false,
 					}, true);

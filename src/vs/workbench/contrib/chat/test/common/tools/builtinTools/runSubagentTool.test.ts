@@ -225,9 +225,9 @@ suite('RunSubagentTool', () => {
 				capturedProgress,
 				progress: [
 					{ kind: 'textEdit', uri, edits: [] },
-					{ kind: 'autoModeTier', autoTier: 'fast' },
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt', name: 'GPT' }, autoTier: 'fast' },
 					{ kind: 'notebookEdit', uri, edits: [] },
-					{ kind: 'autoModeTier', autoTier: undefined },
+					{ kind: 'autoModeResolution' },
 					{ kind: 'textEdit', uri, edits: [] },
 				],
 			});

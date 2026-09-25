@@ -631,11 +631,10 @@ export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
 	/** The model the router picked, or `undefined` while routing is in flight. */
 	resolved?: { readonly id: string; readonly name: string };
-}
-
-export interface IChatAutoModeTierPart {
-	kind: 'autoModeTier';
-	autoTier: ReturnType<typeof getAutoModelTier>;
+	/** The tier the request resolved with; attributes later edit batches. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
+	/** Updates attribution only, without adding a row. */
+	hidden?: boolean;
 }
 
 /**
@@ -1592,7 +1591,6 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 
 export type IChatProgress =
 	| IChatMarkdownContent
-	| IChatAutoModeTierPart
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatUsage
 	| IChatTreeData

@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseAutoModeTierPart, ChatResponseTextEditPart, Uri } from '../../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseTextEditPart, Uri } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { BaseConfig, ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
@@ -659,15 +659,12 @@ describe('AutomodeService', () => {
 			streams[0].textEdit(uri, []);
 
 			expect(streams.map(stream => stream.items)).toEqual([[
-				...(reportRouting ? [
-					new ChatResponseAutoModeResolutionPart(),
-					new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }),
-				] : []),
-				new ChatResponseAutoModeTierPart('balance'),
-				new ChatResponseTextEditPart(uri, []),
-				new ChatResponseAutoModeTierPart('balance'),
 				...(reportRouting ? [new ChatResponseAutoModeResolutionPart()] : []),
-				new ChatResponseAutoModeTierPart(),
+				new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }, 'balance', !reportRouting),
+				new ChatResponseTextEditPart(uri, []),
+				new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }, 'balance', true),
+				...(reportRouting ? [new ChatResponseAutoModeResolutionPart()] : []),
+				new ChatResponseAutoModeResolutionPart(undefined, undefined, true),
 				new ChatResponseTextEditPart(uri, []),
 			], [], []]);
 		});
