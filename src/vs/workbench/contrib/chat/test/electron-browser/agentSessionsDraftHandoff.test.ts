@@ -831,11 +831,11 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Learn More opens Agent Host documentation without changing the parallel-work experiment', async () => {
+	test('Learn More opens documentation without dismissing the banner or changing the parallel-work experiment', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
 		await h.click(0);
-		const afterOpen = h.notification;
+		const afterOpen = { id: h.notification?.id, title: h.notification?.message };
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
 
 		assert.deepStrictEqual({
@@ -846,7 +846,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}, {
 			opened: ['https://aka.ms/vscode-copilot-harness'],
 			enabled: false,
-			afterOpen: undefined,
+			afterOpen: { id: 'chat.agentsParallelWork', title: 'You\'re using a new Copilot experience' },
 			nextTitle: 'You\'re using a new Copilot experience',
 		});
 	});
