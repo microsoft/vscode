@@ -566,19 +566,36 @@ interface IAgentMergeFolder {
 	readonly workingDirectory: string | undefined;
 }
 
+/** Links of the pull requests any folder of the session discovered for its own working directory. */
+function getFolderPullRequestLinks(meta: SessionMeta | undefined): ReadonlySet<string> {
+	const links = new Set<string>();
+	for (const state of readSessionGitHubData(meta).values()) {
+		for (const url of getSessionRelatedPullRequestUrls(state)) {
+			links.add(linkKey(url));
+		}
+	}
+	return links;
+}
+
 /**
  * Maps session metadata to the GitHub info of the folder with working-directory
  * key `folderKey`. The session folder also falls back to the session's Git state
- * and recorded pull requests for its repository.
+ * and adopts recorded links for its repository, except pull requests another
+ * folder of the session discovered for itself.
  */
 function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
 	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
-	// Recorded links carry no folder, so only the session folder adopts them; other folders report only their own associations.
-	const { pullRequests: recordedPullRequests, issues: recordedIssues } = isSessionFolder ? partitionSessionArtifacts(meta) : { pullRequests: [], issues: [] };
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
 		.map(url => ({ url }));
+	// Recorded links carry no folder, so only the session folder adopts them; other folders report only their own associations.
+	const recorded = isSessionFolder ? partitionSessionArtifacts(meta) : { pullRequests: [], issues: [] };
+	// A pull request only another folder discovered, such as one a peer chat created from its worktree, belongs to that folder.
+	const folderPullRequests = isSessionFolder ? getFolderPullRequestLinks(meta) : new Set<string>();
+	const ownPullRequests = new Set(discoveredPullRequests.map(pullRequest => linkKey(pullRequest.url)));
+	const recordedPullRequests = recorded.pullRequests.filter(pullRequest => ownPullRequests.has(linkKey(pullRequest.url)) || !folderPullRequests.has(linkKey(pullRequest.url)));
+	const recordedIssues = recorded.issues;
 
 	const allPullRequests = [...(toGitHubPullRequestRefs(state, recordedPullRequests) ?? [])];
 	const pullRequestLinks = new Map(allPullRequests.map((pullRequest, index) => [linkKey(pullRequest.uri.toString()), index]));
