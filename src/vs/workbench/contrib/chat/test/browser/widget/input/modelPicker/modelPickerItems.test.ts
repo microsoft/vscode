@@ -1210,6 +1210,24 @@ suite('buildModelPickerItems', () => {
 		assert.ok(description.value.includes('https://aka.ms/github-copilot-settings'));
 	});
 
+	test('admin unavailable model keeps plain text when the settings URL is unavailable', () => {
+		const items = callBuild([createAutoModel()], {
+			recentModelIds: ['missing-model'],
+			controlModels: { 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
+			manageSettingsUrl: undefined,
+			entitlementService: createStubEntitlementService({ entitlement: ChatEntitlement.Business }),
+		});
+		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
+
+		assert.deepStrictEqual({
+			disabled: adminItem?.disabled,
+			description: adminItem?.description,
+		}, {
+			disabled: true,
+			description: 'Contact your admin',
+		});
+	});
+
 	test('unavailable models keep indentation with blank icon', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {

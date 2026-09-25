@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
 import { BaseAuthenticationService, IAuthenticationService, StrictAuthenticationPresentationOptions } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
@@ -15,9 +15,11 @@ import { DefaultsOnlyConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
 import { TestingServiceCollection } from '../../../../platform/test/node/services';
-import { raceTimeout } from '../../../../util/vs/base/common/async';
+import { DeferredPromise, raceTimeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { GitHubMcpDefinitionProvider } from '../../common/githubMcpDefinitionProvider';
 
@@ -26,6 +28,8 @@ import { GitHubMcpDefinitionProvider } from '../../common/githubMcpDefinitionPro
  */
 class TestAuthenticationService extends BaseAuthenticationService {
 	private readonly _onDidChange = new Emitter<void>();
+	pendingSession: Promise<AuthenticationSession> | undefined;
+	readonly permissionRequests: AuthenticationGetSessionOptions[] = [];
 
 	constructor(
 		@ILogService logService: ILogService,
@@ -39,13 +43,25 @@ class TestAuthenticationService extends BaseAuthenticationService {
 
 	setPermissiveGitHubSession(session: AuthenticationSession | undefined): void {
 		this._permissiveGitHubSession = session;
+		this._anyGitHubSession = session;
 		this.fireAuthenticationChange('setPermissiveGitHubSession');
+	}
+
+	setAnyGitHubSession(session: AuthenticationSession | undefined): void {
+		this._anyGitHubSession = session;
+		this.fireAuthenticationChange('setAnyGitHubSession');
 	}
 
 	override getGitHubSession(kind: 'permissive' | 'any', options: AuthenticationGetSessionOptions & { createIfNone: StrictAuthenticationPresentationOptions }): Promise<AuthenticationSession>;
 	override getGitHubSession(kind: 'permissive' | 'any', options: AuthenticationGetSessionOptions & { forceNewSession: StrictAuthenticationPresentationOptions }): Promise<AuthenticationSession>;
 	override getGitHubSession(kind: 'permissive' | 'any', options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		if (kind === 'permissive') {
+			if (options?.createIfNone) {
+				this.permissionRequests.push(options);
+			}
+			if (options?.createIfNone && this.pendingSession) {
+				return this.pendingSession;
+			}
 			if (options?.createIfNone && !this._permissiveGitHubSession) {
 				throw new Error('No permissive GitHub session available');
 			}
@@ -69,6 +85,7 @@ class TestAuthenticationService extends BaseAuthenticationService {
 }
 
 describe('GitHubMcpDefinitionProvider', () => {
+	const disposables = new DisposableStore();
 	let configService: InMemoryConfigurationService;
 	let authService: TestAuthenticationService;
 	let provider: GitHubMcpDefinitionProvider;
@@ -78,22 +95,18 @@ describe('GitHubMcpDefinitionProvider', () => {
 	 */
 	async function createProvider(configOverrides?: {
 		authProvider?: AuthProviderId;
-		gheUri?: string;
 		toolsets?: string[];
 		readonly?: boolean;
 		lockdown?: boolean;
 		channel?: ConfigKey.GitHubMcpChannelValue;
 		hasPermissiveToken?: boolean;
 	}): Promise<GitHubMcpDefinitionProvider> {
-		const serviceCollection = new TestingServiceCollection();
-		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		const serviceCollection = disposables.add(new TestingServiceCollection());
+		configService = disposables.add(new InMemoryConfigurationService(disposables.add(new DefaultsOnlyConfigurationService())));
 
 		// Set configuration values before creating the provider
 		if (configOverrides?.authProvider) {
 			await configService.setConfig(ConfigKey.Shared.AuthProvider, configOverrides.authProvider);
-		}
-		if (configOverrides?.gheUri) {
-			await configService.setNonExtensionConfig('github-enterprise.uri', configOverrides.gheUri);
 		}
 		if (configOverrides?.toolsets) {
 			await configService.setConfig(ConfigKey.GitHubMcpToolsets, configOverrides.toolsets);
@@ -113,12 +126,15 @@ describe('GitHubMcpDefinitionProvider', () => {
 		serviceCollection.define(ICopilotTokenManager, new SyncDescriptor(SimulationTestCopilotTokenManager));
 		serviceCollection.define(IAuthenticationService, new SyncDescriptor(TestAuthenticationService));
 		serviceCollection.define(ILogService, new LogServiceImpl([]));
-		const accessor = serviceCollection.createTestingAccessor();
+		const accessor = disposables.add(serviceCollection.createTestingAccessor());
 
 		// Get the auth service and set up permissive token if needed
 		authService = accessor.get(IAuthenticationService) as TestAuthenticationService;
 		if (configOverrides?.hasPermissiveToken !== false) {
-			authService.setPermissiveGitHubSession({ accessToken: 'test-token', id: 'test-id', account: { id: 'test-account', label: 'test' }, scopes: [] });
+			authService.setPermissiveGitHubSession({
+				accessToken: 'test-token', id: 'test-id', account: { id: 'test-account', label: 'test' }, scopes: [],
+				authorizationServer: URI.parse(configOverrides?.authProvider === AuthProviderId.GitHubEnterprise ? 'https://enterprise.example/login/oauth' : 'https://github.com/login/oauth'),
+			});
 		}
 
 		return new GitHubMcpDefinitionProvider(
@@ -131,6 +147,18 @@ describe('GitHubMcpDefinitionProvider', () => {
 	beforeEach(async () => {
 		provider = await createProvider();
 	});
+
+	afterEach(() => disposables.clear());
+
+	function enterpriseSession(host: string): AuthenticationSession {
+		return {
+			id: 'session',
+			accessToken: `token-${host}`,
+			account: { id: 'account', label: 'same-user' },
+			authorizationServer: URI.parse(`${host}/login/oauth`),
+			scopes: [],
+		};
+	}
 
 	describe('provideMcpServerDefinitions', () => {
 		test('returns GitHub.com configuration by default', () => {
@@ -145,8 +173,8 @@ describe('GitHubMcpDefinitionProvider', () => {
 			const gheUri = 'https://github.enterprise.com';
 			const gheProvider = await createProvider({
 				authProvider: AuthProviderId.GitHubEnterprise,
-				gheUri
 			});
+			authService.setPermissiveGitHubSession(enterpriseSession(gheUri));
 
 			const definitions = gheProvider.provideMcpServerDefinitions();
 
@@ -181,13 +209,11 @@ describe('GitHubMcpDefinitionProvider', () => {
 			expect(definitions[0].version).toBe('code_search,issues,pull_requests');
 		});
 
-		test('throws when GHE is configured but URI is missing', async () => {
-			const gheProviderWithoutUri = await createProvider({
-				authProvider: AuthProviderId.GitHubEnterprise
-				// Don't set the GHE URI
-			});
-
-			expect(() => gheProviderWithoutUri.provideMcpServerDefinitions()).toThrow('GitHub Enterprise URI is not configured.');
+		test.each([AuthProviderId.GitHub, AuthProviderId.GitHubEnterprise])('rejects a %s session without provenance even with a configured enterprise URI', async authProvider => {
+			const incompatibleProvider = await createProvider({ authProvider });
+			authService.setPermissiveGitHubSession({ ...authService.permissiveGitHubSession!, authorizationServer: undefined });
+			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://enterprise.example');
+			expect(() => incompatibleProvider.provideMcpServerDefinitions()).toThrow('session is incompatible');
 		});
 
 		test('includes X-MCP-Readonly header when readonly is true', async () => {
@@ -322,14 +348,11 @@ describe('GitHubMcpDefinitionProvider', () => {
 			await eventPromise;
 		});
 
-		test('fires when GHE URI configuration changes', async () => {
-			await configService.setConfig(ConfigKey.Shared.AuthProvider, AuthProviderId.GitHubEnterprise);
-			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://old.enterprise.com');
-
+		test('fires when the selected session issuer changes without a new account ID', async () => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise });
+			authService.setPermissiveGitHubSession(enterpriseSession('https://old.enterprise.com'));
 			const eventPromise = Event.toPromise(provider.onDidChangeMcpServerDefinitions);
-
-			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://new.enterprise.com');
-
+			authService.setPermissiveGitHubSession(enterpriseSession('https://new.enterprise.com'));
 			await eventPromise;
 		});
 
@@ -402,11 +425,21 @@ describe('GitHubMcpDefinitionProvider', () => {
 	});
 
 	describe('authentication change events', () => {
+		test('a token refresh for the same public account does not invalidate the definition', async () => {
+			const definition = provider.provideMcpServerDefinitions()[0];
+			let events = 0;
+			disposables.add(provider.onDidChangeMcpServerDefinitions(() => events++));
+			const session = authService.permissiveGitHubSession!;
+			authService.setPermissiveGitHubSession({ ...session, accessToken: 'refreshed-token' });
+			const resolved = await provider.resolveMcpServerDefinition(definition, CancellationToken.None);
+			expect([events, resolved.uri.toString(), resolved.headers.Authorization]).toEqual([0, 'https://api.githubcopilot.com/mcp/', 'Bearer refreshed-token']);
+		});
+
 		test('fires onDidChangeMcpServerDefinitions when token becomes available', async () => {
 			const providerWithoutToken = await createProvider({ hasPermissiveToken: false });
 			const eventPromise = Event.toPromise(providerWithoutToken.onDidChangeMcpServerDefinitions);
 
-			authService.setPermissiveGitHubSession({ accessToken: 'new-token', id: 'new-id', account: { id: 'new-account', label: 'new' }, scopes: [] });
+			authService.setPermissiveGitHubSession({ accessToken: 'new-token', id: 'new-id', account: { id: 'new-account', label: 'new' }, scopes: [], authorizationServer: URI.parse('https://github.com/login/oauth') });
 
 			await eventPromise;
 		});
@@ -419,20 +452,96 @@ describe('GitHubMcpDefinitionProvider', () => {
 			await eventPromise;
 		});
 
-		test('does not fire when token changes but availability remains the same', async () => {
-			let eventFired = false;
-			const handler = () => {
-				eventFired = true;
+		test.each([AuthProviderId.GitHub, AuthProviderId.GitHubEnterprise])('does not rebind a %s definition when accounts change on the same issuer', async authProvider => {
+			provider = await createProvider({ authProvider });
+			const definition = provider.provideMcpServerDefinitions()[0];
+			let events = 0;
+			disposables.add(provider.onDidChangeMcpServerDefinitions(() => events++));
+			const updated = {
+				...authService.permissiveGitHubSession!,
+				id: 'different-id',
+				accessToken: 'different-token',
+				account: { id: 'different-account', label: 'different' },
 			};
-			const disposable = provider.onDidChangeMcpServerDefinitions(handler);
-
-			// Change the token value but keep it defined
-			authService.setPermissiveGitHubSession({ accessToken: 'different-token', id: 'different-id', account: { id: 'different-account', label: 'different' }, scopes: [] });
-
-			await raceTimeout(Promise.resolve(), 50);
-
-			expect(eventFired).toBe(false);
-			disposable.dispose();
+			authService.setPermissiveGitHubSession(updated);
+			authService.setAnyGitHubSession({ ...updated, account: { id: 'minimal-account', label: 'minimal' } });
+			const resolved = await provider.resolveMcpServerDefinition(definition, CancellationToken.None);
+			expect({
+				events,
+				versionChanged: definition.version !== provider.provideMcpServerDefinitions()[0].version,
+				authorization: resolved.headers.Authorization,
+				permissionRequests: authService.permissionRequests,
+			}).toEqual({ events: 0, versionChanged: false, authorization: `Bearer ${updated.accessToken}`, permissionRequests: [] });
 		});
+	});
+
+	describe('enterprise session binding', () => {
+		const hosts = ['https://first.ghe.com', 'https://second.ghe.com'];
+
+		test('uses session provenance with no configured host and ignores disagreeing provider settings', async () => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise });
+			authService.setPermissiveGitHubSession(enterpriseSession(hosts[1]));
+			const before = provider.provideMcpServerDefinitions();
+			let changes = 0;
+			disposables.add(provider.onDidChangeMcpServerDefinitions(() => changes++));
+			await configService.setNonExtensionConfig('github-enterprise.uri', hosts[0]);
+			const after = provider.provideMcpServerDefinitions();
+			const resolved = await provider.resolveMcpServerDefinition(after[0], CancellationToken.None);
+			expect([before[0].uri.toString(), after[0].uri.toString(), resolved.headers.Authorization, changes]).toEqual([
+				'https://copilot-api.second.ghe.com/mcp/',
+				'https://copilot-api.second.ghe.com/mcp/',
+				`Bearer token-${hosts[1]}`,
+				0,
+			]);
+		});
+
+		test('publishes no guessed enterprise definition before a session is selected', async () => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise, hasPermissiveToken: false });
+			expect(provider.provideMcpServerDefinitions()).toEqual([]);
+		});
+
+		test.each([
+			{ hosts },
+			{ hosts: ['https://first.ghe.com/Second', 'https://first.ghe.com/First'] },
+		])('does not leak a token into a stale issuer definition: $hosts', async ({ hosts }) => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise });
+			authService.setPermissiveGitHubSession(enterpriseSession(hosts[1]));
+			const stale = provider.provideMcpServerDefinitions()[0];
+			authService.setPermissiveGitHubSession(enterpriseSession(hosts[0]));
+			await expect(provider.resolveMcpServerDefinition(stale, CancellationToken.None)).rejects.toThrow('Refresh the GitHub MCP server definition');
+			const current = provider.provideMcpServerDefinitions()[0];
+			const resolved = await provider.resolveMcpServerDefinition(current, CancellationToken.None);
+			expect([stale.headers.Authorization, resolved.uri.toString(), resolved.headers.Authorization, stale.version === current.version]).toEqual([
+				undefined, 'https://copilot-api.first.ghe.com/mcp/', `Bearer token-${hosts[0]}`, false,
+			]);
+		});
+
+		test('rejects a switch that occurs while requesting extra permissions', async () => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise, hasPermissiveToken: false });
+			authService.setAnyGitHubSession(enterpriseSession(hosts[1]));
+			const stale = provider.provideMcpServerDefinitions()[0];
+			const pending = new DeferredPromise<AuthenticationSession>();
+			authService.pendingSession = pending.p;
+			const resolving = provider.resolveMcpServerDefinition(stale, CancellationToken.None);
+			authService.setAnyGitHubSession(enterpriseSession(hosts[0]));
+			authService.setPermissiveGitHubSession(enterpriseSession(hosts[0]));
+			await pending.complete(enterpriseSession(hosts[1]));
+			await expect(resolving).rejects.toThrow('Refresh the GitHub MCP server definition');
+			expect({
+				requests: authService.permissionRequests.map(options => [options.account?.id, options.authorizationServer?.toString()]),
+				authorization: stale.headers.Authorization,
+			}).toEqual({
+				requests: [[undefined, `${hosts[1]}/login/oauth`]],
+				authorization: undefined,
+			});
+		});
+
+		test('keeps the baseline MCP path when the selected issuer has a path namespace', async () => {
+			provider = await createProvider({ authProvider: AuthProviderId.GitHubEnterprise });
+			authService.setPermissiveGitHubSession(enterpriseSession('https://enterprise.example/Deployment'));
+			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://configured.example/Deployment');
+			expect(provider.provideMcpServerDefinitions()[0].uri.toString()).toBe('https://copilot-api.enterprise.example/mcp/');
+		});
+
 	});
 });
