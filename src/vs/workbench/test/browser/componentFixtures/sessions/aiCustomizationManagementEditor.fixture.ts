@@ -790,6 +790,20 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 	{
 		sourceId: 'testSource',
+		identifier: 'example/figma-plugin',
+		displayName: 'Figma',
+		description: 'Inspect design systems and export assets from Figma.',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: 'Example Design Tools',
+		version: '1.0.0',
+		tags: ['design', 'assets'],
+		capabilities: ['Inspect design systems', 'Export assets'],
+		representativeQueries: ['Review the components in this Figma file'],
+		repository: URI.parse('https://github.com/example/figma-plugin'),
+		installation: { kind: 'plugin', repository: 'example/figma-plugin', ref: 'main', path: '' },
+	},
+	{
+		sourceId: 'testSource',
 		identifier: 'example/dependency-maintenance',
 		displayName: 'Repository-wide dependency maintenance and compatibility review',
 		description: 'A plugin for preparing dependency updates across packages with very long workspace and dependency names, while preserving release notes and compatibility checks.',
@@ -975,8 +989,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			? { kind: 'mcp', id: 'mcp.config.ws0.remote-browser' }
 			: { kind: 'plugin', uri: URI.file(`/user/plugins/${resource.identifier.split('/').pop()}`) };
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources.find(resource => resource.identifier === 'example/design-review')!), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources.find(resource => resource.identifier === 'example/project-notes')!), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
@@ -1489,6 +1503,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
+				override readonly lastFetchedPlugins = constObservable(marketplacePlugins);
 				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
 				override async fetchMarketplacePlugins() { return marketplacePlugins; }
@@ -1677,7 +1692,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}), 'Marketplace results must show their source name.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
-			resultRows[resultRows.length - 1]?.click();
+			resultRows[resultRows.length - 1]?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary')?.click();
 			await Promise.resolve();
 		}
 		if (options.discoveryQuery.includes('@installed')) {
@@ -2028,9 +2043,9 @@ function makeMarketplacePlugin(name: string, description: string, repo: string):
 		description,
 		version: '1.0.0',
 		source: repo,
-		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `example/${repo}` },
+		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `example/${repo}`, ref: 'main' },
 		marketplace: 'copilot',
-		marketplaceReference: { rawValue: `example/${repo}`, displayLabel: repo, cloneUrl: `https://github.com/example/${repo}.git`, canonicalId: `github:example/${repo}`, cacheSegments: ['example', repo], kind: MarketplaceReferenceKind.GitHubShorthand },
+		marketplaceReference: { rawValue: `example/${repo}#main`, displayLabel: repo, cloneUrl: `https://github.com/example/${repo}.git`, canonicalId: `github:example/${repo}#main`, cacheSegments: ['example', repo], kind: MarketplaceReferenceKind.GitHubShorthand, githubRepo: `example/${repo}`, ref: 'main' },
 		marketplaceType: MarketplaceType.Copilot,
 	};
 }
@@ -3100,11 +3115,43 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
+		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows its description, install state, publisher, version, stars, tags, capabilities, representative query, and explicit external actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'correctness',
+			selectDiscoveryResult: true,
+		}),
+	}),
+
+	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['At a narrow width, marketplace detail facts and metadata sections remain readable in one column with explicit Back, Install, Open Resource, and Open Repository actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'correctness',
+			selectDiscoveryResult: true,
+			width: 560,
+			height: 520,
+		}),
+	}),
+
+	DiscoverMcpDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An MCP marketplace item without a safely resolved workbench server uses the generic detail presentation and preserves its setup/install state and metadata.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'website',
+			selectDiscoveryResult: true,
+		}),
+	}),
+
+	DiscoverPluginDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A plugin marketplace item backed by a real plugin marketplace model reuses the embedded plugin detail presentation with its Install action and marketplace provenance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'figma',
 			selectDiscoveryResult: true,
 		}),
 	}),

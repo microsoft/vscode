@@ -65,6 +65,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
 		installedPlugins: readonly IAgentPlugin[] = [],
 		setupUrl?: URI,
+		installedIdentifiers: readonly string[] = [],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -131,6 +132,9 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+				if (installedIdentifiers.includes(resource.identifier)) {
+					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
+				}
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
@@ -181,16 +185,18 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 		}());
 		const creationEvents: string[] = [];
+		const openedDetails: ICustomizationMarketplaceResource[] = [];
+		const openedInstalled: NonNullable<Parameters<NonNullable<ConstructorParameters<typeof AICustomizationDiscoveryPage>[2]['openInstalled']>>[0]>[] = [];
 		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		return {
-			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, deletions, repairs,
+			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, repairs,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -544,6 +550,84 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { visible: true, warnings: 0 });
 	});
 
+	test('available browse cards open in-product details without external title links', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		const item = resource('review-skill', {
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			url: URI.parse('https://example.com/review-skill'),
+		});
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector<HTMLElement>('.customization-discovery-card');
+		const primaryAction = card?.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		assert.deepStrictEqual({
+			titleLinks: card?.querySelectorAll('.customization-discovery-card-name[href]').length,
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedExternal: fixture.opened,
+		}, {
+			titleLinks: 0,
+			openedDetails: ['review-skill'],
+			openedExternal: [],
+		});
+	});
+
+	test('available search rows open details while setup actions stay isolated', async () => {
+		const setupUrl = URI.parse('https://example.com/setup');
+		const fixture = createPage(['agentFinder'], undefined, undefined, setupUrl);
+		fixture.page.setSearchQuery('@type:mcp unity');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('unity', { url: URI.parse('https://example.com/unity') })] });
+		await timeout(0);
+		const row = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-row');
+		const primaryAction = row?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary');
+		const setup = row?.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button');
+		assert.ok(primaryAction);
+		assert.ok(setup);
+		setup.click();
+		primaryAction.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			titleLinks: row?.querySelectorAll('.customization-discovery-result-name[href]').length,
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedExternal: fixture.opened,
+		}, {
+			titleLinks: 0,
+			openedDetails: ['unity'],
+			openedExternal: [setupUrl],
+		});
+	});
+
+	test('catalog-backed installed skills open their installed detail page', async () => {
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, ['installed-skill']);
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await timeout(0);
+		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
+			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			marketplace: fixture.openedDetails,
+			installed: fixture.openedInstalled.map(target => ({
+				section: target.section,
+				name: target.promptDetail?.name,
+				uri: target.promptDetail?.uri.toString(),
+			})),
+		}, {
+			marketplace: [],
+			installed: [{
+				section: AICustomizationManagementSection.Skills,
+				name: 'Local mail skill',
+				uri: 'file:///workspace/.github/skills/mail/SKILL.md',
+			}],
+		});
+	});
+
 	test('direct installed uninstall is pending immediately and cannot start twice', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@installed mail');
@@ -721,6 +805,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				presentation: { label: 'View Setup', ariaLabel: 'View setup instructions for unity', disabled: false },
 				opened: [setupUrl],
 			});
+			assert.deepStrictEqual(fixture.openedDetails, []);
 		});
 	}
 
