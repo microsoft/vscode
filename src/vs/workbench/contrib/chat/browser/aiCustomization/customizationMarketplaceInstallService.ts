@@ -42,7 +42,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
-import { getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
+import { getPluginMarketplaceIdentifier, isPluginMarketplaceReferenceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
 import { CustomizationMarketplaceSkillInstaller } from './customizationMarketplaceSkillInstaller.js';
 
@@ -740,7 +740,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (source.kind === 'configuredPlugin') {
 			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
 			this.checkEnabled(resource.sourceId, token);
-			const plugin = plugins.find(plugin => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+			const plugin = plugins.find(plugin =>
+				isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, plugin.marketplaceReference) &&
+				getPluginMarketplaceIdentifier(plugin) === resource.identifier);
 			if (!plugin) {
 				throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
 			}

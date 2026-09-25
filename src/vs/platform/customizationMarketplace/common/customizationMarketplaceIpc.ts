@@ -15,7 +15,7 @@ import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomi
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
-export const IPublicCustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('publicCustomizationMarketplaceService');
+export const IPlatformCustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('platformCustomizationMarketplaceService');
 
 export class CustomizationMarketplaceChannel implements IServerChannel {
 	private readonly service: Lazy<ICustomizationMarketplaceQueryService>;

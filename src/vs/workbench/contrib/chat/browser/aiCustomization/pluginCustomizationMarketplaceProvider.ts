@@ -31,6 +31,11 @@ export function getPluginMarketplaceIdentifier(plugin: IMarketplacePlugin): stri
 	return JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name, plugin.sourceDescriptor, plugin.version]);
 }
 
+export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference']): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
+		reference.canonicalId !== defaultMarketplaceId;
+}
+
 export function getPluginCustomizationMarketplaceSourceInfos(
 	configurationService: IConfigurationService,
 	marketplaceService: IPluginMarketplaceService,
@@ -39,11 +44,7 @@ export function getPluginCustomizationMarketplaceSourceInfos(
 	if (configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
 		return sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
 	}
-	const references = marketplaceService.getMarketplaceReferences();
-	const hasCustomMarketplace = references.some(reference => reference.canonicalId !== defaultMarketplaceId);
-	const usesDefaultMarketplace = configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true &&
-		references.some(reference => reference.canonicalId === defaultMarketplaceId);
-	return hasCustomMarketplace || usesDefaultMarketplace
+	return marketplaceService.getMarketplaceReferences().some(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference))
 		? sources
 		: sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
 }
@@ -80,14 +81,11 @@ export class PluginCustomizationMarketplaceProvider implements ICustomizationMar
 		if (!marketplaceTypes) {
 			return { items: [], total: 0 };
 		}
-		if (this.registry === 'default' &&
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true) {
-			return { items: [], total: 0 };
-		}
 		const marketplaceIds = new Set(this.marketplaceService.getMarketplaceReferences()
-			.filter(reference => this.registry === 'default'
-				? reference.canonicalId === defaultMarketplaceId
-				: reference.canonicalId !== defaultMarketplaceId)
+			.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, reference) &&
+				(this.registry === 'default'
+					? reference.canonicalId === defaultMarketplaceId
+					: reference.canonicalId !== defaultMarketplaceId))
 			.map(reference => reference.canonicalId));
 		if (!marketplaceIds.size) {
 			return { items: [], total: 0 };

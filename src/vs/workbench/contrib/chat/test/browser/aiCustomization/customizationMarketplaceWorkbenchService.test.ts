@@ -15,7 +15,7 @@ import { IRequestOptions } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { IPublicCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -25,7 +25,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { CustomizationMarketplaceWorkbenchService, PublicCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,7 +46,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
 		instantiationService.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
-		instantiationService.stub(IPublicCustomizationMarketplaceService, instantiationService.createInstance(PublicCustomizationMarketplaceWorkbenchService));
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, instantiationService.createInstance(PlatformCustomizationMarketplaceWorkbenchService));
 		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
 			override getMarketplaceReferences() { return []; }
@@ -97,7 +97,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const pluginCalls: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override async query() {
 				publicCalls++;
@@ -147,7 +147,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const reference = parseMarketplaceReference('owner/catalog')!;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override query() {
 				calls.push('public');
@@ -203,7 +203,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override async query() {
 				return {

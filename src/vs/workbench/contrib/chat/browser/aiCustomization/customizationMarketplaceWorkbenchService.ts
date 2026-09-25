@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IPublicCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
@@ -17,7 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
 
-export class PublicCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
+export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
 	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
@@ -49,31 +49,31 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 	get sources() {
 		return [
 			...getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService),
-			...this.publicService.sources,
+			...this.platformService.sources,
 		];
 	}
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPublicCustomizationMarketplaceService private readonly publicService: ICustomizationMarketplaceService,
+		@IPlatformCustomizationMarketplaceService private readonly platformService: ICustomizationMarketplaceService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this.allSources = [
 			...getAllPluginCustomizationMarketplaceSourceInfos(),
-			...(publicService.allSources ?? publicService.sources),
+			...(platformService.allSources ?? platformService.sources),
 		];
 		this.onDidChangeSources = Event.any(
 			pluginMarketplaceService.onDidChangeMarketplaces,
-			publicService.onDidChangeSources ?? Event.None,
+			platformService.onDidChangeSources ?? Event.None,
 		);
-		const publicProviders = (publicService.allSources ?? publicService.sources).map(source => {
+		const platformProviders = (platformService.allSources ?? platformService.sources).map(source => {
 			const providerId = `platform.${source.id}`;
 			return createLazyCustomizationMarketplaceProvider(providerId, () => ({
 				id: providerId,
 				query: async (options, token) => {
-					const page = await this.publicService.query({ ...options, sourceIds: [source.id], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
+					const page = await this.platformService.query({ ...options, sourceIds: [source.id], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
 					const sourceError = page.sourceErrors?.find(error => error.sourceId === source.id);
 					return {
 						items: page.items.map(({ sourceId: _sourceId, ...item }) => item),
@@ -88,7 +88,7 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		});
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createPluginCustomizationMarketplaceProviders(instantiationService),
-			...publicProviders,
+			...platformProviders,
 		]));
 	}
 

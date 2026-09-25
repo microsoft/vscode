@@ -11,7 +11,7 @@ import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IProductService } from '../../product/common/productService.js';
-import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, IPublicCustomizationMarketplaceService } from '../common/customizationMarketplaceIpc.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, IPlatformCustomizationMarketplaceService } from '../common/customizationMarketplaceIpc.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
@@ -55,4 +55,4 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 	}
 }
 
-registerSingleton(IPublicCustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IPlatformCustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);

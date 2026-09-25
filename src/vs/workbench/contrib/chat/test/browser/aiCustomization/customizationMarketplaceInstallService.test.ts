@@ -51,6 +51,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agent
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
 import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IMarketplacePlugin, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
@@ -1192,6 +1193,32 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 			await assert.rejects(fixture.service.install(candidate), /no longer available/);
 			assert.deepStrictEqual({ direct: fixture.pluginService.directInstalls, legacy: fixture.pluginService.calls }, { direct: [], legacy: [] });
+		});
+
+		test('rejects a stale default Plugin entry when the public feed now owns that content', async () => {
+			const fixture = await createFixture();
+			const marketplaceReference = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE);
+			assert.ok(marketplaceReference);
+			const plugin = {
+				...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin,
+				marketplace: marketplaceReference.displayLabel,
+				marketplaceReference,
+			};
+			fixture.marketplaceService.availablePlugins = [plugin];
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin),
+				displayName: plugin.name,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: { kind: 'configuredPlugin' },
+			});
+			if (isWeb) {
+				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+				return;
+			}
+			await assert.rejects(fixture.service.install(candidate), /no longer available/);
+			assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
 		});
 
 		test('passes Marketplace-disable cancellation through to the existing plugin installer', async () => {
