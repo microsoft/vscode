@@ -1673,7 +1673,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const list = instantiationService.get(IListService).lastFocusedList;
 			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
 			list.scrollTop = list.scrollHeight;
-			await Promise.resolve();
+			await new Promise(resolve => setTimeout(resolve, 0));
 			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 		}
 		if (options.clearDiscoveryQuery) {
