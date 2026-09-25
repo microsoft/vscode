@@ -48,8 +48,7 @@ export class ViewContentWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
-		// Widgets outlive the view and are only moved into the next view once a new model is
-		// attached. Release their dom nodes so they don't keep this view's DOM alive (#146841).
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
 		for (const widget of Object.values(this._widgets)) {
 			const domNode = widget.domNode.domNode;
 			if (domNode.parentElement === this.domNode.domNode || domNode.parentElement === this.overflowingContentWidgetsDomNode.domNode) {
