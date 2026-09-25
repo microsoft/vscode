@@ -71,9 +71,6 @@ export interface ICopilotConnector {
 	readonly tier?: string;
 	readonly releaseTag?: string;
 	readonly isExportSupported?: boolean;
-	readonly agents: readonly string[];
-	readonly commands: readonly string[];
-	readonly skills: readonly string[];
 	readonly connectionStatus: CopilotConnectorConnectionStatus;
 	readonly connectionStatusDetail?: CopilotConnectorConnectionStatusDetail;
 	readonly connectionErrorMessage?: string;
@@ -83,8 +80,13 @@ export interface ICopilotConnector {
 }
 
 export interface IConnectedCopilotConnectorMcpServer {
+	readonly id: string;
 	readonly connector: ICopilotConnector;
 	readonly serverName: string;
+}
+
+function getConnectedMcpServerId(connectorName: string, serverName: string): string {
+	return `${encodeURIComponent(connectorName)}:${encodeURIComponent(serverName)}`;
 }
 
 interface ICopilotConnectorsSnapshot {
@@ -135,6 +137,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _lastRefreshTime = 0;
+	private refreshGeneration = 0;
 
 	constructor(
 		@ICopilotConnectorsRequestService private readonly requestService: ICopilotConnectorsRequestService,
@@ -249,16 +252,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	get connectedMcpServers(): readonly IConnectedCopilotConnectorMcpServer[] {
 		const result: IConnectedCopilotConnectorMcpServer[] = [];
-		const serverNames = new Set<string>();
 		for (const connector of this._connectors) {
 			if (connector.connectionStatus !== 'connected') {
 				continue;
 			}
 			for (const server of connector.mcpServers) {
-				if (!serverNames.has(server.name)) {
-					serverNames.add(server.name);
-					result.push({ connector, serverName: server.name });
-				}
+				result.push({ id: getConnectedMcpServerId(connector.name, server.name), connector, serverName: server.name });
 			}
 		}
 		return result;
@@ -293,6 +292,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!this.isEnabled()) {
 			return [];
 		}
+		const generation = ++this.refreshGeneration;
 		const operation = await this.createOperation(token);
 		try {
 			const { document, scoped } = await this.request({ type: 'query' }, operation.token);
@@ -300,12 +300,17 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				throw new CancellationError();
 			}
 			if (document === undefined) {
-				this.setConnectors([]);
+				if (generation === this.refreshGeneration) {
+					this.setConnectors([]);
+				}
 				return this._connectors;
 			}
 			const connectors = parseConnectors(document, scoped);
 			if (operation.token.isCancellationRequested || !this.isEnabled()) {
 				throw new CancellationError();
+			}
+			if (generation !== this.refreshGeneration) {
+				return this._connectors;
 			}
 			this._lastRefreshTime = Date.now();
 			this.setConnectors(connectors);
@@ -712,9 +717,6 @@ function parseConnectors(value: unknown, scoped: boolean): readonly ICopilotConn
 			tier: text(metadata?.tier, 128),
 			releaseTag: text(metadata?.releaseTag, 128),
 			isExportSupported: typeof metadata?.isExportSupported === 'boolean' ? metadata.isExportSupported : undefined,
-			agents: strings(plugin.agents),
-			commands: strings(plugin.commands),
-			skills: strings(plugin.skills),
 			connectionStatus: scoped ? parseConnectionStatus(connection?.status) : 'unknown',
 			connectionStatusDetail: parseConnectionStatusDetail(connection?.statusDetail),
 			connectionErrorMessage: text(connection?.errorMessage) ?? text(asRecord(connection?.error)?.message),

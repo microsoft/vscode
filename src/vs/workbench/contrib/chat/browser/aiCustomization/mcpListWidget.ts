@@ -1337,7 +1337,7 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
 	return {
 		type: 'builtin-item',
-		id: `copilot-connector-${connector.connector.name}-${connector.serverName}`,
+		id: `copilot-connector:${connector.id}`,
 		label: connector.serverName,
 		description: localize('mcpServerFromConnector', "Connector: {0}", connector.connector.displayName),
 		activeSessionServer,
@@ -2346,7 +2346,8 @@ export class McpListWidget extends Disposable {
 		this.sectionLists = [];
 		this.firstCardFocusElement = undefined;
 		DOM.clearNode(this.cardContainer);
-		const showConnectors = this.isConnectorsEnabled() && (layout === CustomizationListLayout.Tree || this.selectedGroupKey === 'connectors');
+		const hasConnectorContent = this.connectors.length > 0 || this.connectorsLoading || this.connectorsError !== undefined || this.connectorsService.authorizationRequired;
+		const showConnectors = this.isConnectorsEnabled() && (layout === CustomizationListLayout.Tree ? hasConnectorContent : this.selectedGroupKey === 'connectors');
 		this.cardScrollableNode.style.display = showConnectors ? '' : 'none';
 		if (showConnectors) {
 			const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
@@ -2446,7 +2447,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderConnectorSection(parent: HTMLElement): void {
-		if (!this.isConnectorsEnabled() || this.filteredConnectors.length === 0 && !this.connectorsLoading && !this.connectorsError && !this.connectorsService.authorizationRequired) {
+		if (!this.isConnectorsEnabled()) {
 			return;
 		}
 		const list = this.renderCardSection(
@@ -2495,6 +2496,14 @@ export class McpListWidget extends Disposable {
 			retry.label = localize('retry', "Retry");
 			this.cardDisposables.add(retry.onDidClick(() => void this.refreshConnectors()));
 			this.firstCardFocusElement ??= retry.element;
+			this.cardListControllers.get(list)?.finalize();
+			return;
+		}
+		if (this.filteredConnectors.length === 0) {
+			const empty = DOM.append(list, $('.plugin-inventory-empty'));
+			empty.textContent = this.searchQuery.trim()
+				? localize('noMatchingConnectors', "No connectors match '{0}'", this.searchQuery)
+				: localize('noConnectorsAvailable', "No connectors are available.");
 			this.cardListControllers.get(list)?.finalize();
 			return;
 		}

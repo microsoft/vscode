@@ -4898,7 +4898,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.connectorDetailContainer) {
 			return;
 		}
-		this.embeddedConnectorDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedConnectorDetail, this.connectorDetailContainer));
+		this.embeddedConnectorDetail = this.editorDisposables.add(this.instantiationService.createInstance(
+			EmbeddedConnectorDetail,
+			this.connectorDetailContainer,
+			() => this.goBackFromConnectorDetail(),
+		));
 		const backButton = DOM.append(this.embeddedConnectorDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
 		this.connectorDetailBackButton = backButton;
 		backButton.type = 'button';

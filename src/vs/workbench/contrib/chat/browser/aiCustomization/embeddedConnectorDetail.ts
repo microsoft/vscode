@@ -19,14 +19,6 @@ import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnector
 
 const $ = DOM.$;
 
-interface IConnectorContainsEntry {
-	readonly label: string;
-	readonly items: readonly {
-		readonly name: string;
-		readonly description?: string;
-	}[];
-}
-
 export class EmbeddedConnectorDetail extends Disposable {
 
 	private readonly root: HTMLElement;
@@ -50,6 +42,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
+		private readonly closeDetail: () => void,
 		@ICopilotConnectorsService private readonly connectorsService: ICopilotConnectorsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -98,7 +91,12 @@ export class EmbeddedConnectorDetail extends Disposable {
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('connectorDetailEmpty', "No connector selected.");
 
-		this._register(this.connectorsService.onDidChange(() => void this.refreshCurrent()));
+		this._register(this.connectorsService.onDidChange(() => {
+			const connectorName = this.current?.name;
+			if (connectorName) {
+				this.updateCurrent(this.connectorsService.connectors, connectorName);
+			}
+		}));
 		this.renderItem();
 	}
 
@@ -233,45 +231,22 @@ export class EmbeddedConnectorDetail extends Disposable {
 	}
 
 	private renderContains(connector: ICopilotConnector): void {
-		const entries: readonly IConnectorContainsEntry[] = [
-			{
-				label: localize('connectorMcpServersFact', "MCP Servers"),
-				items: connector.mcpServers.map(server => ({
-					name: server.name,
-					description: server.url
-						? localize('connectorMcpServerWithUrl', "{0} · {1}", server.type, server.url.toString(true))
-						: server.type,
-				})),
-			},
-			{
-				label: localize('connectorAgentsFact', "Agents"),
-				items: connector.agents.map(name => ({ name })),
-			},
-			{
-				label: localize('connectorCommandsFact', "Commands"),
-				items: connector.commands.map(name => ({ name })),
-			},
-			{
-				label: localize('connectorSkillsFact', "Skills"),
-				items: connector.skills.map(name => ({ name })),
-			},
-		].filter(entry => entry.items.length > 0);
-
-		this.containsEl.style.display = entries.length > 0 ? '' : 'none';
-		for (const entry of entries) {
-			const section = DOM.append(this.containsListEl, $('.plugin-detail-contribution-section'));
-			const header = DOM.append(section, $('.plugin-detail-contribution-group-title'));
-			DOM.append(header, $('span.plugin-detail-contribution-title-label')).textContent = entry.label;
-			DOM.append(header, $('span.plugin-detail-contribution-title-count')).textContent = String(entry.items.length);
-			const group = DOM.append(section, $('.plugin-detail-contribution-group'));
-			const list = DOM.append(group, $('.plugin-detail-contribution-list'));
-			for (const item of entry.items) {
-				const row = DOM.append(list, $('.plugin-detail-contribution-row'));
-				DOM.append(row, $('.plugin-detail-contribution-name')).textContent = item.name;
-				if (item.description) {
-					DOM.append(row, $('.plugin-detail-contribution-description')).textContent = item.description;
-				}
-			}
+		this.containsEl.style.display = connector.mcpServers.length > 0 ? '' : 'none';
+		if (connector.mcpServers.length === 0) {
+			return;
+		}
+		const section = DOM.append(this.containsListEl, $('.plugin-detail-contribution-section'));
+		const header = DOM.append(section, $('.plugin-detail-contribution-group-title'));
+		DOM.append(header, $('span.plugin-detail-contribution-title-label')).textContent = localize('connectorMcpServersFact', "MCP Servers");
+		DOM.append(header, $('span.plugin-detail-contribution-title-count')).textContent = String(connector.mcpServers.length);
+		const group = DOM.append(section, $('.plugin-detail-contribution-group'));
+		const list = DOM.append(group, $('.plugin-detail-contribution-list'));
+		for (const server of connector.mcpServers) {
+			const row = DOM.append(list, $('.plugin-detail-contribution-row'));
+			DOM.append(row, $('.plugin-detail-contribution-name')).textContent = server.name;
+			DOM.append(row, $('.plugin-detail-contribution-description')).textContent = server.url
+				? localize('connectorMcpServerWithUrl', "{0} · {1}", server.type, server.url.toString(true))
+				: server.type;
 		}
 	}
 
@@ -326,15 +301,25 @@ export class EmbeddedConnectorDetail extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const connector = connectors.find(candidate => candidate.name === connectorName);
-			if (connector && this.current?.name === connectorName) {
-				this.current = connector;
-				this.renderItem();
-			}
+			this.updateCurrent(connectors, connectorName);
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
 				this.notificationService.error(localize('connectorDetailRefreshFailed', "Unable to refresh connector details: {0}", error instanceof Error ? error.message : String(error)));
 			}
 		}
+	}
+
+	private updateCurrent(connectors: readonly ICopilotConnector[], connectorName: string): void {
+		if (this.current?.name !== connectorName) {
+			return;
+		}
+		const connector = connectors.find(candidate => candidate.name === connectorName);
+		if (!connector) {
+			this.clearInput();
+			this.closeDetail();
+			return;
+		}
+		this.current = connector;
+		this.renderItem();
 	}
 }

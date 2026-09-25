@@ -49,7 +49,6 @@ import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompleti
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
-import { AgentHostMcpConnectorsService, IAgentHostMcpConnectorsService } from './agentHostMcpConnectorsService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { AgentHostPullRequestStatusService, IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
@@ -79,7 +78,6 @@ export interface IAgentHostCoreServiceInputs {
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly gitHubServiceOptions: GitHubServiceOptions;
-	readonly mcpConnectorsApiBaseUrl?: string;
 	readonly copilotApiService?: ICopilotApiService;
 }
 
@@ -97,10 +95,6 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	services.set(IAgentHostMcpConnectorsService, new SyncDescriptor(AgentHostMcpConnectorsService, [{
-		fetchFn: inputs.fetchFn,
-		apiBaseUrl: inputs.mcpConnectorsApiBaseUrl,
-	}]));
 	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
 	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));

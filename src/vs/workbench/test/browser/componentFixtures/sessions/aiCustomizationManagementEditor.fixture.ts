@@ -843,9 +843,6 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		keywords: ['outlook', 'messages'],
 		capabilities: ['Search messages'],
 		representativeQueries: ['Find recent messages from my project team'],
-		agents: [],
-		commands: [],
-		skills: [],
 		connectionStatus: 'connected',
 		scopes: ['write:plugin_gateway_connections'],
 		mcpServers: [{ name: 'workiq-mail-mcp', type: 'http', url: URI.parse('https://api.github.com/connectors/workiq-mail/mcp') }],
@@ -858,9 +855,6 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		keywords: ['meetings'],
 		capabilities: ['Search meetings'],
 		representativeQueries: [],
-		agents: [],
-		commands: [],
-		skills: [],
 		connectionStatus: 'not_connected',
 		scopes: [],
 		mcpServers: [],
@@ -873,9 +867,6 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		keywords: ['files'],
 		capabilities: ['Search documents'],
 		representativeQueries: [],
-		agents: [],
-		commands: [],
-		skills: [],
 		connectionStatus: 'error',
 		connectionStatusDetail: 'retryable_error',
 		connectionErrorMessage: 'The previous authorization expired.',
@@ -890,9 +881,6 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		keywords: ['customers'],
 		capabilities: ['Search accounts'],
 		representativeQueries: [],
-		agents: [],
-		commands: [],
-		skills: [],
 		connectionStatus: 'error',
 		connectionStatusDetail: 'review_required',
 		scopes: [],
@@ -913,14 +901,14 @@ const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 	installation: { kind: 'copilotConnector', name: fixtureCopilotConnectors[0].name },
 };
 
-function createMockCopilotConnectorsService(enabled: boolean): ICopilotConnectorsService {
-	const connectors = enabled ? fixtureCopilotConnectors : [];
+function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
+	const connectors = enabled ? availableConnectors : [];
 	return new class extends mock<ICopilotConnectorsService>() {
 		override readonly onDidChange = Event.None;
 		override readonly connectors = connectors;
 		override readonly connectedMcpServers = connectors
 			.filter(connector => connector.connectionStatus === 'connected')
-			.flatMap(connector => connector.mcpServers.map(server => ({ connector, serverName: server.name })));
+			.flatMap(connector => connector.mcpServers.map(server => ({ id: `${connector.name}:${server.name}`, connector, serverName: server.name })));
 		override async getConnectors() { return this.connectors; }
 		override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		override async refresh() { return this.connectors; }
@@ -940,6 +928,7 @@ interface IRenderEditorOptions {
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
+	readonly copilotConnectors?: readonly ICopilotConnector[];
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -1524,7 +1513,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
-			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false));
+			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -2700,6 +2689,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
+			mcpTab: 'Connectors',
+		}),
+	}),
+
+	McpServersCopilotConnectorsEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The empty Connectors tab explains that no connectors are available instead of showing a blank page.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: [],
 			mcpTab: 'Connectors',
 		}),
 	}),

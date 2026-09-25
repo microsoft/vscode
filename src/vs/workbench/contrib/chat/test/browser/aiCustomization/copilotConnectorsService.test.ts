@@ -719,6 +719,66 @@ suite('CopilotConnectorsService', () => {
 		}, { disabled: [], names: ['calendar'], requests: 2 });
 	});
 
+	test('an older refresh cannot overwrite a newer catalog result', async () => {
+		const olderResponse = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('available', ['mail']), ready: olderResponse.p },
+			{ body: catalogResponse('connected', ['calendar']) },
+		]);
+
+		const older = fixture.service.refresh(CancellationToken.None);
+		await timeout(0);
+		const newer = await fixture.service.refresh(CancellationToken.None);
+		olderResponse.complete();
+		const olderResult = await older;
+
+		assert.deepStrictEqual({
+			newer: newer.map(connector => connector.name),
+			older: olderResult.map(connector => connector.name),
+			current: fixture.service.connectors.map(connector => connector.name),
+		}, {
+			newer: ['calendar'],
+			older: ['calendar'],
+			current: ['calendar'],
+		});
+	});
+
+	test('preserves connector/server identities, including same-named MCP servers', async () => {
+		const servers = [
+			{ connector: 'mail', server: 'search' },
+			{ connector: 'calendar', server: 'search' },
+			{ connector: 'a-b', server: 'c' },
+			{ connector: 'a', server: 'b-c' },
+		];
+		const fixture = createFixture([{
+			body: {
+				plugins: servers.map(({ connector, server }) => ({
+					name: connector,
+					metadata: { displayName: connector, description: connector },
+					connection: { status: 'connected' },
+					mcpServers: {
+						mcpServers: {
+							[server]: { type: 'http', url: `https://example.com/${connector}/mcp` },
+						},
+					},
+				})),
+			},
+		}]);
+
+		await fixture.service.refresh(CancellationToken.None);
+
+		assert.deepStrictEqual(fixture.service.connectedMcpServers.map(server => ({
+			id: server.id,
+			connector: server.connector.name,
+			server: server.serverName,
+		})), [
+			{ id: 'mail:search', connector: 'mail', server: 'search' },
+			{ id: 'calendar:search', connector: 'calendar', server: 'search' },
+			{ id: 'a-b:c', connector: 'a-b', server: 'c' },
+			{ id: 'a:b-c', connector: 'a', server: 'b-c' },
+		]);
+	});
+
 	test('opens consent and waits for the connector to become connected', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('available') },

@@ -32,7 +32,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	function createConnector(name: string, displayName = `Mail ${name}`): ICopilotConnector {
 		return {
 			name, displayName, description: 'Search mail', tags: [], keywords: [], capabilities: [], representativeQueries: [],
-			agents: [], commands: [], skills: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
+			connectionStatus: 'not_connected', scopes: [], mcpServers: [],
 		};
 	}
 

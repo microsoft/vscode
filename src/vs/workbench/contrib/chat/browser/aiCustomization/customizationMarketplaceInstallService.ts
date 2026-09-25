@@ -40,6 +40,7 @@ import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocat
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
+import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
 import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
@@ -491,7 +492,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!connector || connector.connectionStatus === 'unknown') {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorStatusUnknown', "Check the connection status in MCP Servers before connecting this resource.") };
 			}
-			return connector.connectionStatus === 'connected' ? { kind: 'installed', target } : { kind: 'available' };
+			if (connector.connectionStatus === 'connected') {
+				return { kind: 'installed', target };
+			}
+			const presentation = getConnectorRowPresentation(connector);
+			return presentation.action
+				? { kind: 'available' }
+				: { kind: 'unavailable', message: localize('customizationMarketplace.connectorNotActionable', "This connector cannot be connected while its status is '{0}'. Open MCP Servers to review it.", presentation.statusLabel) };
 		}
 		if (source.kind === 'mcp') {
 			const manualSetup = this.manualMcpSetups.get(resourceKey);

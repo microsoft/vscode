@@ -38,7 +38,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { CustomizationMarketplaceInstallationRecordStore } from '../../../browser/aiCustomization/customizationMarketplaceInstallationRecordStore.js';
@@ -363,7 +363,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChange = connectorChanges.event;
 			readonly connectCalls: string[] = [];
 			readonly disconnectCalls: string[] = [];
-			statusOverride: 'unknown' | undefined;
+			statusOverride: CopilotConnectorConnectionStatus | undefined;
+			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			override get connectors() {
@@ -375,10 +376,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 					keywords: [],
 					capabilities: [],
 					representativeQueries: [],
-					agents: [],
-					commands: [],
-					skills: [],
 					connectionStatus: this.statusOverride ?? (connectedConnectors.has('mail') ? 'connected' as const : 'not_connected' as const),
+					connectionStatusDetail: this.statusDetailOverride,
 					scopes: [],
 					mcpServers: [],
 				}];
@@ -1724,6 +1723,32 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await assert.rejects(fixture.service.install(candidate), /Check the connection status/);
 			assert.deepStrictEqual({ state, connects: fixture.connectorsService.connectCalls }, {
 				state: { kind: 'unavailable', message: 'Check the connection status in MCP Servers before connecting this resource.' },
+				connects: [],
+			});
+		});
+
+		test('pending and unavailable connectors cannot start duplicate or unactionable connections', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			const states: Array<ReturnType<typeof fixture.service.getInstallState>> = [];
+			for (const scenario of [
+				{ status: 'pending' as const, detail: undefined },
+				{ status: 'error' as const, detail: 'unavailable' as const },
+			]) {
+				fixture.connectorsService.statusOverride = scenario.status;
+				fixture.connectorsService.statusDetailOverride = scenario.detail;
+				const state = fixture.service.getInstallState(candidate);
+				states.push(state);
+				await assert.rejects(fixture.service.install(candidate), /cannot be connected/);
+			}
+			assert.deepStrictEqual({
+				states,
+				connects: fixture.connectorsService.connectCalls,
+			}, {
+				states: [
+					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Connection pending\'. Open MCP Servers to review it.' },
+					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Currently unavailable\'. Open MCP Servers to review it.' },
+				],
 				connects: [],
 			});
 		});

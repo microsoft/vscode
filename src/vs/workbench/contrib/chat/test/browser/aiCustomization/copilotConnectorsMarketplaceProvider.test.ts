@@ -21,7 +21,7 @@ suite('CopilotConnectorsMarketplaceProvider', () => {
 	function connector(name: string, overrides: Partial<ICopilotConnector> = {}): ICopilotConnector {
 		return {
 			name, displayName: 'Entry', description: '', tags: [], keywords: [], capabilities: [], representativeQueries: [],
-			agents: [], commands: [], skills: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
+			connectionStatus: 'not_connected', scopes: [], mcpServers: [],
 			...overrides,
 		};
 	}

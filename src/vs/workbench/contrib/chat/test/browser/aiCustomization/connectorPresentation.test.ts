@@ -26,9 +26,6 @@ function connector(connectionStatus: CopilotConnectorConnectionStatus, connectio
 		keywords: [],
 		capabilities: [],
 		representativeQueries: [],
-		agents: [],
-		commands: [],
-		skills: [],
 		connectionStatus,
 		connectionStatusDetail,
 		scopes: [],
@@ -68,7 +65,7 @@ suite('Connector presentation', () => {
 			override readonly onDidChange = Event.None;
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
 		));
 		const states = ['sign_in_required', 'review_required', 'retryable_error', 'unavailable'] as const;
 		const presentations = states.map(state => {
@@ -100,7 +97,7 @@ suite('Connector presentation', () => {
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
 		));
 		detail.setInput(connector('not_connected'));
 		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -114,24 +111,58 @@ suite('Connector presentation', () => {
 	test('an earlier refresh cannot replace a newly selected connector', async () => {
 		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
 		disposables.add(toDisposable(() => container.remove()));
-		const change = disposables.add(new Emitter<void>());
 		const result = new DeferredPromise<readonly ICopilotConnector[]>();
 		const service = new class extends mock<ICopilotConnectorsService>() {
-			override readonly onDidChange = change.event;
+			override readonly onDidChange = Event.None;
+			override async refresh(): Promise<readonly ICopilotConnector[]> {
+				return [];
+			}
 			override getConnectors(): Promise<readonly ICopilotConnector[]> {
 				return result.p;
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
 		));
-		detail.setInput(connector('connected'));
-		change.fire();
+		detail.setInput(connector('pending'));
+		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		await timeout(0);
 		detail.setInput({ ...connector('not_connected'), name: 'calendar', displayName: 'Calendar' });
 		result.complete([{ ...connector('connected'), displayName: 'Updated Mail' }]);
 		await result.p;
 		await timeout(0);
 
 		assert.strictEqual(container.querySelector('.embedded-detail-name')?.textContent, 'Calendar');
+	});
+
+	test('detail closes when the selected connector leaves the current account catalog', () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const change = disposables.add(new Emitter<void>());
+		let connectors: readonly ICopilotConnector[] = [connector('connected')];
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = change.event;
+			override get connectors() { return connectors; }
+		}();
+		let invalidations = 0;
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, () => invalidations++, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		detail.setInput(connectors[0]);
+
+		connectors = [];
+		change.fire();
+
+		assert.deepStrictEqual({
+			invalidations,
+			name: container.querySelector('.embedded-detail-name')?.textContent,
+			action: container.querySelector('.embedded-detail-title-actions .monaco-button')?.textContent,
+			empty: container.querySelector('.embedded-detail-empty')?.textContent,
+		}, {
+			invalidations: 1,
+			name: '',
+			action: undefined,
+			empty: 'No connector selected.',
+		});
 	});
 });

@@ -157,7 +157,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
-			mcpConnectorsApiBaseUrl: productService.defaultChatAgent.mcpConnectorsUrl,
 		});
 		registerAgentHostHostServices(services, {
 			userDataPath: URI.file(environmentService.userDataPath),

@@ -320,6 +320,51 @@ suite('mcpListWidget', () => {
 			});
 		});
 	}
+
+	test('connector section explains empty and filtered catalogs', () => {
+		const widget = Object.create(McpListWidget.prototype) as {
+			isConnectorsEnabled(): boolean;
+			filteredConnectors: readonly ICopilotConnector[];
+			connectorsLoading: boolean;
+			connectorsError: string | undefined;
+			connectorsService: ICopilotConnectorsService;
+			cardDisposables: DisposableStore;
+			connectorSignIn: MutableDisposable<Disposable>;
+			cardListControllers: WeakMap<HTMLElement, { finalize(): void }>;
+			searchQuery: string;
+			renderCardSection(parent: HTMLElement): HTMLElement;
+			renderConnectorSection(parent: HTMLElement): void;
+		};
+		const container = DOM.append(document.body, DOM.$('.mcp-connector-empty-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		widget.isConnectorsEnabled = () => true;
+		widget.filteredConnectors = [];
+		widget.connectorsLoading = false;
+		widget.connectorsError = undefined;
+		widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override readonly authorizationRequired = false;
+		}();
+		widget.cardDisposables = disposables.add(new DisposableStore());
+		widget.connectorSignIn = disposables.add(new MutableDisposable());
+		widget.cardListControllers = new WeakMap();
+		widget.renderCardSection = parent => DOM.append(parent, DOM.$('.plugin-inventory-list'));
+		widget.searchQuery = '';
+		widget.renderConnectorSection(container);
+		const emptyCatalog = container.querySelector('.plugin-inventory-empty')?.textContent;
+
+		DOM.clearNode(container);
+		widget.searchQuery = 'mail';
+		widget.renderConnectorSection(container);
+
+		assert.deepStrictEqual({
+			emptyCatalog,
+			emptySearch: container.querySelector('.plugin-inventory-empty')?.textContent,
+		}, {
+			emptyCatalog: 'No connectors are available.',
+			emptySearch: 'No connectors match \'mail\'',
+		});
+	});
+
 	test('preserves installed row order across enablement refreshes', () => {
 		const order = new Map<string, number>();
 		const first = { entry: { type: 'session-server-item' as const, server: createAgentHostServer({ id: 'first', name: 'First', enabled: true }) } };
@@ -710,7 +755,7 @@ suite('mcpListWidget', () => {
 		widget.notificationService = new class extends mock<INotificationService>() { }();
 		const action = widget.runConnectorRowAction({
 			name: 'mail', displayName: 'Mail', description: '', tags: [], keywords: [], capabilities: [],
-			representativeQueries: [], agents: [], commands: [], skills: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
+			representativeQueries: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
 		}, 'connect');
 		widget.setVisible(false);
 		pending.complete();

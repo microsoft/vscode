@@ -16,7 +16,7 @@ suite('AICustomizationWelcomePage', () => {
 			{ marketplace: false, publicFeed: false, connectors: false, discover: false },
 			{ marketplace: false, publicFeed: true, connectors: false, discover: false },
 			{ marketplace: false, publicFeed: false, connectors: true, discover: false },
-			{ marketplace: true, publicFeed: false, connectors: false, discover: false },
+			{ marketplace: true, publicFeed: false, connectors: false, discover: true },
 			{ marketplace: true, publicFeed: true, connectors: false, discover: true },
 			{ marketplace: true, publicFeed: false, connectors: true, discover: true },
 		];
