@@ -558,6 +558,10 @@ export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneratio
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
+/** Root config key controlling agent session creation, messaging, and recursion limits. */
+export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
+export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
@@ -899,6 +903,17 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
+	}),
+	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({
+		type: 'string',
+		title: localize('agentHost.config.agentOrchestrationLimits.title', "Agent Orchestration Limits"),
+		description: localize('agentHost.config.agentOrchestrationLimits.description', "Controls creation, messaging, and recursion safety limits for Agent Host session tools."),
+		enum: ['on', 'off'],
+		enumDescriptions: [
+			localize('agentHost.config.agentOrchestrationLimits.on', "Enforce agent orchestration safety limits."),
+			localize('agentHost.config.agentOrchestrationLimits.off', "Do not enforce agent orchestration safety limits."),
+		],
+		default: 'on',
 	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

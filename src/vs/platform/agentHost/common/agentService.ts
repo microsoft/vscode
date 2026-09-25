@@ -121,6 +121,9 @@ export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experim
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
+/** Configuration key controlling Agent Host agent-orchestration safety limits. */
+export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 

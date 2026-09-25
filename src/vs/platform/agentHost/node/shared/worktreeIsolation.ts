@@ -822,7 +822,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
-				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Glob patterns for git-ignored files to copy into the isolated worktree."),
+				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Patterns, in .gitignore syntax, for git-ignored files to copy into the isolated worktree."),
 				items: {
 					type: 'string',
 					title: localize('agentHost.sessionConfig.worktreeIncludeFilesItem', "Pattern"),
@@ -954,7 +954,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
 				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
-					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, progress));
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, sessionId, progress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}

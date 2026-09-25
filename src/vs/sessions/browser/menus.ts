@@ -70,6 +70,7 @@ export const Menus = {
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionChatItemToolbar: new MenuId('SessionsSessionChatItemToolbar'),
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),

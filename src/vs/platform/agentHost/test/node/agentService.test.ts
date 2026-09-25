@@ -25,6 +25,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -42,7 +43,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -825,6 +826,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	private _backfilled = false;
 	catalogListCalls = 0;
+	readonly catalogListRequests: Array<readonly string[] | undefined> = [];
 	/** Test spies for the batched recency-write path. */
 	updateSessionModifiedTimesCalls = 0;
 	lastModifiedTimesBatchSize = 0;
@@ -1083,9 +1085,11 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this.catalogListCalls++;
 		return this._sessionsV2.get(session);
 	}
-	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+	async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 		this.catalogListCalls++;
-		return [...this._sessionsV2.values()];
+		this.catalogListRequests.push(sessions);
+		const rows = [...this._sessionsV2.values()];
+		return sessions ? rows.filter(row => sessions.includes(row.session)) : rows;
 	}
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		this.catalogListCalls++;
@@ -3417,6 +3421,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects independent archive actions for the default chat', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(defaultChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				sessionArchived: ((getStateManager(svc).getSessionState(session.toString())?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+				sessionArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for tool chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const toolChat = buildChatUri(session, 'tool');
+			getStateManager(svc).addChat(session.toString(), toolChat, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(toolChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(toolChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for side chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const sideChat = buildChatUri(session, 'side');
+			getStateManager(svc).addChat(session.toString(), sideChat, {
+				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(sideChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(sideChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
 		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -5268,16 +5352,25 @@ suite('AgentService (node dispatcher)', () => {
 				deleted: [...deleted],
 			};
 			const secondAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
-			await svc.createChat(session, URI.parse(buildChatUri(session, 'reusing')), { workingDirectories: [secondAttempt.directory] });
+			const reusingChat = URI.parse(buildChatUri(session, 'reusing'));
+			await secondAttempt.associateWithChat?.(reusingChat);
+			await svc.createChat(session, reusingChat, { workingDirectories: [secondAttempt.directory] });
 			await secondAttempt.release();
 
 			assert.deepStrictEqual({
 				afterRelease,
 				// A chat uses the worktree by the time of release, so it stays.
 				afterReuse: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				records: await readSessionAdditionalWorktrees(perSession.service, session),
 			}, {
 				afterRelease: { session: [primary.toString()], records: [], deleted: [handle] },
 				afterReuse: [primary.toString(), worktree.toString()],
+				records: [{
+					handle,
+					workingDirectory: worktree.toString(),
+					repositoryRoot: repository.toString(),
+					chat: reusingChat.toString(),
+				}],
 			});
 		});
 
@@ -6228,6 +6321,12 @@ suite('AgentService (node dispatcher)', () => {
 					? { ...registered, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 0 }
 					: undefined;
 			}
+
+			override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+				const catalogSessions = sessions ?? [...this._catalogs.keys()];
+				const rows = await Promise.all(catalogSessions.map(session => this.getSessionV2(session)));
+				return rows.filter((row): row is IAgentHostDatabaseSessionV2 => row !== undefined);
+			}
 		}
 
 		class CountingMetadataAgent extends TimedExternalAgent {
@@ -6300,15 +6399,20 @@ suite('AgentService (node dispatcher)', () => {
 			));
 		}
 
-		function createCentralCatalogService(sessionDataService: ISessionDataService, orchestratorDatabase: IAgentHostDatabase): AgentService {
+		function createCentralCatalogService(
+			sessionDataService: ISessionDataService,
+			orchestratorDatabase: IAgentHostDatabase,
+			telemetryService = NullTelemetryService,
+			logService = new NullLogService(),
+		): AgentService {
 			return disposables.add(createTestAgentService(
-				new NullLogService(),
+				logService,
 				fileService,
 				sessionDataService,
 				{ _serviceBrand: undefined } as IProductService,
 				createNoopGitService(),
 				undefined,
-				undefined,
+				telemetryService,
 				undefined,
 				undefined,
 				undefined,
@@ -7663,7 +7767,7 @@ suite('AgentService (node dispatcher)', () => {
 				activeCatalogReads = 0;
 				deferActiveCatalogReads = false;
 
-				override async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+				override async listSessionsV2(_sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 					if (this.deferActiveCatalogReads) {
 						this.activeCatalogReads++;
 						if (this.activeCatalogReads === 1) {
@@ -7671,7 +7775,7 @@ suite('AgentService (node dispatcher)', () => {
 							await releaseFirstRead.p;
 						}
 					}
-					return undefined;
+					return [];
 				}
 			}
 			const orchestratorDatabase = new DeferredCatalogDatabase();
@@ -7698,6 +7802,65 @@ suite('AgentService (node dispatcher)', () => {
 				blockedListCount: 1,
 				repeatedListCounts: [1, 1, 1],
 				activeCatalogReads: 1,
+			});
+		});
+
+		test('central list reports a bulk read failure after recovering rows individually', async () => {
+			class BulkFailureCatalogDatabase extends CentralCatalogDatabase {
+				override async listSessionsV2(_sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+					throw new Error('bulk read failed');
+				}
+			}
+			class TestTelemetryService extends NullTelemetryServiceShape {
+				readonly events: { readonly eventName: string; readonly data: Record<string, unknown> }[] = [];
+
+				override publicLogError2(eventName?: string, data?: unknown): void {
+					if (eventName && data && typeof data === 'object') {
+						this.events.push({ eventName, data: data as Record<string, unknown> });
+					}
+				}
+			}
+			class RecordingLogService extends NullLogService {
+				readonly warnings: string[] = [];
+
+				override warn(message: string): void {
+					this.warnings.push(message);
+				}
+			}
+			const orchestratorDatabase = new BulkFailureCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'bulk-recovery');
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(session, centralData(session, 20, 'Recovered title'));
+			const telemetryService = new TestTelemetryService();
+			const logService = new RecordingLogService();
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase, telemetryService, logService);
+
+			const listed = await svc.listSessions();
+			const event = telemetryService.events[0];
+
+			assert.deepStrictEqual({
+				listed: listed.map(metadata => ({ session: metadata.session.toString(), summary: metadata.summary })),
+				warnings: logService.warnings.map(warning => warning.replace(/in \d+ms/, 'in <duration>ms')),
+				eventName: event?.eventName,
+				eventData: event && {
+					...event.data,
+					fallbackDurationMs: typeof event.data.fallbackDurationMs,
+				},
+			}, {
+				listed: [{ session: session.toString(), summary: 'Recovered title' }],
+				warnings: ['[AgentService] Bulk session catalog read failed; bounded row recovery read 1 of 1 row(s) in <duration>ms (0 failed)'],
+				eventName: 'agentHost.catalogBulkReadFailure',
+				eventData: {
+					errorMessage: 'bulk read failed',
+					requestedRowCount: 1,
+					recoveredRowCount: 1,
+					failedRowCount: 0,
+					fallbackDurationMs: 'number',
+				},
 			});
 		});
 
@@ -7929,6 +8092,39 @@ suite('AgentService (node dispatcher)', () => {
 					{ session: hostCreated.toString(), external: false, source: 'restore' },
 				].sort((a, b) => a.session.localeCompare(b.session)),
 			);
+		});
+
+		test('discovery keeps a workspace-less external session external across rediscovery', async () => {
+			const sessionData = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			const session = AgentSession.uri('copilot', 'workspaceless-external');
+			const chat: IAgentDiscoveredChat = {
+				...discoveredChat(session),
+				workingDirectories: [URI.file('/home/user/.copilot/chats/2026-09-23/app-chat')],
+				_meta: withSessionWorkspaceless(undefined, true),
+			};
+			const internals = svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>; _sessionRegistry: AgentSessionRegistry };
+
+			await internals._registerDiscoveredChats(agent, [chat]);
+			// Stale-external pruning unregisters the row but keeps the session database.
+			await internals._sessionRegistry.unregister(session);
+			await internals._registerDiscoveredChats(agent, [chat]);
+
+			const registered = (await internals._sessionRegistry.list()).find(entry => entry.session.toString() === session.toString());
+			const listed = (await svc.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+			assert.deepStrictEqual({
+				registered: { external: registered?.external, source: registered?.source },
+				workspaceless: readSessionWorkspaceless(listed?._meta),
+				persistedHostMarker: await sessionData.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				registered: { external: true, source: 'discovery' },
+				workspaceless: true,
+				persistedHostMarker: undefined,
+			});
 		});
 
 		test('rediscovery advances recency without overwriting durable unread state for an existing external session', async () => {
@@ -8356,13 +8552,15 @@ suite('AgentService (node dispatcher)', () => {
 		testWithExternalSessionClock('clean catalog rows avoid session DB opens in every visibility mode', async () => {
 			const now = Date.now();
 			const perSession = createPerSessionDataService();
-			const svc = createExternalSessionService(perSession.service);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = createExternalSessionService(perSession.service, orchestratorDatabase);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('external-one', now);
 			agent.addSession('external-two', now);
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
 			await svc.whenCatalogReconciliationIdle();
+			orchestratorDatabase.catalogListRequests.length = 0;
 
 			const opened: string[] = [];
 			const dataService = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
@@ -8374,14 +8572,25 @@ suite('AgentService (node dispatcher)', () => {
 			try {
 				const hidden = (await svc.listSessions(AgentHostExternalSessionsMode.None)).map(session => AgentSession.id(session.session));
 				const openedWhileHidden = [...new Set(opened)].sort();
+				const catalogRequestsWhileHidden = [...orchestratorDatabase.catalogListRequests];
+				orchestratorDatabase.catalogListRequests.length = 0;
 				opened.length = 0;
 				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.Last30Days)).map(session => AgentSession.id(session.session)).sort();
 
-				assert.deepStrictEqual({ hidden, openedWhileHidden, visible, openedWhileVisible: [...new Set(opened)].sort() }, {
+				assert.deepStrictEqual({
+					hidden,
+					openedWhileHidden,
+					catalogRequestsWhileHidden,
+					visible,
+					openedWhileVisible: [...new Set(opened)].sort(),
+					catalogRequestsWhileVisible: orchestratorDatabase.catalogListRequests.map(request => request?.map(session => AgentSession.id(URI.parse(session))).sort()),
+				}, {
 					hidden: [],
 					openedWhileHidden: [],
+					catalogRequestsWhileHidden: [],
 					visible: ['external-one', 'external-two'],
 					openedWhileVisible: [],
+					catalogRequestsWhileVisible: [['external-one', 'external-two']],
 				});
 			} finally {
 				dataService.tryOpenDatabase = originalTryOpen;
@@ -13024,13 +13233,13 @@ suite('AgentService (node dispatcher)', () => {
 				readonly releaseList = new DeferredPromise<void>();
 				deferReads = false;
 
-				override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
-					const row = await super.getSessionV2(session);
+				override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+					const rows = await super.listSessionsV2(sessions);
 					if (this.deferReads) {
 						this.listStarted.complete();
 						await this.releaseList.p;
 					}
-					return row;
+					return rows;
 				}
 			}
 

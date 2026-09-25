@@ -39,8 +39,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
-import { getSessionSandboxOverrides } from '../sessionSandbox.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
@@ -485,6 +484,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly clientReachesChat?: (clientId: string, chat: URI) => boolean;
 	/** Reads the retained host snapshot this session uses for MCP enablement reconcile. */
 	readonly hostCustomizations?: () => readonly Customization[];
+	/** Resolves user configuration membership when the SDK inventory omits its source. */
+	readonly getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
 	/**
 	 * Live registry of every active client's tool contributions, shared by
 	 * reference with the agent's per-session {@link ActiveClient}. Read at
@@ -1104,6 +1105,7 @@ export class CopilotAgentSession extends Disposable {
 	private _promptCacheRefreshGeneration = 0;
 	/** Reads the latest retained host snapshot for this session. */
 	private readonly _hostCustomizations: () => readonly Customization[];
+	private readonly _getUserMcpServerNames: (() => Promise<ReadonlySet<string>>) | undefined;
 	/**
 	 * Serializes the metrics reads behind {@link _refreshSessionUsageMetrics}. Several
 	 * handlers refresh the total, so without this their RPCs overlap and an older
@@ -1334,6 +1336,7 @@ export class CopilotAgentSession extends Disposable {
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 		this._hostCustomizations = options.hostCustomizations ?? (() => []);
+		this._getUserMcpServerNames = options.getUserMcpServerNames;
 		this._platform = options.platform ?? process.platform;
 		this._realpath = options.realpath ?? realpath;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -4563,10 +4566,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */
 	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
-		const sandbox = {
-			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(this._configurationService, this._ownerSessionUri.toString()),
-		};
+		const sandbox = getSessionSandboxConfig(this._configurationService, this._ownerSessionUri.toString(), this._platform);
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
@@ -6863,6 +6863,9 @@ export class CopilotAgentSession extends Disposable {
 		while (!this._store.isDisposed) {
 			const lifecycleVersion = this._mcpLifecycleVersion;
 			const result = await (mcpRpc.list as McpListWithOptions)({ startServers: false });
+			const userServerNames = result.servers.some(server => server.source === undefined)
+				? await this._getUserMcpServerNames?.()
+				: undefined;
 			if (this._store.isDisposed || requestVersion !== this._mcpInventoryRequestVersion) {
 				return;
 			}
@@ -6878,12 +6881,15 @@ export class CopilotAgentSession extends Disposable {
 				pluginName: s.sourcePlugin,
 				pluginVersion: s.sourcePluginVersion,
 			})), 'inventory');
-			this._applyMcpServerList(result.servers);
+			this._applyMcpServerList(result.servers.map(server => ({
+				...server,
+				source: server.source ?? (userServerNames?.has(server.name) ? 'user' : undefined),
+			})));
 			return;
 		}
 	}
 
-	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+	private _applyMcpServerList(servers: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers']): void {
 		const serverNames = new Set(servers.map(server => server.name));
 		for (const serverName of this._lastMcpAuthRequirements.keys()) {
 			if (!serverNames.has(serverName)) {
@@ -6891,7 +6897,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		const sdkServers = servers
-			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
+			.map(s => ({ ...this._toSdkMcpServer(s.name, s.status, s.error), source: s.source }));
 		this._mcpCustomizations.applyAll(sdkServers);
 	}
 

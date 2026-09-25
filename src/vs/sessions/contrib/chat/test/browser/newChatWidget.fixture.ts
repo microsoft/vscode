@@ -200,6 +200,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
+		override readonly initialRestoreComplete = constObservable(true);
 		override readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
@@ -252,6 +253,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getSessionTypesForFolder() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
 				}

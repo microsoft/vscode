@@ -17,7 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -36,7 +36,7 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -383,7 +383,6 @@ suite('mcpListWidget', () => {
 			initial: ['first', 'second'],
 			refreshed: ['first', 'second'],
 		});
-
 	});
 
 	test('classifies installed MCP entries by scope and source', () => {
@@ -404,6 +403,67 @@ suite('mcpListWidget', () => {
 			'plugins',
 			'extensions',
 			'builtin',
+		]);
+	});
+
+	test('groups externally discovered MCP servers by configuration target rather than as built-in', () => {
+		const entry = (configTarget: ConfigurationTarget, origin: URI, provenance = McpCollectionProvenance.ExternalConfiguration): IMcpInstalledEntry => ({
+			type: 'builtin-item',
+			id: 'external-server',
+			label: 'External Server',
+			description: '',
+			localServer: new class extends mock<IMcpServer>() {
+				override readDefinitions() {
+					return observableValue('definitions', {
+						server: undefined,
+						collection: new class extends mock<McpCollectionDefinition>() {
+							override readonly provenance = provenance;
+							override readonly configTarget = configTarget;
+							override readonly presentation = { origin };
+						},
+					});
+				}
+			},
+		});
+
+		assert.deepStrictEqual([
+			getMcpEntryGroup(entry(ConfigurationTarget.USER, URI.file('/home/test/.copilot/mcp-config.json'))),
+			getMcpEntryGroup(entry(ConfigurationTarget.USER_LOCAL, URI.file('/custom/copilot/mcp-config.json'))),
+			getMcpEntryGroup(entry(ConfigurationTarget.USER_REMOTE, URI.parse('vscode-remote://ssh-remote+host/home/test/.copilot/mcp-config.json'))),
+			getMcpEntryGroup(entry(ConfigurationTarget.WORKSPACE, URI.file('/workspace/project.code-workspace'))),
+			getMcpEntryGroup(entry(ConfigurationTarget.WORKSPACE_FOLDER, URI.file('/workspace/.cursor/mcp.json'))),
+			getMcpEntryGroup(entry(ConfigurationTarget.USER, URI.file('/extensions/copilot/mcp.json'), McpCollectionProvenance.Extension)),
+		], [
+			'user',
+			'user',
+			'user',
+			'workspace',
+			'workspace',
+			'builtin',
+		]);
+	});
+
+	test('groups host-only MCP servers by runtime source without local definitions', () => {
+		const servers = [
+			createAgentHostServer({ name: 'local-memory', source: 'user' }),
+			createAgentHostServer({ name: 'github', source: 'user', status: McpServerStatus.Error }),
+			createAgentHostServer({ name: 'workspace-server', source: 'workspace' }),
+			createAgentHostServer({ name: 'plugin-server', source: 'plugin' }),
+			createAgentHostServer({ name: 'github-mcp-server', source: 'builtin' }),
+			createAgentHostServer({ name: 'managed-server', source: 'managed' }),
+			createAgentHostServer({ name: 'legacy-server' }),
+		];
+
+		assert.deepStrictEqual(createBuiltinActiveSessionMcpEntries(servers).map(entry => ({
+			name: entry.server.name, group: getMcpEntryGroup(entry),
+		})), [
+			{ name: 'local-memory', group: 'user' },
+			{ name: 'github', group: 'user' },
+			{ name: 'workspace-server', group: 'workspace' },
+			{ name: 'plugin-server', group: 'plugins' },
+			{ name: 'github-mcp-server', group: 'builtin' },
+			{ name: 'managed-server', group: 'builtin' },
+			{ name: 'legacy-server', group: 'builtin' },
 		]);
 	});
 
@@ -833,14 +893,14 @@ suite('mcpListWidget', () => {
 	});
 
 	test('distinguishes membership changes from state-only changes', () => {
-		const getMembershipSignature = (sourceUri: URI) => {
+		const getMembershipSignature = (sourceUri: URI, source?: AgentHostMcpServer['source']) => {
 			const widget = Object.create(McpListWidget.prototype);
 			Object.assign(widget, {
 				installedEntries: [{
 					entry: {
 						type: 'session-server-item',
 						id: 'server-1',
-						server: createAgentHostServer({ sourceUri }),
+						server: createAgentHostServer({ sourceUri, source }),
 					},
 				}],
 			});
@@ -850,7 +910,8 @@ suite('mcpListWidget', () => {
 			hasSameMcpMembership('server:one:session', 'server:one:session'),
 			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/workspace/old.json')), getMembershipSignature(URI.file('/workspace/new.json'))),
-		], [true, false, false]);
+			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'user')),
+		], [true, false, false, false]);
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {
