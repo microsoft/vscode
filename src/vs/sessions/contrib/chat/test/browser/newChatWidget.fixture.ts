@@ -38,7 +38,8 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -62,6 +63,7 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
 import { NewChatView } from '../../browser/chatView.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
@@ -96,6 +98,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly phoneLayout?: boolean;
 	readonly withChatBackground?: boolean;
 	readonly migrationCount?: number;
+	readonly experimentalComposerLayout?: boolean;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -179,6 +182,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		phoneLayout = false,
 		withChatBackground = false,
 		migrationCount = 0,
+		experimentalComposerLayout = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -198,10 +202,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObservable;
 	}();
-	const configurationService = new TestConfigurationService(withChatBackground ? {
-		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
-		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
-	} : undefined);
+	const configurationService = new TestConfigurationService({
+		...(withChatBackground ? {
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
+			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
+		} : {}),
+		...(experimentalComposerLayout ? {
+			[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+			[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+		} : {}),
+	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -315,6 +325,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onReset = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
@@ -327,6 +339,19 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					}));
 					return { type, candidates, files: candidates.map(candidate => candidate.uri) };
 				}
+
+				override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
+					return migrationCount > 0 ? {
+						migrationFlowId: 'fixture-migration',
+						message: `${migrationCount} agent customizations need an update to keep working.`,
+						counts: [{ type: CustomizationMigrationType.PromptFiles, count: migrationCount }],
+					} : undefined;
+				}
+			}());
+			reg.defineInstance(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() {
+				override hintComputed() { }
+				override hintShown() { }
+				override hintClicked() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -451,12 +476,27 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			&& separatorStyle?.margin === '0px'
 			&& separatorStyle?.height === '12px'
 			&& repositoryActionBarStyle?.height === '22px'
-			&& repositoryActionBarStyle?.borderTopStyle === 'solid'
+			&& (experimentalComposerLayout || repositoryActionBarStyle?.borderTopStyle === 'solid')
 			&& repositoryActions?.length === 2
 			&& [...repositoryActions].every(action => {
 				const style = targetWindow.getComputedStyle(action);
 				return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.backgroundImage === 'none' && style.borderTopStyle === 'none';
 			}));
+		if (experimentalComposerLayout) {
+			const workspaceControls = view.element.querySelector<HTMLElement>('.new-session-workspace-picker-container');
+			const input = view.element.querySelector<HTMLElement>('.new-chat-input-area');
+			const sessionControls = view.element.querySelector<HTMLElement>('.new-chat-session-controls');
+			assert(!!workspaceControls && !!input && !!sessionControls);
+			const workspaceControlsRect = workspaceControls.getBoundingClientRect();
+			const inputRect = input.getBoundingClientRect();
+			const sessionControlsRect = sessionControls.getBoundingClientRect();
+			assert(workspaceControlsRect.left === inputRect.left
+				&& workspaceControlsRect.right === inputRect.right
+				&& inputRect.top - workspaceControlsRect.bottom === 4
+				&& sessionControlsRect.top >= inputRect.bottom
+				&& repositoryConfigContainer?.closest('.new-session-workspace-picker-container') === workspaceControls
+				&& [...repositoryActions].map(action => action.textContent).join(',') === 'New Worktree,Branch');
+		}
 	} else if (withChatBackground) {
 		assert(!!repositoryConfigContainer
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
@@ -532,6 +572,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
+	}),
+	NewSessionExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. The model remains inside the input, while mode and permissions remain below it.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

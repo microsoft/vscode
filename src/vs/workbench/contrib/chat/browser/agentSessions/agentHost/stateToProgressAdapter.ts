@@ -402,6 +402,16 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
 	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
 }
 
+/** Refreshes a phase tile from protocol state while keeping the child chat the observer attached. */
+function updateFusionPhaseToolSpecificData(invocation: ChatToolInvocation, tc: ToolCallState, sessionResource: URI): void {
+	const previous = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
+	const data = getSubagentToolSpecificData(tc, sessionResource);
+	invocation.toolSpecificData = data && previous?.chatResource
+		? { ...data, chatResource: previous.chatResource, isChatAvailable: previous.isChatAvailable }
+		: data;
+	invocation.notifyToolSpecificDataChanged();
+}
+
 function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
 	const phase = readToolCallMeta(tc).fusionPhase;
 	if (getToolKind(tc) === 'fusionPhase' && phase) {
@@ -602,6 +612,12 @@ export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): 
  */
 export function isSubagentTool(tc: ToolCallState): boolean {
 	return getToolKind(tc) === 'subagent' || isSubagentToolName(tc.toolName);
+}
+
+/** Returns whether the tool call can own a child chat: a subagent launch, a Fusion phase, or a call carrying discovery content. */
+export function canOwnSubagentChat(tc: ToolCallState): boolean {
+	return isSubagentTool(tc) || getToolKind(tc) === 'fusionPhase'
+		|| ((tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) && getToolSubagentContent(tc) !== undefined);
 }
 
 /** Returns whether the tool call can have a child chat worth observing. */
@@ -1546,11 +1562,16 @@ function getTerminalOutput(tc: ToolCallState) {
 	const terminalResult = getTerminalCommandResult(tc);
 	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// A truncated preview omits the completion text that tells the user where the full output was saved.
-	// TODO: Use an SDK API for the large-output file path instead of relying on the tool completion display text.
-	let text = terminalResult?.truncated === true && fallbackText !== undefined
-		? stripLegacyTerminalExitMarkers(fallbackText)
-		: terminalResult?.preview;
+	const retainedOutputCandidate = tc.status === ToolCallStatus.Completed
+		&& terminalContent?.isPty === false
+		&& terminalResult?.truncated === true;
+	const completionText = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
+	let text = terminalResult?.preview;
+	if (retainedOutputCandidate) {
+		text = completionText ?? terminalResult.preview ?? '';
+	} else if (terminalResult?.truncated === true && fallbackText !== undefined) {
+		text = stripLegacyTerminalExitMarkers(fallbackText);
+	}
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
@@ -1562,7 +1583,14 @@ function getTerminalOutput(tc: ToolCallState) {
 	return {
 		text: text.replace(/\r?\n/g, '\r\n'),
 		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
+		...(retainedOutputCandidate && terminalResult.preview !== undefined ? { fullOutputPreview: terminalResult.preview.replace(/\r?\n/g, '\r\n') } : {}),
 	};
+}
+
+function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
+	return a?.text === b?.text
+		&& a?.truncated === b?.truncated
+		&& a?.fullOutputPreview === b?.fullOutputPreview;
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
@@ -1963,6 +1991,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
+			resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
@@ -2028,6 +2057,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
+		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 	};
 }
 
@@ -2715,8 +2745,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	applyToolCallProgress(existing, tc);
 
 	if (getToolKind(tc) === 'fusionPhase') {
-		existing.toolSpecificData = getSubagentToolSpecificData(tc, sessionResource);
-		existing.notifyToolSpecificDataChanged();
+		updateFusionPhaseToolSpecificData(existing, tc, sessionResource);
 		return;
 	}
 
@@ -2784,7 +2813,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		: undefined;
 	if (isTerminalToolCall(tc, existing.toolSpecificData?.kind)) {
 		const next = buildTerminalToolSpecificData(tc, sessionResource, existingTerminal);
-		const outputChanged = next.terminalCommandOutput?.text !== existingTerminal?.terminalCommandOutput?.text;
+		const outputChanged = !terminalOutputsEqual(next.terminalCommandOutput, existingTerminal?.terminalCommandOutput);
 		const commandChanged = next.commandLine.original !== existingTerminal?.commandLine.original;
 		if (!existingTerminal || outputChanged || commandChanged) {
 			existing.toolSpecificData = next;
@@ -2841,8 +2870,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
 	if (getToolKind(tc) === 'fusionPhase') {
-		invocation.toolSpecificData = getSubagentToolSpecificData(tc, backendSession);
-		invocation.notifyToolSpecificDataChanged();
+		updateFusionPhaseToolSpecificData(invocation, tc, backendSession);
 	} else if (isCompleted) {
 		const subagentContent = getToolSubagentContent(tc);
 		if (subagentContent) {
@@ -2958,7 +2986,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails
-		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		? { content: [], toolResultError: isFailure ? errorString || (isCompleted ? true : undefined) : undefined, toolResultDetails: resultDetails }
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });

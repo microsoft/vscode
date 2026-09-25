@@ -11,7 +11,7 @@ import { IActionWidgetService } from '../../../../../../../../platform/actionWid
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
-import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigChoices, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 
 /**
@@ -95,7 +95,7 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
  * returns a snapshot of everything the user can see: the button label, its
  * accessible name, the list options and the option rows.
  */
-function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema) {
+function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema, showModelDetails = false) {
 	const access: IModelConfigurationAccess = {
 		getModelConfiguration: () => configuration,
 		getModelConfigurationSchema: () => schema,
@@ -132,7 +132,7 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
 	const button = document.createElement('a');
 
-	controller.renderButton(button, false, false);
+	controller.renderButton(button, false, false, showModelDetails);
 	controller.show(button);
 
 	return {
@@ -146,6 +146,7 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 			label: item.label,
 			checked: item.item!.checked,
 			ariaDescription: item.ariaDescription,
+			...(item.disabled ? { disabled: item.disabled, enabled: item.item!.enabled } : {}),
 		} : { kind: item.kind, label: item.label }),
 	};
 }
@@ -153,6 +154,37 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 suite('ModelPickerConfiguration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('choice metadata consistently describes values, descriptions, defaults, selection, and read-only state', () => {
+		assert.deepStrictEqual(getModelConfigChoices({
+			key: 'context',
+			value: 64000,
+			schema: { type: 'number', enum: [32000, 64000], enumDescriptions: ['Standard', 'Extended'], default: 32000, readOnly: true },
+		}), [
+			{ index: 0, value: 32000, label: '32K', description: 'Standard', checked: false, isDefault: true, readOnly: true },
+			{ index: 1, value: 64000, label: '64K', description: 'Extended', checked: true, isDefault: false, readOnly: true },
+		]);
+	});
+
+	test('legacy context choices retain numeric-string formatting', () => {
+		const result = render(createModel(), {}, {
+			properties: { context: { group: 'tokens', type: 'string', enum: ['32000', '64000'], default: '32000' } },
+		});
+		assert.deepStrictEqual({ label: result.label, choices: result.sections.map(section => section.label) }, {
+			label: '32K', choices: ['Context Size', '32K', '64K'],
+		});
+	});
+
+	test('read-only choices remain visible but cannot be changed in the legacy picker', () => {
+		const model = createTierModel();
+		const schema = model.metadata.configurationSchema!;
+		const result = render(model, {}, { properties: { tier: { ...schema.properties!.tier, readOnly: true } } });
+		assert.deepStrictEqual(result.sections.flatMap(choice => choice.kind === undefined ? [{ label: choice.label, disabled: choice.disabled, enabled: choice.enabled }] : []), [
+			{ label: 'Efficiency', disabled: true, enabled: false },
+			{ label: 'Balance', disabled: true, enabled: false },
+			{ label: 'Intelligence', disabled: true, enabled: false },
+		]);
+	});
 
 	test('renders the combined label and builds accessible option sections', () => {
 		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
@@ -170,6 +202,39 @@ suite('ModelPickerConfiguration', () => {
 				{ className: 'chat-model-picker-config-option', label: '32K', checked: false, ariaDescription: 'Default' },
 				{ className: 'chat-model-picker-config-option', label: '64K', checked: true, ariaDescription: undefined },
 			],
+		});
+	});
+
+	test('the tabbed readout includes defaults and names its details destination', () => {
+		const result = render(createModel(), {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+			label: 'Low · 32K',
+			ariaLabel: 'Test Model details, Thinking Effort: Low, Context: 32K',
+		});
+	});
+
+	test('the tabbed Auto readout describes routing options rather than Details', () => {
+		const result = render(createTierModel(), {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+			label: 'Balance', ariaLabel: 'Auto options, Optimize for: Balance',
+		});
+	});
+
+	test('the tabbed readout keeps unresolved settings reachable without guessing', () => {
+		const result = render(createModel({ omitEffortDefault: true, omitContextDefault: true }), {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+			label: 'Configure',
+			ariaLabel: 'Test Model details, Configure',
+		});
+	});
+
+	test('the tabbed readout links fixed context to information without adding configuration', () => {
+		const model = createModel();
+		const result = render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }, {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel, sections: result.sections }, {
+			label: '200K',
+			ariaLabel: 'Test Model details, Max context: 200K',
+			sections: [],
 		});
 	});
 
@@ -238,7 +303,10 @@ suite('ModelPickerConfiguration', () => {
 		const result = render(model, { tier: 'balanced' }, schema);
 		assert.deepStrictEqual({
 			selectedLabel: result.label,
-			options: result.sections.map(section => ({ label: section.label, checked: section.checked, description: section.ariaDescription })),
+			options: result.sections.map(section => {
+				const choice = section.kind === undefined ? section : undefined;
+				return { label: section.label, checked: choice?.checked, description: choice?.ariaDescription };
+			}),
 			providerDefault: original.properties?.tier.default,
 		}, {
 			selectedLabel: 'Balance',

@@ -44,7 +44,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { isCarouselToolConfirmation } from './chatToolPartUtilities.js';
+import { hasToolInvocationError, isCarouselToolConfirmation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -224,9 +224,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			partStore.clear();
+			const error = hasToolInvocationError(toolInvocation);
+			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			if (toolIcon) {
-				const registeredIcon = toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
-				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon);
+				const registeredIcon = toolInvocation.toolSpecificData?.kind === 'search' ? Codicon.search
+					: toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
+				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, registeredIcon, undefined, toolInvocation.source);
 				toolIcon.className = 'chat-tool-call-icon';
 				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 			}

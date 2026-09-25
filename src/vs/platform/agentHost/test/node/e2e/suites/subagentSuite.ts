@@ -415,8 +415,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		]);
 		await assertRecordedAhpSnapshot(this.test!, context.client, {
 			...behaviorSnapshot,
-			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
-			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
+			// The initial child may complete before subscription; completion and turn states are asserted above.
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart, ActionType.ChatTurnComplete],
 		});
 	});
 

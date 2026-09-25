@@ -89,10 +89,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(textModelService.registerTextModelContentProvider(Schemas.chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
-			if (e.reason === 'cleared') {
-				for (const resource of e.sessionResources) {
-					this.getEditingSession(resource)?.stop();
-				}
+			for (const resource of e.sessionResources) {
+				this.getEditingSession(resource)?.stop();
 			}
 		}));
 

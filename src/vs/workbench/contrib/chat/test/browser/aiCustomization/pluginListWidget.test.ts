@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -56,6 +56,29 @@ suite('pluginListWidget', () => {
 			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
 			ContributionEnablementState.DisabledProfile,
 		);
+	});
+
+	test('partitions installed plugins by enablement scope', () => {
+		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(state);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const profile = createItem('profile', ContributionEnablementState.EnabledProfile);
+		const workspace = createItem('workspace', ContributionEnablementState.DisabledWorkspace);
+
+		const result = partitionInstalledPluginItemsByScope([profile, workspace]);
+
+		assert.deepStrictEqual({
+			user: result.user.map(item => item.name),
+			workspace: result.workspace.map(item => item.name),
+		}, {
+			user: ['profile'],
+			workspace: ['workspace'],
+		});
 	});
 
 	test('installed metadata contains contribution counts without enablement copy', () => {

@@ -5,13 +5,18 @@
 
 
 import assert from 'assert';
+import type * as vscode from 'vscode';
 import * as extHostTypes from '../../common/extHostTypes.js';
-import { ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { ChatAgentRequest, ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtHostTypeConverter', function () {
 
@@ -218,5 +223,29 @@ suite('ChatAgentResult', function () {
 		};
 
 		assert.doesNotThrow(() => ChatAgentResult.to({ metadata: { part: malformed } }));
+	});
+});
+
+suite('ChatAgentRequest', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tool invocation token identifies the request it was issued for', function () {
+		const request: IChatAgentRequest = {
+			sessionResource: URI.parse('chat-session:/test'),
+			requestId: 'subagent-request',
+			agentId: 'agentId',
+			message: '',
+			variables: { variables: [] },
+			location: ChatAgentLocation.Chat,
+		};
+
+		const chatRequest = ChatAgentRequest.to(request, undefined, {} as vscode.LanguageModelChat, undefined, [], new Map(), nullExtensionDescription, new NullLogService());
+
+		assert.deepStrictEqual({ ...chatRequest.toolInvocationToken as object }, {
+			sessionResource: request.sessionResource,
+			requestId: 'subagent-request',
+			workingDirectory: undefined,
+		});
 	});
 });

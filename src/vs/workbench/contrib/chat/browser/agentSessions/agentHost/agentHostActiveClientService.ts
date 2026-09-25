@@ -31,6 +31,7 @@ import { IPromptsService } from '../../../common/promptSyntax/service/promptsSer
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -111,6 +112,7 @@ class AgentCustomizationScope extends Disposable {
 		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
 		private readonly _options: ILocalCustomizationSyncOptions | undefined,
+		private readonly _windowRemoteAuthority: string | null,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
 		private readonly _onDispose: () => void,
 		@IFileService private readonly _fileService: IFileService,
@@ -140,6 +142,7 @@ class AgentCustomizationScope extends Disposable {
 						this._sessionType,
 						this._options,
 						this._roots,
+						this._windowRemoteAuthority,
 					),
 					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
 				]);
@@ -283,6 +286,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
@@ -306,6 +310,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				scopeKey,
 				this.getSyncProvider(sessionType),
 				options,
+				this._environmentService.remoteAuthority ?? null,
 				type => this._getClientTools(type),
 				() => this._removeScope(serviceScopeKey, createdScope),
 			);
@@ -328,6 +333,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				AgentHostMcpServerSupportScope,
 				sessionType,
 				normalizedRoots,
+				this._environmentService.remoteAuthority ?? null,
 				() => this._removeMcpServerSupportScope(serviceScopeKey, createdScope),
 			);
 			scope = createdScope;

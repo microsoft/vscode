@@ -24,17 +24,47 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { NewSessionUncommittedChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => restore());
+
+	test('Open File targets the workspace resource for a snapshot-backed diff', async () => {
+		const workspaceResource = URI.file('/workspace/file.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
+		const opened: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesObs = constObservable([{
+				uri: workspaceResource,
+				originalUri: URI.parse('readonly-content:/before/file.ts'),
+				modifiedUri: modifiedSnapshot,
+				insertions: 1,
+				deletions: 1,
+			}]);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const input = args[0] as { readonly resource: URI };
+				opened.push(input.resource.toString());
+				return undefined;
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor =>
+			CommandsRegistry.getCommand('workbench.agentSessions.changes.openFile')!.handler(accessor, modifiedSnapshot));
+
+		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
+	});
 
 	test('only the draft Changes header Commit action renders its icon and label', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -163,11 +193,15 @@ suite('Changes Actions', () => {
 				}),
 			})],
 		}));
+		const chat = upcastPartial<IChat>({
+			changesets: constObservable([changeset]),
+		});
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
-			changesets: constObservable([changeset]),
+			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		}));
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;

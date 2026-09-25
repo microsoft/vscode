@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
+import { clearConnectedTabClipping, IConnectedTabBounds, updateConnectedTabClipping } from './connectedTabClipping.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -34,7 +35,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
-import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -118,7 +119,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private readonly connectedTabTextWidths = new LRUCache<string, number>(256);
 	private addTabContainer: HTMLElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
-	private connectedTabBounds: { tab: HTMLElement; overflowEdge: HTMLElement; fillLeft: number; fillRight: number; viewportLeft: number; viewportRight: number; clippingEdgeExtent: number; shoulderExtent: number } | undefined;
+	private connectedTabBounds: IConnectedTabBounds | undefined;
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
@@ -853,7 +854,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private invalidateConnectedTabLayout(): void {
-		if (this.connectedTabBounds || this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs')) {
+		if (this.connectedTabBounds || this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			this.clearConnectedTabClipping();
 			this.layout(this.dimensions);
 		}
@@ -1828,7 +1829,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Label
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		let suffix: string | undefined;
-		if (name && resource && name === basename(resource) && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs') && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
+		if (name && resource && name === basename(resource) && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
 			const extension = extname(resource);
 			if (extension.length > 1) {
 				suffix = extension;
@@ -2065,7 +2066,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabs(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
-		const connected = Boolean(this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs'));
+		const connected = Boolean(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR));
 		this.parent.classList.toggle('connected-tabs-labels', connected);
 		if (connected !== this.connectedTabLabels) {
 			this.connectedTabLabels = connected;
@@ -2078,13 +2079,30 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
-		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		const tabs = Array.from(assertReturnsDefined(this.tabsContainer).children).filter(isHTMLElement);
-		const bottom = tabs.at(-1)?.offsetTop;
-		const upperTabBar = this.parent.classList.contains('two-tab-bars') && this.parent.firstElementChild === this.tabsAndActionsContainer;
-		for (const tab of tabs) {
-			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
+		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
+		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		if (connected && tabsWrapMultiLine !== didTabsWrapMultiLine) {
+			this.layoutConnectedTabLabels(connected);
+			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {
+				this.doLayoutTabsWrapping(dimensions, true);
+				this.layoutConnectedTabLabels(connected);
+				tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions, true);
+			} else {
+				tabsWrapMultiLine = remeasuredTabsWrapMultiLine;
+			}
 		}
+		const top = this.getTabAtIndex(0)?.offsetTop;
+		const bottom = this.getLastTab()?.offsetTop;
+		const firstVisibleTabBar = Array.from(this.parent.children)
+			.filter(isHTMLElement)
+			.find(element => element.classList.contains('tabs-and-actions-container') && !element.classList.contains('empty'));
+		const topTabBar = firstVisibleTabBar === this.tabsAndActionsContainer;
+		const upperTabBar = this.parent.classList.contains('two-tab-bars') && topTabBar;
+		this.forEachTab((_editor, _index, tab) => {
+			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
+			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
+		});
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
 		} else {
@@ -2094,19 +2112,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private layoutConnectedTabLabels(connected: boolean): void {
-		const tabs = Array.from(assertReturnsDefined(this.tabsContainer).children).filter(isHTMLElement);
 		// Restore intrinsic icon widths before measuring so wider tabs can recover after a resize.
-		for (const tab of tabs) {
+		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.remove('connected-tab-narrow');
-		}
+		});
 		const minimumWidths = new Map<HTMLElement, number>();
-		for (const [index, tab] of tabs.entries()) {
+		this.forEachTab((_editor, index, tab, tabLabelWidget) => {
 			if (!connected || tab.classList.contains('sticky-compact')) {
 				tab.style.removeProperty('--connected-tab-min-width');
 				tab.style.removeProperty('--connected-tab-min-name-width');
-				continue;
+				return;
 			}
-			const label = assertReturnsDefined(this.tabResourceLabels.get(index)).element;
+			const label = tabLabelWidget.element;
 			// IconLabel owns these private nodes; use their rendered fonts for text measurement.
 			// eslint-disable-next-line no-restricted-syntax
 			const name = label.querySelector<HTMLElement>('.label-name')!;
@@ -2128,7 +2145,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const minimum = Math.ceil(nameWidth + badgeWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 2;
 			tab.style.setProperty('--connected-tab-min-name-width', `${Math.ceil(minimumNameWidth)}px`);
 			minimumWidths.set(tab, minimum);
-		}
+		});
 		for (const [tab, minimum] of minimumWidths) {
 			if (tab.style.getPropertyValue('--connected-tab-min-width') !== `${minimum}px`) {
 				tab.style.setProperty('--connected-tab-min-width', `${minimum}px`);
@@ -2155,7 +2172,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return width;
 	}
 
-	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
+	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
@@ -2186,8 +2203,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}
 
+		if (forceTabsWrapMultiLine !== undefined) {
+			updateTabsWrapping(forceTabsWrapMultiLine);
+		}
+
 		// Setting enabled: selectively enable wrapping if possible
-		if (this.groupsView.partOptions.wrapTabs) {
+		else if (this.groupsView.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
 			const lastTabFitsWrapped = () => {
@@ -2360,14 +2381,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.clearConnectedTabClipping();
 		const activeTabFill = activeTab?.firstElementChild;
 		const overflowEdge = this.connectedTabOverflowEdge;
-		if (activeTab && !activeTab.classList.contains('connected-tab-upper-row') && isHTMLElement(activeTabFill) && overflowEdge && !activeTabPositionStatic && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs')) {
+		if (activeTab && !activeTab.classList.contains('connected-tab-upper-row') && isHTMLElement(activeTabFill) && overflowEdge && !activeTabPositionStatic && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			// DOM bounds reflect native scroll clamping before the custom scrollbar dimensions update.
 			const scrollLeft = tabsContainer.scrollLeft;
 			const tabsBounds = tabsContainer.getBoundingClientRect();
 			const fillBounds = activeTabFill.getBoundingClientRect();
 			const scrollableBounds = tabsScrollbar.getDomNode().getBoundingClientRect();
 			const targetWindow = getWindow(activeTabFill);
-			const fillStyle = targetWindow.getComputedStyle(activeTabFill);
 			const fillLeft = fillBounds.left - tabsBounds.left + scrollLeft;
 			const viewportRight = visibleTabsWidth - (this.addTabContainer?.offsetWidth ?? 0);
 			overflowEdge.style.top = `${fillBounds.top - scrollableBounds.top}px`;
@@ -2381,7 +2401,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				fillRight: fillBounds.right - tabsBounds.left + scrollLeft,
 				viewportLeft: stickyTabsWidth,
 				viewportRight,
-				clippingEdgeExtent: Number.parseFloat(fillStyle.borderTopLeftRadius),
 				shoulderExtent: Number.parseFloat(targetWindow.getComputedStyle(activeTabFill, '::after').width),
 			};
 		}
@@ -2492,43 +2511,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private clearConnectedTabClipping(): void {
-		if (this.connectedTabBounds) {
-			const { tab } = this.connectedTabBounds;
-			tab.classList.remove('connected-tab-left-edge', 'connected-tab-right-edge', 'connected-tab-left-clipped', 'connected-tab-right-clipped', 'connected-tab-hidden');
-			this.connectedTabBounds = undefined;
-		}
-
-		if (this.connectedTabOverflowEdge) {
-			this.connectedTabOverflowEdge.style.removeProperty('top');
-			this.connectedTabOverflowEdge.style.removeProperty('right');
-			this.connectedTabOverflowEdge.style.removeProperty('bottom');
-			this.connectedTabOverflowEdge.style.removeProperty('left');
-			this.connectedTabOverflowEdge.classList.remove('connected-tab-left-clipped', 'connected-tab-right-clipped');
-		}
+		clearConnectedTabClipping(this.connectedTabBounds?.tab, this.connectedTabOverflowEdge);
+		this.connectedTabBounds = undefined;
 	}
 
 	private updateConnectedTabClipping(scrollLeft: number): void {
-		if (!this.connectedTabBounds) {
-			return;
+		if (this.connectedTabBounds) {
+			updateConnectedTabClipping(this.connectedTabBounds, scrollLeft);
 		}
-
-		const { tab, overflowEdge, fillLeft, fillRight, viewportLeft, viewportRight, clippingEdgeExtent, shoulderExtent } = this.connectedTabBounds;
-		const visibleLeft = scrollLeft + viewportLeft;
-		const visibleRight = scrollLeft + viewportRight;
-		const visibleFillLeft = Math.max(fillLeft, visibleLeft);
-		const visibleFillRight = Math.min(fillRight, visibleRight);
-		const leftClipped = fillLeft < visibleLeft;
-		const rightClipped = fillRight > visibleRight;
-		const leftEdge = fillLeft - shoulderExtent < visibleLeft;
-		const rightEdge = fillRight + shoulderExtent > visibleRight;
-		const hidden = visibleFillLeft + clippingEdgeExtent >= visibleFillRight;
-		tab.classList.toggle('connected-tab-left-edge', leftEdge);
-		tab.classList.toggle('connected-tab-right-edge', rightEdge);
-		tab.classList.toggle('connected-tab-left-clipped', leftClipped);
-		tab.classList.toggle('connected-tab-right-clipped', rightClipped);
-		tab.classList.toggle('connected-tab-hidden', hidden);
-		overflowEdge.classList.toggle('connected-tab-left-clipped', leftClipped && !hidden);
-		overflowEdge.classList.toggle('connected-tab-right-clipped', rightEdge && !hidden);
 	}
 
 	private updateTabsControlVisibility(): void {

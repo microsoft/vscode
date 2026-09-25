@@ -371,6 +371,7 @@ export interface IEditorTabBarFixtureOptions {
 	readonly headerMenuIds?: IEditorGroupMenuIds;
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
 	readonly forcedHoverTab?: number;
+	readonly forcedHoverTabAction?: number;
 	readonly focusedTabAction?: number;
 	readonly editorContents?: string;
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
@@ -590,6 +591,9 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	}
 	if (options.forcedHoverTab !== undefined) {
 		tabs[options.forcedHoverTab]?.classList.add('fixture-hover');
+	}
+	if (options.forcedHoverTabAction !== undefined) {
+		tabs[options.forcedHoverTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label')?.classList.add('fixture-action-hover');
 	}
 	if (options.focusedTabAction !== undefined) {
 		const action = tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label');
@@ -826,6 +830,15 @@ function renderWrappedConnectedSurface(activeTabIndex: number, forcedHoverTab?: 
 	});
 }
 
+function renderWrappedConnectedCloseActionHover(activeTabIndex: number): (ctx: ComponentFixtureContext) => void {
+	return renderConnectedSurface(activeTabIndex, activeTabIndex, undefined, {
+		width: 820,
+		editors: manyEditorSpecs().slice(0, 10).map((spec, index) => ({ ...spec, dirty: false, active: index <= activeTabIndex })),
+		partOptions: { wrapTabs: true, editorActionsLocation: 'hidden' },
+		forcedHoverTabAction: activeTabIndex,
+	});
+}
+
 const connectedSurfaceThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
@@ -863,6 +876,34 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			}),
 			expectedVisualDescriptions: ['Hover reveals the inactive close without covering its ellipsized basename or extension.'],
 		}),
+		SingleTab: defineComponentFixture({
+			render: renderConnectedSurface(0, undefined, undefined, {
+				editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
+				partOptions: { editorActionsLocation: 'hidden' },
+			}),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The single connected tab retains the same close-button spacing and visible cap width as an active tab beside another tab. Its terminal shoulder turns into the document well without crowding the action.'],
+		}),
+		SingleTabCloseActionHovered: defineComponentFixture({
+			render: renderConnectedSurface(0, 0, undefined, {
+				editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
+				partOptions: { editorActionsLocation: 'hidden' },
+				forcedHoverTabAction: 0,
+			}),
+			expectedVisualDescriptions: ['The close action hover background has even inset spacing on every side and remains separated from the single tab terminal shoulder.'],
+		}),
+		LastTabCloseActionHovered: defineComponentFixture({
+			render: renderConnectedSurface(3, 3, undefined, {
+				editors: [
+					{ resource: file('/project/README.md'), pinned: true },
+					{ resource: file('/project/src/app/main.ts'), pinned: true },
+					{ resource: file('/project/src/app/styles.css'), pinned: true },
+					{ resource: file('/project/package.json'), pinned: true, active: true },
+				],
+				forcedHoverTabAction: 3,
+			}),
+			expectedVisualDescriptions: ['The last tab close action hover background has the same even inset spacing as the single-tab state and remains separated from the terminal shoulder.'],
+		}),
 		NarrowWindow: defineComponentFixture({
 			render: renderConnectedSurface(0, undefined, undefined, {
 				width: 420,
@@ -881,6 +922,14 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			render: renderWrappedConnectedSurface(9),
 			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: ['The selected tab in the bottom wrapped row connects directly to the document well with curved shoulders and no bottom gap, just like a single row. The adjacent inactive tab also reaches the well boundary. Upper-row tabs retain separate rounded pills.'],
+		}),
+		UpperWrappedCloseActionHovered: defineComponentFixture({
+			render: renderWrappedConnectedCloseActionHover(0),
+			expectedVisualDescriptions: ['The upper-row pill close action hover background has even inset spacing on every side and remains separated from the pill edge.'],
+		}),
+		BottomWrappedCloseActionHovered: defineComponentFixture({
+			render: renderWrappedConnectedCloseActionHover(9),
+			expectedVisualDescriptions: ['The bottom-row connected tab close action hover background has even inset spacing on every side and remains separated from the terminal shoulder.'],
 		}),
 		UpperWrappedHover: defineComponentFixture({
 			render: renderWrappedConnectedSurface(9, 1),

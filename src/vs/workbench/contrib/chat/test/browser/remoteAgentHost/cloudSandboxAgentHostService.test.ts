@@ -4,25 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { InitialAuthenticationError } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import {
 	CloudSandboxEnabledSettingId,
 	cloudSandboxAddress,
 	ICloudSandboxApiService,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
+	type ICloudSandboxConnectOptions,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionObserver, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../../browser/remoteAgentHost/cloudSandboxAgentHostService.js';
+import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 function clientToken(sealed: string | undefined): ICloudSandboxClientToken {
 	return {
@@ -43,18 +51,29 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 
 	/** The sealed token as it stood when minting finished. */
 	sealedTokenAtEstablish: string | undefined;
+	connectThroughFactory = false;
 
-	protected override async _establish(_options: never, address: string, clientToken: { encrypted_github_token?: string }): Promise<string> {
+	protected override async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		this.sealedTokenAtEstablish = clientToken.encrypted_github_token;
-		return address;
+		return this.connectThroughFactory ? super._establish(options, address, clientToken, token) : address;
 	}
 }
 
-type ScriptedConnectResult = CloudSandboxConnectResult | Error;
+type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
-function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[]): { service: TestCloudSandboxAgentHostService; connectCalls: () => number } {
+function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[]) {
 	let calls = 0;
+	let factory: IRemoteAgentHostConnectionFactory | undefined;
+	let observer: RemoteAgentHostConnectionObserver | undefined;
+	let info: IRemoteAgentHostConnectionInfo | undefined;
+	const started = new DeferredPromise<void>();
+	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+	const events: { eventName: string; data?: ITelemetryData }[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
+	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
+		override publicLog2(eventName: string, data?: ITelemetryData): void { events.push({ eventName, data }); }
+	}()));
+	instantiationService.stub(ICloudSandboxTelemetryService, telemetry);
 
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
@@ -69,14 +88,37 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			if (result instanceof Error) {
 				throw result;
 			}
-			return result;
+			return typeof result === 'function' ? result() : result;
 		}
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
-		override readonly connections = [];
-		override getConnection() { return undefined; }
-		override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) { return { dispose() { } }; }
+		override get connections() { return info ? [info] : []; }
+		override getConnection() { return info?.status.kind === 'connected' ? new class extends mock<IAgentConnection>() { }() : undefined; }
+		override registerConnectionFactory(value: IRemoteAgentHostConnectionFactory) {
+			factory = value;
+			return { dispose: () => observer?.('disposed') };
+		}
+		override reconnect(address: string): void {
+			if (info?.status.kind === 'reconnecting') {
+				ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+				info = { ...info, status: RemoteAgentHostConnectionStatus.connecting };
+				observer?.('connecting');
+			}
+			if (!observer) {
+				const entry = factory?.entries.get()[0];
+				assert.ok(entry);
+				observer = factory?.getConnectionObserver?.(entry);
+				observer?.('connecting');
+				info = { address, name: 'Sandbox', status: RemoteAgentHostConnectionStatus.connecting };
+				started.complete();
+			}
+		}
+		override waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { return ready.p; }
+		override async removeRemoteAgentHost(): Promise<void> {
+			observer?.('disposed');
+			info = undefined;
+		}
 	}());
 	instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
 		override readonly logsHome = URI.file('/logs');
@@ -86,10 +128,27 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
 		connectCalls: () => calls,
+		events,
+		started: started.p,
+		setState(state: 'reconnecting' | 'connected'): void {
+			assert.ok(info);
+			info = { ...info, status: state === 'connected' ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.reconnecting };
+			observer?.(state);
+		},
+		settle(error?: Error): void {
+			assert.ok(info);
+			info = { ...info, status: error ? RemoteAgentHostConnectionStatus.disconnected : RemoteAgentHostConnectionStatus.connected };
+			if (error) {
+				ready.error(error);
+			} else {
+				observer?.('connected');
+				ready.complete(info);
+			}
+		},
 	};
 }
 
-suite('CloudSandboxAgentHostService sealed token', () => {
+suite('CloudSandboxAgentHostService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -107,6 +166,155 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 			calls: 3,
 			sealed: 'copilot-sealed.v1.key.payload',
 		});
+	});
+
+	suite('connection telemetry', () => {
+		const options: ICloudSandboxConnectOptions = { environmentId: 'env-1', name: 'Sandbox' };
+		const sealedToken: CloudSandboxConnectResult = { kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') };
+
+		test('includes waking and credential waiting through AHP readiness, and excludes ready reuse', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [
+				async () => {
+					await timeout(1000);
+					return { kind: 'waking', waking: { retryAfterSeconds: 2 } };
+				},
+				{ kind: 'token', token: clientToken(undefined) },
+				async () => {
+					await timeout(1000);
+					return sealedToken;
+				},
+			]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = fixture.service.connect(options, CancellationToken.None);
+			await fixture.started;
+			await timeout(5000);
+			fixture.settle();
+			await connecting;
+			await fixture.service.connect(options, CancellationToken.None);
+			fixture.service.dispose();
+			assert.deepStrictEqual({ calls: fixture.connectCalls(), events: fixture.events }, {
+				calls: 3,
+				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 9000 } }],
+			});
+		}));
+
+		test('overlapping callers and duplicate completion do not multiply a physical connect', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken]);
+			fixture.service.connectThroughFactory = true;
+			const first = fixture.service.connect(options, CancellationToken.None);
+			const second = fixture.service.connect(options, CancellationToken.None);
+			await fixture.started;
+			await timeout(3000);
+			fixture.settle();
+			await Promise.all([first, second]);
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 3000 } },
+			]);
+		}));
+
+		test('a failed credential request joining recovery does not discard the ongoing outage or healthy exposure', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken, new Error('mint failed')]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = fixture.service.connect(options, CancellationToken.None);
+			await fixture.started;
+			fixture.settle();
+			await connecting;
+			await timeout(1000);
+			fixture.setState('reconnecting');
+			await timeout(1000);
+			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
+			await timeout(2000);
+			fixture.setState('connected');
+			await timeout(1000);
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'recover', outcome: 'success', stage: 'connection', durationMs: 3000 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+			]);
+		}));
+
+		test('a failed redial joining recovery is a failure, not a cleanup cancellation', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = fixture.service.connect(options, CancellationToken.None);
+			await fixture.started;
+			fixture.settle();
+			await connecting;
+			await timeout(1000);
+			fixture.setState('reconnecting');
+			await timeout(1000);
+			const redial = assert.rejects(fixture.service.connect(options, CancellationToken.None));
+			await timeout(1000);
+			fixture.settle(new Error('dial failed'));
+			await redial;
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+			]);
+		}));
+
+		test('reports a mint failure before any protocol client is created', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [async () => {
+				await timeout(1700);
+				throw new Error('private request details must not escape');
+			}]);
+			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700 } },
+			]);
+		}));
+
+		test('reports an authentication failure before cleanup can relabel it as cancellation', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = assert.rejects(fixture.service.connect(options, CancellationToken.None), InitialAuthenticationError);
+			await fixture.started;
+			await timeout(2400);
+			fixture.settle(new InitialAuthenticationError(new Error('private token details')));
+			await connecting;
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'failure', stage: 'connection', durationMs: 2400 } },
+			]);
+		}));
+
+		test('cancellation while waiting for credentials wins over a late token', () => runWithFakedTimers({}, async () => {
+			const minted = new DeferredPromise<CloudSandboxConnectResult>();
+			const fixture = createService(store, [() => minted.p]);
+			fixture.service.connectThroughFactory = true;
+			const cts = store.add(new CancellationTokenSource());
+			const connecting = assert.rejects(fixture.service.connect(options, cts.token), isCancellationError);
+			await timeout(1100);
+			cts.cancel();
+			await timeout(900);
+			minted.complete(sealedToken);
+			await connecting;
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 1100 } },
+			]);
+		}));
+
+		test('cancellation of a pending handshake ignores late readiness callbacks', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken]);
+			fixture.service.connectThroughFactory = true;
+			const cts = store.add(new CancellationTokenSource());
+			const connecting = assert.rejects(fixture.service.connect(options, cts.token), isCancellationError);
+			await fixture.started;
+			await timeout(1200);
+			cts.cancel();
+			fixture.settle();
+			await connecting;
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'cancelled', stage: 'connection', durationMs: 1200 } },
+			]);
+		}));
 	});
 
 	test('gives up re-minting and connects anyway, since a host may never seal one', async () => {

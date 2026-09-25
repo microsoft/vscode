@@ -12,14 +12,15 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IQueryOptions, mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
@@ -32,7 +33,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { ConfigureModelAccessAction, DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction, getContextMenuActions, RestartServerAction, ShowSamplingRequestsAction, ShowServerOutputAction, StartServerAction, StopServerAction } from '../../../../contrib/mcp/browser/mcpServerActions.js';
@@ -59,13 +60,16 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
+import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { asTreeRenderer, CustomizationListLayout, CustomizationTreeTabs, getCustomizationListLayout, getSelectedCustomizationGroup, ICustomizationTreeGroup } from './customizationTree.js';
+import { CustomizationToggle } from './customizationToggle.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -74,7 +78,7 @@ const $ = DOM.$;
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 const MCP_INSTALLED_ITEM_HEIGHT = 44;
 const MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION = 58;
-const MCP_MARKETPLACE_ITEM_HEIGHT = 66;
+const MCP_MARKETPLACE_ITEM_HEIGHT = 58;
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -139,14 +143,18 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 	return !hiddenCollectionIds?.includes(collectionId);
 }
 
-type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
+export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
 
 interface IMcpMarketplaceEntry {
 	readonly type: 'marketplace-item';
 	readonly server: IWorkbenchMcpServer;
 }
 
-type IMcpSectionEntry = IMcpInstalledEntry | IMcpMarketplaceEntry;
+interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
+	readonly group: string;
+}
+
+type IMcpSectionEntry = IMcpGroupHeaderEntry | IMcpInstalledEntry | IMcpMarketplaceEntry;
 
 interface IMcpSectionList {
 	readonly list: WorkbenchList<IMcpSectionEntry>;
@@ -160,16 +168,33 @@ class McpSectionDelegate implements IListVirtualDelegate<IMcpSectionEntry> {
 	constructor(private readonly getInstalledHeight: (element: IMcpInstalledEntry) => number) { }
 
 	getHeight(element: IMcpSectionEntry): number {
+		if (element.type === 'group-header') {
+			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+		}
 		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : this.getInstalledHeight(element);
 	}
 
 	getTemplateId(element: IMcpSectionEntry): string {
+		if (element.type === 'group-header') {
+			return 'mcpGroupHeader';
+		}
 		return element.type === 'marketplace-item' ? 'mcpMarketplaceItem' : 'mcpServerItem';
 	}
 }
 
-interface IMcpInstalledPresentation {
+export interface IMcpInstalledPresentation {
 	readonly entry: IMcpInstalledEntry;
+}
+
+export function preserveMcpEntryOrder(entries: readonly IMcpInstalledPresentation[], order: Map<string, number>): IMcpInstalledPresentation[] {
+	let nextOrder = order.size;
+	for (const { entry } of entries) {
+		const key = getMcpRowKey(entry);
+		if (!order.has(key)) {
+			order.set(key, nextOrder++);
+		}
+	}
+	return [...entries].sort((left, right) => order.get(getMcpRowKey(left.entry))! - order.get(getMcpRowKey(right.entry))!);
 }
 
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
@@ -205,7 +230,6 @@ interface IMcpServerItemTemplateData {
 	/** What the actions currently show, so an unchanged status does not rebuild them. */
 	renderedStatusSignature?: string;
 	currentElement?: IMcpInstalledEntry;
-	currentIndex: number;
 }
 
 /**
@@ -220,7 +244,7 @@ interface IMcpServerItemTemplateData {
 export class McpServerItemRenderer extends Disposable implements IListRenderer<IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 	private readonly _templates = new Set<IMcpServerItemTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedRowKey: string | undefined;
 
 	constructor(
 		private readonly _renderManagementActions: (getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => void,
@@ -268,18 +292,16 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
 			actionDisposables: new DisposableStore(),
-			currentIndex: -1,
 		};
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
-		this.renderEntry(element, index, templateData);
+	renderElement(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, _index: number, templateData: IMcpServerItemTemplateData): void {
+		this.renderEntry(element, templateData);
 	}
 
-	private renderEntry(element: IMcpInstalledEntry, index: number, templateData: IMcpServerItemTemplateData): void {
-		templateData.currentIndex = index;
+	private renderEntry(element: IMcpInstalledEntry, templateData: IMcpServerItemTemplateData): void {
 		templateData.currentElement = element;
 		// Tearing down the actions is what makes a click land on a node that is about to be
 		// replaced, so only do it when this template starts showing a different row. Whether the
@@ -325,7 +347,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			templateData.sourcePath.removeAttribute('href');
 			templateData.sourcePath.removeAttribute('aria-label');
 		}
-		templateData.sourcePath.tabIndex = source?.open && index === this._focusedIndex ? 0 : -1;
+		templateData.sourcePath.tabIndex = source?.open && rowKey === this._focusedRowKey ? 0 : -1;
 		this.renderDescription(templateData, element);
 
 		if (element.type === 'builtin-item') {
@@ -496,16 +518,17 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		this.updateActionsTabbability(templateData);
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedRowKey(rowKey: string | undefined): void {
+		this._focusedRowKey = rowKey;
 		for (const template of this._templates) {
 			this.updateActionsTabbability(template);
 		}
 	}
 
 	private updateActionsTabbability(templateData: IMcpServerItemTemplateData): void {
-		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentIndex === this._focusedIndex);
-		templateData.sourcePath.tabIndex = templateData.sourcePath.classList.contains('source-link') && templateData.currentIndex === this._focusedIndex ? 0 : -1;
+		const focused = templateData.currentElement !== undefined && getMcpRowKey(templateData.currentElement) === this._focusedRowKey;
+		setVirtualizedRowActionsTabbable(templateData.actions, focused);
+		templateData.sourcePath.tabIndex = templateData.sourcePath.classList.contains('source-link') && focused ? 0 : -1;
 	}
 
 	private renderDescription(template: IMcpServerItemTemplateData, element: IMcpInstalledEntry): void {
@@ -528,7 +551,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		templateData.descriptionHover.update('');
 		templateData.description.textContent = '';
 		templateData.currentElement = undefined;
-		templateData.currentIndex = -1;
 	}
 
 	disposeTemplate(templateData: IMcpServerItemTemplateData): void {
@@ -547,13 +569,13 @@ interface IMcpMarketplaceItemTemplateData {
 	readonly installButton: Button;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposables: DisposableStore;
-	currentIndex: number;
+	currentServerId: string | undefined;
 }
 
 class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, IMcpMarketplaceItemTemplateData> {
 	readonly templateId = 'mcpMarketplaceItem';
 	private readonly _templates = new Set<IMcpMarketplaceItemTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedServerId: string | undefined;
 
 	constructor(
 		private readonly _install: (server: IWorkbenchMcpServer, button: Button) => Promise<void>,
@@ -565,39 +587,40 @@ class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, 
 		const name = DOM.append(DOM.append(details, $('.plugin-list-item-name-row')), $('.plugin-list-item-name'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, defaultButtonStyles);
+		const installButton = new Button(actionContainer, { ...defaultButtonStyles, secondary: true });
 		installButton.element.classList.add('plugin-list-item-install-button');
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(installButton.element, event => DOM.EventHelper.stop(event, true)));
-		const template = { container, name, description, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentIndex: -1 };
+		const template = { container, name, description, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentServerId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(element: IMcpMarketplaceEntry, index: number, templateData: IMcpMarketplaceItemTemplateData): void {
+	renderElement(element: IMcpMarketplaceEntry, _index: number, templateData: IMcpMarketplaceItemTemplateData): void {
 		templateData.elementDisposables.clear();
-		templateData.currentIndex = index;
+		templateData.currentServerId = element.server.id;
 		templateData.name.textContent = element.server.label;
 		templateData.description.textContent = truncateToFirstLine(element.server.description || localize('mcpNoDescription', "No description provided."));
 		templateData.installButton.label = localize('install', "Install");
 		templateData.installButton.enabled = true;
-		templateData.installButton.element.tabIndex = index === this._focusedIndex ? 0 : -1;
+		templateData.installButton.element.tabIndex = element.server.id === this._focusedServerId ? 0 : -1;
 		templateData.elementDisposables.add(templateData.installButton.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
 			void this._install(element.server, templateData.installButton);
 		}));
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedServerId(serverId: string | undefined): void {
+		this._focusedServerId = serverId;
 		for (const template of this._templates) {
-			template.installButton.element.tabIndex = template.currentIndex === index ? 0 : -1;
+			template.installButton.element.tabIndex = template.currentServerId === serverId ? 0 : -1;
 		}
 	}
 
 	disposeElement(_element: IMcpMarketplaceEntry, _index: number, templateData: IMcpMarketplaceItemTemplateData): void {
 		templateData.elementDisposables.clear();
+		templateData.currentServerId = undefined;
 	}
 
 	disposeTemplate(templateData: IMcpMarketplaceItemTemplateData): void {
@@ -789,7 +812,7 @@ function resolveMcpEntry(entry: IMcpInstalledEntry, customizations: IAgentHostCu
  * Which row a template is currently showing. List entries are recreated on every refresh, so
  * object identity says nothing about whether this is still the same server in the same place.
  */
-function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
+export function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
 	switch (entry.type) {
 		case 'server-item':
 			return `server:${entry.server.id}:${entry.marketplace ? 1 : 0}`;
@@ -798,6 +821,19 @@ function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | 
 		case 'builtin-item':
 			return `builtin:${entry.id}`;
 	}
+}
+
+export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace' | 'plugins' | 'extensions' | 'builtin' {
+	if (entry.type === 'server-item') {
+		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
+	}
+	if (entry.type === 'builtin-item' && entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+		return 'plugins';
+	}
+	if (entry.type === 'builtin-item' && entry.extensionId) {
+		return 'extensions';
+	}
+	return 'builtin';
 }
 
 /** Everything the status actions of a row are built from: what they show, and what they act on. */
@@ -1382,6 +1418,9 @@ export class McpListWidget extends Disposable {
 	private cardScrollable!: DomScrollableElement;
 	private cardScrollableNode!: HTMLElement;
 	private sectionLayoutContainer: HTMLElement | undefined;
+	private treeTabs!: CustomizationTreeTabs;
+	private listContainer!: HTMLElement;
+	private list!: WorkbenchObjectTree<IMcpSectionEntry>;
 	private emptyContainer!: HTMLElement;
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
@@ -1393,30 +1432,29 @@ export class McpListWidget extends Disposable {
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
+	private readonly installedEntryOrder = new Map<string, number>();
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
+	private selectedGroupKey: string | undefined;
+	private currentTreeGroups: readonly ICustomizationTreeGroup<IMcpSectionEntry>[] = [];
 	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
 	private gallerySearchLoading = false;
 	private visible = false;
 	private mcpAccessEnabled = false;
 	private firstCardFocusElement: HTMLElement | undefined;
-	private availableSection: HTMLElement | undefined;
 	private narrowLayout = false;
 	private wideLayout = false;
 	private lastHeight: number = 0;
 	private lastWidth: number = 0;
 	private lastHeaderHeight = 0;
 	private _layoutDeferred = false;
-	private readonly revealLastItemScheduler = this._register(new MutableDisposable());
-	private readonly sectionScrollPositions = new Map<string, number>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 	private sectionLists: IMcpSectionList[] = [];
-	private collapsedSections: Set<string> | undefined = new Set<string>();
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
@@ -1432,6 +1470,7 @@ export class McpListWidget extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1440,7 +1479,7 @@ export class McpListWidget extends Disposable {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
@@ -1456,6 +1495,9 @@ export class McpListWidget extends Disposable {
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
 		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			if (this.isGalleryDiscoveryEnabled()) {
+				return;
+			}
 			this.galleryCts?.dispose(true);
 			this.galleryCts = undefined;
 			this.gallerySnapshotServers = [];
@@ -1468,11 +1510,28 @@ export class McpListWidget extends Disposable {
 				void this.refresh();
 			}
 		}));
-		void mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!this.isGalleryDiscoveryEnabled()) {
+			void mcpGalleryManifestService.getMcpGalleryManifest();
+		}
 		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				this.galleryCts?.dispose(true);
+				this.galleryCts = undefined;
+				this.delayedGallerySearch.cancel();
+				this.gallerySnapshotServers = [];
+				this.galleryServers = [];
+				this.gallerySnapshotFailed = false;
+				this.gallerySnapshotLoading = false;
+				this.gallerySearchLoading = false;
+				void this.refresh();
+			}
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsListLayout)) {
+				this.renderMcpTree();
+				this.layout(this.lastHeight, this.lastWidth);
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
@@ -1551,7 +1610,7 @@ export class McpListWidget extends Disposable {
 				? this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query))
 				: [...this.gallerySnapshotServers];
 			this.delayedFilter.trigger(() => this.filterServers());
-			if (!this.mcpAccessEnabled) {
+			if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 				this.gallerySearchLoading = false;
 				this.delayedGallerySearch.cancel();
 				return;
@@ -1566,6 +1625,12 @@ export class McpListWidget extends Disposable {
 					this.delayedGallerySearch.trigger(() => this.queryGallerySnapshot());
 				}
 			}
+		}));
+
+		this.treeTabs = this._register(new CustomizationTreeTabs(this.element, localize('mcpServerGroups', "MCP Server Groups")));
+		this._register(this.treeTabs.onDidSelect(groupKey => {
+			this.selectedGroupKey = groupKey;
+			this.renderMcpTree();
 		}));
 
 		// Empty state
@@ -1602,6 +1667,75 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
+		this.listContainer = DOM.append(this.element, $('.mcp-list-container.customization-tree-container'));
+		const delegate = new McpSectionDelegate(entry => {
+			const description = entry.type === 'server-item' ? entry.server.description?.trim() : entry.type === 'builtin-item' ? entry.description : undefined;
+			const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
+			return description && source ? MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION : MCP_INSTALLED_ITEM_HEIGHT;
+		});
+		const groupRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>(
+			'mcpGroupHeader',
+			this.hoverService,
+			(entry, container, disposables) => this.renderMcpTreeGroupActions(entry, container, disposables),
+		);
+		const itemRenderer = this._register(this.instantiationService.createInstance(
+			McpServerItemRenderer,
+			(getEntry, actions, disposables, updateTabbability) => this.renderMcpListActions(getEntry, actions, disposables, updateTabbability),
+			(entry, reader) => this.getMcpServerCompatibilityKind(entry, reader),
+			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
+		));
+		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
+		this.list = this._register(this.instantiationService.createInstance(
+			WorkbenchObjectTree<IMcpSectionEntry>,
+			'McpManagementTree',
+			this.listContainer,
+			delegate,
+			[
+				asTreeRenderer(groupRenderer),
+				asTreeRenderer(itemRenderer),
+				asTreeRenderer(marketplaceRenderer),
+			],
+			{
+				indent: 8,
+				hideTwistiesOfChildlessElements: false,
+				multipleSelectionSupport: false,
+				setRowLineHeight: false,
+				horizontalScrolling: false,
+				accessibilityProvider: {
+					getAriaLabel: entry => {
+						if (entry.type === 'group-header') {
+							return localize('mcpGroupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+						}
+						return entry.type === 'marketplace-item'
+							? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
+							: this.getMcpEntryAriaLabel(entry);
+					},
+					getWidgetAriaLabel: () => localize('mcpServersListAriaLabel', "MCP Servers"),
+				},
+				openOnSingleClick: true,
+				identityProvider: { getId: entry => this.getMcpTreeEntryId(entry) },
+			},
+		));
+		this._register(this.list.onDidOpen(event => {
+			const entry = event.element;
+			if (!entry || entry.type === 'group-header') {
+				return;
+			}
+			this._onDidSelectServer.fire(entry.type === 'marketplace-item'
+				? createWorkbenchMcpServerDetailInput(entry.server)
+				: this.createInstalledMcpServerDetailInput(entry));
+		}));
+		this._register(this.list.onContextMenu(event => {
+			if (event.element && event.element.type !== 'group-header' && event.element.type !== 'marketplace-item') {
+				this.showMcpServerActions(event.element, event.anchor);
+			}
+		}));
+		this._register(this.list.onDidChangeFocus(event => {
+			const entry = event.elements[0];
+			itemRenderer.setFocusedRowKey(entry && entry.type !== 'group-header' && entry.type !== 'marketplace-item' ? getMcpRowKey(entry) : undefined);
+			marketplaceRenderer.setFocusedServerId(entry?.type === 'marketplace-item' ? entry.server.id : undefined);
+		}));
+
 		// Listen to MCP service changes
 		this._register(this.mcpWorkbenchService.onChange(() => {
 			this.refresh();
@@ -1631,9 +1765,13 @@ export class McpListWidget extends Disposable {
 
 	private async refresh(): Promise<void> {
 		this.filterServers();
-		if (shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
+		if (!this.isGalleryDiscoveryEnabled() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
+	}
+
+	private isGalleryDiscoveryEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 	}
 
 	setVisible(visible: boolean): void {
@@ -1714,7 +1852,7 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
-			if (this.searchQuery.trim()) {
+			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {
 				void this.queryMcpSearch();
 			} else {
 				void this.refresh();
@@ -1723,16 +1861,34 @@ export class McpListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
+		if (this.isGalleryDiscoveryEnabled()) {
+			return;
+		}
 		if (!this.mcpAccessEnabled) {
 			return;
 		}
 		this.searchInput.value = '';
 		this.searchQuery = '';
+		this.selectedGroupKey = 'available';
 		void this.queryGallerySnapshot(true);
 	}
 
+	private async queryLegacyGallery(options: IQueryOptions | undefined, token: CancellationToken): Promise<IWorkbenchMcpServer[]> {
+		const [active, fallback] = await Promise.all([
+			this.mcpGalleryManifestService.getMcpGalleryManifest(),
+			this.mcpGalleryManifestService.getDefaultMcpGalleryManifest(),
+		]);
+		const manifests = active && fallback && active.url !== fallback.url ? [active, fallback] : [active ?? fallback ?? undefined];
+		const pages = await Promise.allSettled((manifests[0] ? manifests : [undefined]).map(async manifest =>
+			(await this.mcpWorkbenchService.queryGallery(options, token, manifest)).firstPage.items));
+		if (pages.length && pages.every(page => page.status === 'rejected')) {
+			throw pages[0].reason;
+		}
+		return pages.flatMap(page => page.status === 'fulfilled' ? page.value : []);
+	}
+
 	private async queryGallerySnapshot(revealMarketplace = false): Promise<void> {
-		if (!this.mcpAccessEnabled) {
+		if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 			return;
 		}
 		this.galleryCts?.dispose(true);
@@ -1743,18 +1899,21 @@ export class McpListWidget extends Disposable {
 		}
 
 		try {
-			const pager = await this.mcpWorkbenchService.queryGallery(undefined, cts.token);
+			const servers = await this.queryLegacyGallery(undefined, cts.token);
 			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim()) {
 				return;
 			}
 
-			this.gallerySnapshotServers = pager.firstPage.items;
+			this.gallerySnapshotServers = servers;
 			this.galleryServers = [...this.gallerySnapshotServers];
 			this.gallerySnapshotFailed = false;
 			this.gallerySnapshotLoading = false;
 			this.renderMcpHome();
 			if (revealMarketplace) {
-				this.availableSection?.scrollIntoView({ block: 'start' });
+				const group = this.currentTreeGroups.find(group => group.id === 'available');
+				if (group && getCustomizationListLayout(this.configurationService) === CustomizationListLayout.Tree) {
+					this.list?.reveal(group.element);
+				}
 			}
 		} catch {
 			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled) {
@@ -1773,7 +1932,7 @@ export class McpListWidget extends Disposable {
 
 	private async queryMcpSearch(): Promise<void> {
 		const query = this.searchQuery.trim();
-		if (!query || !this.mcpAccessEnabled) {
+		if (!query || !this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
 			return;
 		}
 
@@ -1781,11 +1940,11 @@ export class McpListWidget extends Disposable {
 		const cts = this.galleryCts = new CancellationTokenSource();
 		this.gallerySearchLoading = true;
 		try {
-			const pager = await this.mcpWorkbenchService.queryGallery({ text: query }, cts.token);
+			const servers = await this.queryLegacyGallery({ text: query }, cts.token);
 			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim() !== query) {
 				return;
 			}
-			this.galleryServers = pager.firstPage.items;
+			this.galleryServers = servers;
 			this.searchInput.hideMessage();
 		} catch {
 			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
@@ -1803,155 +1962,11 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
-	private showCardSurface(): void {
-		this.emptyContainer.style.display = 'none';
-		this.cardScrollableNode.style.display = '';
-	}
-
-	private showEmptySurface(message: string, detail: string): void {
-		this.cardScrollableNode.style.display = 'none';
-		this.emptyContainer.style.display = 'flex';
-		this.emptyText.textContent = message;
-		this.emptySubtext.textContent = detail;
-	}
-
-	private createCardScrollContent(...classNames: string[]): HTMLElement {
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
-		content.classList.add(...classNames);
-		this.sectionLayoutContainer = classNames.includes('distributed-section-layout') ? content : undefined;
-		const resizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
-			'McpListWidget.cardScrollContent',
-			() => this.scheduleMcpSectionLayout(),
-		));
-		this.cardDisposables.add(resizeObserver.observe(content));
-		return content;
-	}
-
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
 		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
 		this.firstCardFocusElement ??= primaryAction;
 		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
 		return primaryAction;
-	}
-
-	private renderCardSection(parent: HTMLElement, title: string, description: string | undefined, className: string, count?: number, renderActions?: (header: HTMLElement) => void): HTMLElement {
-		const section = DOM.append(parent, $('.plugin-card-section'));
-		section.classList.add(className);
-		const header = DOM.append(section, $('.plugin-card-section-header'));
-		const text = DOM.append(header, $('.plugin-card-section-text'));
-		const headingRow = DOM.append(text, $('.plugin-card-section-heading-row'));
-		const heading = DOM.append(headingRow, $('h3.plugin-card-section-title'));
-		heading.textContent = title;
-		if (count !== undefined) {
-			const countElement = DOM.append(headingRow, $('.plugin-card-section-count'));
-			countElement.textContent = String(count);
-		}
-		if (description) {
-			const descriptionElement = DOM.append(text, $('.plugin-card-section-description'));
-			descriptionElement.textContent = description;
-		}
-		renderActions?.(header);
-		const list = DOM.append(section, $('.plugin-card-grid'));
-		list.dataset.virtualizedSectionKey = className;
-		const collapsedSections = this.collapsedSections ??= new Set<string>();
-		setupCollapsibleSection(
-			headingRow,
-			list,
-			title,
-			this.cardDisposables,
-			collapsedSections.has(className),
-			collapsed => {
-				if (collapsed) {
-					collapsedSections.add(className);
-				} else {
-					collapsedSections.delete(className);
-				}
-				this.scheduleMcpSectionLayout();
-			},
-		);
-		this.cardListControllers.set(list, this.cardDisposables.add(new CustomizationCardListController(list, title)));
-		return list;
-	}
-
-	private createMcpSectionList(container: HTMLElement, label: string, entries: readonly IMcpSectionEntry[]): void {
-		const key = container.dataset.virtualizedSectionKey ?? label;
-		const delegate = new McpSectionDelegate(entry => {
-			const description = entry.type === 'server-item' ? entry.server.description?.trim() : entry.type === 'builtin-item' ? entry.description : undefined;
-			const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
-			return description && source ? MCP_INSTALLED_ITEM_HEIGHT_WITH_SOURCE_AND_DESCRIPTION : MCP_INSTALLED_ITEM_HEIGHT;
-		});
-		container.style.height = `${entries.length > 0 ? delegate.getHeight(entries[0]) : MCP_INSTALLED_ITEM_HEIGHT}px`;
-		container.classList.add('virtualized-section-list');
-		this.cardListControllers.get(container)?.dispose();
-		this.cardListControllers.delete(container);
-		container.removeAttribute('role');
-		container.removeAttribute('aria-label');
-		const itemRenderer = this.cardDisposables.add(this.instantiationService.createInstance(
-			McpServerItemRenderer,
-			(getEntry, actions, disposables, updateTabbability) => this.renderMcpListActions(getEntry, actions, disposables, updateTabbability),
-			(entry, reader) => this.getMcpServerCompatibilityKind(entry, reader),
-			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
-		));
-		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
-		const list = this.cardDisposables.add(this.instantiationService.createInstance(
-			WorkbenchList<IMcpSectionEntry>,
-			`McpManagementList.${label}`,
-			container,
-			delegate,
-			[itemRenderer, marketplaceRenderer],
-			{
-				multipleSelectionSupport: false,
-				setRowLineHeight: false,
-				horizontalScrolling: false,
-				accessibilityProvider: {
-					getAriaLabel: entry => entry.type === 'marketplace-item'
-						? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
-						: this.getMcpEntryAriaLabel(entry),
-					getWidgetAriaLabel: () => label,
-					getSetSize: (_entry, _index, listLength) => listLength,
-					getPosInSet: (_entry, index) => index + 1,
-				},
-				openOnSingleClick: true,
-				identityProvider: {
-					getId: entry => entry.type === 'marketplace-item' ? `marketplace:${entry.server.id}` : getMcpRowKey(entry),
-				},
-			},
-		));
-		this.cardDisposables.add(list.onDidChangeContentHeight(() => this.scheduleMcpSectionLayout()));
-		list.splice(0, 0, entries);
-		const section: IMcpSectionList = { list, delegate, entries, container, key };
-		this.sectionLists.push(section);
-		list.scrollTop = this.sectionScrollPositions.get(key) ?? 0;
-		this.cardDisposables.add(list.onDidOpen(event => {
-			const entry = event.element;
-			if (!entry) {
-				return;
-			}
-			this._onDidSelectServer.fire(entry.type === 'marketplace-item'
-				? createWorkbenchMcpServerDetailInput(entry.server)
-				: this.createInstalledMcpServerDetailInput(entry));
-		}));
-		this.cardDisposables.add(list.onContextMenu(event => {
-			if (event.element && event.element.type !== 'marketplace-item') {
-				this.showMcpServerActions(event.element, event.anchor);
-			}
-		}));
-		this.cardDisposables.add(list.onDidChangeFocus(event => {
-			const index = event.indexes[0] ?? -1;
-			itemRenderer.setFocusedIndex(index);
-			marketplaceRenderer.setFocusedIndex(index);
-		}));
-		this.cardDisposables.add(list.onDidFocus(() => {
-			if (list.getFocus().length === 0 && entries.length > 0) {
-				list.setFocus([0]);
-			}
-		}));
-	}
-
-	private captureSectionScrollPositions(): void {
-		for (const section of this.sectionLists) {
-			this.sectionScrollPositions.set(section.key, section.list.scrollTop);
-		}
 	}
 
 	private getMcpServerCompatibilityKind(entry: IMcpInstalledEntry, reader?: IReader): CustomizationMcpServerCompatibilityKind | undefined {
@@ -2024,7 +2039,7 @@ export class McpListWidget extends Disposable {
 		}
 		const label = getMcpEntryLabel(entry);
 		let enabled = this.isInstalledEntryEnabled(entry);
-		const toggle = disposables.add(new Switch({ ariaLabel: label, checked: enabled }));
+		const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 		DOM.append(actions, toggle.domNode);
 		const update = () => {
 			const currentEntry = getEntry();
@@ -2101,73 +2116,159 @@ export class McpListWidget extends Disposable {
 		});
 	}
 
+	private renderMcpTree(): void {
+		if (!this.treeTabs || !this.list) {
+			return;
+		}
+
+		const showGallery = !this.isGalleryDiscoveryEnabled();
+		const layout = getCustomizationListLayout(this.configurationService);
+		this.element.classList.toggle('tabs-layout', layout === CustomizationListLayout.Tabs);
+		this.element.classList.toggle('tree-layout', layout === CustomizationListLayout.Tree);
+		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
+		const grouped = new Map<string, IMcpSectionEntry[]>([
+			['user', []],
+			['workspace', []],
+			['plugins', []],
+			['extensions', []],
+			['builtin', []],
+			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
+		]);
+
+		for (const entry of allInstalledEntries) {
+			grouped.get(getMcpEntryGroup(entry))!.push(entry);
+		}
+
+		const tabDefinitions = [
+			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
+			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
+			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins."), icon: Codicon.plug },
+			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
+			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
+			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
+		].filter(group => group.id === 'available'
+			? showGallery
+			: group.id === 'user' || group.id === 'workspace' || grouped.get(group.id)!.length > 0);
+		const definitions = layout === CustomizationListLayout.Tree
+			? [
+				{
+					id: 'installed',
+					label: localize('installedMcpServersSection', "Installed"),
+					description: localize('installedMcpServersSectionDescription', "MCP servers installed or provided by the active workspace, plugins, extensions, and agent host."),
+					icon: mcpServerIcon,
+				},
+				...tabDefinitions.filter(group => group.id === 'available'),
+			]
+			: tabDefinitions;
+
+		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
+			const entries = group.id === 'installed' ? allInstalledEntries : grouped.get(group.id)!;
+			const element: IMcpGroupHeaderEntry = {
+				type: 'group-header',
+				id: `mcp-group-${group.id}`,
+				group: group.id,
+				label: group.label,
+				icon: group.icon,
+				count: entries.length,
+				isFirst: index === 0,
+				description: group.description,
+				collapsed: false,
+			};
+			return {
+				id: group.id,
+				label: group.label,
+				description: group.description,
+				count: entries.length,
+				element,
+				children: entries,
+			};
+		});
+
+		this.cardScrollableNode.style.display = 'none';
+		this.cardDisposables.clear();
+		this.treeTabs.clearActions();
+		this.treeTabs.element.classList.remove('actions-only');
+		this.treeTabs.element.style.display = layout === CustomizationListLayout.Tabs ? '' : 'none';
+		if (layout === CustomizationListLayout.Tabs) {
+			const selected = getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey);
+			this.selectedGroupKey = selected?.id;
+			if (selected) {
+				this.treeTabs.setGroups(this.currentTreeGroups, selected.id);
+				if (selected.id === 'user' || selected.id === 'workspace') {
+					this.renderInstalledSectionActions(this.treeTabs.actionsElement);
+				}
+				this.list.setChildren(null, selected.children.map(element => ({ element })));
+				this.updateMcpTreeEmptyState(selected.children.length);
+			}
+		} else {
+			const children: IObjectTreeElement<IMcpSectionEntry>[] = this.currentTreeGroups.map(group => ({
+				element: group.element,
+				collapsible: true,
+				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				children: group.children.map(element => ({ element })),
+			}));
+			this.list.setChildren(null);
+			this.list.setChildren(null, children);
+			this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+		}
+	}
+
+	private updateMcpTreeEmptyState(itemCount: number): void {
+		const empty = itemCount === 0;
+		this.listContainer.style.display = empty ? 'none' : '';
+		this.emptyContainer.style.display = empty ? 'flex' : 'none';
+		if (empty) {
+			this.emptyText.textContent = this.gallerySearchLoading
+				? localize('searchingMcpMarketplace', "Searching the MCP marketplace...")
+				: this.searchQuery.trim()
+					? localize('noMatchingServers', "No servers match '{0}'", this.searchQuery)
+					: localize('noMcpServersInGroup', "No MCP servers in this group");
+			this.emptySubtext.textContent = this.gallerySearchLoading || !this.searchQuery.trim() ? '' : localize('tryDifferentSearch', "Try a different search term");
+		}
+	}
+
+	private getMcpTreeEntryId(entry: IMcpSectionEntry): string {
+		if (entry.type === 'group-header') {
+			return entry.id;
+		}
+		return entry.type === 'marketplace-item' ? `marketplace:${entry.server.id}` : getMcpRowKey(entry);
+	}
+
+	private getVisibleMcpEntries(): readonly IMcpSectionEntry[] {
+		if (getCustomizationListLayout(this.configurationService) === CustomizationListLayout.Tabs) {
+			return getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey)?.children ?? [];
+		}
+		return this.currentTreeGroups.flatMap(group => [group.element, ...group.children]);
+	}
+
 	private renderMcpHome(): void {
 		if (this.searchQuery.trim()) {
 			return;
 		}
 
-		this.captureSectionScrollPositions();
-		this.cardDisposables.clear();
-		this.sectionLists = [];
-		this.installedAddButton = undefined;
-		this.firstCardFocusElement = undefined;
-		this.availableSection = undefined;
-		DOM.clearNode(this.cardContainer);
-		this.showCardSurface();
-
-		const content = this.createCardScrollContent('distributed-section-layout');
-
-		const installedList = this.renderCardSection(
-			content,
-			localize('installedMcpServersSection', "Installed"),
-			undefined,
-			'installed-mcp-servers-section',
-			this.installedEntries.length,
-			header => this.renderInstalledSectionActions(header),
-		);
-		installedList.classList.add('plugin-inventory-list');
-		if (this.installedEntries.length === 0) {
-			const empty = DOM.append(installedList, $('.plugin-inventory-empty'));
-			empty.textContent = localize('noInstalledMcpServers', "No MCP servers are installed.");
-		} else {
-			this.createMcpSectionList(installedList, localize('installedMcpServersSection', "Installed"), this.installedEntries.map(presentation => presentation.entry));
-		}
-
-		this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
-		this.scheduleMcpSectionLayout();
+		this.renderMcpTree();
 	}
 
 	private renderInstalledSectionActions(header: HTMLElement): void {
+		this.renderInstalledSectionActionsWithDisposables(header, this.cardDisposables);
+	}
+
+	private renderMcpTreeGroupActions(entry: IMcpGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
+		if (getCustomizationListLayout(this.configurationService) !== CustomizationListLayout.Tree
+			|| entry.group !== 'installed') {
+			return;
+		}
+		this.renderInstalledSectionActionsWithDisposables(container, disposables);
+	}
+
+	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
-		const add = this.installedAddButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: addLabel }));
+		const add = this.installedAddButton = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: addLabel }));
 		add.element.classList.add('plugin-installed-action');
 		add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
 		this.firstCardFocusElement ??= add.element;
-		this.cardDisposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
-	}
-
-	private renderAvailableServers(parent: HTMLElement, servers: readonly IWorkbenchMcpServer[], showDescription: boolean): void {
-		const availableList = this.renderCardSection(
-			parent,
-			localize('availableMcpServersSection', "Available"),
-			showDescription ? localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace.") : undefined,
-			'available-mcp-servers-section',
-			servers.length,
-		);
-		this.availableSection = availableList.parentElement ?? undefined;
-		availableList.classList.add('plugin-inventory-list');
-		if (servers.length === 0) {
-			if (this.gallerySnapshotLoading) {
-				renderVirtualizedSectionLoadingPlaceholder(availableList, localize('loadingMcpMarketplace', "Loading marketplace MCP servers..."), MCP_MARKETPLACE_ITEM_HEIGHT);
-			} else {
-				const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
-				empty.textContent = localize('noAvailableMcpServers', "No marketplace MCP servers are available.");
-			}
-			this.cardListControllers.get(availableList)?.finalize();
-			return;
-		}
-		this.createMcpSectionList(availableList, localize('availableMcpServersSection', "Available"), servers.map(server => ({ type: 'marketplace-item', server })));
+		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 	}
 
 	protected appendInstalledServerRow(parent: HTMLElement, presentation: IMcpInstalledPresentation): void {
@@ -2280,10 +2381,10 @@ export class McpListWidget extends Disposable {
 		return { element: signInButton.element, update };
 	}
 
-	private appendInstalledServerToggle(parent: HTMLElement, getEntry: () => IMcpInstalledEntry): { readonly element: HTMLButtonElement; update(): void } {
+	private appendInstalledServerToggle(parent: HTMLElement, getEntry: () => IMcpInstalledEntry): { readonly element: HTMLElement; update(): void } {
 		const label = getMcpEntryLabel(getEntry());
 		let enabled = this.isInstalledEntryEnabled(getEntry());
-		const toggle = this.cardDisposables.add(new Switch({ ariaLabel: label, checked: enabled }));
+		const toggle = this.cardDisposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 		const switchElement = toggle.domNode;
 		DOM.append(parent, switchElement);
 		const updateLabel = () => {
@@ -2326,7 +2427,7 @@ export class McpListWidget extends Disposable {
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
+		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
@@ -2418,35 +2519,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private updateSearchResults(): void {
-		const available = this.getAvailableGalleryServers();
-		if (this.installedEntries.length === 0 && available.length === 0) {
-			this.showEmptySurface(
-				this.gallerySearchLoading
-					? localize('searchingMcpMarketplace', "Searching the MCP marketplace...")
-					: localize('noMatchingServers', "No servers match '{0}'", this.searchQuery),
-				this.gallerySearchLoading ? '' : localize('tryDifferentSearch', "Try a different search term"),
-			);
-			return;
-		}
-
-		this.captureSectionScrollPositions();
-		this.cardDisposables.clear();
-		this.sectionLists = [];
-		this.installedAddButton = undefined;
-		this.firstCardFocusElement = undefined;
-		this.availableSection = undefined;
-		DOM.clearNode(this.cardContainer);
-		this.showCardSurface();
-		const content = this.createCardScrollContent('plugin-search-results', 'distributed-section-layout');
-		if (this.installedEntries.length > 0) {
-			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-mcp-servers-section', this.installedEntries.length);
-			installedList.classList.add('plugin-inventory-list');
-			this.createMcpSectionList(installedList, localize('installedSearchHeader', "Installed"), this.installedEntries.map(presentation => presentation.entry));
-		}
-		if (available.length > 0) {
-			this.renderAvailableServers(content, available, false);
-		}
-		this.scheduleMcpSectionLayout();
+		this.renderMcpTree();
 	}
 
 	private filterServers(render = true): void {
@@ -2520,7 +2593,7 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
-		this.installedEntries.sort((a, b) => Number(getActiveSessionServer(b.entry)?.enabled ?? this.isInstalledEntryEnabled(b.entry)) - Number(getActiveSessionServer(a.entry)?.enabled ?? this.isInstalledEntryEnabled(a.entry)));
+		this.installedEntries = preserveMcpEntryOrder(this.installedEntries, this.installedEntryOrder);
 
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {
@@ -2597,9 +2670,12 @@ export class McpListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
+		const tabsHeight = this.treeTabs.element.style.display === 'none' ? 0 : this.treeTabs.element.offsetHeight;
+		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight - tabsHeight);
 
 		this.cardScrollableNode.style.height = `${listHeight}px`;
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 		this.scheduleMcpSectionLayout();
 	}
 
@@ -2614,32 +2690,20 @@ export class McpListWidget extends Disposable {
 	 * Scrolls the list so the last item is visible.
 	 */
 	revealLastItem(): void {
-		const reveal = () => {
-			const section = this.sectionLists.at(-1);
-			if (section?.entries.length) {
-				section.list.reveal(section.entries.length - 1);
-			}
-			this.cardScrollable.scanDomNode();
-			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
-		};
-		reveal();
-		this.revealLastItemScheduler.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), reveal);
+		const entries = this.getVisibleMcpEntries();
+		if (entries.length > 0) {
+			this.list.reveal(entries[entries.length - 1]);
+		}
 	}
 
 	/**
 	 * Focuses the list.
 	 */
 	focus(): void {
-		if (this.cardScrollableNode.style.display !== 'none') {
-			if (this.firstCardFocusElement) {
-				this.firstCardFocusElement.focus();
-			} else {
-				const section = this.sectionLists[0];
-				if (section?.entries.length) {
-					section.list.setFocus([0]);
-					section.list.domFocus();
-				}
-			}
+		const firstItem = this.getVisibleMcpEntries().find(entry => entry.type !== 'group-header');
+		if (firstItem) {
+			this.list.setFocus([firstItem]);
+			this.list.domFocus();
 		}
 	}
 

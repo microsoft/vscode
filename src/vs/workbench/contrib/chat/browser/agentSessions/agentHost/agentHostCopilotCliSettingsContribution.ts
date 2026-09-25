@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -49,6 +49,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotClaudeAdvisorEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.Tgrep,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotTgrepEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotTgrepEnabledSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.ToolSearchEnabled,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostToolSearchEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchEnabledSettingId),
@@ -67,6 +72,16 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				key: CopilotCliConfigKey.AutoModeTierOverride,
 				computeValue: () => this._configurationService.getValue<string | null>(CopilotAutoModeTierOverrideSettingId) ?? '',
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotAutoModeTierOverrideSettingId),
+			},
+			{
+				// Contributed by the Copilot extension with the `onExp` tag, so `getValue`
+				// already folds in any experiment treatment published under this id.
+				key: CopilotCliConfigKey.ClaudeDefaultReasoningEffort,
+				computeValue: () => {
+					const value = this._configurationService.getValue<unknown>(CopilotClaudeDefaultReasoningEffortSettingId);
+					return typeof value === 'string' ? value : '';
+				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotClaudeDefaultReasoningEffortSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ModelCapabilityOverrides,

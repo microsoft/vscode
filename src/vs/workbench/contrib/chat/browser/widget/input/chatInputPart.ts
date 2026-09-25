@@ -484,6 +484,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	private readonly _notificationHostVisible = observableValue(this, false);
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
@@ -538,27 +539,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
-	private contextUsageWidgetHome!: HTMLElement;
-	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
 	}
 
-	placeContextUsageWidget(container?: HTMLElement): void {
-		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
+	get inputToolbarElement(): HTMLElement {
+		return this.inputActionsToolbar.getElement();
 	}
 
-	/** Reserves horizontal space at the trailing edge of the input editor. */
-	setInputEditorTrailingSpace(width: number): void {
-		const trailingSpace = Math.max(0, width);
-		if (this.inputEditorTrailingSpace === trailingSpace) {
-			return;
-		}
-
-		this.inputEditorTrailingSpace = trailingSpace;
-		this.layoutForToolbarChange();
+	setInputToolbarAriaLabel(label: string): void {
+		this.inputActionsToolbar.setAriaLabel(label);
 	}
 
 	get inputRowHeight(): number {
@@ -2266,6 +2258,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		this._notificationHostVisible.set(visible, undefined);
 		this._onDidChangeVisibility.fire(visible);
 	}
 
@@ -2947,6 +2940,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
+				hostVisible: this._notificationHostVisible,
 				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
@@ -3345,10 +3339,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
-		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
-			this.contextUsageWidgetHome.prepend(this.contextUsageWidgetContainer);
+			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -5186,7 +5179,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height

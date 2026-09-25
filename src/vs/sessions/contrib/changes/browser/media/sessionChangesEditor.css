@@ -179,19 +179,13 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .changes-picker-action-rich .changes-picker-separator {
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
-}
-
-.changes-picker-action-rich .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.changes-picker-action-rich .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .changes-picker-action-rich .action-label > .codicon {

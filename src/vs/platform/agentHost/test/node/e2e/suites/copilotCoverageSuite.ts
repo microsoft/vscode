@@ -502,6 +502,56 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
+	test('shell full output is readable through its historical terminal resource', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('shell-full-output');
+		const turnId = 'turn-shell-full-output';
+		const command = `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\\n' + 'x'.repeat(131072) + '\\nFULL_OUTPUT_MIDDLE\\n' + 'y'.repeat(131072) + '\\nFULL_OUTPUT_END\\n')"`;
+		const expected = `FULL_OUTPUT_BEGIN\n${'x'.repeat(131072)}\nFULL_OUTPUT_MIDDLE\n${'y'.repeat(131072)}\nFULL_OUTPUT_END\n`;
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			`Run exactly \`${command}\` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".`, 1);
+		const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
+			.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
+		const completion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+			.find(action => action.toolCallId === shellStart.toolCallId);
+		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
+		assert.ok(terminalContent);
+		const output = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const outputState = output.snapshot!.state as TerminalState;
+		const outputText = outputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.strictEqual(outputText, expected);
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
+		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
+			.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
+		const restoredTerminal = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
+			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)
+			: undefined;
+		assert.ok(restoredTerminal);
+		await context.restartServer();
+		await initialize('full-output-restored', workspace);
+		const coldOutput = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const coldOutputState = coldOutput.snapshot!.state as TerminalState;
+		const coldOutputText = coldOutputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.deepStrictEqual({
+			exitCode: terminalContent.result?.exitCode,
+			truncated: terminalContent.result?.truncated,
+			firstResource: terminalContent.resource,
+			restoredResource: restoredTerminal.resource,
+			firstOutput: outputText,
+			coldOutput: coldOutputText,
+		}, {
+			exitCode: 0,
+			truncated: true,
+			firstResource: terminalContent.resource,
+			restoredResource: terminalContent.resource,
+			firstOutput: expected,
+			coldOutput: expected,
+		});
+	});
+
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell can be read and stopped after asynchronous execution', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('managed-shell-read-stop');

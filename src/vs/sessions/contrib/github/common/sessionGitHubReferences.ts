@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { parseGitHubPullRequestUrl } from './utils.js';
 
 export interface ISessionGitHubReferences {
@@ -27,6 +29,23 @@ export function parseGitHubArtifactLink(artifact: ISessionArtifact): Pick<IGitHu
 	return artifact.kind === SessionArtifactKind.Issue ? parseGitHubIssueUrl(link) : undefined;
 }
 
+/** Drops associations repeated across folders, keeping distinct recorded entries for the same link. */
+function dedupeByLink<T extends { readonly uri: URI; readonly recordedReferenceId?: string }>(refs: readonly T[]): readonly T[] {
+	const seen = new Set<string>();
+	return refs.filter(ref => {
+		const key = `${linkKey(ref.uri.toString())}\u0001${ref.recordedReferenceId ?? ''}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
+function isSameRepository(first: { readonly owner: string; readonly repo: string }, second: { readonly owner: string; readonly repo: string }): boolean {
+	return first.owner.toLowerCase() === second.owner.toLowerCase() && first.repo.toLowerCase() === second.repo.toLowerCase();
+}
+
 function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[], associated: readonly T[], merge: (recorded: T, associated: T) => T): readonly T[] {
 	const recordedLinks = new Set(recorded.map(ref => linkKey(ref.uri.toString())));
 	return [
@@ -39,13 +58,39 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 	];
 }
 
-/** Resolves recorded GitHub links independently of a workspace, retaining repository-discovered associations. */
-export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined): ISessionGitHubReferences {
-	const gitHubInfo = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+/**
+ * Resolves the pull requests and issues for the dedicated GitHub pills: recorded artifacts, independently of a
+ * workspace, and repository-discovered associations. Recorded references are left out, as the references pill
+ * lists them.
+ * Pass `chat` to use the repository associations of every folder of the chat's workspace instead of the
+ * session's primary folder; recorded pull requests from other repositories are then left out once the
+ * chat's repositories are known.
+ */
+export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat): ISessionGitHubReferences {
+	const chatWorkspace = chat?.workspace?.read(reader);
+	// A chat reports the repository associations of each of its folders.
+	const folderGitHubInfos = chatWorkspace
+		? chatWorkspace.folders.map(folder => folder.gitRepository?.gitHubInfo.read(reader)).filter(isDefined)
+		: [];
+	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
+	const artifacts = session?.artifacts?.read(reader) ?? [];
+	// Providers may echo recorded references into their associations; those stay out of the dedicated pills too.
+	const recordedReferenceIds = new Set(artifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
+	const isRecordedReference = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && recordedReferenceIds.has(ref.recordedReferenceId);
+	const associatedPullRequests = (chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo)).flatMap(ref => {
+		if (!isRecordedReference(ref)) {
+			return [ref];
+		}
+		// A referenced pull request the session also produced remains, as an association rather than as the reference.
+		const { recordedReferenceId: _, ...association } = ref;
+		return ref.createdByThisSession ? [association] : [];
+	});
+	const associatedIssues = (chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? []).filter(ref => !isRecordedReference(ref));
 	const pullRequests: IGitHubPullRequestRef[] = [];
 	const issues: IGitHubIssueRef[] = [];
-	for (const artifact of session?.artifacts?.read(reader) ?? []) {
-		const parsed = parseGitHubArtifactLink(artifact);
+	for (const artifact of artifacts) {
+		const parsed = artifact.isArtifact ? parseGitHubArtifactLink(artifact) : undefined;
 		if (!parsed || !artifact.link) {
 			continue;
 		}
@@ -56,19 +101,21 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 			recordedReferenceId: artifact.id,
 		};
 		if (artifact.kind === SessionArtifactKind.PullRequest) {
-			pullRequests.push({ ...ref, createdByThisSession: artifact.isArtifact });
+			if (!chatRepositories || chatRepositories.some(repository => isSameRepository(ref, repository))) {
+				pullRequests.push({ ...ref, createdByThisSession: true });
+			}
 		} else {
 			issues.push(ref);
 		}
 	}
 	return {
-		pullRequests: mergeGitHubReferences(pullRequests, getGitHubPullRequestRefs(gitHubInfo), (recorded, associated) => ({
+		pullRequests: mergeGitHubReferences(pullRequests, dedupeByLink(associatedPullRequests), (recorded, associated) => ({
 			...associated,
 			...recorded,
 			title: associated.title ?? recorded.title,
 			createdByThisSession: recorded.createdByThisSession || associated.createdByThisSession === true,
 		})),
-		issues: mergeGitHubReferences(issues, gitHubInfo?.issues ?? [], (recorded, associated) => ({
+		issues: mergeGitHubReferences(issues, dedupeByLink(associatedIssues), (recorded, associated) => ({
 			...associated,
 			...recorded,
 			title: associated.title ?? recorded.title,

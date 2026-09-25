@@ -25,6 +25,7 @@ export const enum CustomizationMigrationCategoryId {
 export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
 	CustomizationMigrationCategoryId.UserData,
+	CustomizationMigrationCategoryId.ConfiguredLocations,
 	CustomizationMigrationCategoryId.McpServers,
 ] as const;
 

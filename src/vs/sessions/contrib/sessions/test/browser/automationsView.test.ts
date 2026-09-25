@@ -424,8 +424,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.isRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -433,7 +431,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
@@ -456,8 +457,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -465,7 +464,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;

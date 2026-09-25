@@ -19,7 +19,8 @@ suite('toolSearchDeferral', () => {
 				'claude-sonnet-4-6', 'claude-sonnet-4.6', 'claude-sonnet-4-6@1.0.0',
 				'claude-opus-4-5', 'claude-opus-4.5', 'claude-opus-4-5-20251101',
 				'claude-opus-4-6', 'claude-opus-4.6', 'claude-opus-4.7',
-				'claude-opus-4-7@1.0.0', 'claude-opus-4-8', 'claude-opus-4.8', 'claude-opus-5',
+				'claude-opus-4-7@1.0.0', 'claude-opus-4-8', 'claude-opus-4.8',
+				'claude-opus-5', 'claude-opus-5-5', 'claude-opus-5.5',
 				'claude-future-version',
 			]) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
@@ -48,14 +49,19 @@ suite('toolSearchDeferral', () => {
 			}
 		});
 
-		test('supports OpenAI GPT-5.4, GPT-5.5, and GPT-5.6 variants', () => {
-			for (const id of ['gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+		test('supports OpenAI GPT-5.4, GPT-5.5, GPT-5.6 variants, and GPT-6 families', () => {
+			for (const id of [
+				'gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5',
+				'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+				'gpt-6', 'gpt-6-preview', 'gpt-6-codex', 'gpt-6.1',
+				'gpt-6.1-mini', 'gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol',
+			]) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
 			}
 		});
 
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
-			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'gpt-6', 'gemini-2.5-pro', '']) {
+			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
 			}
 			assert.strictEqual(agentHostModelSupportsToolSearch(undefined), false);

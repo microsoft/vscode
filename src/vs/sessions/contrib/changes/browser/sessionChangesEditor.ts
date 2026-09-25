@@ -6,6 +6,7 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -202,6 +203,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
+	private readonly _pendingReveal = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -244,8 +246,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -427,19 +427,42 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
+		this._pendingReveal.clear();
 		const revealData = options?.viewState?.revealData;
 		if (!revealData) {
 			return;
 		}
-		this.widget?.reveal(revealData.resource, {
-			range: revealData.range ? Range.lift(revealData.range) : undefined,
-			highlight: true,
-		});
+
+		const reveal = (): boolean => {
+			const hasResource = this.viewModel?.items.get().some(item =>
+				isEqual(item.originalUri, revealData.resource.original) &&
+				isEqual(item.modifiedUri, revealData.resource.modified));
+			if (!hasResource) {
+				return false;
+			}
+			this.widget?.reveal(revealData.resource, {
+				range: revealData.range ? Range.lift(revealData.range) : undefined,
+				highlight: true,
+			});
+			return true;
+		};
+
+		if (!reveal()) {
+			const viewModel = this.viewModel;
+			if (viewModel) {
+				this._pendingReveal.value = Event.fromObservableLight(viewModel.items)(() => {
+					if (reveal()) {
+						this._pendingReveal.clear();
+					}
+				});
+			}
+		}
 	}
 
 	override clearInput(): void {
 		const input = this.input;
 		this._pendingFocus.clear();
+		this._pendingReveal.clear();
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.

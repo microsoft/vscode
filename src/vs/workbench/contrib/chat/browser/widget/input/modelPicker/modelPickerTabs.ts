@@ -186,6 +186,7 @@ export interface IModelPickerSectionsOptions {
 	/** The full destination catalogue, before collapsing speed variants. */
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
+	readonly organizationDefaultModelId?: string;
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
@@ -200,7 +201,7 @@ export interface IModelPickerSectionsOptions {
 
 /**
  * Splits a destination's models into favourites, the shortlist to lead with, and the
- * rest. Each model appears once, and the selected model is never folded into the rest.
+ * rest. Each model appears once; the selected and organization-default models stay visible.
  */
 export function buildModelPickerSections(options: IModelPickerSectionsOptions): IModelPickerSections {
 	// A model this build is too old to run is kept out of every selectable section and
@@ -263,6 +264,10 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 		const selected = take(options.selectedModelId);
 		if (selected) {
 			suggested.push(selected);
+		}
+		const organizationDefault = take(options.organizationDefaultModelId);
+		if (organizationDefault) {
+			suggested.push(organizationDefault);
 		}
 	}
 

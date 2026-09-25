@@ -27,6 +27,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { localize } from '../../../../nls.js';
+import { IMcpWorkspaceInstallTargetService } from './mcpWorkspaceInstallTargetService.js';
 
 export const USER_CONFIG_ID = 'usrlocal';
 export const REMOTE_USER_CONFIG_ID = 'usrremote';
@@ -137,6 +138,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMcpWorkspaceInstallTargetService private readonly workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
 	) {
 		super(allowedMcpServersService, logService);
 
@@ -415,6 +417,16 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	private validateWorkspaceConfigOptions(options: IWorkbencMcpServerInstallOptions): void {
+		const targets = this.workspaceInstallTargetService.getTargets();
+		const workspaceConfiguration = this.workspaceContextService.getWorkspace().configuration;
+		if ((options.target === ConfigurationTarget.WORKSPACE || options.mcpResource && workspaceConfiguration && this.uriIdentityService.extUri.isEqual(options.mcpResource, workspaceConfiguration))
+			&& !targets.includes(ConfigurationTarget.WORKSPACE)) {
+			throw new Error(localize('unsupportedMcpWorkspaceTarget', "This workspace configuration does not support MCP server installation. Select a workspace folder instead."));
+		}
+		const target = options.target;
+		if (isWorkspaceFolder(target) && !targets.some(candidate => isWorkspaceFolder(candidate) && this.uriIdentityService.extUri.isEqual(candidate.uri, target.uri))) {
+			throw new Error(localize('unsupportedMcpWorkspaceFolderTarget', "This workspace folder is no longer available for MCP server installation."));
+		}
 		if (options.workspaceConfig !== undefined && !isWorkspaceFolder(options.target)) {
 			throw new Error(localize('workspaceConfigRequiresFolder', "An MCP workspace configuration file can only be selected for a workspace folder."));
 		}

@@ -29,7 +29,7 @@ import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/cha
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
-import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -487,6 +487,37 @@ suite('ChatToolProgressSubPart', () => {
 	});
 
 	for (const persistentProgress of [false, true]) {
+		for (const error of ['page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation', true] as const) {
+			test(`failure changes only the progress icon (persistent: ${persistentProgress}, error: ${error})`, () => {
+				const context = { ...createRenderContext(true), suppressProgressShimmer: persistentProgress };
+				const hover = sinon.spy(mockHoverService, 'setupDelayedHover');
+				try {
+					const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
+					const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
+					const original = render(tool);
+					const failed = render({ ...tool, resultError: error });
+					const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
+					assert.deepStrictEqual({
+						card: failed.domNode.classList.contains('chat-notification-widget'),
+						icon: !!failed.domNode.querySelector('.codicon-error-compact'),
+						unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
+						label: label?.textContent,
+						focusable: label?.tabIndex,
+						newHover: hover.called,
+					}, {
+						card: false,
+						icon: true,
+						unchangedContent: true,
+						label: 'Navigate to the local previewBrowser',
+						focusable: -1,
+						newHover: false,
+					});
+				} finally {
+					hover.restore();
+				}
+			});
+		}
+
 		test(`renders MCP attribution in running and streaming rows with persistent progress ${persistentProgress ? 'on' : 'off'}`, () => {
 			const originMessage = 'GitHub (MCP Server)';
 			const context = { ...createRenderContext(false), suppressProgressShimmer: persistentProgress };
@@ -518,6 +549,23 @@ suite('ChatToolProgressSubPart', () => {
 			})));
 		});
 	}
+
+	test('recognizes tool failures from result flags and terminal exit codes', () => {
+		const tool = createSerializedToolInvocation();
+		assert.deepStrictEqual({
+			success: hasToolInvocationError(tool),
+			flag: hasToolInvocationError({ ...tool, resultError: true }),
+			details: hasToolInvocationError({ ...tool, resultDetails: { input: '', output: [], isError: true } }),
+			terminal: hasToolInvocationError({
+				...tool, toolSpecificData: { kind: 'terminal', commandLine: { original: 'exit 2' }, language: 'sh', terminalCommandState: { exitCode: 2 } },
+			}),
+		}, {
+			success: false,
+			flag: true,
+			details: true,
+			terminal: true,
+		});
+	});
 
 	test('preserves and escapes the MCP origin when progress messages are updated', () => {
 		const originMessage = 'GitHub **tools** (MCP Server)';
