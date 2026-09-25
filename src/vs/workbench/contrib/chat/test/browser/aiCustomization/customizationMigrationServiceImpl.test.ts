@@ -638,15 +638,22 @@ suite('CustomizationMigrationService', () => {
 			const fileService = store.add(new FileService(new NullLogService()));
 			store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
 			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
-			await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+			await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"},"null-env":{"command":"node","env":{"REMOVE_ME":null}}}}'));
 			const workspaceSnapshot = createWorkspaceMcpSupportSnapshot(URI.file('/workspace'));
 			const snapshot: IAgentHostMcpServerSupportSnapshot = {
 				...workspaceSnapshot,
-				servers: workspaceSnapshot.servers.map(server => ({
+				servers: workspaceSnapshot.servers.flatMap(server => [{
 					...server,
 					source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
 					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
-				})),
+				}, {
+					...server,
+					id: 'mcp.config.usrlocal.null-env',
+					name: 'null-env',
+					source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
+					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+					projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } },
+				}]),
 			};
 			const harnessService = new TestCustomizationHarnessService(sessionType);
 			const supportScope = new MutableMcpServerSupportScope(snapshot);
@@ -672,6 +679,7 @@ suite('CustomizationMigrationService', () => {
 
 			assert.deepStrictEqual({
 				candidates: migration.candidates.map(candidate => [candidate.storage, candidate.sourceUri.toString(), candidate.targetUri.toString()]),
+				exclusions: migration.exclusions.map(exclusion => [exclusion.name, exclusion.details]),
 				hint: hint?.message,
 				staleFailures: staleResult.failures.map(failure => failure.reason),
 				result,
@@ -679,11 +687,14 @@ suite('CustomizationMigrationService', () => {
 				source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
 			}, {
 				candidates: copilot ? [[PromptsStorage.user, sourceUri.toString(), targetUri.toString()]] : [],
+				exclusions: copilot ? [['null-env', ['Environment variables with null values are not supported in Copilot home configuration. Remove or replace the null value to migrate this server.']]] : [],
 				hint: copilot ? '1 user customization needs an update to keep working.' : undefined,
 				staleFailures: copilot ? ['noLongerEligible'] : [],
 				result: { migratedCount: copilot ? 1 : 0, failures: [] },
 				target: copilot ? { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } } : undefined,
-				source: copilot ? { servers: {} } : { servers: { server: { command: 'node' } } },
+				source: copilot
+					? { servers: { 'null-env': { command: 'node', env: { REMOVE_ME: null } } } }
+					: { servers: { server: { command: 'node' }, 'null-env': { command: 'node', env: { REMOVE_ME: null } } } },
 			});
 		});
 	}

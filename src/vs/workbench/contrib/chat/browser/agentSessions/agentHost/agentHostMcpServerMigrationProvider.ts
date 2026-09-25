@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider } from '../../../common/customizationHarnessService.js';
@@ -220,8 +221,13 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 				return [localize('mcpMigrationServerSourceUnavailable', "The source MCP configuration could not be read.")];
 			case McpServerCustomizationMigrationFailureReason.InvalidSource:
 				return [localize('mcpMigrationServerInvalidSource', "The source MCP configuration or server definition is invalid.")];
-			case McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration:
+			case McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration: {
+				const configuration = server?.projectedConfiguration;
+				if (configuration?.type === McpServerType.LOCAL && configuration.env && Object.values(configuration.env).some(value => value === null)) {
+					return [localize('mcpMigrationServerNullEnvironment', "Environment variables with null values are not supported in Copilot home configuration. Remove or replace the null value to migrate this server.")];
+				}
 				return [localize('mcpMigrationServerUnrepresentable', "The server configuration cannot be moved without changing its behavior.")];
+			}
 			default:
 				return [localize('mcpMigrationServerIneligible', "This server no longer meets the migration requirements.")];
 		}
