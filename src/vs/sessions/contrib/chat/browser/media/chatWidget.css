@@ -154,6 +154,7 @@
 
 .new-session-welcome-message-actions {
 	left: 100%;
+	margin-left: var(--vscode-spacing-size40);
 	opacity: 0;
 	pointer-events: none;
 	position: absolute;
