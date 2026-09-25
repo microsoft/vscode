@@ -217,6 +217,7 @@ export interface IOverrides {
 	keys: string[];
 	contents: IStringDictionary<unknown>;
 	identifiers: string[];
+	platform?: string;
 }
 
 export interface IConfigurationData {
