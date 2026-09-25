@@ -151,8 +151,9 @@ const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, 
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
-const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
-const getGitHubAccountName = Reflect.get(NewChatWidget.prototype, '_getGitHubAccountName') as (this: { readonly defaultAccountService: { readonly currentDefaultAccount: { readonly authenticationProvider: { readonly id: string }; readonly accountName: string } | null } }) => string | undefined;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
+const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
+const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -786,16 +787,22 @@ suite('NewChatWidget', () => {
 	test('rotates and personalizes new session welcome phrases', () => {
 		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
 			const container = document.createElement('div');
-			updateWelcomeMessage(container, true, phraseIndex, undefined);
+			const title = document.createElement('h2');
+			container.append(title);
+			updateWelcomeMessage(container, title, true, phraseIndex, undefined);
 			return container.textContent;
 		});
 		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => {
 			const container = document.createElement('div');
-			updateWelcomeMessage(container, true, phraseIndex, 'Megan');
+			const title = document.createElement('h2');
+			container.append(title);
+			updateWelcomeMessage(container, title, true, phraseIndex, 'Megan');
 			return container.textContent;
 		});
 		const hiddenContainer = document.createElement('div');
-		updateWelcomeMessage(hiddenContainer, false, 0, 'Megan');
+		const hiddenTitle = document.createElement('h2');
+		hiddenContainer.append(hiddenTitle);
+		updateWelcomeMessage(hiddenContainer, hiddenTitle, false, 0, 'Megan');
 
 		assert.deepStrictEqual({ phrases, namedPhrases, hidden: hiddenContainer.hidden, hiddenText: hiddenContainer.textContent }, {
 			phrases: [
@@ -817,22 +824,17 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('uses GitHub account names as the profile fallback', () => {
-		const names = [
-			{ providerId: 'github', accountName: 'octocat' },
-			{ providerId: 'github-enterprise', accountName: 'mona' },
-			{ providerId: 'microsoft', accountName: 'Megan' },
-		].map(account => getGitHubAccountName.call({
-			defaultAccountService: {
-				currentDefaultAccount: {
-					authenticationProvider: { id: account.providerId },
-					accountName: account.accountName,
-				},
-			},
-		}));
+	test('uses only the first configured or GitHub name', () => {
+		const harness = { _getFirstName: getFirstName };
+		const configuredName = getWelcomeName.call(harness, 'Octo Cat', '  Megan Rogge  ');
+		const gitHubName = getWelcomeName.call(harness, '  Octo   Cat  ', '');
+		const missingName = getWelcomeName.call(harness, undefined, '');
 
-		assert.deepStrictEqual(names, ['octocat', 'mona', undefined]);
-		assert.deepStrictEqual(names, ['octocat', 'mona', undefined]);
+		assert.deepStrictEqual({ configuredName, gitHubName, missingName }, {
+			configuredName: 'Megan',
+			gitHubName: 'Octo',
+			missingName: undefined,
+		});
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {

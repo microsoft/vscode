@@ -8,3 +8,4 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 export const NEW_SESSION_ACTION_ID = 'workbench.action.sessions.newChat';
 export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspacePicker;
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
+export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';

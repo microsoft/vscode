@@ -63,13 +63,14 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
 // #region --- New Chat Widget ---
 
@@ -134,6 +135,7 @@ export class NewChatWidget extends Disposable {
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _welcomePhraseIndex = takeNextNewSessionWelcomePhraseIndex();
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
+	private _githubProfileSessionId: string | undefined;
 
 	constructor(
 		private readonly options: IChatViewOptions & {
@@ -490,16 +492,38 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
+		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
+		const welcomeMessageActions = dom.append(welcomeMessage, dom.$('.new-session-welcome-message-actions'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, welcomeMessageActions, Menus.NewSessionWelcome, {
+			ariaLabel: localize('newSession.welcome.actions', "Welcome message actions"),
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: { primaryGroup: () => true },
+			telemetrySource: 'newSessionWelcome',
+		}));
+		this._register(dom.addDisposableListener(welcomeMessage, dom.EventType.CONTEXT_MENU, event => {
+			event.preventDefault();
+			event.stopPropagation();
+			const mouseEvent = new StandardMouseEvent(dom.getWindow(welcomeMessage), event);
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => mouseEvent,
+				menuId: Menus.NewSessionWelcomeContext,
+				contextKeyService: this.contextKeyService,
+			});
+		}));
 
-		const defaultAccountChanged = observableSignalFromEvent(this, this.defaultAccountService.onDidChangeDefaultAccount);
+		const configuredWelcomeNameChanged = observableSignalFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_NAME_SETTING)),
+		);
 		this._register(autorun(reader => {
-			defaultAccountChanged.read(reader);
+			configuredWelcomeNameChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
 			this._updateWelcomeMessage(
 				welcomeMessage,
+				welcomeMessageTitle,
 				this._useExperimentalComposerLayout.read(reader),
 				this._welcomePhraseIndex,
-				profileName ?? this._getGitHubAccountName(),
+				this._getWelcomeName(profileName),
 			);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
@@ -688,19 +712,24 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _getGitHubAccountName(): string | undefined {
-		const account = this.defaultAccountService.currentDefaultAccount;
-		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
-			return undefined;
-		}
-		return account.accountName;
+	private _getWelcomeName(gitHubName: string | undefined, configuredName = this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()): string | undefined {
+		return this._getFirstName(configuredName || gitHubName);
+	}
+
+	private _getFirstName(name: string | undefined): string | undefined {
+		return name?.trim().split(/\s+/u)[0] || undefined;
 	}
 
 	private async _refreshGitHubProfileName(): Promise<void> {
 		const account = this.defaultAccountService.currentDefaultAccount;
 		if (account?.authenticationProvider.id !== 'github' && account?.authenticationProvider.id !== 'github-enterprise') {
+			this._githubProfileSessionId = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
+		}
+		if (this._githubProfileSessionId !== account.sessionId) {
+			this._githubProfileSessionId = account.sessionId;
+			this._githubProfileName.set(undefined, undefined);
 		}
 
 		const cacheKey = `${account.authenticationProvider.id}:${account.sessionId}`;
@@ -746,10 +775,10 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _updateWelcomeMessage(container: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): void {
-		dom.clearNode(container);
+	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): void {
 		container.hidden = !visible;
 		if (!visible) {
+			title.textContent = '';
 			return;
 		}
 
@@ -768,7 +797,7 @@ export class NewChatWidget extends Disposable {
 				localize('newSession.welcome.lockIn', "Time to lock in"),
 				localize('newSession.welcome.ship', "Let’s ship something"),
 			][phraseIndex];
-		dom.append(container, dom.$('h2.new-session-welcome-message-title')).textContent = phrase;
+		title.textContent = phrase;
 	}
 
 	private _renderChatTip(): void {
