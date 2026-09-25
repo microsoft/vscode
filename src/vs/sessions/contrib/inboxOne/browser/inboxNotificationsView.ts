@@ -149,6 +149,12 @@ type InboxInteractionTelemetryEvent = {
 	sortMode: string;
 	filterActive: string;
 	msSinceItemFirstSeen: number | undefined;
+	msSinceSelection: number | undefined;
+	msSinceViewOpen: number;
+	needsInput: string;
+	pullRequestStateCount: number;
+	repositoryPresent: string;
+	itemAgeMs: number;
 	commandId: string;
 	viewInstanceId: string;
 	sequence: number;
@@ -175,6 +181,12 @@ type InboxInteractionTelemetryClassification = {
 	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the interaction occurred: priority, recent, or none.' };
 	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied when the interaction occurred (yes or no).' };
 	msSinceItemFirstSeen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when the card was first shown in this view instance to this interaction (response latency); undefined when unknown.' };
+	msSinceSelection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from selecting the item to this interaction (post-focus deliberation latency); undefined when the item is not the selected one.' };
+	msSinceViewOpen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when this inbox view instance opened to this event, giving every event a precise relative client timestamp for trajectory reconstruction.' };
+	needsInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the card had an inline needs-input widget (yes or no).' };
+	pullRequestStateCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of pull request state chips on the card; 0 when none.' };
+	repositoryPresent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification was associated with a repository (yes or no); never the repository name.' };
+	itemAgeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Age of the notification (now minus its timestamp) at interaction time, in milliseconds; -1 when unknown. A staleness signal for routing.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Command identifier for command-backed inbox actions, or none for other interactions.' };
 	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate interaction trajectories inside a single view instance.' };
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic interaction sequence number within the inbox view instance.' };
@@ -186,6 +198,7 @@ type InboxInteractionResult = 'attempt' | 'success' | 'failure' | 'skipped';
 type InboxAnswerKind = 'option' | 'freeText' | 'skip' | 'approve' | 'deny' | 'none';
 
 interface ISelectionTelemetryState {
+	readonly notificationId: string;
 	readonly notificationKind: string;
 	readonly hasSession: string;
 	readonly selectedAt: number;
@@ -211,6 +224,11 @@ type InboxImpressionTelemetryEvent = {
 	providerId: string;
 	sortMode: string;
 	filterActive: string;
+	needsInput: string;
+	pullRequestStateCount: number;
+	repositoryPresent: string;
+	itemAgeMs: number;
+	msSinceViewOpen: number;
 	viewInstanceId: string;
 	sequence: number;
 };
@@ -226,6 +244,11 @@ type InboxImpressionTelemetryClassification = {
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
 	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the card was shown: priority or recent.' };
 	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied when the card was shown (yes or no).' };
+	needsInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the card had an inline needs-input widget (yes or no).' };
+	pullRequestStateCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of pull request state chips on the card; 0 when none.' };
+	repositoryPresent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification was associated with a repository (yes or no); never the repository name.' };
+	itemAgeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Age of the notification (now minus its timestamp) when first shown, in milliseconds; -1 when unknown.' };
+	msSinceViewOpen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds from when this inbox view instance opened to this impression, for trajectory reconstruction.' };
 	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate impressions with interactions in the same view instance.' };
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with agents/inboxInteraction, for ordering the trajectory.' };
 };
@@ -276,6 +299,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
 	private readonly inboxViewInstanceId = generateUuid();
+	/** Wall-clock time this view instance was created, for relative event timestamps. */
+	private readonly viewOpenedAtMs = Date.now();
 	private interactionSequence = 0;
 	/** When each notification card was first shown in this view instance, for response-latency telemetry. */
 	private readonly itemFirstSeenMs = new Map<string, number>();
@@ -766,6 +791,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		this.reportedImpressionIds.add(item.id);
 		const telemetryContext = this.inboxNotificationsService.getInteractionTelemetryContext(item);
+		const metadata = this.itemMetadata(item);
 		this.telemetryService.publicLog2<InboxImpressionTelemetryEvent, InboxImpressionTelemetryClassification>('agents/inboxImpression', {
 			notificationKind: item.kind,
 			priorityTier: this.priorityTierId(item),
@@ -775,6 +801,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 			providerId: telemetryContext.providerId,
 			sortMode: this.sortModeId(),
 			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
+			needsInput: metadata.needsInput,
+			pullRequestStateCount: metadata.pullRequestStateCount,
+			repositoryPresent: metadata.repositoryPresent,
+			itemAgeMs: metadata.itemAgeMs,
+			msSinceViewOpen: Date.now() - this.viewOpenedAtMs,
 			viewInstanceId: this.inboxViewInstanceId,
 			sequence: ++this.interactionSequence,
 		});
@@ -1567,6 +1598,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			? this.inboxNotificationsService.getInteractionTelemetryContext(item)
 			: { agentSessionId: 'none', providerId: 'none' };
 		const attention = this.itemAttentionContext(item);
+		const metadata = this.itemMetadata(item);
 		const sequence = ++this.interactionSequence;
 		this.telemetryService.publicLog2<InboxInteractionTelemetryEvent, InboxInteractionTelemetryClassification>('agents/inboxInteraction', {
 			interaction,
@@ -1586,11 +1618,39 @@ export class InboxNotificationsView extends AbstractCustomView {
 			sortMode: this.sortModeId(),
 			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
 			msSinceItemFirstSeen: attention.msSinceItemFirstSeen,
+			msSinceSelection: this.msSinceSelection(item),
+			msSinceViewOpen: Date.now() - this.viewOpenedAtMs,
+			needsInput: metadata.needsInput,
+			pullRequestStateCount: metadata.pullRequestStateCount,
+			repositoryPresent: metadata.repositoryPresent,
+			itemAgeMs: metadata.itemAgeMs,
 			commandId: options?.commandId ?? 'none',
 			viewInstanceId: this.inboxViewInstanceId,
 			sequence,
 			durationMs: options?.durationMs,
 		});
+	}
+
+	/** Bounded, non-identifying metadata about a notification card for telemetry. */
+	private itemMetadata(item?: IInboxNotificationItem): { needsInput: string; pullRequestStateCount: number; repositoryPresent: string; itemAgeMs: number } {
+		if (!item) {
+			return { needsInput: 'no', pullRequestStateCount: 0, repositoryPresent: 'no', itemAgeMs: -1 };
+		}
+		return {
+			needsInput: item.needsInputPart ? 'yes' : 'no',
+			pullRequestStateCount: item.pullRequestStates?.length ?? 0,
+			repositoryPresent: item.repositoryLabel ? 'yes' : 'no',
+			itemAgeMs: item.timestamp ? Math.max(0, Date.now() - item.timestamp) : -1,
+		};
+	}
+
+	/** Milliseconds since the given item became the selected item, or undefined when it is not selected. */
+	private msSinceSelection(item?: IInboxNotificationItem): number | undefined {
+		const state = this.selectionTelemetryState;
+		if (!item || !state || state.notificationId !== item.id) {
+			return undefined;
+		}
+		return Date.now() - state.selectedAt;
 	}
 
 	/** Rank/latency context for the acted item within the currently visible list. */
@@ -2019,6 +2079,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		this.selectionTelemetryState = {
+			notificationId: item.id,
 			notificationKind: item.kind,
 			hasSession: item.sessionResource ? 'yes' : 'no',
 			selectedAt: Date.now(),
