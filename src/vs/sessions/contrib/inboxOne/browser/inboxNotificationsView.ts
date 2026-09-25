@@ -202,6 +202,34 @@ interface IInboxInteractionTelemetryOptions {
 	readonly evidenceArtifactKind?: 'file' | 'session' | 'none';
 }
 
+type InboxImpressionTelemetryEvent = {
+	notificationKind: string;
+	priorityTier: string;
+	listIndex: number;
+	hasSession: string;
+	agentSessionId: string;
+	providerId: string;
+	sortMode: string;
+	filterActive: string;
+	viewInstanceId: string;
+	sequence: number;
+};
+
+type InboxImpressionTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Records that a Sessions Inbox notification card was shown to the user, so the shown-but-not-acted set (the negatives for attention/routing analysis) can be reconstructed alongside agents/inboxInteraction. Emitted at most once per notification per inbox view instance.';
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind of the shown card.' };
+	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier the card was shown in: now, next, later, or none.' };
+	listIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based position of the card among the visible cards when it was first shown.' };
+	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification had an associated session resource.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), used to correlate the impression with interactions and session outcomes.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the card was shown: priority or recent.' };
+	filterActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a non-default category filter was applied when the card was shown (yes or no).' };
+	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate impressions with interactions in the same view instance.' };
+	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with agents/inboxInteraction, for ordering the trajectory.' };
+};
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -251,6 +279,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private interactionSequence = 0;
 	/** When each notification card was first shown in this view instance, for response-latency telemetry. */
 	private readonly itemFirstSeenMs = new Map<string, number>();
+	/** Notification ids already reported as impressions in this view instance (deduped across re-renders). */
+	private readonly reportedImpressionIds = new Set<string>();
 	private selectionTelemetryState: ISelectionTelemetryState | undefined;
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
@@ -726,6 +756,28 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const card = this.renderItem(item);
 		this.renderedCards.push(card);
 		list.appendChild(card);
+		this.reportImpression(item, this.renderedCards.length - 1);
+	}
+
+	/** Logs a one-per-notification impression the first time its card is shown in this view instance. */
+	private reportImpression(item: IInboxNotificationItem, listIndex: number): void {
+		if (this.reportedImpressionIds.has(item.id)) {
+			return;
+		}
+		this.reportedImpressionIds.add(item.id);
+		const telemetryContext = this.inboxNotificationsService.getInteractionTelemetryContext(item);
+		this.telemetryService.publicLog2<InboxImpressionTelemetryEvent, InboxImpressionTelemetryClassification>('agents/inboxImpression', {
+			notificationKind: item.kind,
+			priorityTier: this.priorityTierId(item),
+			listIndex,
+			hasSession: item.sessionResource ? 'yes' : 'no',
+			agentSessionId: telemetryContext.agentSessionId,
+			providerId: telemetryContext.providerId,
+			sortMode: this.sortModeId(),
+			filterActive: this.isDefaultVisibleCategories(this.visibleCategories.get()) ? 'no' : 'yes',
+			viewInstanceId: this.inboxViewInstanceId,
+			sequence: ++this.interactionSequence,
+		});
 	}
 
 	private toggleSection(key: string): void {
@@ -1574,6 +1626,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 		for (const id of this.itemFirstSeenMs.keys()) {
 			if (!known.has(id)) {
 				this.itemFirstSeenMs.delete(id);
+			}
+		}
+		for (const id of this.reportedImpressionIds) {
+			if (!known.has(id)) {
+				this.reportedImpressionIds.delete(id);
 			}
 		}
 	}
