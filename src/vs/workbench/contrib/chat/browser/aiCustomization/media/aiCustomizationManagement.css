@@ -2985,7 +2985,7 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget .mcp-server-error-actions {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size20);
+	gap: var(--vscode-spacing-size80);
 }
 
 .mcp-server-item .mcp-server-error-actions .mcp-server-status {
