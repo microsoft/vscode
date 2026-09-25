@@ -309,6 +309,39 @@ suite('McpServerCustomizationMigration', () => {
 		assert.deepStrictEqual(plans, [{ candidates: [], exclusions: [] }, { candidates: [], exclusions: [] }]);
 	});
 
+	test('rejects null-valued environment variables for user migrations', async () => {
+		const fileService = createFileService();
+		const selected = userCandidate();
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } };
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node","env":{"REMOVE_ME":null}}}}'));
+		const server = support(URI.file('/unused'), selected.name, { projectedConfiguration });
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{
+				...server,
+				source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: selected.sourceUri },
+			}],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan(snapshot, [], CancellationToken.None, selected.targetUri);
+		const result = await migrator.migrate([{ ...selected, projectedConfiguration }], { userTarget: selected.targetUri });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			exclusions: plan.exclusions.map(exclusion => exclusion.reason),
+			result: { migratedCount: result.migratedCount, failures: result.failures.map(failure => failure.reason) },
+			source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+			targetExists: await fileService.exists(selected.targetUri),
+		}, {
+			candidates: [],
+			exclusions: [McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			result: { migratedCount: 0, failures: [McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration] },
+			source: { servers: { demo: { command: 'node', env: { REMOVE_ME: null } } } },
+			targetExists: false,
+		});
+	});
+
 	for (const target of [
 		{ content: '{"metadata":true}', reason: undefined },
 		{ content: '{"mcpServers":{"demo":{"type":"local","command":"node"}},"metadata":true}', reason: undefined },

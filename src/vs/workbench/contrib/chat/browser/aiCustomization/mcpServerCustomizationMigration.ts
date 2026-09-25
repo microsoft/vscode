@@ -153,7 +153,7 @@ export class McpServerCustomizationMigrator {
 					: McpServerCustomizationMigrationFailureReason.InvalidSource);
 				continue;
 			}
-			if (!isConfigurationRepresentable(server.projectedConfiguration)
+			if (!isConfigurationRepresentable(server.projectedConfiguration, storage)
 				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved())
 				|| !equals(sourceConfiguration, projectedConfiguration)) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
@@ -376,7 +376,7 @@ async function migrateGroup(
 	};
 
 	for (const candidate of group.candidates) {
-		if (!isConfigurationRepresentable(candidate.projectedConfiguration)) {
+		if (!isConfigurationRepresentable(candidate.projectedConfiguration, candidate.storage)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;
 		}
@@ -829,12 +829,15 @@ function canonicalizeConfiguration(configuration: IMcpServerConfiguration): Reco
 	};
 }
 
-function isConfigurationRepresentable(configuration: IMcpServerConfiguration): boolean {
+function isConfigurationRepresentable(configuration: IMcpServerConfiguration, storage: PromptsStorage.local | PromptsStorage.user): boolean {
 	if (configuration.version !== undefined || configuration.gallery !== undefined || configuration.dev !== undefined) {
 		return false;
 	}
 	if (configuration.type === McpServerType.LOCAL) {
-		return configuration.envFile === undefined && configuration.cwd === undefined && configuration.sandboxEnabled !== true;
+		return configuration.envFile === undefined
+			&& configuration.cwd === undefined
+			&& configuration.sandboxEnabled !== true
+			&& (storage !== PromptsStorage.user || !configuration.env || Object.values(configuration.env).every(value => value !== null));
 	}
 	return configuration.oauth === undefined && configuration.transport !== 'sse';
 }
