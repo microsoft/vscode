@@ -14,6 +14,7 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -39,7 +40,7 @@ function close(database: Database): Promise<void> {
 
 function createPayload(session: string, sourceRevision: number, isChatBacking = false): string {
 	return stableStringify({
-		payloadVersion: 1,
+		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 		data: {
 			modifiedTime: 100 + sourceRevision,
 			summary: `Title ${sourceRevision}`,
@@ -69,7 +70,7 @@ function createEnvelope(
 		session,
 		sessionGeneration,
 		sourceRevision,
-		payloadVersion: 1,
+		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 		payloadHash: createHash('sha256').update(payload, 'utf8').digest('hex'),
 		verified: true,
 		payload,
@@ -850,7 +851,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			/payloadHash must match payload/,
 		);
 		await assert.rejects(
-			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: '{"payloadVersion":1,"data":{}}' }), 'generation-1'),
+			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: {} }) }), 'generation-1'),
 			/Catalog payload is invalid/,
 		);
 		await assert.rejects(

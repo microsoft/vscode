@@ -1928,7 +1928,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (catalog === undefined) {
 				catalog = await this._orchestratorDatabase.getSessionV2(session.toString());
 			}
-			const decoded = catalog && decodeAgentHostCatalogPayload(catalog.payload);
+			const decoded = catalog && decodeAgentHostCatalogPayload(catalog.payload, { forMigration: true });
 			if (decoded && !decoded.ok) {
 				this._logService.warn(`[AgentService] Failed to read session origin from catalog for ${session}: ${decoded.error}`);
 			}
@@ -1944,7 +1944,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const persistedOrigin = readPersistedSessionOrigin(await database?.object.getMetadata(SESSION_ORIGIN_KEY));
 				const currentCatalog = await this._orchestratorDatabase.getSessionV2(session.toString());
-				const current = currentCatalog && decodeAgentHostCatalogPayload(currentCatalog.payload);
+				const current = currentCatalog && decodeAgentHostCatalogPayload(currentCatalog.payload, { forMigration: true });
 				const origin = persistedOrigin ?? (current?.ok ? current.value.data.origin : undefined) ?? recovered;
 				const legacyMetadata = { [SESSION_ORIGIN_KEY]: JSON.stringify(origin) };
 				if (!current?.ok) {
@@ -2300,7 +2300,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const defaultChatWorkingDirectories = await this._readDefaultChatWorkingDirectories(URI.parse(buildDefaultChatUri(registered.session)));
 		if (!database) {
 			const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
-			const decoded = central && decodeAgentHostCatalogPayload(central.payload);
+			const decoded = central && decodeAgentHostCatalogPayload(central.payload, { forMigration: true });
 			if (decoded?.ok) {
 				origin = decoded.value.data.origin ?? origin;
 				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
@@ -3030,7 +3030,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to read existing catalog state for ${session.toString()}`, error);
 			return { status: 'incomplete' };
 		}
-		const decodedCatalog = existingCatalog ? decodeAgentHostCatalogPayload(existingCatalog.payload) : undefined;
+		const decodedCatalog = existingCatalog ? decodeAgentHostCatalogPayload(existingCatalog.payload, { forMigration: true }) : undefined;
 		const existingCatalogData = decodedCatalog?.ok ? decodedCatalog.value.data : undefined;
 		return {
 			status: 'ready',

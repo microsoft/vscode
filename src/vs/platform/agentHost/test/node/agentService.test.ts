@@ -55,7 +55,7 @@ import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
@@ -5090,6 +5090,60 @@ suite('AgentService (node dispatcher)', () => {
 					persisted: centralOnly ? undefined : JSON.stringify(origin),
 					catalogOrigin: origin,
 					featureEnabled: false,
+				});
+			});
+		}
+
+		for (const centralOnly of [false, true]) {
+			test(`recovers version 1 catalogue provenance without retained history${centralOnly ? ' or a session database' : ''}`, async () => {
+				const { sessionData, database, session, origin } = await createLegacyAutomationSession();
+				await sessionData.database(session).setMetadataValues({
+					[SESSION_ORIGIN_KEY]: JSON.stringify(origin),
+					customTitle: 'Recovered title',
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				});
+				const catalog = await database.getSessionV2(session.toString());
+				const data = catalogDataOf(catalog);
+				assert.ok(catalog && data);
+				const payload = JSON.stringify({
+					payloadVersion: 1,
+					data: { ...data, summary: 'Recovered title', titleSource: 'user', isRead: true, isArchived: true, ...(centralOnly ? { origin } : {}) },
+				});
+				await database.upsertSessionV2({
+					...catalog,
+					sourceRevision: catalog.sourceRevision + 1,
+					payloadVersion: 1,
+					payload,
+					payloadHash: hashAgentHostCatalogPayload(payload),
+				}, catalog.sessionGeneration);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const dataService: ISessionDataService = centralOnly ? {
+					...sessionData.service,
+					tryOpenDatabase: async resource => {
+						sessionData.databaseOpens.push(resource.toString());
+						return undefined;
+					},
+					openDatabase: () => { throw new Error('Migration must not create a session database'); },
+				} : sessionData.service;
+				const host = createHost(dataService, database);
+				const first = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+				host.markStartupComplete();
+				await host.whenDeferredWorkSettled();
+				await host.whenCatalogReconciliationIdle();
+				sessionData.databaseOpens.length = 0;
+				const second = (await host.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+
+				assert.deepStrictEqual({
+					first: { origin: first?.origin, title: first?.summary, status: first?.status },
+					second: second?.origin,
+					catalogVersion: (await database.getSessionV2(session.toString()))?.payloadVersion,
+					databaseOpens: sessionData.databaseOpens,
+				}, {
+					first: { origin, title: 'Recovered title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived },
+					second: origin,
+					catalogVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					databaseOpens: [],
 				});
 			});
 		}
