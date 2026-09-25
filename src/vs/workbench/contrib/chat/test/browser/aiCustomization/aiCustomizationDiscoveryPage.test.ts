@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -193,6 +193,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 	}
 
+	async function waitForRequestCount(requests: readonly object[], count: number): Promise<void> {
+		await retry(async () => assert.ok(requests.length >= count), 10, 20);
+	}
+
 	test('one global continuation preserves ranked multi-type results and source selection', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:mcp @type:plugin mail');
@@ -201,6 +205,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const items = Array.from({ length: 24 }, (_, index) => resource(`mail-${index}`, { mediaType: types[index % types.length], score: 100 - index }));
 		const cursor = { token: 'opaque+/=&continuation' };
 		await fixture.requests[0].result.complete({ items, nextCursor: cursor });
+		await retry(async () => assert.ok(fixture.page.getAccessibilityContent().includes('mail-22')), 10, 20);
 		const listElement = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list');
 		assert.ok(listElement);
 		listElement.focus();
@@ -210,7 +215,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		list.scrollTop = 0;
 		list.scrollTop = list.scrollHeight;
 		list.scrollTop = list.scrollHeight;
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 2);
 		assert.strictEqual(fixture.requests.length, 2);
 		await fixture.requests[1].result.complete({ items: [resource('mail-24', { sourceId: 'other', mediaType: CustomizationMarketplaceMediaType.ClaudePlugin })] });
 		await timeout(0);
@@ -291,7 +296,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			});
 			await timeout(0);
 		}
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 9);
 		assert.deepStrictEqual({
 			requests: fixture.requests.length,
 			loadMore: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button')?.textContent,
@@ -319,7 +324,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			items: [resource('mail-plugin-1', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
 			nextCursor: cursor,
 		});
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 2);
 		assert.deepStrictEqual({
 			requests: fixture.requests.length,
 			cursor: fixture.requests[1]?.options.cursor,
@@ -353,7 +358,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			items: [resource('mail-1')],
 			nextCursor: cursor,
 		});
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 2);
 		await fixture.requests[1].result.error(new Error('temporary failure'));
 		await timeout(0);
 		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
@@ -383,11 +388,11 @@ suite('AICustomizationDiscoveryPage', () => {
 			items: [resource('mail-1')],
 			nextCursor: cursor,
 		});
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 2);
 		const cancelledRequest = fixture.requests[1];
 		fixture.page.setVisible(false);
 		fixture.page.setVisible(true);
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 3);
 		await cancelledRequest.result.complete({ items: [resource('stale-mail')] });
 		await fixture.requests[2].result.complete({ items: [resource('mail-2')] });
 		await timeout(0);
@@ -433,9 +438,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			items: [resource('public-mail')],
 			nextCursor: { token: 'public-next' },
 		});
-		await timeout(0);
+		await waitForRequestCount(fixture.requests, 2);
 		const staleRequest = fixture.requests[1];
 		await fixture.selectSource('other');
+		await waitForRequestCount(fixture.requests, 3);
 		await staleRequest.result.complete({ items: [resource('stale-mail')] });
 		await timeout(0);
 		await fixture.requests[2].result.complete({ items: [resource('other-mail', { sourceId: 'other' })] });
