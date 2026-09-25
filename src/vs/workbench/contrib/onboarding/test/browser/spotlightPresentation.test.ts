@@ -106,7 +106,7 @@ suite('SpotlightPresentation', () => {
 	});
 
 	for (const runAsSequenceStep of [false, true]) {
-		test(`waits for an owner-provided control and invokes its opener (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+		test(`waits for an owner-provided control and invokes its opener (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
@@ -153,10 +153,10 @@ suite('SpotlightPresentation', () => {
 				opened,
 				marked: target.hasAttribute(ONBOARDING_TARGET_ATTR),
 			}, { shown: true, completed: true, opened: 1, marked: false });
-		});
+		}));
 	}
 
-	test('waits for a late target and skips a missing target immediately', async () => {
+	test('waits for a late target and skips a missing target immediately', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
@@ -205,7 +205,7 @@ suite('SpotlightPresentation', () => {
 			},
 			shown: 1,
 		});
-	});
+	}));
 
 	test('excludes skipped steps from displayed progress', async () => {
 		const container = createContainer();
@@ -468,7 +468,7 @@ suite('SpotlightPresentation', () => {
 		}
 	}
 
-	test('hides the previous step while waiting for the next target', async () => {
+	test('hides the previous step while waiting for the next target', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
@@ -512,7 +512,7 @@ suite('SpotlightPresentation', () => {
 				stepCount: 2,
 			},
 		});
-	});
+	}));
 
 	test('aborts immediately while waiting for a target', async () => {
 		const container = createContainer();
