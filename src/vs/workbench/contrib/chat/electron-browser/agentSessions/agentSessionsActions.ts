@@ -18,6 +18,7 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -66,6 +67,7 @@ import { isNewConversation } from '../../browser/widget/input/chatInputModelUtil
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
+const COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
 
 function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
@@ -252,6 +254,24 @@ export class ToggleOpenInAgentsWindowTitleBarAction extends ToggleTitleBarConfig
 			6,
 			OPEN_AGENTS_WINDOW_PRECONDITION,
 		);
+	}
+}
+
+export class ResetCopilotHarnessIntroductionAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.resetCopilotHarnessIntroduction';
+
+	constructor() {
+		super({
+			id: ResetCopilotHarnessIntroductionAction.ID,
+			title: localize2('chat.resetCopilotHarnessIntroduction', "Reset Copilot Harness Introduction"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 }
 
@@ -835,7 +855,6 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
 	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://aka.ms/vscode-copilot-harness';
 	private static readonly COPILOT_HARNESS_FEEDBACK_URL = 'https://github.com/microsoft/vscode/issues';
-	private static readonly COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID = 'copilotHarnessIntroduction';
 	private static readonly NOTIFICATION_ID = 'chat.agentsParallelWork';
 	private static readonly OPEN_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.open';
@@ -894,7 +913,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			if (helpful) {
 				this._dismissChat(resource);
 			} else {
-				this._ignoreCopilotHarnessIntroduction(resource);
+				this._ignoreCopilotHarnessIntroduction();
 			}
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
@@ -903,7 +922,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				return;
 			}
 			if (posted.kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction) {
-				this._ignoreCopilotHarnessIntroduction(posted.resource);
+				this._ignoreCopilotHarnessIntroduction();
 				return;
 			}
 			this._dismissChat(posted.resource);
@@ -921,7 +940,12 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._register(this._agentSessionsService.model.onDidChangeSessions(() => this._update()));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => this._update()));
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => {
+			if (!this._storageService.getBoolean(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+				this._introductionShownModes.clear();
+			}
+			this._update();
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)
 				|| event.affectsConfiguration(ChatConfiguration.CopilotHarnessIntroductionMode)) {
@@ -961,9 +985,9 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		return widget;
 	}
 
-	private _ignoreCopilotHarnessIntroduction(resource: URI): void {
-		this._storageService.store(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		this._dismissChat(resource);
+	private _ignoreCopilotHarnessIntroduction(): void {
+		this._storageService.store(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		this._update();
 	}
 
 	private _dismissChat(resource: URI): void {
@@ -997,7 +1021,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		if (resource && isCopilotHarnessSessionType(this._chatSessionsService, getChatSessionType(resource))) {
 			if (!this._introductionEligibleWidgets.has(widget)) {
 				this._introductionEligibleWidgets.add(widget);
-				if (!this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+				if (!this._storageService.getBoolean(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
 					this._logIntroductionLifecycle('opportunity', widget, resource, getCopilotHarnessIntroductionMode(this._configurationService));
 				}
 			}
@@ -1044,7 +1068,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		}
 
 		const introductionMode = getCopilotHarnessIntroductionMode(this._configurationService);
-		const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
+		const introductionIgnored = this._storageService.getBoolean(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
 		const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
 			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (localCopilotNeedsSetup) {

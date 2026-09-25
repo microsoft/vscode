@@ -49,7 +49,7 @@ import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType }
 import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 import { agentsWindowHandoffConfigurationProperties } from '../../browser/agentSessionsConfiguration.js';
 
 suite('Agents Window draft handoff and parallel invitation', () => {
@@ -906,6 +906,29 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			updates: [],
 			parallelTitle: 'Run agents side by side',
 			parallelAction: 'Open Agents Window',
+		});
+	});
+
+	test('developer reset restores an opted-out introduction without changing experiment settings', async () => {
+		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+		h.showBanner();
+		await h.click(2);
+		const afterOptOut = h.notification;
+		await h.instantiation.invokeFunction(accessor => new ResetCopilotHarnessIntroductionAction().run(accessor));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterOptOut,
+			title: h.notification?.message,
+			mode: h.configuration.getValue(ChatConfiguration.CopilotHarnessIntroductionMode),
+			parallelWorkEnabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
+			configurationUpdates: h.configuration.updates,
+		}, {
+			afterOptOut: undefined,
+			title: 'You\'re using a new Copilot experience',
+			mode: CopilotHarnessIntroductionMode.NewSession,
+			parallelWorkEnabled: false,
+			configurationUpdates: [],
 		});
 	});
 
