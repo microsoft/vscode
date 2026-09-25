@@ -14,4 +14,5 @@ export const EDITOR_MODEL_DEFAULTS = {
 		enabled: true,
 		independentColorPoolPerBracketType: false,
 	},
+	textDirection: 0,
 };
