@@ -289,6 +289,7 @@ export class Throttler implements IDisposable {
 
 	dispose(): void {
 		this.cancellationTokenSource.cancel();
+		this.queuedPromiseFactory = null;
 	}
 }
 
@@ -445,12 +446,13 @@ export class Delayer<T> implements IDisposable {
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
-				if (this.task) {
-					const task = this.task;
-					this.task = null;
-					return task();
+				if (!this.task) {
+					// canceled after the delay elapsed but before the task ran
+					throw new CancellationError();
 				}
-				return undefined;
+				const task = this.task;
+				this.task = null;
+				return task();
 			});
 		}
 
@@ -470,6 +472,7 @@ export class Delayer<T> implements IDisposable {
 
 	cancel(): void {
 		this.cancelTimeout();
+		this.task = null;
 
 		if (this.completionPromise) {
 			this.doReject?.(new CancellationError());
