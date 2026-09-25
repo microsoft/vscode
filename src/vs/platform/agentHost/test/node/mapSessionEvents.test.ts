@@ -103,6 +103,36 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	for (const identity of ['apiCallId', 'clientRequestId', 'none'] as const) {
+		test(`restores all Fusion chunks in their model call's chat (${identity})`, async () => {
+			const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			const chunk = (callId: string, chunkIndex: number, content: string, toolCallId?: string) => event('assistant.message', {
+				messageId: `${callId}-${chunkIndex}`, ...(identity === 'none' ? {} : { [identity]: callId }), chunkCount: 2, chunkIndex,
+				content, fusion: committed, ...(toolCallId ? { toolRequests: [{ toolCallId, name: 'view', arguments: {} }] } : {}),
+			});
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Fix the parser.' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				chunk('work', 0, 'Checking the parser first'),
+				chunk('work', 1, 'Inspecting empty input', 'tc-view'),
+				event('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', fusion: committed }),
+				event('tool.execution_complete', { toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: committed }),
+				chunk('answer', 0, 'The parser is fixed'),
+				chunk('answer', 1, 'Both cases pass'),
+				event('session.fusion_completed', fusion.completed),
+			]);
+			assert.deepStrictEqual({
+				root: turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : [])),
+				phase: subagentTurnsByToolCallId.get('fusion:fusion-1:phase-1')?.flatMap(turn => turn.responseParts.map(part =>
+					part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
+			}, {
+				root: ['The parser is fixed', 'Both cases pass'],
+				phase: ['Checking the parser first', 'Inspecting empty input', 'tc-view'],
+			});
+		});
+	}
+
 	test('restores a review phase critique into its phase chat', async () => {
 		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;
 		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [

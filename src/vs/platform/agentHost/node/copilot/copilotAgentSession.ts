@@ -91,6 +91,7 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
+import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -1252,11 +1253,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _surfacedProvisionalFusionToolCallIds = new Set<string>();
 	/** Provisional Fusion messages already shown in a phase chat; their committed copies only update accounting unless they are the answer. */
 	private readonly _shownProvisionalFusionMessageIds = new Set<string>();
-	/**
-	 * Committed Fusion phase chunks held until the last chunk of their model call
-	 * shows whether the call was a tool round or the phase's answer, keyed by model call id.
-	 */
-	private readonly _pendingFusionMessageChunks = new Map<string, SessionEventPayload<'assistant.message'>[]>();
+	private readonly _pendingFusionMessageChunks = new CopilotFusionMessageChunks();
 	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
 	/** Labels of the phase tiles shown this workflow, keyed by phase tool call id; a phase gets a child chat only once an event is routed to it. */
 	private readonly _fusionPhaseLabels = new Map<string, string>();
@@ -5505,13 +5502,11 @@ export class CopilotAgentSession extends Disposable {
 			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
-		const isLastChunk = (e: SessionEventPayload<'assistant.message'>): boolean => e.data.chunkCount === undefined
-			|| e.data.chunkCount <= 1
-			|| e.data.chunkIndex === e.data.chunkCount - 1;
-		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean): void => {
+		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false): void => {
 			const markdownScope = contentParentToolCallId ?? '';
 			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length;
-			if (e.data.content && !this._currentTurn.value?.markdownPartIds.has(markdownScope)) {
+			// Fusion sends distinct complete chunks without preceding text deltas.
+			if (e.data.content && (isFusionMessage || !this._currentTurn.value?.markdownPartIds.has(markdownScope))) {
 				const partId = generateUuid();
 				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
 				this._emitAction({
@@ -5542,31 +5537,18 @@ export class CopilotAgentSession extends Disposable {
 				this._beginToolCallRound(contentParentToolCallId);
 			}
 		};
-		/**
-		 * A committed phase model call that ends in tool requests is phase work;
-		 * one that ends without them is the phase's answer, and so the response.
-		 * Earlier chunks wait for the last one to tell which.
-		 */
-		const renderCommittedFusionMessage = (e: SessionEventPayload<'assistant.message'>, isLastMessageChunk: boolean): void => {
-			const modelCallId = e.data.apiCallId ?? e.data.clientRequestId;
-			if (!isLastMessageChunk && !e.data.toolRequests?.length && modelCallId !== undefined) {
-				const pending = this._pendingFusionMessageChunks.get(modelCallId) ?? [];
-				pending.push(e);
-				this._pendingFusionMessageChunks.set(modelCallId, pending);
+		const renderCommittedFusionMessage = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): void => {
+			const call = this._pendingFusionMessageChunks.accept(e, phaseToolCallId);
+			if (!call) {
 				return;
 			}
-			const chunks = modelCallId !== undefined ? this._pendingFusionMessageChunks.get(modelCallId) ?? [] : [];
-			if (modelCallId !== undefined) {
-				this._pendingFusionMessageChunks.delete(modelCallId);
-			}
-			const isAnswer = !e.data.toolRequests?.length;
-			for (const chunk of [...chunks, e]) {
-				if (isAnswer) {
-					renderMessage(chunk, undefined, isLastChunk(chunk));
+			for (const chunk of call.messages) {
+				if (!call.hasToolRequests) {
+					renderMessage(chunk, undefined, isLastAssistantMessageChunk(chunk), true);
 				} else if (this._shownProvisionalFusionMessageIds.has(chunk.data.messageId)) {
 					this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion message already shown: ${chunk.data.messageId}`);
 				} else {
-					renderMessage(chunk, this._fusionPhaseParentToolCallId(undefined, chunk.data.fusion), isLastChunk(chunk));
+					renderMessage(chunk, this._fusionPhaseParentToolCallId(undefined, chunk.data.fusion), isLastAssistantMessageChunk(chunk), true);
 				}
 			}
 		};
@@ -5577,7 +5559,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
-			const isLastMessageChunk = isLastChunk(e);
+			const isLastMessageChunk = isLastAssistantMessageChunk(e);
 			const isCompleteModelCall = stableModelCallId !== undefined || isLastMessageChunk;
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
@@ -5628,8 +5610,9 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
-			if (parentToolCallId === undefined && this._fusionPhaseToolCallId(e.agentId, e.data.fusion) !== undefined) {
-				renderCommittedFusionMessage(e, isLastMessageChunk);
+			const phaseToolCallId = this._fusionPhaseToolCallId(e.agentId, e.data.fusion);
+			if (parentToolCallId === undefined && phaseToolCallId !== undefined) {
+				renderCommittedFusionMessage(e, phaseToolCallId);
 				return;
 			}
 			renderMessage(e, parentToolCallId, isLastMessageChunk);
@@ -5956,11 +5939,12 @@ export class CopilotAgentSession extends Disposable {
 			if (isTaskCompleteTool(tracked.toolName)) {
 				const summary = getTaskCompleteMarkdown(tracked.parameters, toolOutput);
 				if (summary) {
+					const summaryParentToolCallId = parentToolCallId && this._fusionPhaseLabels.has(parentToolCallId) ? parentToolCallId : undefined;
 					this._emitAction({
 						type: ActionType.ChatResponsePart,
 						turnId: this._turnId,
 						part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary },
-					});
+					}, summaryParentToolCallId);
 				}
 				return;
 			}
@@ -6128,7 +6112,7 @@ export class CopilotAgentSession extends Disposable {
 					return;
 				}
 				this._shownProvisionalFusionMessageIds.add(e.data.messageId);
-				renderMessage(e, phaseToolCallId, isLastChunk(e));
+				renderMessage(e, phaseToolCallId, isLastAssistantMessageChunk(e), true);
 				return;
 			}
 			if (e.type === 'tool.execution_start') {

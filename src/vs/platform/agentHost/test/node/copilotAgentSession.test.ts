@@ -12238,34 +12238,152 @@ Use the attached image as context.
 			]);
 		});
 
-		test('a committed Fusion phase model call is routed by how it ends, not by each chunk', async () => {
+		test('all provisional Fusion message chunks are shown and only the committed answer is replayed', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
-			const chunk = (apiCallId: string, chunkIndex: number, content: string, toolCallId?: string) => mockSession.fire('assistant.message', {
-				messageId: `${apiCallId}-${chunkIndex}`, apiCallId, chunkIndex, chunkCount: 2, content,
-				...(toolCallId ? { toolRequests: [{ toolCallId, name: 'view', arguments: {} }] } : {}),
-				fusion: liveFusion('phase-1', 'commit-1'),
-			});
+			const replay = (commitId?: string) => {
+				for (const [callId, contents] of [
+					['work', ['Checking the parser', 'Inspecting empty input']],
+					['answer', ['The parser is fixed', 'Both cases pass']],
+				] as const) {
+					for (const [chunkIndex, content] of contents.entries()) {
+						mockSession.fire('assistant.message', {
+							messageId: `${callId}-${chunkIndex}`, apiCallId: callId,
+							chunkIndex, chunkCount: 2, content, fusion: liveFusion('phase-1', commitId),
+							...(callId === 'work' && chunkIndex === 1 ? { toolRequests: [{ toolCallId: 'tc-view', name: 'view', arguments: {} }] } : {}),
+						}, commitId ? undefined : { ephemeral: true });
+					}
+					if (callId === 'work') {
+						mockSession.fire('tool.execution_start', {
+							toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion: liveFusion('phase-1', commitId),
+						}, commitId ? undefined : { ephemeral: true });
+						mockSession.fire('tool.execution_complete', {
+							toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: liveFusion('phase-1', commitId),
+						}, commitId ? undefined : { ephemeral: true });
+					}
+				}
+			};
 
 			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			replay();
 			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
-			chunk('call-1', 0, 'Checking the parser first');
-			chunk('call-1', 1, '', 'tc-view');
-			mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion: liveFusion('phase-1', 'commit-1') });
-			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: liveFusion('phase-1', 'commit-1') });
-			chunk('call-2', 0, 'The parser is fixed');
-			chunk('call-2', 1, '');
-			mockSession.fire('session.fusion_completed', fusionTestData.completed);
-			mockSession.fire('session.idle', {});
+			replay('commit-1');
 
-			assert.deepStrictEqual(fusionTranscript(signals), [
-				'subagent_started fusion:fusion-1:phase-1',
-				'fusion:fusion-1:phase-1: Checking the parser first',
-				'fusion:fusion-1:phase-1: tool tc-view',
-				'root: The parser is fixed',
-				'subagent_completed fusion:fusion-1:phase-1',
-			]);
+			assert.deepStrictEqual({
+				transcript: fusionTranscript(signals),
+				rounds: session['_currentTurn'].value?.toolCallRounds,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'tc-view').length,
+			}, {
+				transcript: [
+					'subagent_started fusion:fusion-1:phase-1',
+					'fusion:fusion-1:phase-1: Checking the parser',
+					'fusion:fusion-1:phase-1: Inspecting empty input',
+					'fusion:fusion-1:phase-1: tool tc-view',
+					'fusion:fusion-1:phase-1: The parser is fixed',
+					'fusion:fusion-1:phase-1: Both cases pass',
+					'root: The parser is fixed',
+					'root: Both cases pass',
+				],
+				rounds: 2,
+				completions: 1,
+			});
 		});
+
+		for (const identity of ['apiCallId', 'clientRequestId', 'none'] as const) {
+			test(`committed Fusion chunks are routed together (${identity})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const chunk = (callId: string, chunkIndex: number, content: string, toolCallId?: string) => mockSession.fire('assistant.message', {
+					messageId: `${callId}-${chunkIndex}`, ...(identity === 'none' ? {} : { [identity]: callId }), chunkIndex, chunkCount: 2, content,
+					...(toolCallId ? { toolRequests: [{ toolCallId, name: 'view', arguments: {} }] } : {}),
+					fusion: liveFusion('phase-1', 'commit-1'),
+				});
+
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+				chunk('call-1', 0, 'Checking the parser first');
+				chunk('call-1', 1, 'Inspecting empty input', 'tc-view');
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion: liveFusion('phase-1', 'commit-1') });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: liveFusion('phase-1', 'commit-1') });
+				chunk('call-2', 0, 'The parser is fixed');
+				chunk('call-2', 1, 'Both cases pass');
+				mockSession.fire('session.fusion_completed', fusionTestData.completed);
+				mockSession.fire('session.idle', {});
+
+				assert.deepStrictEqual(fusionTranscript(signals), [
+					'subagent_started fusion:fusion-1:phase-1',
+					'fusion:fusion-1:phase-1: Checking the parser first',
+					'fusion:fusion-1:phase-1: Inspecting empty input',
+					'fusion:fusion-1:phase-1: tool tc-view',
+					'root: The parser is fixed',
+					'root: Both cases pass',
+					'subagent_completed fusion:fusion-1:phase-1',
+				]);
+			});
+		}
+
+		for (const committed of [false, true]) {
+			test(`a Fusion task_complete summary stays in its phase chat (${committed ? 'committed' : 'rejected'})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const replay = (commitId?: string) => {
+					mockSession.fire('tool.execution_start', {
+						toolCallId: 'tc-complete', toolName: 'task_complete',
+						arguments: { summary: 'Phase summary' }, fusion: liveFusion('phase-1', commitId),
+					}, commitId ? undefined : { ephemeral: true });
+					mockSession.fire('tool.execution_complete', {
+						toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: liveFusion('phase-1', commitId),
+					}, commitId ? undefined : { ephemeral: true });
+				};
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				replay();
+				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+				if (committed) {
+					replay('commit-1');
+				}
+
+				assert.deepStrictEqual(fusionTranscript(signals), [
+					'subagent_started fusion:fusion-1:phase-1',
+					'fusion:fusion-1:phase-1: \n\n**Task completed:** Phase summary',
+				]);
+			});
+		}
+
+		for (const ephemeral of [false, true]) {
+			test(`non-Fusion rendering after a Fusion turn stays at root (${ephemeral})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('assistant.message', {
+					messageId: 'old-message', chunkCount: 2, chunkIndex: 0,
+					content: 'Old phase text', fusion: liveFusion('phase-1', 'commit-1'),
+				});
+				session.resetTurnState('normal-turn');
+				const beforeNormal = signals.length;
+				mockSession.fire('assistant.message_delta', { messageId: 'normal-1', deltaContent: 'Checking' });
+				mockSession.fire('assistant.message', {
+					messageId: 'normal-1', content: 'Checking',
+					toolRequests: [{ toolCallId: 'normal-tool', name: 'view', arguments: {} }],
+				}, { ephemeral });
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'normal-tool', toolName: 'view', arguments: { path: '/workspace/a.ts' },
+				}, { ephemeral });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId: 'normal-tool', success: true, result: { content: 'x' },
+				}, { ephemeral });
+				mockSession.fire('assistant.message', { messageId: 'normal-2', content: 'Normal answer' }, { ephemeral });
+
+				assert.deepStrictEqual({
+					transcript: fusionTranscript(signals.slice(beforeNormal)),
+					completions: signals.slice(beforeNormal).flatMap(signal =>
+						signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete
+							? [{ id: signal.action.toolCallId, parent: signal.parentToolCallId }] : []),
+				}, {
+					transcript: ['root: Checking', 'root: tool normal-tool', 'root: Normal answer'],
+					completions: [{ id: 'normal-tool', parent: undefined }],
+				});
+			});
+		}
 
 		test('a provisional review phase message waits for the phase to complete', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
