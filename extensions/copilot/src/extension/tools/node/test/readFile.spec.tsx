@@ -460,6 +460,48 @@ suite('ReadFile', () => {
 			});
 		});
 
+		test.each([
+			{ name: 'repeated reads', nextInput: input, expectedStart: 1, expectedEnd: 10 },
+			{ name: 'consecutive reads', nextInput: { ...input, startLine: 11, endLine: 20 }, expectedStart: 7, expectedEnd: 20 },
+		])('preserves $name when individual grep results are evicted', async ({ nextInput, expectedStart, expectedEnd }) => {
+			await invoke();
+			for (let i = 0; i < 17; i++) {
+				addGrepResult();
+			}
+
+			expect({
+				text: await invoke(nextInput),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				text: expectedLines(expectedStart, expectedEnd),
+				regionCalls: 1,
+			});
+		});
+
+		test('only clears read adjustments for the evicted session', async () => {
+			await invoke();
+			await invoke(input, secondSession);
+			for (let i = 0; i < MAX_GREP_RESULT_SESSIONS - 1; i++) {
+				addGrepResult(URI.file(`/sessions/eviction-${i}`));
+			}
+
+			const retainedRead = await invoke(input, secondSession);
+			const evictedContinuation = await invoke({ ...input, startLine: 11, endLine: 20 });
+			addGrepResult();
+
+			expect({
+				retainedRead,
+				evictedContinuation,
+				newRead: await invoke(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				retainedRead: expectedLines(1, 10),
+				evictedContinuation: expectedLines(11, 20),
+				newRead: expectedLines(1, 6),
+				regionCalls: 3,
+			});
+		});
+
 		test.each([7, 10, 12])('does not expand a nonconsecutive read starting at line %i', async startLine => {
 			await invoke();
 

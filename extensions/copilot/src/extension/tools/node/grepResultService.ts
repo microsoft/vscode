@@ -26,7 +26,8 @@ interface MatchResult {
 
 export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
-	readonly onDidRemoveGrepResult: Event<{ sessionUri: vscode.Uri; requestId: string }>;
+	/** Fires only when an entire session is removed from the grep-result cache. */
+	readonly onDidRemoveSession: Event<vscode.Uri>;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void;
 	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
@@ -34,7 +35,7 @@ export interface IGrepResultService {
 
 export class NullGrepResultService implements IGrepResultService {
 	declare readonly _serviceBrand: undefined;
-	readonly onDidRemoveGrepResult = Event.None;
+	readonly onDidRemoveSession = Event.None;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
 		// No-op
@@ -72,16 +73,11 @@ class SessionMatches {
 		this.matches = [];
 	}
 
-	add(result: GrepResult): string | undefined {
+	add(result: GrepResult): void {
 		this.matches.push(result);
 		if (this.matches.length > SessionMatches.maxMatches) {
-			return this.matches.shift()?.requestId;
+			this.matches.shift();
 		}
-		return undefined;
-	}
-
-	getRequestIds(): string[] {
-		return this.matches.map(match => match.requestId);
 	}
 
 	get(uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] {
@@ -118,8 +114,8 @@ class SessionMatches {
 export class GrepResultService extends Disposable implements IGrepResultService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidRemoveGrepResult = this._register(new Emitter<{ sessionUri: vscode.Uri; requestId: string }>());
-	readonly onDidRemoveGrepResult = this._onDidRemoveGrepResult.event;
+	private readonly _onDidRemoveSession = this._register(new Emitter<vscode.Uri>());
+	readonly onDidRemoveSession = this._onDidRemoveSession.event;
 
 	private readonly cache: LRUCache<string, SessionMatches>;
 
@@ -136,9 +132,7 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 			sessionMatches = new SessionMatches(sessionUri);
 			this.cache.set(key, sessionMatches);
 			if (evictedSessionMatches !== undefined) {
-				for (const evictedRequestId of evictedSessionMatches.getRequestIds()) {
-					this._onDidRemoveGrepResult.fire({ sessionUri: evictedSessionMatches.sessionUri, requestId: evictedRequestId });
-				}
+				this._onDidRemoveSession.fire(evictedSessionMatches.sessionUri);
 			}
 		}
 
@@ -153,10 +147,7 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 			}
 			matches.set(file.uri.toString(), { ranges, prefixMaxEndLines });
 		}
-		const removedRequestId = sessionMatches.add({ requestId, matches });
-		if (removedRequestId !== undefined) {
-			this._onDidRemoveGrepResult.fire({ sessionUri, requestId: removedRequestId });
-		}
+		sessionMatches.add({ requestId, matches });
 	}
 
 	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {

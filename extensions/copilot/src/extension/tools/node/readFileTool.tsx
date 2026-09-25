@@ -151,8 +151,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
 		@IRegionContextProviderService private readonly regionContextProvider: IRegionContextProviderService
 	) {
-		this.disposables.add(grepResultService.onDidRemoveGrepResult((event) => {
-			this.adjustedReadRequests.delete(event.sessionUri.toString());
+		this.disposables.add(grepResultService.onDidRemoveSession(sessionUri => {
+			this.adjustedReadRequests.delete(sessionUri.toString());
 		}));
 
 	}
