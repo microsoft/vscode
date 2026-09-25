@@ -108,6 +108,7 @@ export function mapSubagentSystemMessage(
 		const spawn = toolUseId ? registry.getSpawn(toolUseId) : undefined;
 		if (spawn) {
 			spawn.background = true;
+			registry.noteResumeTurn(spawn.turnId);
 		}
 		return [];
 	}
@@ -165,7 +166,7 @@ export function buildTopLevelSubagentReadyAction(
 	const agentName = typeof input?.subagent_type === 'string' ? input.subagent_type : undefined;
 	const prompt = typeof input?.prompt === 'string' ? input.prompt : undefined;
 	const inputJson = block.input !== undefined ? safeStringify(block.input) : undefined;
-	registry.recordSpawn(block.id, { subagentType: agentName, description, prompt });
+	registry.recordSpawn(block.id, { subagentType: agentName, description, prompt, turnId });
 	const meta: Mutable<IToolCallMeta> = { ...buildClaudeToolCallMeta(block.name) };
 	if (!meta.toolKind) {
 		meta.toolKind = 'subagent';
