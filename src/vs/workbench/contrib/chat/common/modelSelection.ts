@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
 import { isAgentHostTarget } from './chatSessionsService.js';
 
 export type ModelIdentifierResolution =
@@ -74,6 +74,21 @@ export function getRegisteredLanguageModels(languageModelsService: Pick<ILanguag
 			return metadata ? { identifier, metadata } : undefined;
 		})
 		.filter(model => model !== undefined);
+}
+
+/** Filters a target's model catalog using both host-specific and underlying BYOK visibility. */
+export function getVisibleLanguageModelsForTarget(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	targetChatSessionType: string,
+	languageModelsService: Pick<ILanguageModelsService, 'isModelHidden'>,
+): ILanguageModelChatMetadataAndIdentifier[] {
+	return models.filter(model => {
+		if (model.metadata.targetChatSessionType !== targetChatSessionType || languageModelsService.isModelHidden(model.identifier)) {
+			return false;
+		}
+		const manageModelsIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(model.metadata);
+		return manageModelsIdentifier === undefined || !languageModelsService.isModelHidden(manageModelsIdentifier);
+	});
 }
 
 /**

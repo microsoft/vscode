@@ -12,11 +12,13 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
-import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withFolderScopeGitState, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
@@ -29,6 +31,12 @@ const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
 
 type PullRequestArtifact = ISessionArtifact & { readonly link: string };
+
+/** Reads the persisted GitHub state of the session folder. */
+async function readPersistedSessionGitHubState(db: TestSessionDatabase): Promise<ISessionGitHubState | undefined> {
+	const value = await db.getMetadata(META_GITHUB_DATA_STATE);
+	return value ? readSessionGitHubState({ [SESSION_META_GITHUB_DATA_KEY]: JSON.parse(value) }, WORKING_DIRECTORY) : undefined;
+}
 
 function pullRequestArtifact(number: number, isArtifact = true): PullRequestArtifact {
 	return {
@@ -46,7 +54,7 @@ suite('AgentHostGitStateService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('migrates legacy singular pull request metadata on read', () => {
-		assert.deepStrictEqual(readSessionGitHubState({
+		assert.deepStrictEqual(readSessionGitHubStateInput({
 			[SESSION_META_GITHUB_KEY]: {
 				owner: 'microsoft',
 				repo: 'vscode',
@@ -60,7 +68,7 @@ suite('AgentHostGitStateService', () => {
 	});
 
 	test('preserves stored pull request recency order while deduplicating', () => {
-		assert.deepStrictEqual(readSessionGitHubState({
+		assert.deepStrictEqual(readSessionGitHubStateInput({
 			[SESSION_META_GITHUB_KEY]: {
 				pullRequestUrls: [
 					'https://github.com/microsoft/vscode/pull/3',
@@ -297,7 +305,7 @@ suite('AgentHostGitStateService', () => {
 			stateManager.setSessionMeta(SESSION, withSessionGitState(undefined, options.gitState));
 		}
 		if (options?.gitHubState) {
-			stateManager.setSessionMeta(SESSION, withSessionGitHubState(stateManager.getSessionState(SESSION)?._meta, options.gitHubState));
+			stateManager.setSessionMeta(SESSION, withSessionGitHubState(stateManager.getSessionState(SESSION)?._meta, options.workingDirectory, options.gitHubState));
 		}
 		if (options?.artifacts) {
 			stateManager.setSessionMeta(SESSION, withSessionArtifacts(stateManager.getSessionState(SESSION)?._meta, options.artifacts));
@@ -312,6 +320,7 @@ suite('AgentHostGitStateService', () => {
 				branchName: 'main',
 				isDetachedHead: true,
 				baseBranchName: 'main',
+				hasGitRemote: true,
 				hasGitHubRemote: true,
 				upstreamBranchName: 'origin/main',
 				incomingChanges: 1,
@@ -329,6 +338,7 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(readSessionGitState(materializedMeta), {
 			branchName: 'agents/feature',
 			baseBranchName: 'main',
+			hasGitRemote: true,
 			hasGitHubRemote: true,
 			githubOwner: 'microsoft',
 			githubRepo: 'vscode',
@@ -425,6 +435,301 @@ suite('AgentHostGitStateService', () => {
 			runEvents: []
 		});
 	});
+
+	test('clears default-chat Git state when no working directory can be resolved', async () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const previous: ISessionGitState = { branchName: 'stale-feature', baseBranchName: 'main' };
+		seedSession(h.stateManager, { gitState: previous });
+		await h.db.setMetadata(META_GIT_STATE, JSON.stringify(previous));
+
+		await h.service.refreshSessionGitState(defaultChat, undefined);
+
+		assert.deepStrictEqual({
+			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			persisted: await h.db.getMetadata(META_GIT_STATE),
+			runEvents: h.runEvents,
+		}, {
+			gitState: undefined,
+			persisted: undefined,
+			runEvents: [defaultChat],
+		});
+	});
+
+	test('persists chat Git state by folder scope separately from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'session-main' };
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: sessionGitState,
+		});
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+
+		const before = h.service.getSessionGitState(chat);
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+		const afterRefresh = h.service.getSessionGitState(chat);
+		const persistedAfterRefresh = await h.db.getMetadata(META_GIT_DATA_STATE);
+		h.setGitResult(undefined);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			afterRefresh,
+			afterUnavailable: h.service.getSessionGitState(chat),
+			sessionGitState: h.service.getSessionGitState(SESSION),
+			scopedState: readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId),
+			persistedAfterRefresh: persistedAfterRefresh ? JSON.parse(persistedAfterRefresh) : undefined,
+			persistedAfterUnavailable: JSON.parse((await h.db.getMetadata(META_GIT_DATA_STATE))!),
+			runEvents: h.runEvents,
+		}, {
+			before: undefined,
+			afterRefresh: chatGitState,
+			afterUnavailable: undefined,
+			sessionGitState,
+			scopedState: undefined,
+			persistedAfterRefresh: { [scopeId]: chatGitState },
+			persistedAfterUnavailable: {},
+			runEvents: [chat, chat],
+		});
+	}));
+
+	test('reads restored folder-scoped Git state before refreshing a peer chat', () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sameFolderChat = buildChatUri(SESSION, 'same-folder-peer');
+		const otherFolderChat = buildChatUri(SESSION, 'other-folder-peer');
+		const cachedGitState: ISessionGitState = { branchName: 'cached-feature', baseBranchName: 'main' };
+		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, sameFolderChat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, otherFolderChat, { workingDirectories: ['file:///other'] });
+		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, cachedGitState));
+
+		assert.deepStrictEqual({
+			peer: h.service.getSessionGitState(chat),
+			sameFolderPeer: h.service.getSessionGitState(sameFolderChat),
+			otherFolderPeer: h.service.getSessionGitState(otherFolderChat),
+			session: h.service.getSessionGitState(SESSION),
+			gitCalls: h.gitCalls,
+		}, {
+			peer: cachedGitState,
+			sameFolderPeer: cachedGitState,
+			otherFolderPeer: undefined,
+			session: undefined,
+			gitCalls: [],
+		});
+	});
+
+	test('keeps the default chat on session Git state when a same-folder peer has scoped state', () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'main' };
+		const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'release' };
+		const scopeId = getWorkingDirectoryScopeId([WORKING_DIRECTORY]);
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: sessionGitState });
+		h.stateManager.addChat(SESSION, peer);
+		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, peerGitState));
+
+		assert.deepStrictEqual({
+			defaultChat: h.service.getSessionGitState(defaultChat),
+			peer: h.service.getSessionGitState(peer),
+			session: h.service.getSessionGitState(SESSION),
+		}, {
+			defaultChat: sessionGitState,
+			peer: peerGitState,
+			session: sessionGitState,
+		});
+	});
+
+	test('keeps separate GitHub state and pull requests for a chat in another folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sameScopeChat = buildChatUri(SESSION, 'same-scope');
+		const sessionGitHubState: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'session-feature' };
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'session-feature', baseBranchName: 'main' },
+			gitHubState: sessionGitHubState,
+		});
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///other'] });
+		h.stateManager.addChat(SESSION, sameScopeChat, { workingDirectories: [WORKING_DIRECTORY] });
+		h.setGitResult({ branchName: 'chat-feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('chat-feature', { url: 'https://github.com/contoso/tools/pull/7', number: 7 });
+
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		const folderKey = getWorkingDirectoryKey('file:///other');
+		const meta = h.stateManager.getSessionState(SESSION)?._meta;
+		assert.deepStrictEqual({
+			chat: h.service.getGitHubState(chat),
+			sameScopeChat: h.service.getGitHubState(sameScopeChat),
+			session: readSessionGitHubState(meta, WORKING_DIRECTORY),
+			folders: Object.fromEntries(readSessionGitHubData(meta)),
+			persisted: JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'),
+			allPullRequests: getAllSessionRelatedPullRequestUrls(meta),
+			pullRequestCalls: h.pullRequestCalls,
+		}, {
+			chat: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' },
+			sameScopeChat: sessionGitHubState,
+			session: sessionGitHubState,
+			folders: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: sessionGitHubState, [folderKey]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
+			persisted: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: sessionGitHubState, [folderKey]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
+			allPullRequests: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/contoso/tools/pull/7'],
+			pullRequestCalls: ['chat-feature'],
+		});
+	}));
+
+	test('attaches a peer-folder pull request using the peer folder branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerFolder = 'file:///peer';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'session-feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('peer-feature', { url: 'https://github.com/contoso/tools/pull/9', number: 9 });
+
+		await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			peerGitState: h.service.getSessionGitState(peer),
+			peerGitHubState: h.service.getGitHubState(peer),
+		}, {
+			pullRequestCalls: ['peer-feature'],
+			peerGitState: { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' },
+			peerGitHubState: {
+				owner: 'contoso',
+				repo: 'tools',
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				pullRequestBranchName: 'peer-feature',
+			},
+		});
+	}));
+
+	test('keeps a pre-existing other-folder pull request out of the related set', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerFolder = 'file:///peer';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			createdAt: 600_000,
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('peer-feature', { url: 'https://github.com/contoso/tools/pull/9', number: 9, createdAt: 1_000 });
+
+		await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+		const github = h.service.getGitHubState(peer);
+		assert.deepStrictEqual({
+			github,
+			related: [...getSessionRelatedPullRequestUrls(github)],
+		}, {
+			github: {
+				owner: 'contoso',
+				repo: 'tools',
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				initialPullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				pullRequestBranchName: 'peer-feature',
+			},
+			related: [],
+		});
+	}));
+
+	test('migrates the original single-folder state to the session folder', () => {
+		const legacy: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] };
+		const existing: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'] };
+		const legacyMeta = { [SESSION_META_GITHUB_KEY]: legacy, other: true };
+		const sessionFolderKey = getWorkingDirectoryKey(WORKING_DIRECTORY);
+
+		assert.deepStrictEqual({
+			migrated: withMigratedSessionGitHubState(legacyMeta, WORKING_DIRECTORY),
+			persistedLegacy: withMigratedSessionGitHubState({ other: true }, WORKING_DIRECTORY, legacy),
+			keepsFolderState: withMigratedSessionGitHubState(withSessionGitHubState(legacyMeta, WORKING_DIRECTORY, existing), WORKING_DIRECTORY),
+			withoutFolder: withMigratedSessionGitHubState(legacyMeta, undefined),
+		}, {
+			migrated: { other: true, [SESSION_META_GITHUB_DATA_KEY]: { [sessionFolderKey]: legacy } },
+			persistedLegacy: { other: true, [SESSION_META_GITHUB_DATA_KEY]: { [sessionFolderKey]: legacy } },
+			keepsFolderState: { other: true, [SESSION_META_GITHUB_DATA_KEY]: { [sessionFolderKey]: existing } },
+			withoutFolder: { other: true },
+		});
+	});
+
+	test('moves the GitHub state of a folder whose checkout moved', () => {
+		const moved: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] };
+		const other: ISessionGitHubState = { owner: 'contoso', repo: 'tools' };
+		const meta = withSessionGitHubState(withSessionGitHubState(undefined, 'file:///repo', moved), 'file:///other', other);
+
+		assert.deepStrictEqual({
+			moved: Object.fromEntries(readSessionGitHubData(withReplacedFolderGitHubState(meta, 'file:///repo', 'file:///worktree'))),
+			unknownFolder: withReplacedFolderGitHubState(meta, 'file:///missing', 'file:///worktree'),
+		}, {
+			moved: { [getWorkingDirectoryKey('file:///other')]: other, [getWorkingDirectoryKey('file:///worktree')]: moved },
+			unknownFolder: meta,
+		});
+	});
+
+	test('never records state for a folder changeset owner that no longer matches a chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+		const staleOwner = buildFolderChangesetOwnerUri(SESSION, getWorkingDirectoryScopeId(['file:///removed']));
+
+		await h.service.setSessionGitHubState(staleOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/9'] });
+
+		const meta = h.stateManager.getSessionState(SESSION)?._meta;
+		assert.deepStrictEqual({
+			read: h.service.getGitHubState(staleOwner),
+			session: readSessionGitHubState(meta, WORKING_DIRECTORY),
+			folders: Object.fromEntries(readSessionGitHubData(meta)),
+		}, {
+			read: undefined,
+			session: { owner: 'microsoft', repo: 'vscode' },
+			folders: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { owner: 'microsoft', repo: 'vscode' } },
+		});
+	}));
+
+	test('persists concurrent updates of different folders without losing either', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const firstChat = buildChatUri(SESSION, 'first');
+		const secondChat = buildChatUri(SESSION, 'second');
+		h.stateManager.addChat(SESSION, firstChat, { workingDirectories: ['file:///first'] });
+		h.stateManager.addChat(SESSION, secondChat, { workingDirectories: ['file:///second'] });
+
+		await Promise.all([
+			h.service.setSessionGitHubState(firstChat, { owner: 'contoso', repo: 'first' }),
+			h.service.setSessionGitHubState(secondChat, { owner: 'contoso', repo: 'second' }),
+		]);
+
+		assert.deepStrictEqual(JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'), {
+			[getWorkingDirectoryKey('file:///first')]: { owner: 'contoso', repo: 'first' },
+			[getWorkingDirectoryKey('file:///second')]: { owner: 'contoso', repo: 'second' },
+		});
+	}));
+
+	test('clears chat Git state when the chat is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		h.stateManager.removeChat(SESSION, chat);
+
+		assert.strictEqual(h.service.getSessionGitState(chat), undefined);
+	}));
 
 	test('uses the selected worktree base branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
@@ -554,10 +859,9 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
-			const persistedGitHubState = await h.db.getMetadata(META_GITHUB_STATE);
 			assert.deepStrictEqual({
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
-				persistedGitHub: persistedGitHubState ? JSON.parse(persistedGitHubState) : undefined,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db),
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGitHub: { owner: 'microsoft', repo: 'vscode' },
@@ -594,7 +898,7 @@ suite('AgentHostGitStateService', () => {
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual({
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 				persistedGit: await h.db.getMetadata(META_GIT_STATE),
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },
@@ -645,7 +949,7 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				gitCalls: h.gitCalls.length,
 				calls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				gitCalls: 2,
 				calls: [{ owner: 'microsoft', repo: 'vscode', branch: 'feature', headOwner: 'fork-owner' }],
@@ -681,7 +985,7 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
 				pullRequestShaCalls: h.pullRequestShaCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['remote-name'],
 				pullRequestShaCalls: [],
@@ -707,7 +1011,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				pullRequestCandidateCalls: h.pullRequestCandidateCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCandidateCalls: [['https://github.com/microsoft/vscode/pull/2']],
 				github: {
@@ -744,7 +1048,7 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-			assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+			assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY), {
 				owner: 'microsoft',
 				repo: 'vscode',
 			});
@@ -769,7 +1073,7 @@ suite('AgentHostGitStateService', () => {
 		h.configurationService.updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: false });
 		await reconciled;
 
-		assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+		assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY), {
 			owner: 'microsoft',
 			repo: 'vscode',
 		});
@@ -806,7 +1110,7 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				pullRequestCalls: calls,
 				pullRequestShaCalls: h.pullRequestShaCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: [{ branch: 'feature/alt-click-close-other-tabs', headOwner: 'jadefr' }],
 				pullRequestShaCalls: [],
@@ -840,7 +1144,7 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
 				pullRequestShaCalls: h.pullRequestShaCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['local-only'],
 				pullRequestShaCalls: ['1ce2c20d3dcb593273f604b077240543d494e276'],
@@ -890,11 +1194,11 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 			assert.deepStrictEqual({
 				github,
 				related: [...getSessionRelatedPullRequestUrls(github)],
-				persistedGitHub: JSON.parse((await h.db.getMetadata(META_GITHUB_STATE))!),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db),
 			}, {
 				github: {
 					owner: 'microsoft',
@@ -937,7 +1241,7 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 			assert.deepStrictEqual({
 				github,
 				related: [...getSessionRelatedPullRequestUrls(github)],
@@ -975,7 +1279,7 @@ suite('AgentHostGitStateService', () => {
 			});
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 			assert.deepStrictEqual({
 				github,
 				related: [...getSessionRelatedPullRequestUrls(github)],
@@ -1012,7 +1316,7 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+			const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 			assert.deepStrictEqual({
 				github,
 				related: [...getSessionRelatedPullRequestUrls(github)],
@@ -1031,7 +1335,7 @@ suite('AgentHostGitStateService', () => {
 	test('round-trips an empty folder-session baseline through persisted metadata', () => {
 		const persisted = JSON.parse(JSON.stringify({ initialPullRequestUrls: [] }));
 
-		assert.deepStrictEqual(readSessionGitHubState({ [SESSION_META_GITHUB_KEY]: persisted }), {
+		assert.deepStrictEqual(readSessionGitHubStateInput({ [SESSION_META_GITHUB_KEY]: persisted }), {
 			initialPullRequestUrls: [],
 		});
 	});
@@ -1086,7 +1390,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['feature'],
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' },
@@ -1108,7 +1412,7 @@ suite('AgentHostGitStateService', () => {
 
 			// No pull request exists for the new branch yet
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
-			const githubBeforePullRequestExists = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+			const githubBeforePullRequestExists = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 
 			h.setPullRequest('feature-2', { url: 'https://github.com/microsoft/vscode/pull/2', number: 2 });
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
@@ -1116,8 +1420,8 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
 				githubBeforePullRequestExists,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
-				persistedGitHub: JSON.parse((await h.db.getMetadata(META_GITHUB_STATE))!),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db),
 			}, {
 				pullRequestCalls: ['feature-2', 'feature-2'],
 				githubBeforePullRequestExists: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' },
@@ -1138,13 +1442,13 @@ suite('AgentHostGitStateService', () => {
 				h.setGitResult(gitState);
 				h.setPullRequest('feature', { url: 'https://github.com/microsoft/vscode/pull/1', number: 1 });
 				h.setOnPullRequestLookup(async () => {
-					const currentState = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+					const currentState = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 					await h.service.setSessionGitHubState(SESSION, withMostRecentSessionPullRequest(currentState, 'https://github.com/microsoft/vscode/pull/2', 'feature-2'));
 				});
 
 				await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-				assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+				assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY), {
 					owner: 'microsoft',
 					repo: 'vscode',
 					pullRequestUrls: [
@@ -1173,7 +1477,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['feature'],
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' },
@@ -1197,7 +1501,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['feature-2', 'feature-2'],
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
@@ -1225,7 +1529,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				pullRequestCalls: h.pullRequestCalls,
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
 				pullRequestCalls: ['feature'],
 				github: { owner: 'microsoft', repo: 'vscode' },
@@ -1249,7 +1553,7 @@ suite('AgentHostGitStateService', () => {
 
 				await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
-				assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+				assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY), {
 					owner: 'microsoft',
 					repo: 'vscode',
 				});
@@ -1272,7 +1576,7 @@ suite('AgentHostGitStateService', () => {
 			// event carries the pull request of the newly checked out branch.
 			let githubOnRefreshEvent: ISessionGitHubState | undefined;
 			disposables.add(h.service.onDidRefreshSessionGitState(() => {
-				githubOnRefreshEvent = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+				githubOnRefreshEvent = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY);
 			}));
 
 			await h.service.refreshSessionGitState(SESSION, undefined);

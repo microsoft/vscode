@@ -28,7 +28,7 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-.changeset-review-action {
+.monaco-action-bar .checkbox-action-item.changeset-review-action {
 	display: flex;
 	align-items: center;
 	height: var(--vscode-spacing-size200);

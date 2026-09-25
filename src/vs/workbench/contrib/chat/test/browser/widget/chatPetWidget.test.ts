@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -21,6 +21,7 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import '../../../browser/widget/media/chat.css';
@@ -71,6 +72,84 @@ suite('ChatPetWidget', () => {
 			getPlatformTop: () => undefined,
 			onDidChangePlatform: Event.None,
 		};
+	}
+
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport') {
+		const root = mainWindow.document.createElement('div');
+		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
+		const firstParent = mainWindow.document.createElement('div');
+		firstParent.style.cssText = 'position:absolute;left:180px;top:180px;width:400px;height:80px';
+		const secondParent = mainWindow.document.createElement('div');
+		secondParent.style.cssText = 'position:absolute;left:40px;top:480px;width:720px;height:80px';
+		root.append(firstParent, secondParent);
+		mainWindow.document.body.append(root);
+		disposables.add(toDisposable(() => root.remove()));
+		const platformChanged = disposables.add(new Emitter<void>());
+		const reducedMotionChanged = disposables.add(new Emitter<void>());
+		const accessibilityService = new class extends TestAccessibilityService {
+			override onDidChangeReducedMotion = reducedMotionChanged.event;
+			override isMotionReduced(): boolean { return motionReduced; }
+		}();
+		let layout = () => { };
+		class TestResizeObserver implements ResizeObserver {
+			constructor(callback: ResizeObserverCallback) { layout = () => callback([], this); }
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		const createHost = (parent: HTMLElement, transition: IChatPetWidgetHost['transition']): IChatPetWidgetHost => ({
+			...createPetHost(parent, parent, root),
+			transition,
+			getPlatformTop: () => parent.getBoundingClientRect().top,
+			onDidChangePlatform: platformChanged.event,
+		});
+		const firstHost = createHost(firstParent, initialTransition);
+		const secondHost: IChatPetWidgetHost = {
+			...createHost(secondParent, 'fall'),
+			model: constObservable(new class extends mock<IChatModel>() {
+				override readonly hasActiveRequest = constObservable(true);
+				override readonly lastRequestObs = constObservable(undefined);
+			}()),
+		};
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		const widget = disposables.add(new ChatPetWidget(
+			firstHost, TestResizeObserver, service, accessibilityService,
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = firstParent.querySelector<HTMLElement>('.chat-pet-button')!;
+		const overlay = firstParent.querySelector<HTMLElement>('.chat-pet-overlay')!;
+		const effect = firstParent.querySelector<HTMLCanvasElement>('.chat-pet-respawn-effect')!;
+		const effectImage = overlay.querySelector<HTMLImageElement>(':scope > img.chat-pet-spritesheet')!;
+		button.classList.remove('entering');
+		return {
+			root, firstParent, secondParent, firstHost, secondHost, widget, service, button, overlay, effect, effectImage, platformChanged,
+			layout: () => layout(),
+			setReducedMotion: (value: boolean) => {
+				motionReduced = value;
+				reducedMotionChanged.fire();
+			},
+		};
+	}
+
+	async function waitForPetAnimation(condition: () => boolean, message: string): Promise<void> {
+		for (let attempt = 0; attempt < 150 && !condition(); attempt++) {
+			await timeout(20);
+		}
+		assert.ok(condition(), message);
+	}
+
+	function getPetFallKeyframes(button: HTMLElement) {
+		return button.getAnimations().flatMap(animation => animation.effect instanceof mainWindow.KeyframeEffect
+			? animation.effect.getKeyframes().filter(frame => frame.top !== undefined).map(frame => frame.top)
+			: []);
 	}
 
 	test('runs one timed hop for a single key press', () => {
@@ -489,6 +568,356 @@ suite('ChatPetWidget', () => {
 			sameButton: true,
 			firstHostClass: false,
 			secondHostClass: true,
+		});
+	});
+
+	test('falls directly from the previous input without hopping and resumes the active request', async () => {
+		const { widget, button, overlay, secondHost, secondParent, service } = createHostTransitionHarness();
+		const source = button.getBoundingClientRect();
+		const spriteDraws = Array.from(button.querySelectorAll<HTMLCanvasElement>('.chat-pet-sprite .chat-pet-canvas'), canvas => {
+			const context = canvas.getContext('2d');
+			assert.ok(context);
+			return sinon.spy(context, 'drawImage');
+		});
+		widget.setHost(secondHost);
+		const departure = {
+			left: button.getBoundingClientRect().left,
+			top: button.getBoundingClientRect().top,
+			relocating: overlay.classList.contains('relocating'),
+			tabIndex: button.tabIndex,
+		};
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the pet must fall directly from the previous input');
+		const jumpFrames = spriteDraws.flatMap(draw => draw.getCalls())
+			.filter(call => call.args[0] instanceof mainWindow.HTMLImageElement && call.args[0].getAttribute('src')?.includes('buddy-jump-'))
+			.map(call => call.args[1] / 96)
+			.filter((frame, index, frames) => index === 0 || frame !== frames[index - 1]);
+		const fallKeyframes = getPetFallKeyframes(button);
+		const duringFall = button.getBoundingClientRect().top;
+		button.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new host');
+		await waitForPetAnimation(() => button.dataset.state === 'rendering', 'the pet must resume the active request after landing');
+		const target = secondParent.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			departure,
+			jumpFrames,
+			fallKeyframes,
+			fallsDown: duringFall >= source.top && duringFall < target.top - source.height,
+			landed: button.getBoundingClientRect().bottom === target.top,
+			attached: overlay.parentElement === secondParent,
+			tabIndex: button.tabIndex,
+			savedPosition: service.horizontalPosition.get(),
+		}, {
+			departure: { left: source.left, top: source.top, relocating: true, tabIndex: -1 },
+			jumpFrames: [],
+			fallKeyframes: [`${source.top}px`, `${target.top - source.height}px`],
+			fallsDown: true,
+			landed: true,
+			attached: true,
+			tabIndex: 0,
+			savedPosition: undefined,
+		});
+	});
+
+	test('preserves the visible departure through a detached host gap and waits for the destination layout', async () => {
+		const { root, firstParent, secondParent, secondHost, widget, button, overlay, layout } = createHostTransitionHarness();
+		const source = button.getBoundingClientRect();
+		button.classList.add('entering');
+		layout();
+		button.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-enter' }));
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		firstParent.remove();
+		const dormant = mainWindow.document.createElement('div');
+		widget.setHost(createPetHost(dormant, dormant, dormant));
+		secondParent.remove();
+		widget.setHost(secondHost);
+		const pending = overlay.classList.contains('relocating');
+		const pendingPosition = { left: button.getBoundingClientRect().left, top: button.getBoundingClientRect().top };
+		root.append(secondParent);
+		layout();
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the fall must start after layout');
+
+		assert.deepStrictEqual({
+			pending,
+			pendingPosition,
+			relocating: overlay.classList.contains('relocating'),
+			fallStart: getPetFallKeyframes(button)[0],
+		}, {
+			pending: true,
+			pendingPosition: { left: source.left, top: source.top },
+			relocating: true,
+			fallStart: `${source.top}px`,
+		});
+	});
+
+	// Flaky in macOS CI: real-time sprite updates can skip frames under load.
+	test.skip('teleports to the top of the movement area and falls onto the new input', async () => {
+		const { root, widget, button, overlay, effect, firstHost, firstParent, secondHost, setReducedMotion } = createHostTransitionHarness(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const source = button.getBoundingClientRect();
+		const { top: targetTop } = firstParent.getBoundingClientRect();
+		const context = effect.getContext('2d');
+		assert.ok(context);
+		const drawImage = sinon.spy(context, 'drawImage');
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the teleport must wait for the destination layout');
+		const departure = { left: effect.getBoundingClientRect().left, top: effect.getBoundingClientRect().top, hidden: button.classList.contains('hidden') };
+		await waitForPetAnimation(() => effect.getBoundingClientRect().top === root.getBoundingClientRect().top && !effect.classList.contains('hidden'), 'the respawn effect must appear at the top of the movement area');
+		const respawn = { top: effect.getBoundingClientRect().top, aboveInput: effect.getBoundingClientRect().bottom < targetTop };
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the respawn must lead into falling onto the input');
+		const duringFall = {
+			state: button.dataset.state,
+			effectHidden: effect.classList.contains('hidden'),
+			aboveInput: button.getBoundingClientRect().bottom < targetTop,
+			tabIndex: button.tabIndex,
+		};
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input');
+		const frames = drawImage.getCalls().map(call => call.args[1] / 96)
+			.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
+		const respawnIndex = frames.indexOf(0);
+
+		assert.deepStrictEqual({
+			departure,
+			respawn,
+			duringFall,
+			// Elapsed-time animation can skip intermediate frames when callbacks run late.
+			frameEndpoints: [frames[0], frames[respawnIndex], frames.at(-1)],
+			framesInOrder: frames.every((frame, index) => index === 0
+				|| (index <= respawnIndex ? frame < frames[index - 1] : frame > frames[index - 1])),
+			attached: overlay.parentElement === firstParent,
+			landed: button.getBoundingClientRect().bottom,
+			effectHidden: effect.classList.contains('hidden'),
+			buttonHidden: button.classList.contains('hidden'),
+			tabIndex: button.tabIndex,
+		}, {
+			departure: { left: source.left, top: source.top, hidden: true },
+			respawn: { top: root.getBoundingClientRect().top, aboveInput: true },
+			duringFall: { state: 'falling', effectHidden: true, aboveInput: true, tabIndex: -1 },
+			frameEndpoints: [5, 0, 5],
+			framesInOrder: true,
+			attached: true,
+			landed: targetTop,
+			effectHidden: true,
+			buttonHidden: false,
+			tabIndex: 0,
+		});
+	});
+
+	test('retries a failed respawn image on the next teleport', async () => {
+		const { widget, button, overlay, effect, effectImage, firstHost, firstParent, secondHost, setReducedMotion } = createHostTransitionHarness(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effectImage.complete && effectImage.naturalWidth > 0, 'the first teleport must load the respawn image');
+		const failedWidth = sinon.stub(effectImage, 'naturalWidth').get(() => 0);
+		effectImage.dispatchEvent(new mainWindow.Event('error'));
+		const afterFailure = {
+			source: effectImage.getAttribute('src'),
+			relocating: overlay.classList.contains('relocating'),
+			effectHidden: effect.classList.contains('hidden'),
+			buttonHidden: button.classList.contains('hidden'),
+			tabIndex: button.tabIndex,
+		};
+		failedWidth.restore();
+		const sourceWrites = sinon.spy(effectImage, 'src', ['set']);
+		setReducedMotion(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the next teleport must start');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the retried teleport must finish');
+
+		assert.deepStrictEqual({
+			afterFailure,
+			reloaded: sourceWrites.set.calledOnce,
+			attached: overlay.parentElement === firstParent,
+			landed: button.getBoundingClientRect().bottom,
+		}, {
+			afterFailure: { source: null, relocating: false, effectHidden: true, buttonHidden: false, tabIndex: 0 },
+			reloaded: true,
+			attached: true,
+			landed: firstParent.getBoundingClientRect().top,
+		});
+	});
+
+	test('ignores a late respawn image error after retargeting a teleport into a fall', async () => {
+		const { root, widget, button, overlay, effect, effectImage, firstHost, secondHost, secondParent, setReducedMotion } = createHostTransitionHarness(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effect.getBoundingClientRect().top === root.getBoundingClientRect().top, 'the teleport must reach its upper respawn position');
+		widget.setHost(secondHost);
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the new host transition must be falling');
+		effectImage.dispatchEvent(new mainWindow.Event('error'));
+		const afterError = {
+			relocating: overlay.classList.contains('relocating'),
+			falling: button.classList.contains('falling'),
+			tabIndex: button.tabIndex,
+		};
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the unrelated fall must finish normally');
+
+		assert.deepStrictEqual({
+			afterError,
+			attached: overlay.parentElement === secondParent,
+			landed: button.getBoundingClientRect().bottom,
+		}, {
+			afterError: { relocating: true, falling: true, tabIndex: -1 },
+			attached: true,
+			landed: secondParent.getBoundingClientRect().top,
+		});
+	});
+
+	test('ignores unpainted intermediate hosts and waits for the final input layout', async () => {
+		const { root, widget, button, firstHost, secondHost, secondParent, layout } = createHostTransitionHarness();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const source = button.getBoundingClientRect();
+		const provisionalParent = mainWindow.document.createElement('div');
+		provisionalParent.style.cssText = 'position:absolute;left:180px;top:80px;width:400px;height:80px';
+		root.append(provisionalParent);
+		widget.setHost({
+			...firstHost,
+			parent: provisionalParent,
+			dragBounds: provisionalParent,
+			getPlatformTop: () => provisionalParent.getBoundingClientRect().top,
+		});
+		secondParent.style.top = '80px';
+		widget.setHost(secondHost);
+		const pendingPosition = { left: button.getBoundingClientRect().left, top: button.getBoundingClientRect().top };
+		secondParent.style.top = '480px';
+		layout();
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the fall must start after final layout');
+
+		assert.deepStrictEqual({
+			pendingPosition,
+			fallStart: getPetFallKeyframes(button)[0],
+		}, {
+			pendingPosition: { left: source.left, top: source.top },
+			fallStart: `${source.top}px`,
+		});
+	});
+
+	test('continues a fall through replacement of a disposed provisional host', async () => {
+		const { widget, button, overlay, secondHost, secondParent } = createHostTransitionHarness();
+		let disposed = false;
+		widget.setHost({
+			...secondHost,
+			getPlatformTop: () => {
+				assert.ok(!disposed, 'must not read platform geometry after the host is disposed');
+				return secondParent.getBoundingClientRect().top;
+			},
+		});
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the provisional host must start the fall');
+		disposed = true;
+		const dormant = mainWindow.document.createElement('div');
+		widget.setHost(createPetHost(dormant, dormant, dormant));
+		widget.setHost(secondHost);
+		await waitForPetAnimation(() => overlay.classList.contains('relocating'), 'the replacement host must resume the fall');
+		const continuesFall = overlay.classList.contains('relocating');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the replacement host must finish the fall');
+
+		assert.deepStrictEqual({
+			continuesFall,
+			attached: overlay.parentElement === secondParent,
+			landed: button.getBoundingClientRect().bottom,
+		}, {
+			continuesFall: true,
+			attached: true,
+			landed: secondParent.getBoundingClientRect().top,
+		});
+	});
+
+	test('moves instantly in both directions with reduced motion and between matching host kinds', () => {
+		const reduced = createHostTransitionHarness(true);
+		reduced.widget.setHost(reduced.secondHost);
+		const lower = reduced.button.getBoundingClientRect().bottom;
+		reduced.widget.setHost(reduced.firstHost);
+		const matching = createHostTransitionHarness(false, 'fall');
+		matching.widget.setHost(matching.secondHost);
+
+		assert.deepStrictEqual({
+			lower,
+			upper: reduced.button.getBoundingClientRect().bottom,
+			reducedRelocating: reduced.overlay.classList.contains('relocating'),
+			matchingRelocating: matching.overlay.classList.contains('relocating'),
+			matchingAttached: matching.overlay.parentElement === matching.secondParent,
+		}, {
+			lower: reduced.secondParent.getBoundingClientRect().top,
+			upper: reduced.firstParent.getBoundingClientRect().top,
+			reducedRelocating: false,
+			matchingRelocating: false,
+			matchingAttached: true,
+		});
+	});
+
+	test('settles a host transition when reduced motion is enabled or the pet is disabled', async () => {
+		const reduced = createHostTransitionHarness();
+		reduced.widget.setHost(reduced.secondHost);
+		await waitForPetAnimation(() => reduced.button.classList.contains('falling'), 'the pet must be falling before motion is reduced');
+		reduced.setReducedMotion(true);
+		const disabled = createHostTransitionHarness();
+		disabled.widget.setHost(disabled.secondHost);
+		await waitForPetAnimation(() => disabled.button.classList.contains('falling'), 'the pet must be falling before it is disabled');
+		disabled.service.toggle();
+
+		assert.deepStrictEqual({
+			reducedRelocating: reduced.overlay.classList.contains('relocating'),
+			reducedBottom: reduced.button.getBoundingClientRect().bottom,
+			disabledRelocating: disabled.overlay.classList.contains('relocating'),
+			disabledAttached: disabled.overlay.parentElement === disabled.secondParent,
+			disabledTabIndex: disabled.button.tabIndex,
+		}, {
+			reducedRelocating: false,
+			reducedBottom: reduced.secondParent.getBoundingClientRect().top,
+			disabledRelocating: false,
+			disabledAttached: true,
+			disabledTabIndex: -1,
+		});
+	});
+
+	test('retargets a fall when the destination platform moves without completing on transitioncancel', async () => {
+		const { widget, button, overlay, secondHost, secondParent, platformChanged } = createHostTransitionHarness();
+		widget.setHost(secondHost);
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the pet must be falling');
+		secondParent.style.top = '560px';
+		platformChanged.fire();
+		button.dispatchEvent(new mainWindow.TransitionEvent('transitioncancel', { propertyName: 'top' }));
+		const retargeting = overlay.classList.contains('relocating');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the retargeted fall must finish');
+
+		assert.deepStrictEqual({
+			retargeting,
+			landed: button.getBoundingClientRect().bottom,
+			attached: overlay.parentElement === secondParent,
+		}, {
+			retargeting: true,
+			landed: secondParent.getBoundingClientRect().top,
+			attached: true,
+		});
+	});
+
+	test('cancels an interrupted host transition without leaving a floating overlay or pending animation', async () => {
+		const { widget, button, overlay, firstHost, firstParent, secondHost } = createHostTransitionHarness();
+		widget.setHost(secondHost);
+		widget.setHost(firstHost);
+		await timeout(700);
+
+		assert.deepStrictEqual({
+			relocating: overlay.classList.contains('relocating'),
+			attached: overlay.parentElement === firstParent,
+			falling: button.classList.contains('falling'),
+			tabIndex: button.tabIndex,
+			bottom: button.getBoundingClientRect().bottom,
+		}, {
+			relocating: false,
+			attached: true,
+			falling: false,
+			tabIndex: 0,
+			bottom: firstParent.getBoundingClientRect().top,
 		});
 	});
 

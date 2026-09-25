@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
@@ -103,6 +104,23 @@ function encode(data: AgentHostCatalogData = createData()) {
 suite('AgentHostCatalogProjection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips validated remote-session origin metadata', () => {
+		const origin = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
+		const data = createData();
+		const encoded = encode({ ...data, _meta: { ...data._meta, [REMOTE_SESSION_ORIGIN_METADATA_KEY]: origin } });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+		assert.ok(decoded.ok);
+		assert.deepStrictEqual(readRemoteSessionOrigin(decoded.value.data), origin);
+	});
+
+	test('rejects mismatched remote origin session and chat identities', () => {
+		const result = encodeAgentHostCatalogPayload({
+			...createData(),
+			_meta: { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/other#peer', depth: 1 } },
+		});
+		assert.strictEqual(result.ok, false);
+	});
+
 	test('derives the data type from validators and round trips canonical payload and hash', () => {
 		const typedData: AgentHostCatalogData = createData();
 		const encoded = encode(typedData);
@@ -147,6 +165,29 @@ suite('AgentHostCatalogProjection', () => {
 			chatOrder: [0, 1],
 		});
 
+	});
+
+	test('rejects prototype keys in catalog records', () => {
+		const data = createData();
+		const source = {
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			data: {
+				...data,
+				_meta: {
+					...data._meta,
+					[SESSION_META_GITHUB_DATA_KEY]: JSON.parse('{"__proto__":{"owner":"octo","repo":"repo"}}'),
+				},
+			},
+		};
+		const decoded = decodeAgentHostCatalogPayload(JSON.stringify(source));
+
+		assert.deepStrictEqual({
+			ok: decoded.ok,
+			error: decoded.ok ? undefined : decoded.error,
+		}, {
+			ok: false,
+			error: 'Error in property \'data\': Error in property \'_meta\': Error in property \'githubData\': Keys must not be prototype properties.',
+		});
 	});
 
 	test('retains detached-head state and the newest bounded artifact suffix', () => {

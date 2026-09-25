@@ -89,6 +89,10 @@ import {
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,

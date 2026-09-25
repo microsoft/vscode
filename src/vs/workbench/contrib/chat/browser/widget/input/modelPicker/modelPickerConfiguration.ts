@@ -14,7 +14,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { logModelConfigurationChange } from './modelPickerTelemetry.js';
 
 export interface IModelPickerConfigurationHost {
@@ -34,12 +34,21 @@ export class ModelPickerConfiguration {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean): void {
+	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, showModelDetails = false): void {
 		const model = this._host.getSelectedModel();
 		const effortConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT);
 		const tokensConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT);
-		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig)) {
+		const summary = showModelDetails ? getModelConfigSummary(model, this._host.getConfigurationAccess()) : undefined;
+		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig && !summary)) {
 			button.style.display = 'none';
+			return;
+		}
+
+		if (showModelDetails) {
+			const label = summary ?? localize('chat.modelPicker.configureLabel', "Configure");
+			dom.reset(button, dom.$('span.chat-input-picker-label', undefined, label));
+			button.style.display = '';
+			button.ariaLabel = localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, getModelConfigDescription(model, this._host.getConfigurationAccess()) ?? label);
 			return;
 		}
 

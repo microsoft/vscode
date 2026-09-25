@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -76,7 +76,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
+				sessionWorkspaceProviderFilter: providerId => {
+					const host = _agentHostFilterService.selectedHost;
+					return host?.sessionCreationProviderId ? providerId === host.sessionCreationProviderId : host?.providerIds.includes(providerId) === true;
+				},
 			},
 			actionWidgetService,
 			uriIdentityService,
@@ -148,12 +151,19 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	private _onScopedHostChanged(): void {
 		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
+		if (currentResolved && (scoped?.sessionCreationProviderId
+			? currentResolved.providerId === scoped.sessionCreationProviderId
+			: scoped?.providerIds.includes(currentResolved.providerId))) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
 
 		this._resetAutomaticSelection();
+	}
+
+	protected override _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
+		const providerId = this._agentHostFilterService?.selectedHost?.sessionCreationProviderId;
+		return super._getAllBrowseActions().filter(action => !providerId || action.providerId === providerId);
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
@@ -172,12 +182,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
 			&& this._directPickerGroup === undefined
 			&& this._directPickerAttachesContext !== true;
-		const includeGitHub = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
-		const gitHubGroupAction = isConsolidatedWorkspacePicker
+		const includeGitHub = !!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
+		const gitHubGroupAction = isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId
 			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
 			: undefined;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
+			(scoped.sessionCreationProviderId
+				? w.providerId === scoped.sessionCreationProviderId
+				: scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -204,7 +216,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId))
+			.filter(({ action }) => scoped.sessionCreationProviderId
+				? action.providerId === scoped.sessionCreationProviderId
+				: (!scoped.grouped && scopedProviderIds.has(action.providerId))
 				|| (includeGitHub && action.group === SESSION_WORKSPACE_GROUP_GITHUB));
 		if (gitHubGroupAction || browseActions.length > 0) {
 			if (items.length > 0) {

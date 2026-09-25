@@ -84,7 +84,7 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
-Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. While the first request is in progress, the view presents the chat progress surface without committing the draft. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.
+Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. Management retains the submitted input for the lifetime of the in-flight first request. The preparation view uses that snapshot in a view-owned chat model to render the request and progress with the normal transcript renderer, without registering, persisting, or sending that model. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.
 
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
 
@@ -103,7 +103,7 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 ### Workspaces and quick chats
 
-`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
 ### Capabilities
 
@@ -111,11 +111,11 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 ### Changes
 
-Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
+Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
 Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
 
-The form also supports requesting creation in the originating session's main chat through the normal send lifecycle, without invoking programmatic PR creation. The provider validates the same prepared identity without regenerating details before the message is sent. That message contains the PR details and GitHub merge instructions; submission choices travel separately as provider-owned request metadata. A host chat contribution applies Agent Merge choices only after the creation turn is admitted and while it is still active, so monitoring cannot capture the old branch during client-side request preparation. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
+The form also supports requesting creation in the chat whose changes it was opened from, through the normal send lifecycle, without invoking programmatic PR creation. The provider validates the same prepared identity without regenerating details before the message is sent. That message contains the PR details and GitHub merge instructions; submission choices travel separately as provider-owned request metadata. A host chat contribution applies Agent Merge choices only after the creation turn is admitted and while it is still active, so monitoring cannot capture the old branch during client-side request preparation. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
 
 Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
@@ -125,7 +125,7 @@ Sessions may expose the artifacts and references recorded by the agent. Both sha
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-GitHub issue and pull-request references promoted into dedicated pills retain their optional recorded-reference ID. Presentation code uses that ID for per-item removal and never infers record identity from a title or URL.
+Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
 
 ## Provider contract
 
@@ -209,6 +209,18 @@ Requests route through `ISessionsManagementService` to the provider identified b
 ### Multiple chats
 
 Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
+
+### Remote delegation
+
+The Remote Sessions contribution exposes `list_agent_hosts`, `create_remote_session`, `get_remote_session`, and `send_remote_message` as client tools in the Agents Window. The window owns connected-host selection and cross-host routing; hosts do not discover or authenticate to one another. Creation uses the management service's background lifecycle and does not replace the current composer or change focus.
+
+The originating chat supplies creation provenance and a return address, not a workspace or permission grant. Omitting the workspace creates a workspace-less session. An explicit target directory must already exist and be trusted; requested worktree isolation must be supported rather than silently downgraded. Repository cloning and transfer of the source checkout are not part of this creation contract.
+
+Remote creation provenance preserves host-qualified session and chat identity. Replies address the originating chat even if the active chat changes, retain agent authorship, and queue behind a busy destination. The coordinating window must remain connected; persisted provenance supports restoration, not offline delivery. Tool approval and AI/remote-host enablement apply independently of host selection.
+
+The contribution retains background chat models while initial or queued requests are running, independently of which chat is visible. Before queueing a follow-up it explicitly prepares the destination's client tools; ordinary history browsing does not claim them. Model references are released when the chat and its queue become idle, or when the host disconnects. Programmatic creation awaits its preparation callback before applying configuration and sending the first request.
+
+Inspection is a one-shot read of verified protocol state for the exact host-qualified session or chat, independent of whether its workbench chat model is loaded. It returns the chat state and bounded latest-turn response or error, not a full transcript or a delivery acknowledgement. It does not claim client tools, mark the chat read, approve input, reconnect, or send a turn. Unavailable targets are reported explicitly rather than returning stale content; temporary subscriptions are released after the read.
 
 ## State propagation
 

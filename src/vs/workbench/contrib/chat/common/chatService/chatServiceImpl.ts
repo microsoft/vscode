@@ -7,7 +7,7 @@ import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../..
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -62,11 +62,11 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationHintTarget, ICustomizationMigrationHint, ICustomizationMigrationService } from '../promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../promptSyntax/service/customizationMigrationTelemetryService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
 
 const serializedChatKey = 'interactive.sessions';
 const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
@@ -221,7 +221,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' | 'disposed' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
@@ -301,7 +301,7 @@ export class ChatService extends Disposable implements IChatService {
 			// Drop the forward untitled→real mapping for this session so it stops
 			// re-targeting late sends. The inverse alias is intentionally retained.
 			this.chatSessionService.clearMaterializedSessionResource(model.sessionResource);
-			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'cleared' });
+			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' });
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -1271,7 +1271,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		return this.sendRequestInternal(sessionResource, request, options, true);
+		const { onDidCreateResponse, ...requestOptions } = options ?? {};
+		const result = await this.sendRequestInternal(sessionResource, request, onDidCreateResponse ? requestOptions : options, true);
+		if (onDidCreateResponse) {
+			const response = result.kind === 'sent' ? result.data.responseCreatedPromise : Promise.resolve(undefined);
+			// An observer must neither delay dispatch nor propagate failures into the request.
+			void response.then(response => onDidCreateResponse(response, result.kind)).catch(onUnexpectedError);
+		}
+		return result;
 	}
 
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
@@ -1694,7 +1701,7 @@ export class ChatService extends Disposable implements IChatService {
 				try {
 					const hint = await this.customizationMigrationService.computeMigrationHint(sessionResource, token);
 					if (hint && !token.isCancellationRequested) {
-						this.customizationMigrationTelemetryService.hintComputed(hint.counts);
+						this.customizationMigrationTelemetryService.hintComputed(hint);
 						return hint;
 					}
 					return undefined;
@@ -1822,6 +1829,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
+							agentHostMessageOrigin: options?.agentHostMessageOrigin,
 							metadata: options?.metadata,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration,
@@ -1920,24 +1928,19 @@ export class ChatService extends Disposable implements IChatService {
 							});
 						}
 
-						const reviewArguments = hint.target === CustomizationMigrationHintTarget.FileMigrations
-							? [{ migration: true, migrationHintTarget: hint.target }]
-							: hint.target === CustomizationMigrationHintTarget.McpServers
-								? [{ section: AICustomizationManagementSection.McpServers, migrationHintTarget: hint.target }]
-								: undefined;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
-							text: localize('customizationMigrationHint.review', "Review customizations"),
+							text: localize('customizationMigrationHint.review', "Review Migrations"),
 							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
-							arguments: reviewArguments,
+							arguments: [{ migration: true, migrationHint: hint }],
 						});
 						const dismissLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.DismissMigrationHint,
-							text: localize('customizationMigrationHint.dismiss', "Hide for this workspace"),
-							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Stop Showing Migration Hints for This Harness"),
-							arguments: [{ target: hint.target }],
+							text: localize('customizationMigrationHint.dismiss', "Don't Show Again"),
+							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Do not show this migration hint again for this harness in this workspace"),
+							arguments: [{ hint }],
 						});
-						this.customizationMigrationTelemetryService.hintShown(hint.target);
+						this.customizationMigrationTelemetryService.hintShown(hint);
 						progressCallback([{
 							kind: 'systemNotification',
 							content: new MarkdownString(
@@ -2468,8 +2471,14 @@ export class ChatService extends Disposable implements IChatService {
 			const local = existingById.get(remote.id);
 			const modelId = remote.modelId ?? local?.request.modelId;
 			const modelConfiguration = remote.modelId !== undefined ? remote.modelConfiguration : local?.request.modelConfiguration;
+			const agentHostMessageOrigin = remote.agentHostMessageOrigin ?? local?.sendOptions.agentHostMessageOrigin;
+			const metadata = remote.agentHostMessageOrigin !== undefined ? remote.metadata : remote.metadata ?? local?.sendOptions.metadata;
+			const isSystemInitiated = remote.isSystemInitiated ?? local?.request.isSystemInitiated;
+			const systemInitiatedLabel = remote.agentHostMessageOrigin !== undefined ? remote.systemInitiatedLabel : remote.systemInitiatedLabel ?? local?.request.systemInitiatedLabel;
 			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)
-				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)) {
+				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)
+				&& local.request.isSystemInitiated === isSystemInitiated && local.request.systemInitiatedLabel === systemInitiatedLabel
+				&& equals(local.sendOptions.agentHostMessageOrigin, agentHostMessageOrigin) && equals(local.sendOptions.metadata, metadata)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
 			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
@@ -2482,12 +2491,18 @@ export class ChatService extends Disposable implements IChatService {
 				restoredId: remote.id,
 				modelId,
 				modelConfiguration,
+				isSystemInitiated,
+				systemInitiatedLabel,
 			});
 			return {
 				request: requestModel,
 				kind: remote.kind,
 				sendOptions: {
 					...local?.sendOptions,
+					agentHostMessageOrigin,
+					metadata,
+					isSystemInitiated,
+					systemInitiatedLabel,
 					...(modelId !== undefined ? { userSelectedModelId: modelId, userSelectedModelConfiguration: modelConfiguration } : {}),
 				},
 			};
@@ -2539,6 +2554,7 @@ export class ChatService extends Disposable implements IChatService {
 			const attachedContext = target.request.variableData.variables.slice();
 			const sendOptions: IChatSendRequestOptions = {
 				...target.sendOptions,
+				agentIdSilent: target.sendOptions.agentIdSilent ?? target.sendOptions.agentId ?? getChatSessionType(sessionResource),
 				queue: undefined,
 				attachedContext,
 			};

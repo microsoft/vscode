@@ -231,6 +231,7 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/agentSessions/agentHost/agentHost.contribution.js';
+import './contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
@@ -402,6 +403,8 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
+import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
