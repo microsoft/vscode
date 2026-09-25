@@ -38,6 +38,7 @@ import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
 import { IRegionContextProviderService, type PathInfo, type RegionResult } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -127,6 +128,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 	public static readonly nonDeferred = true;
 	private _promptContext: IBuildPromptContext | undefined;
 	private readonly adjustedReadRequests = new Map<string, Map<string, Map<number, EndLineInfo>>>();
+	private readonly disposables: DisposableStore = new DisposableStore();
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -143,7 +145,16 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IExtensionsService private readonly extensionsService: IExtensionsService,
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
 		@IRegionContextProviderService private readonly regionContextProvider: IRegionContextProviderService
-	) { }
+	) {
+		this.disposables.add(grepResultService.onDidRemoveGrepResult((event) => {
+			this.adjustedReadRequests.delete(event.sessionUri.toString());
+		}));
+
+	}
+
+	public dispose() {
+		this.disposables.dispose();
+	}
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ReadFileParams>, token: vscode.CancellationToken) {
 		let ranges: IParamRanges | undefined;
