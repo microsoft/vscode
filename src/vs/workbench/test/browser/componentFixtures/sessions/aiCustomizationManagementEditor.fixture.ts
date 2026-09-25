@@ -673,6 +673,15 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+const allStateMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[0] },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:GitHub', name: 'GitHub', status: McpServerStatus.Starting, state: { kind: McpServerStatus.Starting } },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Redis', name: 'Redis', status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped } },
+	{ ...activeSessionMcpServers[1], id: 'mcp-top-level:fixture:session:Docker', name: 'Docker' },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:Web Search', name: 'Web Search', enabled: false },
+];
+
 const inlineErrorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0], status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: `Unable to connect to the component explorer server. Check the configured command and working directory, then try again.\nTransport request failed for https://example.test/${'unbroken-path-'.repeat(16)}\nThe process exited before completing the MCP handshake.` } } },
 	{ ...activeSessionMcpServers[0], id: 'inline-healthy', name: 'component-health-check' },
@@ -2611,7 +2620,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, the component-explorer MCP server has a Partially supported badge and PostgreSQL has separate Unsupported and Error badges. Compatibility badges sit beside the server name without replacing runtime status.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, compatibility issues use a gray error icon and an inline message directing users to Migrations. No compatibility badges appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2619,6 +2628,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ id: 'component-explorer', kind: 'partiallySupported' },
 				{ id: 'mcp-postgres', kind: 'unsupported' },
 			],
+		}),
+	}),
+
+	McpServersAllStates: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The MCP Servers tree presents all installed row states together: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error has a red error icon and a message clamped to two lines, stopped has a gray circle-slash icon, disabled is dimmed without an icon, and unsupported or partially supported rows have a gray error icon with a message directing users to Migrations. No state badges appear.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers: allStateMcpServers,
+			mcpServerCompatibility: [
+				{ id: 'mcp-slack', kind: 'unsupported' },
+				{ id: 'mcp-jira', kind: 'partiallySupported' },
+			],
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+			width: 800,
+			height: 800,
 		}),
 	}),
 

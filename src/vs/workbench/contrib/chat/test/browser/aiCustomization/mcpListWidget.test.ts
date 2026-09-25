@@ -1200,7 +1200,7 @@ suite('mcpListWidget', () => {
 		// replaced between mousedown and mouseup never receives the click.
 		type Entry = Parameters<McpServerItemRenderer['renderElement']>[0];
 
-		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true)) {
+		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true), compatibilityKind: Parameters<typeof getMcpCompatibilityPresentation>[0] = undefined) {
 			const store = new DisposableStore();
 			const onDidChangeCustomizations = store.add(new Emitter<void>());
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
@@ -1276,7 +1276,7 @@ suite('mcpListWidget', () => {
 			};
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
-				() => undefined,
+				() => compatibilityKind,
 				plugin => openedPlugins.push(plugin.label),
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
@@ -1804,6 +1804,23 @@ suite('mcpListWidget', () => {
 			const ctx = createRenderer(createAgentHostServer());
 			disposables.add(ctx.store);
 			assert.strictEqual(ctx.templateData.container.style.minHeight, '44px');
+		});
+
+		test('compatibility issues show an error icon without a runtime status', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'unsupported');
+			disposables.add(ctx.store);
+
+			ctx.render();
+
+			assert.deepStrictEqual({
+				message: ctx.templateData.compatibilityMessage.textContent,
+				icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
+				badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
+			}, {
+				message: 'Unsupported. See Migrations for details.',
+				icon: 'mcp-server-state-icon codicon codicon-error compatibility',
+				badges: 0,
+			});
 		});
 
 		test('message-only changes preserve management action identity, keyboard focus and clicks', () => {
