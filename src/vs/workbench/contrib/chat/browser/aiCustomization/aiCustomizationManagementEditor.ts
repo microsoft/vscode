@@ -90,6 +90,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -3355,9 +3356,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (options?.showMarketplace && section === AICustomizationManagementSection.McpServers) {
-			this.showWelcomePage();
-			this.welcomePage?.setSearchQuery('@type:mcp');
+		if (this.showMcpGalleryInDiscover(section, options)) {
 			return;
 		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
@@ -3844,9 +3843,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (options?.showMarketplace && sectionId === AICustomizationManagementSection.McpServers) {
-			this.showWelcomePage();
-			this.welcomePage?.setSearchQuery('@type:mcp');
+		if (this.showMcpGalleryInDiscover(sectionId, options)) {
 			return;
 		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
@@ -3893,6 +3890,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 		}
+	}
+
+	private showMcpGalleryInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+		if (section !== AICustomizationManagementSection.McpServers || !options?.showMarketplace ||
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
+			return false;
+		}
+		this.showWelcomePage();
+		this.welcomePage?.setSearchQuery('@type:mcp');
+		return true;
 	}
 
 	private prepareCustomizationMigrationView(): void {

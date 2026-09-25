@@ -1163,6 +1163,22 @@ suite('McpWorkbenchService', () => {
 		assert.deepStrictEqual({ lookups: lookup.callCount, name: server?.gallery?.name }, { lookups: 1, name: 'startup' });
 	});
 
+	test('gallery lookup does not reuse an installed server from another registry', async () => {
+		const existing = { ...createLocal('same'), galleryUrl: 'https://previous.registry.test' };
+		const { service, galleryService } = await createFixture([existing]);
+		galleryService.queryItems = [{ ...createGallery('same'), galleryUrl: 'https://configured.registry.test' }];
+		const server = await service.getMcpServerFromGallery('same');
+		assert.deepStrictEqual({
+			name: server?.gallery?.name,
+			galleryUrl: server?.gallery?.galleryUrl,
+			local: server?.local,
+		}, {
+			name: 'same',
+			galleryUrl: 'https://configured.registry.test',
+			local: undefined,
+		});
+	});
+
 	for (const source of ['name', 'url', 'manifest']) {
 		test(`gallery ${source} link can install alongside a same-name root server`, async () => {
 			const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };

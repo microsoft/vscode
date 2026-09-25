@@ -189,7 +189,7 @@ type McpAccessTestWidget = {
 	updateAccessState(): void;
 };
 
-function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>): McpAccessTestWidget {
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false): McpAccessTestWidget {
 	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
 	widget.element = document.createElement('div');
 	widget.mcpAccessEnabled = false;
@@ -203,6 +203,7 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.access = access;
 	widget.policyAccess = policyAccess;
 	widget.configurationService = {
+		getValue: () => galleryDiscoveryEnabled,
 		inspect: (key: string) => key === mcpAccessConfig ? {
 			value: widget.access,
 			defaultValue: McpAccessValue.All,
@@ -581,7 +582,17 @@ suite('mcpListWidget', () => {
 		], [false, true, false, false, false]);
 	});
 
-	test('shows access-disabled UI before connector work starts', () => {
+	test('does not restart management gallery search when Discover owns MCP discovery', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables, true);
+		widget.searchQuery = 'server';
+		widget.visible = true;
+		widget.updateAccessState();
+		widget.access = McpAccessValue.All;
+		widget.updateAccessState();
+		assert.deepStrictEqual({ queries: widget.queryCount, refreshes: widget.refreshCount }, { queries: 0, refreshes: 1 });
+	});
+
+	test('shows access-disabled UI before gallery or connector work starts', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
 
 		widget.updateAccessState();

@@ -11,6 +11,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
@@ -26,6 +27,77 @@ suite('CustomizationMarketplaceSources', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return configuration;
 	}
+
+	test('Marketplace visibility does not disable legacy-capable feed queries', async () => {
+		const configuration = createConfiguration(['first']);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const disabled = getVisibleCustomizationMarketplaceSources(configuration, sources);
+		const legacyFeeds = getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id);
+		const legacyPage = await queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [], total: 1 }));
+		const pendingResult = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, () => pendingResult.p);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		await pendingResult.complete({ items: [] });
+		assert.deepStrictEqual({
+			disabled, legacyFeeds, legacyPage, pendingPage: await pending, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+			enabledFeeds: sources.map(source => configuration.getValue<boolean>(source.enablementSetting)),
+		}, { disabled: [], legacyFeeds: ['first'], legacyPage: { items: [], total: 1 }, pendingPage: { items: [] }, cancelledListeners: false, enabledFeeds: [true, false] });
+	});
+
+	test('changing source query configuration cancels an in-flight request without disabling the source', async () => {
+		const source = {
+			id: 'mcpGallery',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: [mcpGalleryServiceUrlConfig],
+		};
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[mcpGalleryServiceUrlConfig]: 'https://old.registry.test',
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [source], {}, CancellationToken.None, () => deferred.p);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await configuration.setUserConfiguration(mcpGalleryServiceUrlConfig, 'https://new.registry.test');
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === mcpGalleryServiceUrlConfig; }
+		}());
+		await cancelled;
+		await deferred.complete({ items: [] });
+		assert.deepStrictEqual({
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, [source]).map(source => source.id),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, { enabled: ['mcpGallery'], listening: false });
+	});
+
+	test('changing unselected source configuration preserves an in-flight request', async () => {
+		const selected = { id: 'public', enablementSetting: 'test.public.enabled' };
+		const unrelated = {
+			id: 'mcpGallery',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: [mcpGalleryServiceUrlConfig],
+		};
+		const configuration = new TestConfigurationService({
+			'test.public.enabled': true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [selected, unrelated], { sourceIds: ['public'] }, CancellationToken.None, () => deferred.p);
+		await configuration.setUserConfiguration(mcpGalleryServiceUrlConfig, 'https://new.registry.test');
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === mcpGalleryServiceUrlConfig; }
+		}());
+		await deferred.complete({ items: [], total: 1 });
+		assert.deepStrictEqual({
+			page: await pending,
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, {
+			page: { items: [], total: 1 },
+			listening: false,
+		});
+	});
 
 	test('Marketplace visibility does not change legacy source enablement', () => {
 		const cases = [
@@ -49,6 +121,21 @@ suite('CustomizationMarketplaceSources', () => {
 			enabled: sources.filter(source => source.id === 'first' ? first : second).map(source => source.id),
 			visible,
 		})));
+	});
+
+	test('MCP sources follow Marketplace visibility and exclude default when public feed is enabled', () => {
+		const cases = [
+			{ marketplace: false, publicFeed: false, visible: [] },
+			{ marketplace: true, publicFeed: false, visible: ['mcpGallery'] },
+			{ marketplace: true, publicFeed: true, visible: ['mcpGallery', 'agentFinder'] },
+		];
+		assert.deepStrictEqual(cases.map(({ marketplace, publicFeed }) => {
+			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
+				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
+			});
+			return getVisibleCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)).map(source => source.id);
+		}), cases.map(({ visible }) => visible));
 	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {

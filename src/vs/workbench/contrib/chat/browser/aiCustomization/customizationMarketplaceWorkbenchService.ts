@@ -10,19 +10,27 @@ import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { createMcpGalleryMarketplaceProviders, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 
 export class AgentFinderMarketplaceWorkbenchService implements IAgentFinderMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+	readonly allSources = [
+		CustomizationMarketplaceSources.McpGallery,
+		CustomizationMarketplaceSources.AgentFinderPublicFeed,
+	];
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
+			...createMcpGalleryMarketplaceProviders(instantiationService),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}
@@ -35,10 +43,11 @@ export class AgentFinderMarketplaceWorkbenchService implements IAgentFinderMarke
 	}
 }
 
-class AgentFinderMarketplaceProvider implements ICustomizationMarketplaceProvider {
-	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
-
-	constructor(private readonly service: IAgentFinderMarketplaceService) { }
+class MarketplaceServiceProvider implements ICustomizationMarketplaceProvider {
+	constructor(
+		readonly id: string,
+		private readonly service: IAgentFinderMarketplaceService,
+	) { }
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
 		const page = await this.service.query({
@@ -46,6 +55,7 @@ class AgentFinderMarketplaceProvider implements ICustomizationMarketplaceProvide
 			mediaType: options.mediaType,
 			pageSize: options.pageSize,
 			cursor: options.cursor === undefined ? undefined : { token: options.cursor },
+			sourceIds: [this.id],
 		}, token);
 		if (page.sourceErrors?.some(error => error.sourceId !== this.id)) {
 			throw new Error('Unexpected built-in marketplace source failure.');
@@ -67,18 +77,26 @@ class AgentFinderMarketplaceProvider implements ICustomizationMarketplaceProvide
 
 export class CustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly sources = Object.values(CustomizationMarketplaceSources);
 	private readonly service: CustomizationMarketplaceService;
 
 	constructor(
-		@IAgentFinderMarketplaceService agentFinderService: IAgentFinderMarketplaceService,
+		@IAgentFinderMarketplaceService private readonly baseMarketplaceService: IAgentFinderMarketplaceService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		const baseSources = baseMarketplaceService.allSources ?? baseMarketplaceService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 		this.service = new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => new AgentFinderMarketplaceProvider(agentFinderService)),
+			...baseSources.map(source => createLazyCustomizationMarketplaceProvider(source.id, () => new MarketplaceServiceProvider(source.id, baseMarketplaceService))),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(copilotConnectorsService, configurationService)),
 		]);
+	}
+
+	get allSources() {
+		return [...(this.baseMarketplaceService.allSources ?? this.baseMarketplaceService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed]), CustomizationMarketplaceSources.CopilotConnectors];
+	}
+
+	get sources() {
+		return [...(this.baseMarketplaceService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed]), CustomizationMarketplaceSources.CopilotConnectors];
 	}
 
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {

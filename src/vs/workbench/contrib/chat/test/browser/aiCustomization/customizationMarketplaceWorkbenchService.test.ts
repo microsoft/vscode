@@ -21,6 +21,7 @@ import { CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient 
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { AgentFinderMarketplaceWorkbenchService, CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
@@ -38,9 +39,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			...Object.fromEntries(Object.values(CustomizationMarketplaceSources).map(source => [
-				source.enablementSetting, enabledIds.includes(source.id),
-			])),
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabledIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabledIds.includes(CustomizationMarketplaceSources.CopilotConnectors.id),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return configuration;
@@ -110,6 +110,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		const service = instantiationService.createInstance(AgentFinderMarketplaceWorkbenchService);
 		const create = sinon.spy(instantiationService, 'createInstance');
 		store.add(toDisposable(() => create.restore()));
@@ -134,7 +135,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: ['agentFinder'] }, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,
@@ -228,6 +229,49 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}]);
 	});
 
+	test('queries each native source independently when composing it with connectors', async () => {
+		const configuration = createConfiguration(['agentFinder', 'copilotConnectors']);
+		const baseSources = [CustomizationMarketplaceSources.McpGallery, CustomizationMarketplaceSources.AgentFinderPublicFeed];
+		const sourceRequests: (readonly string[] | undefined)[] = [];
+		const baseService = new class extends mock<IAgentFinderMarketplaceService>() {
+			override readonly allSources = baseSources;
+			override readonly sources = baseSources;
+			override async query(options: ICustomizationMarketplaceQuery) {
+				sourceRequests.push(options.sourceIds);
+				const sourceId = options.sourceIds?.[0];
+				assert.ok(sourceId);
+				return {
+					items: [{
+						sourceId,
+						identifier: `${sourceId}/server`,
+						displayName: `${sourceId} server`,
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			}
+		}();
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override async getConnectorsSnapshot() {
+				return { connectors: [createConnector('mail', 'Mail')], cacheToken: CancellationToken.None };
+			}
+		}();
+		const service = new CustomizationMarketplaceWorkbenchService(baseService, connectorsService, configuration);
+
+		const page = await service.query({ pageSize: 24 }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sourceRequests: sourceRequests.map(sourceIds => [...sourceIds ?? []]).sort(),
+			resultSources: [...new Set(page.items.map(item => item.sourceId))].sort(),
+		}, {
+			sourceRequests: [['agentFinder'], ['mcpGallery']],
+			resultSources: ['agentFinder', 'copilotConnectors', 'mcpGallery'],
+		});
+	});
+
 	for (const enabledIds of [[], ['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {
 		test(`queries only selected sources and keeps connectors out of IPC: ${enabledIds.join(', ') || 'none'}`, async () => {
 			const fixture = createMixedFixture(enabledIds);
@@ -252,7 +296,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				connectorsQueried: enabledIds.includes('copilotConnectors'),
 				ipcSourceIds: enabledIds.includes('agentFinder') ? [['agentFinder']] : [],
 				transportSources: [CustomizationMarketplaceSources.AgentFinderPublicFeed],
-				registeredSources: Object.values(CustomizationMarketplaceSources),
+				registeredSources: [CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors],
 			});
 		});
 	}
@@ -384,8 +428,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			exposesBackendCursor: first.nextCursor?.token === opaque,
 		}, {
 			calls: [
-				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: undefined },
-				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: { token: opaque } },
+				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
+				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: { token: opaque }, sourceIds: ['agentFinder'] },
 			],
 			items: [['first', undefined], ['second', undefined]],
 			exposesBackendCursor: false,

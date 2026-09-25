@@ -290,7 +290,7 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| !isBoundedString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
 		|| !isRecord(record.target)
-		|| record.target.kind !== record.installation.kind) {
+		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
 	}
 	if (record.target.kind === 'mcp') {
@@ -333,11 +333,20 @@ function isStoredInstallation(value: unknown): value is RecordedCustomizationMar
 	if (value.kind === 'mcp') {
 		return isBoundedString(value.name) && isBoundedString(value.version);
 	}
+	if (value.kind === 'mcpGallery') {
+		return isBoundedString(value.name)
+			&& (value.registry === 'custom' || value.registry === 'default')
+			&& isBoundedString(value.registryUrl);
+	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
 		&& isBoundedString(value.repository)
 		&& isBoundedString(value.ref)
 		&& typeof value.path === 'string'
 		&& value.path.length <= maxStoredStringLength;
+}
+
+function isStoredTargetKind(targetKind: unknown, installationKind: RecordedCustomizationMarketplaceInstallation['kind']): boolean {
+	return targetKind === installationKind || targetKind === 'mcp' && installationKind === 'mcpGallery';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

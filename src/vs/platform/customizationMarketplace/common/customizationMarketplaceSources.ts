@@ -9,7 +9,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
@@ -19,6 +20,12 @@ export const enum CustomizationMarketplaceConfiguration {
 }
 
 export const CustomizationMarketplaceSources = {
+	McpGallery: {
+		id: 'mcpGallery',
+		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
+	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
@@ -42,6 +49,12 @@ export function getVisibleCustomizationMarketplaceSources(configurationService: 
 		? getEnabledCustomizationMarketplaceSources(configurationService, sources) : [];
 }
 
+export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
+	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
+		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+}
+
 export async function queryEnabledCustomizationMarketplaceSources(
 	configurationService: IConfigurationService,
 	sources: readonly ICustomizationMarketplaceSourceInfo[],
@@ -58,10 +71,12 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	}
 	const store = new DisposableStore();
 	const cancellation = store.add(new CancellationTokenSource(token));
+	const selectedSources = sources.filter(source => sourceIds.includes(source.id));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if ((sources.some(source => event.affectsConfiguration(source.enablementSetting)) ||
-			sources.some(source => source.requiresMarketplaceVisibility) && event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) &&
-			!equals(sourceIds, getSourceIds())) {
+		const queryConfigurationChanged = selectedSources.some(source =>
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+		if (queryConfigurationChanged ||
+			(affectsCustomizationMarketplaceSources(event, sources) && !equals(sourceIds, getSourceIds()))) {
 			cancellation.cancel();
 		}
 	}));
