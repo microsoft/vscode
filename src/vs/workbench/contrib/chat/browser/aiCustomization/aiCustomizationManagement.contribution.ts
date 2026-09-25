@@ -775,8 +775,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			run(accessor: ServicesAccessor, options?: { readonly hint?: ICustomizationMigrationHint }): void {
-				const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+			run(accessor: ServicesAccessor, options?: { readonly hint?: ICustomizationMigrationHint; readonly notificationId?: string }): void {
+				const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+				const sessionResource = widget?.viewModel?.sessionResource;
 				if (!sessionResource) {
 					throw new Error('Expected an active chat session when dismissing customization migration hints');
 				}
@@ -790,6 +791,25 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					StorageScope.WORKSPACE,
 					StorageTarget.USER
 				);
+
+				// Give immediate feedback that the hide took effect by replacing the
+				// notification that was clicked instead of leaving it stale in the transcript.
+				if (options?.notificationId) {
+					const model = widget.viewModel?.model;
+					for (const request of model?.getRequests() ?? []) {
+						const response = request.response;
+						const part = response?.entireResponse.value.find(p => p.kind === 'systemNotification' && p.id === options.notificationId);
+						if (part) {
+							response?.updateContent({
+								kind: 'systemNotification',
+								id: options.notificationId,
+								content: new MarkdownString(localize('customizationMigrationHint.dismissed', "Customization migration hints are hidden for this workspace.")),
+								icon: Codicon.info,
+							}, true);
+							break;
+						}
+					}
+				}
 			}
 		}));
 

@@ -999,11 +999,16 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'systemNotification') {
-			const lastResponsePart = this._responseParts.at(-1);
-			if (lastResponsePart?.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(lastResponsePart) && !IChatToolInvocation.isEffectivelyHidden(lastResponsePart)) {
-				this._responseParts.splice(this._responseParts.length - 1, 0, progress);
+			const existingIdx = progress.id ? this._responseParts.findIndex(p => p.kind === 'systemNotification' && p.id === progress.id) : -1;
+			if (existingIdx !== -1) {
+				this._responseParts[existingIdx] = progress;
 			} else {
-				this._responseParts.push(progress);
+				const lastResponsePart = this._responseParts.at(-1);
+				if (lastResponsePart?.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(lastResponsePart) && !IChatToolInvocation.isEffectivelyHidden(lastResponsePart)) {
+					this._responseParts.splice(this._responseParts.length - 1, 0, progress);
+				} else {
+					this._responseParts.push(progress);
+				}
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
