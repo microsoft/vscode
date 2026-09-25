@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
@@ -131,6 +132,7 @@ suite('InboxNotificationsService', () => {
 		readonly gitHubService: TestGitHubService;
 		readonly chatService: TestChatService;
 		readonly agentHostProvider: TestAgentHostProvider;
+		readonly telemetryEvents: { readonly eventName: string; readonly data: Record<string, unknown> }[];
 		setSessions(sessions: readonly ISession[]): void;
 		setAgentHostProviderRegistered(registered: boolean): void;
 	} {
@@ -167,6 +169,7 @@ suite('InboxNotificationsService', () => {
 				return [...providerMap.values()];
 			},
 		});
+		const telemetryEvents: { readonly eventName: string; readonly data: Record<string, unknown> }[] = [];
 		const service = store.add(new InboxNotificationsService(
 			managementService,
 			sessionsProvidersService,
@@ -177,6 +180,7 @@ suite('InboxNotificationsService', () => {
 				selectLanguageModels: async () => [],
 				onDidChangeLanguageModels: Event.None,
 			}),
+			upcastPartial<ITelemetryService>({ publicLog2: ((eventName: string, data?: Record<string, unknown>) => { telemetryEvents.push({ eventName, data: data ?? {} }); }) as ITelemetryService['publicLog2'] }),
 		));
 		return {
 			service,
@@ -184,6 +188,7 @@ suite('InboxNotificationsService', () => {
 			gitHubService: effectiveGitHubService,
 			chatService: effectiveChatService,
 			agentHostProvider: effectiveAgentHostProvider,
+			telemetryEvents,
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
 				sessionsChangeEmitter.fire({ added: [], removed: [], changed: sessions });
@@ -524,6 +529,27 @@ suite('InboxNotificationsService', () => {
 			await new Promise(resolve => setTimeout(resolve, 5));
 		}
 		assert.strictEqual(fixture.service.previews.get().get(signature), item.description);
+	});
+
+	test('logs preview generation telemetry with a bounded outcome and no content', async () => {
+		const fixture = createFixture([
+			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
+		]);
+		const item = fixture.service.notifications.get()[0];
+		fixture.service.requestPreview(item);
+
+		const deadline = Date.now() + 2000;
+		while (!fixture.telemetryEvents.some(event => event.eventName === 'agents/inboxPreviewGenerated') && Date.now() < deadline) {
+			await new Promise(resolve => setTimeout(resolve, 5));
+		}
+		const event = fixture.telemetryEvents.find(entry => entry.eventName === 'agents/inboxPreviewGenerated');
+		assert.ok(event, 'expected an agents/inboxPreviewGenerated event');
+		// No model available -> empty outcome; bounded fields only, never the generated/description text.
+		assert.strictEqual(event!.data.result, 'empty');
+		assert.strictEqual(event!.data.notificationKind, item.kind);
+		assert.strictEqual(event!.data.outputLength, 0);
+		assert.ok(typeof event!.data.agentSessionId === 'string' && event!.data.agentSessionId !== 'none');
+		assert.ok(!JSON.stringify(event!.data).includes('waiting for user answer'));
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {

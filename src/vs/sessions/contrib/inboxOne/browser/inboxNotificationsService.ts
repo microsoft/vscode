@@ -18,6 +18,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelReference, IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -155,6 +156,52 @@ const DETAIL_CACHE_SIZE = 50;
 
 /** Published when generation finishes without a usable pack, so the view stops loading and falls back. */
 const EMPTY_DETAIL_SUMMARY: IInboxDetailSummary = { status: '', decisions: [], evidence: [] };
+
+type InboxPreviewGeneratedEvent = {
+	notificationKind: string;
+	needsInput: string;
+	result: string;
+	latencyMs: number;
+	outputLength: number;
+	agentSessionId: string;
+	providerId: string;
+};
+
+type InboxPreviewGeneratedClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks utility-model generation of the one-line inbox card preview, so preview quality, latency, and availability can be monitored without logging any generated text.';
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind the preview was generated for.' };
+	needsInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the item was awaiting user input (yes or no).' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded outcome: success (model produced text), empty (no usable output, fell back to the description), or cancelled.' };
+	latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds spent generating the preview, including time queued behind the concurrency limiter.' };
+	outputLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character count of the generated preview (never the text itself); 0 when none was produced.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with interactions and impressions.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+};
+
+type InboxDetailSummaryGeneratedEvent = {
+	notificationKind: string;
+	result: string;
+	latencyMs: number;
+	hadTranscript: string;
+	decisionCount: number;
+	evidenceCount: number;
+	agentSessionId: string;
+	providerId: string;
+};
+
+type InboxDetailSummaryGeneratedClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks utility-model generation of the inbox detail evidence pack, so evidence-pack quality, grounding, latency, and availability can be monitored without logging any generated text.';
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind the summary was generated for.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded outcome: success (a pack was produced), empty (no usable pack), or cancelled.' };
+	latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds spent generating the evidence pack, including time queued behind the concurrency limiter.' };
+	hadTranscript: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a session transcript was available to summarize (yes or no); no indicates a dependency-not-ready outcome.' };
+	decisionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of decision bullet points in the produced pack (never the text); 0 when none.' };
+	evidenceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of grounded evidence claims in the produced pack after dropping claims that cite unknown artifacts (never the text); 0 when none.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), for correlating with interactions and impressions.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session, or none.' };
+};
 
 /**
  * System prompt for the completed-session evidence pack. It must produce STRICT JSON with a
@@ -369,6 +416,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -555,7 +603,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this.publishPreview(signature, cached);
 			return;
 		}
-		void this.generatePreview(signature, inputText, item.description);
+		void this.generatePreview(item, signature, inputText);
 	}
 
 	private publishPreview(signature: string, preview: string): void {
@@ -568,27 +616,33 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._previews.set(next, undefined);
 	}
 
-	private async generatePreview(signature: string, inputText: string, fallback: string): Promise<void> {
+	private async generatePreview(item: IInboxNotificationItem, signature: string, inputText: string): Promise<void> {
 		const endLoading = this.beginLoadingOperation();
 		this._previewInFlight.add(signature);
 		const cts = new CancellationTokenSource();
 		this._previewCancellationSources.add(cts);
+		const startTime = Date.now();
+		let result: 'success' | 'empty' | 'cancelled' = 'empty';
+		let outputLength = 0;
 		try {
 			const preview = await this._utilityLimiter.queue(() => this.invokePreviewModel(inputText, cts.token)) as string | undefined;
 			if (cts.token.isCancellationRequested) {
+				result = 'cancelled';
 				return;
 			}
 			if (preview) {
+				result = 'success';
+				outputLength = preview.length;
 				this._previewFallbackSignatures.delete(signature);
 				this._previewCache.set(signature, preview);
 				this.publishPreview(signature, preview);
-			} else if (fallback) {
+			} else if (item.description) {
 				// The model produced nothing (no utility model, refusal, or empty). Resolve the
 				// pending state with the item's own description so the card doesn't hang on a
 				// loading message. Not cached and tracked as a fallback, so it retries when a
 				// language model (re)appears.
 				this._previewFallbackSignatures.add(signature);
-				this.publishPreview(signature, fallback);
+				this.publishPreview(signature, item.description);
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -597,7 +651,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			cts.dispose();
 			this._previewInFlight.delete(signature);
 			endLoading();
+			this.logPreviewGenerated(item, result, Date.now() - startTime, outputLength);
 		}
+	}
+
+	private logPreviewGenerated(item: IInboxNotificationItem, result: 'success' | 'empty' | 'cancelled', latencyMs: number, outputLength: number): void {
+		const context = this.getInteractionTelemetryContext(item);
+		this.telemetryService.publicLog2<InboxPreviewGeneratedEvent, InboxPreviewGeneratedClassification>('agents/inboxPreviewGenerated', {
+			notificationKind: item.kind,
+			needsInput: item.needsInputPart ? 'yes' : 'no',
+			result,
+			latencyMs,
+			outputLength,
+			agentSessionId: context.agentSessionId,
+			providerId: context.providerId,
+		});
 	}
 
 	private async invokePreviewModel(inputText: string, token: CancellationToken): Promise<string | undefined> {
@@ -868,10 +936,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._detailSummaryInFlight.add(key);
 		const cts = new CancellationTokenSource();
 		this._previewCancellationSources.add(cts);
+		const startTime = Date.now();
 		let summary: IInboxDetailSummary | undefined;
+		let hadTranscript = false;
 		try {
 			const transcript = this.getSessionTranscript(item);
 			if (transcript) {
+				hadTranscript = true;
 				const artifacts = this.collectSessionArtifacts(item);
 				summary = await this._utilityLimiter.queue(() => this.invokeDetailModel(item, transcript, artifacts, cts.token)) as IInboxDetailSummary | undefined;
 			}
@@ -893,7 +964,22 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				}
 			}
 			endLoading();
+			this.logDetailSummaryGenerated(item, cancelled ? 'cancelled' : summary ? 'success' : 'empty', Date.now() - startTime, hadTranscript, summary);
 		}
+	}
+
+	private logDetailSummaryGenerated(item: IInboxNotificationItem, result: 'success' | 'empty' | 'cancelled', latencyMs: number, hadTranscript: boolean, summary: IInboxDetailSummary | undefined): void {
+		const context = this.getInteractionTelemetryContext(item);
+		this.telemetryService.publicLog2<InboxDetailSummaryGeneratedEvent, InboxDetailSummaryGeneratedClassification>('agents/inboxDetailSummaryGenerated', {
+			notificationKind: item.kind,
+			result,
+			latencyMs,
+			hadTranscript: hadTranscript ? 'yes' : 'no',
+			decisionCount: summary?.decisions.length ?? 0,
+			evidenceCount: summary?.evidence.length ?? 0,
+			agentSessionId: context.agentSessionId,
+			providerId: context.providerId,
+		});
 	}
 
 	private async invokeDetailModel(item: IInboxNotificationItem, transcript: string, artifacts: readonly IInboxEvidenceArtifact[], token: CancellationToken): Promise<IInboxDetailSummary | undefined> {
