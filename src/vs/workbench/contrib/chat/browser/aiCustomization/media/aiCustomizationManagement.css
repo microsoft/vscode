@@ -382,7 +382,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	padding: var(--vscode-spacing-size160) 0 0;
+	padding: var(--vscode-spacing-size80) 0 0;
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
@@ -1732,7 +1732,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: 8px;
 	flex: none;
-	margin-block: var(--vscode-spacing-size160);
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
 }
 
 .ai-customization-management-editor .tools-list-search-container {

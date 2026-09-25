@@ -49,7 +49,7 @@ export function getPluginCustomizationMarketplaceSourceInfos(
 }
 
 export function getAllPluginCustomizationMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
-	return [pluginMarketplaceSourceInfo, CustomizationMarketplaceSources.AgentFinderPublicFeed];
+	return [pluginMarketplaceSourceInfo];
 }
 
 export function createPluginCustomizationMarketplaceProviders(instantiationService: IInstantiationService): readonly ICustomizationMarketplaceProvider[] {

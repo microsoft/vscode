@@ -4,26 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPublicCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
 
 export class PublicCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
+			...createMcpGalleryMarketplaceProviders(instantiationService),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}
@@ -38,9 +44,14 @@ export class PublicCustomizationMarketplaceWorkbenchService implements ICustomiz
 
 export class CustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly allSources = getAllPluginCustomizationMarketplaceSourceInfos();
-	get sources() { return getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService); }
-	get onDidChangeSources() { return this.pluginMarketplaceService.onDidChangeMarketplaces; }
+	readonly allSources: ICustomizationMarketplaceService['sources'];
+	readonly onDidChangeSources: Event<void>;
+	get sources() {
+		return [
+			...getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService),
+			...this.publicService.sources,
+		];
+	}
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
@@ -49,13 +60,21 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			...createPluginCustomizationMarketplaceProviders(instantiationService),
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => ({
-				id: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+		this.allSources = [
+			...getAllPluginCustomizationMarketplaceSourceInfos(),
+			...(publicService.allSources ?? publicService.sources),
+		];
+		this.onDidChangeSources = Event.any(
+			pluginMarketplaceService.onDidChangeMarketplaces,
+			publicService.onDidChangeSources ?? Event.None,
+		);
+		const publicProviders = (publicService.allSources ?? publicService.sources).map(source => {
+			const providerId = `platform.${source.id}`;
+			return createLazyCustomizationMarketplaceProvider(providerId, () => ({
+				id: providerId,
 				query: async (options, token) => {
-					const page = await this.publicService.query({ ...options, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
-					const sourceError = page.sourceErrors?.find(error => error.sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+					const page = await this.publicService.query({ ...options, sourceIds: [source.id], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
+					const sourceError = page.sourceErrors?.find(error => error.sourceId === source.id);
 					return {
 						items: page.items.map(({ sourceId: _sourceId, ...item }) => item),
 						total: page.total,
@@ -65,12 +84,18 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 							: {}),
 					};
 				},
-			})),
+			}), source.id);
+		});
+		this.service = new Lazy(() => new CustomizationMarketplaceService([
+			...createPluginCustomizationMarketplaceProviders(instantiationService),
+			...publicProviders,
 		]));
 	}
 
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
-		return queryEnabledCustomizationMarketplaceSources(this.configurationService, this.sources, options, token,
-			(request, token) => this.service.value.query(request, token));
+		return queryEnabledCustomizationMarketplaceSources(
+			this.configurationService, this.sources, options, token,
+			(request, token) => this.service.value.query(request, token),
+		);
 	}
 }

@@ -246,6 +246,7 @@ suite('aiCustomizationManagementEditor', () => {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
@@ -543,6 +544,7 @@ suite('aiCustomizationManagementEditor', () => {
 				setSearchQuery(query: string) { queries.push(query); },
 			},
 		});
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });

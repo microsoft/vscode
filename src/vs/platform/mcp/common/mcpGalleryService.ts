@@ -14,7 +14,7 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { asJson, asText, isSuccess, IRequestService, readBoundedResponse } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, RemoteTransport, Transport, TransportType } from './mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryQueryPage, IMcpGalleryQueryPageOptions, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, RemoteTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
@@ -817,8 +817,23 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Available;
 	}
 
-	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IIterativePager<IGalleryMcpServer>> {
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+	async queryPage(options: IMcpGalleryQueryPageOptions, token: CancellationToken, galleryManifest?: IMcpGalleryManifest): Promise<IMcpGalleryQueryPage> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const manifest = galleryManifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!manifest) {
+			throw new Error(localize('mcpGalleryNotConfigured', "The MCP gallery is not configured."));
+		}
+		const query = new Query()
+			.withPage(options.cursor ?? '', options.pageSize)
+			.withSearchText(options.cursor ? undefined : options.text?.trim());
+		const { servers, metadata } = await this.queryGalleryMcpServers(query, manifest, token, true);
+		return { items: servers, total: metadata.count >= servers.length ? metadata.count : undefined, nextCursor: metadata.nextCursor };
+	}
+
+	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IGalleryMcpServer>> {
+		const mcpGalleryManifest = manifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return {
 				firstPage: { items: [], hasMore: false },
@@ -850,8 +865,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	async getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]> {
-		const resolved = await this.resolveMcpServersFromGallery(infos);
+	async getMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<IGalleryMcpServer[]> {
+		const resolved = await this.resolveMcpServersFromGallery(infos, manifest);
 		const mcpServers: IGalleryMcpServer[] = [];
 		for (const result of resolved.values()) {
 			if (result.status === McpGalleryResolveStatus.Found) {
@@ -861,9 +876,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return mcpServers;
 	}
 
-	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
+	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[], manifest?: IMcpGalleryManifest): Promise<Map<string, IMcpGalleryServerResolveResult>> {
 		const result = new Map<string, IMcpGalleryServerResolveResult>();
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		const mcpGalleryManifest = manifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			// Without a registry manifest we cannot determine membership; report as failed
 			// (undetermined) so callers do not treat this as a definitive "not found".
@@ -1053,17 +1068,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IGalleryMcpServersResult> {
-		const { servers, metadata } = await this.queryRawGalleryMcpServers(query, mcpGalleryManifest, token);
+	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken, strict = false): Promise<IGalleryMcpServersResult> {
+		const { servers, metadata } = await this.queryRawGalleryMcpServers(query, mcpGalleryManifest, token, strict);
 		return {
 			servers: servers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest)),
 			metadata
 		};
 	}
 
-	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IRawGalleryMcpServersResult> {
+	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken, strict = false): Promise<IRawGalleryMcpServersResult> {
 		const mcpGalleryUrl = this.getMcpGalleryUrl(mcpGalleryManifest);
 		if (!mcpGalleryUrl) {
+			if (strict) {
+				throw new Error(localize('mcpGalleryNoQueryUrl', "The MCP gallery has no query endpoint."));
+			}
 			return { servers: [], metadata: { count: 0 } };
 		}
 
@@ -1075,12 +1093,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				return JSON.parse(data);
 			} catch (error) {
 				this.logService.error(`Failed to read file from ${uri}: ${error}`);
+				if (strict) {
+					throw error;
+				}
 			}
 		}
 
 		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
 		if (query.cursor) {
-			url += `&cursor=${query.cursor}`;
+			url += `&cursor=${encodeURIComponent(query.cursor)}`;
 		}
 		if (query.searchText) {
 			const text = encodeURIComponent(query.searchText);
@@ -1099,17 +1120,26 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				throw error;
 			}
 			this.logService.error(`Failed to query MCP gallery: ${error}`);
+			if (strict) {
+				throw error;
+			}
 			return { servers: [], metadata: { count: 0 } };
 		}
 
 		if (!isSuccess(context)) {
 			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}`);
+			if (strict) {
+				throw new Error(localize('mcpGalleryQueryFailed', "The MCP gallery returned HTTP {0}.", context.res.statusCode));
+			}
 			return { servers: [], metadata: { count: 0 } };
 		}
 
 		const data = await asJson(context);
 
 		if (!data) {
+			if (strict) {
+				throw new Error(localize('mcpGalleryEmptyResponse', "The MCP gallery returned an empty response."));
+			}
 			return { servers: [], metadata: { count: 0 } };
 		}
 

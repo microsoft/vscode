@@ -168,10 +168,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			defaultWithoutPublic,
 			pluginsDisabled,
 		}, {
-			publicOnly: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
-			withCustom: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
-			defaultWithoutPublic: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
-			pluginsDisabled: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+			publicOnly: [],
+			withCustom: [CustomizationMarketplaceSources.PluginMarketplaces.id],
+			defaultWithoutPublic: [CustomizationMarketplaceSources.PluginMarketplaces.id],
+			pluginsDisabled: [],
 		});
 	});
 });

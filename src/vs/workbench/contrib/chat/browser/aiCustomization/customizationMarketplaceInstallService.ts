@@ -15,13 +15,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
@@ -43,6 +46,7 @@ import { getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplace
 import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
 import { CustomizationMarketplaceSkillInstaller } from './customizationMarketplaceSkillInstaller.js';
 
+type McpGalleryInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'mcpGallery' }>;
 
 type InstallationRecordState =
 	| { readonly kind: 'checking' | 'installed' | 'missing' }
@@ -77,6 +81,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IAgentPluginRepositoryService private readonly repositoryService: IAgentPluginRepositoryService,
 		@IPluginGitService private readonly pluginGitService: IPluginGitService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
@@ -133,6 +138,23 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			server.local.version === version &&
 			(!server.gallery || server.gallery.name === name) &&
 			server.installState === McpServerInstallState.Installed);
+	}
+
+	private getInstalledGalleryMcpServer(source: McpGalleryInstallation): IWorkbenchMcpServer | undefined {
+		const registryUrl = normalizeMcpGalleryUrl(source.registryUrl);
+		return registryUrl ? this.mcpWorkbenchService.local.find(server => server.name === source.name &&
+			server.local?.name === source.name &&
+			normalizeMcpGalleryUrl(server.local.galleryUrl) === registryUrl &&
+			registryUrl !== normalizeMcpGalleryUrl(agentFinderMcpRegistryManifest.url) &&
+			server.gallery?.name === source.name &&
+			normalizeMcpGalleryUrl(server.gallery.galleryUrl) === registryUrl &&
+			server.installState === McpServerInstallState.Installed) : undefined;
+	}
+
+	private isMcpGallerySourceCurrent(source: McpGalleryInstallation): boolean {
+		return source.registry === 'default'
+			? this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true
+			: normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)) === normalizeMcpGalleryUrl(source.registryUrl);
 	}
 
 	private updateEnablement(): void {
@@ -333,7 +355,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			} else {
 				const target = record.target;
 				const installed = this.mcpWorkbenchService.local.find(server => server.id === target.id && server.installState === McpServerInstallState.Installed)
-					?? (record.installation.kind === 'mcp' ? this.getInstalledMcpServer(record.installation.name, record.installation.version) : undefined);
+					?? (record.installation.kind === 'mcp'
+						? this.getInstalledMcpServer(record.installation.name, record.installation.version)
+						: record.installation.kind === 'mcpGallery'
+							? this.getInstalledGalleryMcpServer(record.installation)
+							: undefined);
 				state = { kind: installed ? 'installed' : 'missing' };
 				if (installed && installed.id !== target.id) {
 					record = { ...record, target: { kind: 'mcp', id: installed.id } };
@@ -471,6 +497,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			return { kind: 'available' };
 		}
+		if (source.kind === 'mcpGallery') {
+			if (!this.isMcpGallerySourceCurrent(source)) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Discover and try again.", source.name) };
+			}
+			return { kind: 'available' };
+		}
 		return { kind: 'available' };
 	}
 
@@ -496,10 +528,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
-			if (!this.isSourceEnabled(resource.sourceId) || isConfiguredPlugin && (
-				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)
-			)) {
+			if (
+				!this.isSourceEnabled(resource.sourceId) ||
+				(isConfiguredPlugin && (
+					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
+					event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)
+				)) ||
+				(resource.installation?.kind === 'mcpGallery' && resource.installation.registry === 'custom' &&
+					event.affectsConfiguration(mcpGalleryServiceUrlConfig))
+			) {
 				operationDisposables.dispose();
 			}
 		}));
@@ -602,10 +639,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async doUninstall(record: ICustomizationMarketplaceInstallationRecord): Promise<void> {
 		const source = record.installation;
-		if (source.kind === 'mcp') {
+		if (source.kind === 'mcp' || source.kind === 'mcpGallery') {
 			const targetId = record.target.kind === 'mcp' ? record.target.id : undefined;
 			const server = this.mcpWorkbenchService.local.find(candidate => candidate.id === targetId)
-				?? this.getInstalledMcpServer(source.name, source.version);
+				?? (source.kind === 'mcp'
+					? this.getInstalledMcpServer(source.name, source.version)
+					: this.getInstalledGalleryMcpServer(source));
 			if (server) {
 				await this.mcpWorkbenchService.uninstall(server);
 			}
@@ -707,7 +746,30 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			await this.pluginInstallService.installPlugin(plugin, token);
 			this.checkEnabled(resource.sourceId, token);
-			return { kind: 'plugin', uri: this.pluginInstallService.getPluginInstallUri(plugin) };
+			const uri = this.pluginInstallService.getPluginInstallUri(plugin);
+			if (!this.pluginMarketplaceService.installedPlugins.get().some(candidate => isEqual(candidate.pluginUri, uri))) {
+				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
+			}
+			return { kind: 'plugin', uri };
+		}
+		if (source.kind === 'mcpGallery') {
+			const manifest = await this.getMcpGalleryManifest(source);
+			this.checkEnabled(resource.sourceId, token);
+			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name, manifest);
+			this.checkEnabled(resource.sourceId, token);
+			if (!server || server.gallery?.name !== source.name ||
+				normalizeMcpGalleryUrl(server.gallery.galleryUrl) !== normalizeMcpGalleryUrl(source.registryUrl)) {
+				throw new Error(localize('customizationMarketplace.mcpGalleryUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
+			}
+			const canInstall = this.mcpWorkbenchService.canInstall(server);
+			if (canInstall !== true) {
+				throw new Error(canInstall.value);
+			}
+			const installed = await this.mcpWorkbenchService.install(server);
+			if (installed.installState !== McpServerInstallState.Installed) {
+				throw new Error(localize('customizationMarketplace.mcpInstallIncomplete', "The MCP server could not be installed. Review the installation error and try again."));
+			}
+			return { kind: 'mcp', id: installed.id };
 		}
 		if (source.kind === 'mcp') {
 			let server: IWorkbenchMcpServer | undefined;
@@ -768,6 +830,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return { kind: 'plugin', uri: this.pluginInstallService.getPluginInstallUri(result.matchedPlugin), resolvedRevision };
 		}
 		return this.skillInstaller.install(resource, token);
+	}
+
+	private async getMcpGalleryManifest(source: McpGalleryInstallation): Promise<IMcpGalleryManifest> {
+		const manifest = source.registry === 'default'
+			? await this.mcpGalleryManifestService.getDefaultMcpGalleryManifest() ?? await this.mcpGalleryManifestService.getMcpGalleryManifest()
+			: await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		const sourceRegistryUrl = normalizeMcpGalleryUrl(source.registryUrl);
+		const configuredRegistryUrl = source.registry === 'custom'
+			? normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig))
+			: sourceRegistryUrl;
+		if (!manifest || !sourceRegistryUrl || normalizeMcpGalleryUrl(manifest.url) !== sourceRegistryUrl || configuredRegistryUrl !== sourceRegistryUrl) {
+			throw new Error(localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Discover and try again.", source.name));
+		}
+		return manifest;
 	}
 
 	private getInstalledPlugin(record: ICustomizationMarketplaceInstallationRecord) {

@@ -149,6 +149,7 @@ function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
 		override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 		override readonly onDidChangeMcpGalleryManifest = Event.None;
 		override async getMcpGalleryManifest() { return null; }
+		override async getDefaultMcpGalleryManifest() { return null; }
 	}();
 }
 
@@ -840,7 +841,7 @@ interface IRenderEditorOptions {
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
-	readonly toggleMarketplace?: boolean;
+	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly discoveryQuery?: string;
@@ -1000,6 +1001,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
+					CustomizationMarketplaceSources.McpGallery,
 					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
 					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
@@ -1043,7 +1045,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 					// The outgoing Discover view may read installation state while the visibility change disposes it.
-					assert(sourceEnabled() || (options.toggleMarketplace === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
+					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
 				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
@@ -1518,10 +1520,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 	editor.setVisible(true);
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
+		await Promise.resolve();
+		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
+	}
 	if (!discoverEnabled && !options.selectedSection) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave Overview available.');
+		assert(overview !== null, 'Disabled Marketplace must retain Overview.');
+		if (!options.selectedSection) {
+			assert(overview.style.display !== 'none', 'Disabled Marketplace must show Overview on the home page.');
+		}
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
@@ -1578,7 +1587,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
-	if (options.toggleMarketplace) {
+	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
 		const queryCountBeforeToggle = customizationMarketplaceQueryCount;
@@ -2580,6 +2589,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tab.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+		}),
+	}),
+
 	McpServersTree: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
@@ -2974,6 +2994,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	DiscoverWithMcpGalleryOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'empty',
+		}),
+	}),
+
 	OverviewWithMarketplaceDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
@@ -2997,7 +3027,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			toggleMarketplace: true,
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
@@ -3006,7 +3038,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
-			toggleMarketplace: true,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 

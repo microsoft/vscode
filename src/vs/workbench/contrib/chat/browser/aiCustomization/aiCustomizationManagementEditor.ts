@@ -90,6 +90,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -109,7 +110,6 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
@@ -3340,7 +3340,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (this.showPluginDiscovery(section, options)) {
+		if (this.showMarketplaceInDiscover(section, options)) {
 			return;
 		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
@@ -3815,7 +3815,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (this.showPluginDiscovery(sectionId, options)) {
+		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return;
 		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
@@ -3863,13 +3863,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private showPluginDiscovery(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
-		if (section !== AICustomizationManagementSection.Plugins || !options?.showMarketplace ||
+	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+		if (!options?.showMarketplace ||
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
 			return false;
 		}
+		const type = section === AICustomizationManagementSection.Plugins ? 'plugin'
+			: section === AICustomizationManagementSection.McpServers ? 'mcp'
+				: undefined;
+		if (!type) {
+			return false;
+		}
 		this.showWelcomePage();
-		this.welcomePage?.setSearchQuery('@type:plugin');
+		this.welcomePage?.setSearchQuery(`@type:${type}`);
 		return true;
 	}
 

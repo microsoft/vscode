@@ -23,6 +23,7 @@ import { ICustomizationMarketplaceService } from '../../../../../../platform/cus
 import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { CustomizationMarketplaceWorkbenchService, PublicCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 
@@ -44,6 +45,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		instantiationService.stub(IPublicCustomizationMarketplaceService, instantiationService.createInstance(PublicCustomizationMarketplaceWorkbenchService));
 		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
@@ -96,6 +98,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override async query() {
 				publicCalls++;
 				return { items: [] };
@@ -145,6 +148,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override query() {
 				calls.push('public');
 				return publicResult.p;
@@ -200,6 +204,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IPublicCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 			override async query() {
 				return {
 					items: [{

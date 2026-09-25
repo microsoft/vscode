@@ -39,7 +39,13 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const secondSource = { id: 'other', displayName: 'Other Feed', enablementSetting: 'test.marketplace.other.enabled' };
+	const otherSourceUrlSetting = 'test.marketplace.other.url';
+	const secondSource = {
+		id: 'other',
+		displayName: 'Other Feed',
+		enablementSetting: 'test.marketplace.other.enabled',
+		configurationDependencies: [otherSourceUrlSetting],
+	};
 	const pluginSource = {
 		...CustomizationMarketplaceSources.PluginMarketplaces,
 		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
@@ -694,6 +700,31 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.length,
 			publicResultVisible: fixture.page.getAccessibilityContent().includes('public'),
 		}, { requests: 2, publicResultVisible: false });
+	});
+
+	test('source identity changes discard stale pages and surface a retryable transition', async () => {
+		const fixture = createPage(['other']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('old-item', { sourceId: 'other' })] });
+		await fixture.configuration.setUserConfiguration(otherSourceUrlSetting, 'https://new.registry.test');
+		fixture.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === otherSourceUrlSetting; }
+		}());
+		await timeout(0);
+		assert.strictEqual(fixture.requests.length, 2);
+		await fixture.requests[1].result.complete({
+			items: [],
+			sourceErrors: [{ sourceId: 'other', message: 'Source is changing. Try again.' }],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+		assert.deepStrictEqual({
+			old: content.includes('old-item'),
+			retry: content.includes('Source is changing. Try again.'),
+		}, {
+			old: false,
+			retry: true,
+		});
 	});
 
 	for (const query of ['', '@type:mcp mail']) {

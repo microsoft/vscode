@@ -10,6 +10,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
@@ -22,6 +23,12 @@ export const CustomizationMarketplaceSources = {
 		id: 'pluginMarketplaces',
 		displayName: localize('customizationMarketplace.pluginMarketplaces', "Configured Plugin Marketplaces"),
 		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+	},
+	McpGallery: {
+		id: 'mcpGallery',
+		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
