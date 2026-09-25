@@ -23,7 +23,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -861,6 +861,7 @@ interface IRenderEditorOptions {
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
+	readonly expectedDiscoveryContentWidth?: number;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -885,7 +886,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
 	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? false;
-	const discoverEnabled = marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
+	const discoverEnabled = marketplaceVisibilityEnabled;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -982,9 +983,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
-			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
-				&& (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true
-					|| configurationService.getValue<boolean>('test.marketplace.other.enabled') === true);
+			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -993,6 +992,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
+					CustomizationMarketplaceSources.PluginMarketplaces,
 					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
 					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled' },
@@ -1531,6 +1531,29 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
+		const browseStatus = browse?.querySelector<HTMLElement>('.customization-discovery-state');
+		const browseScrollHost = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse-scrollable');
+		assert(
+			!header || !searchRow || !browse || !browseStatus
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browse.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browse.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browseStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browseStatus.getBoundingClientRect().right) <= 1,
+			'Discover browse content and state must align with the header and search control.',
+		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || !header || !searchRow || !browse
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(browse.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover browse content must use the expected responsive width.',
+		);
+		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
 	if (options.toggleMarketplace) {
@@ -1543,7 +1566,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}());
 		const home = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
 		const discover = home?.querySelector('.customization-discovery');
-		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
+		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled;
 		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Discover' : 'Overview') === true, 'Home navigation must match the selected surface.');
@@ -1562,6 +1585,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
 		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const resultStatus = resultList?.querySelector<HTMLElement>('.customization-discovery-state');
+		const resultScrollHost = resultList?.querySelector<HTMLElement>('.monaco-scrollable-element');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
 		assert(
@@ -1570,7 +1596,24 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
 			'Discover results must place source metadata beside the name and the description on the next line.',
 		);
-		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		assert(
+			header === null || searchRow === null || resultRow === null || !resultStatus
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultStatus.getBoundingClientRect().right) <= 1,
+			'Discover results, selection bounds, and state must align with the page header and search control.',
+		);
+		assert(
+			options.expectedDiscoveryContentWidth === undefined || header === null || searchRow === null || resultList === null
+			|| Math.abs(header.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(searchRow.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1
+			&& Math.abs(resultList.getBoundingClientRect().width - options.expectedDiscoveryContentWidth) <= 1,
+			'Discover search content must use the expected responsive width.',
+		);
+		assert(!resultScrollHost || resultScrollHost.scrollWidth <= resultScrollHost.clientWidth, 'Discover search results must not overflow horizontally.');
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
 		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
 		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
@@ -2426,14 +2469,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true }),
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500 }),
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -2907,16 +2950,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	OverviewWithoutMarketplace: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			marketplaceVisibilityEnabled: true,
-			agentFinderPublicFeedEnabled: false,
-		}),
-	}),
-
 	OverviewWithMarketplaceDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
@@ -2926,13 +2959,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	DiscoverWithOtherSourceOnly: defineComponentFixture({
+	DiscoverWithPluginSourceOnly: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			agentFinderPublicFeedEnabled: false,
-			otherSourceEnabled: true,
 			customizationMarketplaceState: 'empty',
 		}),
 	}),
@@ -2965,11 +2997,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
+		expectedVisualDescriptions: ['Wide Discover search uses the same centered content measure as the management pages. The title, search control, result selection bounds, and state messages share horizontal edges; rows retain compact icons, two-line text hierarchy, ratings, and centered actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
+			width: 1200,
 			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 840,
+		}),
+	}),
+
+	DiscoverSearchResultsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Narrow Discover search keeps the title, search control, result selection bounds, and state messages on the same horizontal inset as Plugins without clipping descriptions or actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			width: 550,
+			height: 500,
+			discoveryQuery: 'review',
+			expectedDiscoveryContentWidth: 302,
 		}),
 	}),
 

@@ -1826,6 +1826,13 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.SessionMcpServerBackgroundRequested: {
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.backgroundMcpServerStartup?.(URI.parse(sessionChannel), action.id).catch(err => {
+					this._logService.warn(`[AgentSideEffects] backgroundMcpServerStartup failed for ${sessionChannel}`, err);
+				});
+				break;
+			}
 			case ActionType.SessionIsArchivedChanged: {
 				// Persistence rides the envelope observer set up in the constructor.
 				// Host-owned worktree lifecycle (agents stay unaware): remove the

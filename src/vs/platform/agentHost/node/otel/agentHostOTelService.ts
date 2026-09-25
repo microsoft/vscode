@@ -18,6 +18,7 @@ import {
 	ConsoleForwarder,
 	FileForwarder,
 	OtlpHttpForwarder,
+	resolveOtlpTracesEndpoint,
 	type IOutboundForwarder,
 } from '../../../otel/node/otlp/outboundForwarder.js';
 import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
@@ -316,15 +317,19 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			protocol,
 			...(this._config.headers ? { headers: this._config.headers } : {}),
 		} as const : undefined;
+		const traces = external && {
+			...external,
+			endpoint: protocol === 'grpc' ? external.endpoint : resolveOtlpTracesEndpoint(external.endpoint),
+		};
 		const resourceAttributes = { ...this._config.resourceAttributes };
 		delete resourceAttributes['service.name'];
 		resourceAttributes['service.namespace'] = AgentHostOTelServiceNamespace;
 		if (!this._config.dbSpanExporter) {
-			return { traces: external, external, captureContent: this._config.captureContent === true, resourceAttributes };
+			return { traces, external, captureContent: this._config.captureContent === true, resourceAttributes };
 		}
 		await this._ensureStarted();
 		return {
-			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : external,
+			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : traces,
 			external,
 			captureContent: this._config.captureContent === true,
 			resourceAttributes,

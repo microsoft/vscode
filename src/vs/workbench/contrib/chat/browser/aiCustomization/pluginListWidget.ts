@@ -372,7 +372,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 
 		const details = DOM.append(container, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('span'));
+		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
