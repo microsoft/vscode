@@ -79,7 +79,7 @@ import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentH
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
+import { AgentHostCatalogListReader, AgentHostCatalogListResult, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
 
 import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
@@ -184,6 +184,24 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why adoption ended as it did: adopted, alreadyNative, notLegacyChat, workingDirectoryMissing, or unknown. Separates a skipped session that was never ours from one whose working directory vanished, which need different fixes.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
+};
+
+type AgentHostCatalogBulkReadFailureEvent = {
+	errorMessage: string;
+	requestedRowCount: number;
+	recoveredRowCount: number;
+	failedRowCount: number;
+	fallbackDurationMs: number;
+};
+
+type AgentHostCatalogBulkReadFailureClassification = {
+	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error reported by the failed bulk sessions_v2 catalog read.' };
+	requestedRowCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of registered catalog rows requested when the bulk read failed.' };
+	recoveredRowCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of requested rows recovered by bounded individual catalog reads.' };
+	failedRowCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of bounded individual catalog reads that also failed.' };
+	fallbackDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent on bounded individual catalog reads after the bulk read failed.' };
+	owner: 'sandy081';
+	comment: 'Measures failures of the Agent Host bulk session catalog read and the effectiveness and cost of bounded row-level recovery.';
 };
 
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
@@ -3428,22 +3446,26 @@ export class AgentService extends Disposable implements IAgentService {
 			: allRegistered;
 		const providersWithRegistrations = new Set(allRegistered.map(entry => entry.provider));
 		this._retryInitialProviderMigrationsInBackground(provider => !providersWithRegistrations.has(provider));
-		const catalogLimiter = new Limiter<{
-			readonly registeredSession: IRegisteredSession;
-			readonly central: AgentHostCatalogListResult;
-		} | undefined>(4);
-		const catalogResults = await Promise.all(registered.map(registeredSession => catalogLimiter.queue(async () => {
+		const catalogCandidates = (await Promise.all(registered.map(async registeredSession => {
 			const { session } = registeredSession;
 			if (this._stateManager.isIdleProvisionalSession(session.toString()) || await this._isCatalogBackingProjectionPending(session)) {
 				return undefined;
 			}
+			return registeredSession;
+		}))).filter((registeredSession): registeredSession is IRegisteredSession => registeredSession !== undefined);
+		const centralRead: AgentHostCatalogListManyResult = this._isSessionCatalogEnabled()
+			? await this._catalogListReader.readMany(catalogCandidates)
+			: { results: catalogCandidates.map((): AgentHostCatalogListResult => ({ eligible: false, chatBacking: false, detail: 'session catalog disabled' })) };
+		if (centralRead.bulkReadError) {
+			this._reportCatalogBulkReadFailure(centralRead);
+		}
+		const centralResults = centralRead.results;
+		const catalogResults = catalogCandidates.map((registeredSession, index) => {
 			return {
 				registeredSession,
-				central: this._isSessionCatalogEnabled()
-					? await this._catalogListReader.read(registeredSession)
-					: { eligible: false, chatBacking: false, detail: 'session catalog disabled' },
+				central: centralResults[index],
 			};
-		})));
+		});
 		const providersWithEligibleCatalogs = new Set(catalogResults
 			.filter(result => result !== undefined && (result.central.eligible || result.central.chatBacking))
 			.map(result => result!.registeredSession.provider));
@@ -3494,9 +3516,13 @@ export class AgentService extends Disposable implements IAgentService {
 					return undefined;
 				}
 				providerFallback++;
-				repairSessions.add(session.toString());
+				if (!central.error) {
+					repairSessions.add(session.toString());
+				}
 				if (central.error) {
-					this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
+					if (!centralRead.bulkReadError) {
+						this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
+					}
 				} else {
 					this._logService.trace(`[AgentService] Central catalog row for ${session.toString()} is ineligible: ${central.detail}`);
 				}
@@ -3653,6 +3679,17 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		return visible;
+	}
+
+	private _reportCatalogBulkReadFailure(result: Extract<AgentHostCatalogListManyResult, { bulkReadError: Error }>): void {
+		this._logService.warn(`[AgentService] Bulk session catalog read failed; bounded row recovery read ${result.fallbackRecoveredRowCount} of ${result.fallbackReadCount} row(s) in ${result.fallbackDurationMs}ms (${result.fallbackReadFailureCount} failed)`, result.bulkReadError);
+		this._telemetryService.publicLogError2<AgentHostCatalogBulkReadFailureEvent, AgentHostCatalogBulkReadFailureClassification>('agentHost.catalogBulkReadFailure', {
+			errorMessage: result.bulkReadError.message,
+			requestedRowCount: result.fallbackReadCount,
+			recoveredRowCount: result.fallbackRecoveredRowCount,
+			failedRowCount: result.fallbackReadFailureCount,
+			fallbackDurationMs: result.fallbackDurationMs,
+		});
 	}
 
 	private _sameSessionRegistrations(first: readonly IRegisteredSession[], second: readonly IRegisteredSession[]): boolean {
@@ -6705,9 +6742,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<IPreparedChatWorkingDirectory> {
 		const prepared = await this._prepareChatWorkingDirectory(session, directory, options);
+		const createdWorktree = prepared.createdWorktree;
 		return {
 			directory: prepared.directory,
-			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, prepared.createdWorktree) : Promise.resolve(),
+			...(createdWorktree ? {
+				associateWithChat: chat => this._associateAdditionalWorktreeWithChat(session, createdWorktree.handle, chat),
+			} : {}),
+			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, createdWorktree) : Promise.resolve(),
 		};
 	}
 
@@ -6790,6 +6831,19 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		const added = !previousWorkingDirectories.some(candidate => isEqual(URI.parse(candidate), effective));
 		return { directory: effective, added, ...(added && createdWorktree ? { createdWorktree } : {}) };
+	}
+
+	private _associateAdditionalWorktreeWithChat(session: URI, handle: string, chat: URI): Promise<void> {
+		return this._additionalWorktreeSequencer.queue(session.toString(), async () => {
+			const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const index = records.findIndex(record => record.handle === handle);
+			if (index === -1) {
+				throw new Error(`Cannot associate unknown additional worktree '${handle}' with chat ${chat.toString()}.`);
+			}
+			const next = records.slice();
+			next[index] = { ...records[index], chat: chat.toString() };
+			await writeSessionAdditionalWorktrees(this._sessionDataService, session, next);
+		});
 	}
 
 	/**
