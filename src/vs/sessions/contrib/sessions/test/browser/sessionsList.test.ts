@@ -3237,7 +3237,7 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
-		test('keeps the sticky session hierarchy opaque while nested chats scroll beneath it', async () => {
+		test('keeps the sticky session hierarchy opaque and actions trailing aligned while nested chats scroll beneath it', async () => {
 			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
 			const peers = Array.from({ length: 12 }, (_, index) => createChat(`Codex ${index}`, ChatOriginKind.User));
 			const base = createTestSession('Show ChatGPT rate limits', { status: SessionStatus.InProgress }).session;
@@ -3266,6 +3266,9 @@ suite('Sessions - SessionsList', () => {
 			const stickyRows = [...stickyContainer.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')];
 			const stickySessionRow = stickyContainer.querySelector<HTMLElement>('.monaco-tree-sticky-row.session-list-inset-row');
 			assert.ok(stickySessionRow);
+			const titleRow = stickySessionRow.querySelector<HTMLElement>('.session-title-row');
+			const toolbar = stickySessionRow.querySelector<HTMLElement>('.session-title-toolbar');
+			assert.ok(titleRow && toolbar);
 			stickyContainer.focus();
 			stickyList.classList.add('sticky-scroll-focused');
 			for (const row of stickyRows) {
@@ -3284,6 +3287,12 @@ suite('Sessions - SessionsList', () => {
 					background: stickySessionStyle.backgroundColor,
 					overlay: stickySessionStyle.backgroundImage,
 				},
+				actions: {
+					display: mainWindow.getComputedStyle(toolbar).display,
+					flexShrink: mainWindow.getComputedStyle(toolbar).flexShrink,
+					titleRowRight: titleRow.getBoundingClientRect().right,
+					toolbarRight: toolbar.getBoundingClientRect().right,
+				},
 			}, {
 				containerBackground: 'rgb(1, 2, 3)',
 				rows: [
@@ -3295,6 +3304,12 @@ suite('Sessions - SessionsList', () => {
 					selected: true,
 					background: 'rgb(1, 2, 3)',
 					overlay: 'linear-gradient(rgba(7, 8, 9, 0.1), rgba(7, 8, 9, 0.1))',
+				},
+				actions: {
+					display: 'block',
+					flexShrink: '0',
+					titleRowRight: titleRow.getBoundingClientRect().right,
+					toolbarRight: titleRow.getBoundingClientRect().right,
 				},
 			});
 		});

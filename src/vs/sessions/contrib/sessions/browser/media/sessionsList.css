@@ -170,6 +170,8 @@
 		position: relative;
 		height: 16px;
 		display: none;
+		flex-shrink: 0;
+		margin-left: auto;
 
 		.monaco-toolbar {
 			position: relative;
@@ -533,10 +535,6 @@
 
 			.session-title {
 				flex: 0 1 auto;
-			}
-
-			.session-title-toolbar {
-				margin-left: auto;
 			}
 		}
 
