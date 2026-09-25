@@ -537,6 +537,7 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			configuredWelcomeNameChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
+			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
 			const phrase = this._updateWelcomeMessage(
 				welcomeMessage,
 				welcomeMessageTitle,
@@ -544,7 +545,7 @@ export class NewChatWidget extends Disposable {
 				this._welcomePhraseIndex,
 				this._getWelcomeName(profileName),
 			);
-			this._announceWelcomeMessage(phrase);
+			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
@@ -849,9 +850,10 @@ export class NewChatWidget extends Disposable {
 		return phrase;
 	}
 
-	private _announceWelcomeMessage(phrase: string | undefined): void {
+	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
 		if (
 			!phrase
+			|| !inputVisible
 			|| this._welcomePhraseAnnounced
 			|| !this.accessibilityService.isScreenReaderOptimized()
 			|| !this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.NewSessionWelcome)
@@ -860,7 +862,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._welcomePhraseAnnounced = true;
-		this.accessibilityService.alert(localize(
+		this.accessibilityService.status(localize(
 			'newSession.welcome.announcement',
 			"{0}\nTo disable this announcement, set {1} to false.",
 			phrase,
