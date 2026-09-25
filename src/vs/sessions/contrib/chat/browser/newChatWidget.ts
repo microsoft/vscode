@@ -80,12 +80,6 @@ const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
-function takeNextNewSessionWelcomePhraseIndex(): number {
-	const index = nextNewSessionWelcomePhraseIndex;
-	nextNewSessionWelcomePhraseIndex = (nextNewSessionWelcomePhraseIndex + 1) % NEW_SESSION_WELCOME_PHRASE_COUNT;
-	return index;
-}
-
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
@@ -133,9 +127,15 @@ export class NewChatWidget extends Disposable {
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
-	private readonly _welcomePhraseIndex = takeNextNewSessionWelcomePhraseIndex();
+	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 	private _githubProfileSessionId: string | undefined;
+
+	private static _takeNextWelcomePhraseIndex(): number {
+		const index = nextNewSessionWelcomePhraseIndex;
+		nextNewSessionWelcomePhraseIndex = (nextNewSessionWelcomePhraseIndex + 1) % NEW_SESSION_WELCOME_PHRASE_COUNT;
+		return index;
+	}
 
 	constructor(
 		private readonly options: IChatViewOptions & {
@@ -746,12 +746,16 @@ export class NewChatWidget extends Disposable {
 
 	private async _fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined> {
 		try {
+			const enterpriseUri = enterprise ? this.defaultAccountService.resolveGitHubUrl('') : undefined;
+			if (enterprise && !enterpriseUri) {
+				this.logService.warn('Failed to fetch GitHub profile name because the enterprise URL is unavailable.');
+				return undefined;
+			}
 			const sessions = await this.authenticationService.getSessions(providerId, [], { silent: true });
 			const session = sessions.find(candidate => candidate.id === sessionId);
 			if (!session) {
 				return undefined;
 			}
-			const enterpriseUri = enterprise ? this.defaultAccountService.resolveGitHubUrl('') : undefined;
 			const response = await this.requestService.request({
 				type: 'GET',
 				url: `${deriveGitHubEndpoints(enterpriseUri).apiBaseUri}/user`,

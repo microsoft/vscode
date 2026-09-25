@@ -154,6 +154,13 @@ const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarnes
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const fetchGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_fetchGitHubProfileName') as (this: {
+	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
+	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
+	readonly requestService: { request(): Promise<never> };
+	readonly logService: { warn(message: string): void };
+}, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -784,7 +791,14 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('rotates and personalizes new session welcome phrases', () => {
+	test('rotates welcome phrase indices across composers', () => {
+		assert.deepStrictEqual(
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
+			[0, 1, 2, 3, 4, 0],
+		);
+	});
+
+	test('renders and personalizes new session welcome phrases', () => {
 		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
 			const container = document.createElement('div');
 			const title = document.createElement('h2');
@@ -834,6 +848,35 @@ suite('NewChatWidget', () => {
 			configuredName: 'Megan',
 			gitHubName: 'Octo',
 			missingName: undefined,
+		});
+	});
+
+	test('does not request a public GitHub endpoint for an unresolved enterprise account', async () => {
+		let authenticationRequests = 0;
+		let profileRequests = 0;
+		const warnings: string[] = [];
+		const profileName = await fetchGitHubProfileName.call({
+			authenticationService: {
+				async getSessions() {
+					authenticationRequests++;
+					return [];
+				},
+			},
+			defaultAccountService: { resolveGitHubUrl: () => undefined },
+			requestService: {
+				async request() {
+					profileRequests++;
+					throw new Error('Unexpected profile request');
+				},
+			},
+			logService: { warn: message => warnings.push(message) },
+		}, 'github-enterprise', true, 'session');
+
+		assert.deepStrictEqual({ profileName, authenticationRequests, profileRequests, warnings }, {
+			profileName: undefined,
+			authenticationRequests: 0,
+			profileRequests: 0,
+			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
 	});
 

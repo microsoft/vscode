@@ -147,7 +147,7 @@
 .new-session-welcome-message-title {
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.4;
 	margin: 0;
 }
