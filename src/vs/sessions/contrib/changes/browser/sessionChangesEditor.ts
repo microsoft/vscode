@@ -6,10 +6,10 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -179,6 +179,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	private widget: MultiDiffEditorWidget | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
+	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -346,12 +347,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._pendingResolve.clear();
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
-			this._pendingResolve.value = this.layoutService.onDidChangePartVisibility(e => {
-				if (e.partId === Parts.EDITOR_PART && e.visible) {
-					this._pendingResolve.clear();
-					this._resolveInput(input, options, context, token).catch(onUnexpectedError);
-				}
-			});
+			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
+			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.
+			const cts = new CancellationTokenSource();
+			const store = new DisposableStore();
+			store.add(toDisposable(() => cts.dispose(true)));
+			store.add(Event.once(Event.filter(this.layoutService.onDidChangePartVisibility, e => e.partId === Parts.EDITOR_PART && e.visible))(() => {
+				this._resolveInput(input, options, context, cts.token).catch(onUnexpectedError);
+			}));
+			this._pendingResolve.value = store;
 			return;
 		}
 		await this._resolveInput(input, options, context, token);
