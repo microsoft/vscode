@@ -70,6 +70,14 @@ export interface ISessionModelSelection {
 	selectModel(modelIdentifier: string): boolean;
 }
 
+interface ISessionModelSelectionOptions {
+	/**
+	 * Routes picker reads and writes through the active provider's session-scoped model configuration.
+	 * Leave disabled for generic model pickers, which use the global `ILanguageModelsService` preferences.
+	 */
+	readonly modelConfiguration?: boolean;
+}
+
 /**
  * Model selection for the Agents Window, on top of the shared
  * {@link ChatInputModelSelectionController}. Turns the active session and its provider into the
@@ -114,7 +122,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean },
+		options: ISessionModelSelectionOptions,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
