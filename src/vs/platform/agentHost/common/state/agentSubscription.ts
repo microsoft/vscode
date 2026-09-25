@@ -15,7 +15,7 @@ import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, parseRequiredSessionUriFromChatUri, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
@@ -509,9 +509,9 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		// Host-advertised chat URIs are opaque; the update identifies its target.
 		return isChatAction(envelope.action) && envelope.channel === this._chatUri
-			|| envelope.action.type === ActionType.SessionChatUpdated && envelope.action.chat === this._chatUri
-			&& envelope.channel === parseRequiredSessionUriFromChatUri(this._chatUri);
+			|| envelope.action.type === ActionType.SessionChatUpdated && envelope.action.chat === this._chatUri;
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {

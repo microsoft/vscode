@@ -1054,6 +1054,43 @@ suite('AgentSubscriptionManager', () => {
 		assert.strictEqual(mgr.rootState.value, undefined);
 	});
 
+	test('routes catalog updates to opaque host-advertised chat URIs', async () => {
+		const remoteSessionUri = 'ahp-session:/remote-session';
+		const remoteChatUri = 'ahp-chat:/remote-chat';
+		const siblingChatUri = 'ahp-chat:/sibling-chat';
+		const remoteChat = makeChatState(remoteChatUri, makeSessionSummary(remoteSessionUri), { interactivity: ChatInteractivity.Full });
+		const siblingChat = makeChatState(siblingChatUri, makeSessionSummary(remoteSessionUri), { interactivity: ChatInteractivity.Full });
+		const snapshots = new Map<string, SessionState | ChatState>([
+			[remoteSessionUri, makeSessionState(remoteSessionUri, { chats: [remoteChat, siblingChat], defaultChat: remoteChatUri })],
+			[remoteChatUri, remoteChat],
+			[siblingChatUri, siblingChat],
+		]);
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state: snapshots.get(resource.toString())!, fromSeq: 0 }));
+		const session = disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(remoteSessionUri), 'remote-session'));
+		const chat = disposables.add(mgr.getSubscription<ChatState>(StateComponents.Chat, URI.parse(remoteChatUri), 'remote-chat'));
+		const sibling = disposables.add(mgr.getSubscription<ChatState>(StateComponents.Chat, URI.parse(siblingChatUri), 'sibling-chat'));
+		await Promise.all([Event.toPromise(session.object.onDidChange), Event.toPromise(chat.object.onDidChange), Event.toPromise(sibling.object.onDidChange)]);
+		const draft = { text: 'Keep this unsent draft', origin: { kind: MessageKind.User } };
+		mgr.dispatchOptimistic(remoteChatUri, { type: ActionType.ChatDraftChanged, draft });
+		mgr.receiveEnvelope(makeEnvelope({
+			type: ActionType.SessionChatUpdated,
+			chat: remoteChatUri,
+			changes: { interactivity: ChatInteractivity.ReadOnly },
+		}, 1, undefined, undefined, remoteSessionUri));
+
+		assert.deepStrictEqual({
+			catalog: session.object.verifiedValue?.chats.map(chat => chat.interactivity),
+			chat: chat.object.verifiedValue?.interactivity,
+			sibling: sibling.object.verifiedValue?.interactivity,
+			draft: (chat.object.value as ChatState).draft,
+		}, {
+			catalog: [ChatInteractivity.ReadOnly, ChatInteractivity.Full],
+			chat: ChatInteractivity.ReadOnly,
+			sibling: ChatInteractivity.Full,
+			draft,
+		});
+	});
+
 	test('refresh preserves unacknowledged drafts and live updates without unsubscribing', async () => {
 		const snapshot = createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri));
 		const response = new DeferredPromise<{ resource: string; state: ChatState; fromSeq: number }>();
