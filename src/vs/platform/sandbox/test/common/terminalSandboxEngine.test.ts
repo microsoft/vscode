@@ -525,8 +525,9 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
-	test('always denies reads of the sandbox config file on Linux and macOS', async () => {
+	test('protects the sandbox config file from sandboxed access on Linux and macOS', async () => {
 		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			fileService.setRealpath('/home/user/.test-data/tmp', '/private/home/user/.test-data/tmp');
 			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
 				getOS: () => Promise.resolve(os),
 			})));
@@ -536,15 +537,23 @@ suite('TerminalSandboxEngine', () => {
 			const tempDirPath = engine.getTempDir()?.path;
 			ok(tempDirPath, 'Temp dir path should be defined');
 			const config = JSON.parse(createdFiles.get(configPath)!);
+			const resolvedConfigPath = configPath.replace('/home/user/.test-data/tmp/', '/private/home/user/.test-data/tmp/');
+			const writeAccess = await engine.checkFileAccess('write', [configPath, resolvedConfigPath]);
 
 			deepStrictEqual({
 				denyRead: config.filesystem.denyRead.includes(configPath),
+				denyWrite: config.filesystem.denyWrite.includes(configPath),
+				resolvedDenyWrite: config.filesystem.denyWrite.includes(resolvedConfigPath),
 				configAllowWrite: config.filesystem.allowWrite.includes(configPath),
 				tempDirAllowWrite: config.filesystem.allowWrite.includes(tempDirPath),
+				configWriteAllowed: writeAccess.allowed,
 			}, {
 				denyRead: true,
+				denyWrite: true,
+				resolvedDenyWrite: true,
 				configAllowWrite: false,
 				tempDirAllowWrite: true,
+				configWriteAllowed: false,
 			});
 		}
 	});
