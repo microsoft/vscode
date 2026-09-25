@@ -438,6 +438,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		let startLineNumber = range.startLineNumber;
 
 		let firstLineText = model.getLineContent(startLineNumber);
+		let canDecreaseIndentation = true;
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
 			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
 
@@ -460,8 +461,15 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						// we paste content into a line where only contains whitespaces
 						// after pasting, the indentation of the first line is already correct
 						// the first line doesn't match any indentation rule
-						// then no-op.
-						return;
+						if (range.startColumn === 1) {
+							// then no-op.
+							return;
+						}
+						// The paste started after indentation that belongs to the document,
+						// which the following lines did not get. Indent them to match, but
+						// never outdent: the good indent of the second line does not account
+						// for continuation lines, so outdenting would break them (#38833).
+						canDecreaseIndentation = false;
 					}
 				}
 			}
@@ -504,7 +512,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
 
-				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
+				if (newSpaceCntOfSecondLine > oldSpaceCntOfSecondLine || (newSpaceCntOfSecondLine < oldSpaceCntOfSecondLine && canDecreaseIndentation)) {
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
 					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
 						const lineContent = model.getLineContent(i);
