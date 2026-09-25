@@ -2582,7 +2582,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2597,16 +2597,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			agentFinderPublicFeedEnabled: false,
 			marketplaceVisibilityEnabled: false,
-		}),
-	}),
-
-	McpServersTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -2693,16 +2683,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	AgentsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Agents page uses a classic tree with collapsible Workspace, User, Plugins, Extensions, and Built-In groups where applicable.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Agents,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
-		}),
-	}),
-
 	AgentsSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -2783,6 +2763,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Prompts page shows Workspace, User, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -2841,20 +2822,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as compact tabs with count badges above a flat tree of tool sets.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Tools,
-			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
-			managementSections: [
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Tools,
-			],
-		}),
-	}),
-
-	ToolsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2864,14 +2831,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Tools,
 			],
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
-		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows compact tabs for Built-in Tools and Extension Tools, including an Extension Tools count of eight.'],
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows collapsible Built-in Tools and Extension Tools groups, including an Extension Tools count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -2965,20 +2931,10 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows User, Workspace, and Available tabs with count badges. The selected User tab contains installed plugin tree rows.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups. Header action buttons use the standard gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
-		}),
-	}),
-
-	PluginsTree: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Plugins,
-			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -3229,6 +3185,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { durationMs: 1500 },
+		expectedVisualDescriptions: ['The scrolled Prompts tree has no vertical indent guide beneath group chevrons, its sticky group header matches the panel background, and its final rows remain inside the panel above the bottom inset.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
