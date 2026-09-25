@@ -5874,14 +5874,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const store = new DisposableStore();
 		this._draftSyncSubscriptions.set(sessionResource, store);
-		this._acquireOrWaitForSession(sessionResource, store).then(chatModel => {
+		this._acquireOrWaitForSession(sessionResource, store).then(async chatModel => {
 			if (!chatModel || store.isDisposed) {
 				return;
 			}
+			const chatSubscription = this._ensureChatSubscription(backendSession.toString(), chatKey);
+			if (chatSubscription.value === undefined) {
+				const cts = new CancellationTokenSource();
+				store.add(toDisposable(() => cts.dispose(true)));
+				await this._whenSubscriptionHydrated(chatSubscription, cts.token);
+			}
+			if (store.isDisposed) {
+				return;
+			}
+			const chatState = chatSubscription.value;
+			if (!chatState || chatState instanceof Error) {
+				throw chatState ?? new Error(`Agent host chat state did not hydrate: ${chatKey}`);
+			}
 			this._installDraftSync(sessionResource, chatModel, backendSession, chatKey, store);
-		}, err => {
+		}).catch(err => {
 			if (!store.isDisposed) {
-				this._logService.error(`[AgentHost] Failed to wait for chat model for draft sync: ${sessionResource.toString()}`, err);
+				this._logService.error(`[AgentHost] Failed to initialize draft sync: ${sessionResource.toString()}`, err);
+				this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 			}
 		});
 	}
@@ -5918,6 +5932,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return value && !(value instanceof Error) ? value.draft : undefined;
 		};
 		const draftState = new DraftSyncState(readRemoteDraft());
+		const initialInputState = inputModel.state.get();
+		const hasLocalDraft = !!initialInputState && initialInputState.origin !== ChatInputStateOrigin.Remote && (
+			initialInputState.inputText.length > 0
+			|| initialInputState.attachments.length > 0
+			|| initialInputState.mode.id !== ChatMode.Agent.id
+			|| isInConversationModelChoice(initialInputState.selectedModelReason)
+		);
+		if (draftState.synced && !hasLocalDraft) {
+			this._applyRemoteDraft(inputModel, sessionResource, draftState.synced);
+		}
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
