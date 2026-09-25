@@ -1,18 +1,21 @@
 ---
-description: Use when working on, analyzing, or reconstructing Agents window / Sessions Inbox telemetry (the attention-trajectory and meta-routing events)
+description: Use when working on, analyzing, or reconstructing Sessions Inbox telemetry (the inbox attention-trajectory and meta-routing events) and how it sequences within the Agents window
 ---
 
-# Agents window trajectory telemetry
+# Agents window inbox telemetry
 
-The Agents window emits a family of `agents/*` telemetry events that together reconstruct a
-user's **attention trajectory** — an ordered, timestamped sequence of everything that happened in
-the window (which surface was focused, which inbox items appeared, what the user clicked, what they
-decided) with rich, bounded, non‑PII metadata. This is the data substrate for research on
-**adaptive, personalized meta‑routing for human‑agent systems**.
+The Sessions Inbox emits a family of `agents/inbox*` telemetry events that, together with the
+window-wide `agents/*` events, reconstruct a user's **attention trajectory** — an ordered,
+timestamped sequence of everything that happened around the inbox (which surface was focused, which
+inbox items appeared, what the user clicked, what they decided) with rich, bounded, non‑PII metadata.
+This is the data substrate for research on **adaptive, personalized meta‑routing for human‑agent
+systems**.
 
-This document explains how the events link together and how to reconstruct a trajectory from either
-the **local telemetry log** or **Kusto**, and documents the bounded ontologies used by the restricted
-classification, item‑lifecycle, and routing‑decision events.
+This document is inbox-centric: it explains how inbox events link and sequence within the whole
+Agents window, how to reconstruct a trajectory from either the **local telemetry log** or **Kusto**,
+and documents the bounded ontologies used by the restricted classification, item‑lifecycle, and
+routing‑decision events. Non-inbox `agents/*` events are cataloged only briefly, for linking; see
+their own sources for full field lists.
 
 > All events follow the GDPR patterns in [telemetry.instructions.md](./telemetry.instructions.md):
 > bounded `SystemMetaData` unless a field is explicitly a restricted
