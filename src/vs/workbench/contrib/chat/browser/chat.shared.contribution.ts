@@ -2563,17 +2563,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsListLayout]: {
-			type: 'string',
-			enum: ['tabs', 'tree'],
-			enumDescriptions: [
-				nls.localize('chat.experimental.customizations.listLayout.tabs', "Show customization groups as tabs above a flat tree."),
-				nls.localize('chat.experimental.customizations.listLayout.tree', "Show customization groups as collapsible parent nodes in a tree."),
-			],
-			tags: ['experimental'],
-			description: nls.localize('chat.experimental.customizations.listLayout', "Controls how groups are presented in customization management lists."),
-			default: 'tabs',
-		},
 		[ChatConfiguration.ChatCustomizationsToggleStyle]: {
 			type: 'string',
 			enum: ['checkbox', 'switch'],
