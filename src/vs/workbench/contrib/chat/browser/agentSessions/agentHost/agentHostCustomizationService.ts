@@ -16,6 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -247,6 +248,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					source: readMcpServerSource(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,

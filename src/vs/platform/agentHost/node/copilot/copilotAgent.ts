@@ -5712,6 +5712,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
+				getUserMcpServerNames: async () => {
+					const client = await this._ensureClient();
+					return new Set(Object.keys((await client.rpc.mcp.config.list()).servers));
+				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
 				telemetryContext: () => this.getTelemetryContext(),

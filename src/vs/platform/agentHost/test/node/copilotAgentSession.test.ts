@@ -37,6 +37,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
@@ -926,6 +927,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
+	getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
 	controlPlaneRpcTimeoutMs?: number;
 	sessionCustomizations?: () => readonly Customization[];
 	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
@@ -1239,6 +1241,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
+			getUserMcpServerNames: options?.getUserMcpServerNames,
 			activeClientToolSet: options?.activeClientToolSet,
 			// The owning session's last host-published customization snapshot
 			// (§8b), handed to the session by the agent. The session reads it
@@ -18416,6 +18419,69 @@ Use the attached image as context.
 			const updates = getActions(signals).filter(a => a.type === ActionType.SessionCustomizationUpdated);
 			const names = updates.map(a => (a as { customization: { name: string } }).customization.name).sort();
 			assert.deepStrictEqual(names, ['alpha', 'beta']);
+		});
+
+		test('publishes SDK configuration sources for host-only MCP servers and retains them across status updates', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = {
+						servers: [
+							{ name: 'local-memory', status: 'connected', source: 'user' },
+							{ name: 'github', status: 'failed', source: 'user' },
+							{ name: 'workspace-server', status: 'connected', source: 'workspace' },
+							{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+							{ name: 'github-mcp-server', status: 'connected', source: 'builtin' },
+						]
+					};
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, source: readMcpServerSource(server),
+			}));
+			const initial = snapshot();
+
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'local-memory', status: 'stopped' });
+
+			const expected = [
+				{ name: 'local-memory', source: 'user' },
+				{ name: 'github', source: 'user' },
+				{ name: 'workspace-server', source: 'workspace' },
+				{ name: 'plugin-server', source: 'plugin' },
+				{ name: 'github-mcp-server', source: 'builtin' },
+			];
+			assert.deepStrictEqual({ initial, afterStatusChange: snapshot() }, { initial: expected, afterStatusChange: expected });
+		});
+
+		test('resolves omitted SDK sources from user configuration without reclassifying explicit or unknown sources', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				getUserMcpServerNames: async () => new Set(['local-memory', 'github', 'workspace-server', 'plugin-server', 'github-mcp-server']),
+				configureMockSession: m => {
+					m.mcpListResult = {
+						servers: [
+							{ name: 'local-memory', status: 'connected' },
+							{ name: 'github', status: 'failed' },
+							{ name: 'workspace-server', status: 'connected', source: 'workspace' },
+							{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+							{ name: 'github-mcp-server', status: 'connected', source: 'builtin' },
+							{ name: 'unknown-server', status: 'connected' },
+						],
+					};
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'local-memory', status: 'stopped' });
+
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, source: readMcpServerSource(server),
+			})), [
+				{ name: 'local-memory', source: 'user' },
+				{ name: 'github', source: 'user' },
+				{ name: 'workspace-server', source: 'workspace' },
+				{ name: 'plugin-server', source: 'plugin' },
+				{ name: 'github-mcp-server', source: 'builtin' },
+				{ name: 'unknown-server', source: undefined },
+			]);
 		});
 
 		test('keeps a ready server ready across repeated loaded inventory invalidations', async () => {

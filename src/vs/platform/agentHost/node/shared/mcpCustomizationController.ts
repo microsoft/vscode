@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { McpServerSource, readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { parseChatUri } from '../../common/state/sessionState.js';
@@ -25,6 +26,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostState
 export interface ISdkMcpServer {
 	/** Server name (used both as the customization name and the channel suffix). */
 	readonly name: string;
+	readonly source?: McpServerSource;
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
 	/**
@@ -196,7 +198,7 @@ export class McpCustomizationController extends Disposable {
 			if (entry.topLevelId === undefined) {
 				continue;
 			}
-			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.state, entry.enabled));
+			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.state, entry.enabled, readMcpServerSource(entry.topLevelCustomization)));
 		}
 		return out;
 	}
@@ -350,7 +352,8 @@ export class McpCustomizationController extends Disposable {
 			}
 			topLevelId = published?.topLevelId ?? this._mintTopLevelId(server.name);
 		}
-		const customization = this._buildTopLevel(topLevelId, server.name, state, enabled);
+		const source = server.source ?? readMcpServerSource(previous?.topLevelCustomization);
+		const customization = this._buildTopLevel(topLevelId, server.name, state, enabled, source);
 		const customizationChanged = force || previous?.topLevelId !== topLevelId || !equals(previous?.topLevelCustomization, customization);
 		if (customizationChanged || previous?.enabled !== enabled) {
 			this._setLiveEntry(server.name, { serverName: server.name, state, enabled, publishedId: topLevelId, topLevelId, topLevelCustomization: customization }, tx);
@@ -471,7 +474,7 @@ export class McpCustomizationController extends Disposable {
 		return buildMcpChannel(this._chatUri, serverName);
 	}
 
-	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean): McpServerCustomization {
+	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, source?: McpServerSource): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
 		const owningPluginUri = this.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
@@ -484,6 +487,8 @@ export class McpCustomizationController extends Disposable {
 			: DEFAULT_MCP_APP;
 		const existing = getMcpServerCustomizations(this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [])
 			.find(customization => customization.id === id);
+		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
+		const meta = withMcpServerSourceMeta(existing?._meta, source);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
@@ -492,6 +497,7 @@ export class McpCustomizationController extends Disposable {
 			state,
 			channel,
 			mcpApp,
+			...(meta ? { _meta: meta } : {}),
 		};
 		const enablement = this._options.resolveEnablement?.(customization, owningPluginUri) ?? existing?.enablement;
 		return enablement?.length ? { ...customization, enablement: [...enablement] } : customization;
