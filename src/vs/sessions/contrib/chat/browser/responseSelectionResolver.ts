@@ -7,13 +7,18 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 
-export interface IResolvedResponseSelection {
+export interface IResolvedResponseSelection extends IResolvedResponseSelectionFocus {
 	readonly response: IChatResponseViewModel;
 	readonly text: string;
-	/** Snapshot of the selected range, used to position and re-paint the affordance after the native selection is gone. */
+	/** Live selected range, used to re-paint the affordance and recover its focus endpoint after DOM changes. */
 	readonly range: Range;
 	/** Direction from the selection anchor to its active focus endpoint. */
 	readonly direction: 'forward' | 'backward';
+}
+
+export interface IResolvedResponseSelectionFocus {
+	readonly focusRange: Range;
+	readonly focusEdge: 'left' | 'right';
 }
 
 /** Ancestor of a valid selection endpoint: rendered assistant markdown. */
@@ -33,15 +38,42 @@ function isAssistantMarkdownEndpoint(node: Node, widgetDomNode: HTMLElement): bo
 	return !excludedAncestorSelectors.some(selector => element.closest(selector));
 }
 
+interface IContributingTextEndpoint {
+	readonly node: Text;
+	readonly startOffset: number;
+	readonly endOffset: number;
+}
+
+function isIgnoredEndpointCharacter(value: string): boolean {
+	return /[\s\p{Cf}]/u.test(value);
+}
+
+function nextCodePointOffset(text: string, offset: number): number {
+	const codePoint = text.codePointAt(offset);
+	return offset + (codePoint !== undefined && codePoint > 0xFFFF ? 2 : 1);
+}
+
+function previousCodePointOffset(text: string, offset: number): number {
+	let result = offset - 1;
+	if (result > 0
+		&& text.charCodeAt(result) >= 0xDC00
+		&& text.charCodeAt(result) <= 0xDFFF
+		&& text.charCodeAt(result - 1) >= 0xD800
+		&& text.charCodeAt(result - 1) <= 0xDBFF) {
+		result--;
+	}
+	return result;
+}
+
 /**
- * Returns the first and last text nodes that actually contribute characters to
- * `range`. Browsers routinely park a selection boundary at offset 0 of the node
- * *following* the selected text — notably a triple-click, which selects a whole
- * line and ends at the start of the next block, landing outside the response's
- * markdown when the line is the last one — so the raw anchor/focus nodes are
- * not usable endpoints on their own.
+ * Returns the first and last text characters that actually contribute to
+ * `range`. Browsers routinely park a selection boundary outside the visible
+ * selected text, so the raw anchor/focus nodes are not usable endpoints.
  */
-function contributingTextEndpoints(range: Range): { first: Text; last: Text } | undefined {
+function contributingTextEndpoints(range: Range, widgetDomNode?: HTMLElement): { first: IContributingTextEndpoint; last: IContributingTextEndpoint } | undefined {
+	if (range.collapsed) {
+		return undefined;
+	}
 	const container = range.commonAncestorContainer;
 	const scope = container.nodeType === Node.TEXT_NODE ? container.parentNode : container;
 	const doc = scope?.ownerDocument;
@@ -70,23 +102,76 @@ function contributingTextEndpoints(range: Range): { first: Text; last: Text } | 
 			return display === 'contents' ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
 		},
 	});
-	let first: Text | undefined;
-	let last: Text | undefined;
+	let first: IContributingTextEndpoint | undefined;
+	let last: IContributingTextEndpoint | undefined;
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 		const text = node as Text;
-		if (!range.intersectsNode(text)) {
+		if (!range.intersectsNode(text) || (widgetDomNode && !isAssistantMarkdownEndpoint(text, widgetDomNode))) {
 			continue;
 		}
 		const start = text === range.startContainer ? range.startOffset : 0;
 		const end = text === range.endContainer ? range.endOffset : text.data.length;
-		if (!text.data.slice(start, end).trim()) {
+		let firstOffset = start;
+		while (firstOffset < end) {
+			const nextOffset = nextCodePointOffset(text.data, firstOffset);
+			if (!isIgnoredEndpointCharacter(text.data.slice(firstOffset, nextOffset))) {
+				break;
+			}
+			firstOffset = nextOffset;
+		}
+		if (firstOffset === end) {
 			continue;
 		}
-		first ??= text;
-		last = text;
+		const firstEndOffset = nextCodePointOffset(text.data, firstOffset);
+		let trimmedEndOffset = end;
+		let lastOffset = previousCodePointOffset(text.data, trimmedEndOffset);
+		while (lastOffset >= start && isIgnoredEndpointCharacter(text.data.slice(lastOffset, trimmedEndOffset))) {
+			trimmedEndOffset = lastOffset;
+			lastOffset = previousCodePointOffset(text.data, trimmedEndOffset);
+		}
+		first ??= { node: text, startOffset: firstOffset, endOffset: firstEndOffset };
+		last = { node: text, startOffset: lastOffset, endOffset: trimmedEndOffset };
 	}
 
 	return first && last ? { first, last } : undefined;
+}
+
+function getFocusEdge(range: Range, direction: IResolvedResponseSelection['direction']): IResolvedResponseSelection['focusEdge'] {
+	const characterRect = Array.from(range.getClientRects()).find(rect => rect.height > 0) ?? range.getBoundingClientRect();
+	const sameLineRects = (candidate: Range) => Array.from(candidate.getClientRects()).filter(rect =>
+		rect.height > 0
+		&& rect.bottom > characterRect.top
+		&& rect.top < characterRect.bottom
+	);
+	const focusCaret = range.cloneRange();
+	focusCaret.collapse(direction === 'backward');
+	const focusRects = sameLineRects(focusCaret);
+	const oppositeCaret = range.cloneRange();
+	oppositeCaret.collapse(direction === 'forward');
+	const oppositeRects = sameLineRects(oppositeCaret);
+	const edgeDistance = (rect: DOMRect) => Math.min(
+		Math.abs(rect.left - characterRect.left),
+		Math.abs(rect.left - characterRect.right),
+	);
+	const candidates = focusRects.toSorted((a, b) => edgeDistance(a) - edgeDistance(b));
+	const focusRect = candidates.find(candidate =>
+		!oppositeRects.some(opposite => Math.abs(opposite.left - candidate.left) < 0.5)
+	) ?? candidates[0];
+	const focusLeft = focusRect?.left ?? (direction === 'forward' ? characterRect.right : characterRect.left);
+	return Math.abs(focusLeft - characterRect.left) <= Math.abs(focusLeft - characterRect.right) ? 'left' : 'right';
+}
+
+function createResolvedFocus(endpoints: { first: IContributingTextEndpoint; last: IContributingTextEndpoint }, direction: IResolvedResponseSelection['direction']): IResolvedResponseSelectionFocus {
+	const focusEndpoint = direction === 'backward' ? endpoints.first : endpoints.last;
+	const focusRange = focusEndpoint.node.ownerDocument.createRange();
+	focusRange.setStart(focusEndpoint.node, focusEndpoint.startOffset);
+	focusRange.setEnd(focusEndpoint.node, focusEndpoint.endOffset);
+	return { focusRange, focusEdge: getFocusEdge(focusRange, direction) };
+}
+
+export function resolveResponseSelectionFocus(range: Range, direction: IResolvedResponseSelection['direction'], widgetDomNode?: HTMLElement): IResolvedResponseSelectionFocus | undefined {
+	const endpoints = contributingTextEndpoints(range, widgetDomNode);
+	return endpoints ? createResolvedFocus(endpoints, direction) : undefined;
 }
 
 /**
@@ -105,13 +190,13 @@ export function resolveResponseSelection(widget: IChatWidget): IResolvedResponse
 	const range = nativeSelection.getRangeAt(0);
 	const endpoints = contributingTextEndpoints(range);
 	if (!endpoints
-		|| !isAssistantMarkdownEndpoint(endpoints.first, widget.domNode)
-		|| !isAssistantMarkdownEndpoint(endpoints.last, widget.domNode)) {
+		|| !isAssistantMarkdownEndpoint(endpoints.first.node, widget.domNode)
+		|| !isAssistantMarkdownEndpoint(endpoints.last.node, widget.domNode)) {
 		return undefined;
 	}
 
-	const firstElement = closestElement(endpoints.first);
-	const lastElement = closestElement(endpoints.last);
+	const firstElement = closestElement(endpoints.first.node);
+	const lastElement = closestElement(endpoints.last.node);
 	if (!firstElement || !lastElement) {
 		return undefined;
 	}
@@ -125,5 +210,13 @@ export function resolveResponseSelection(widget: IChatWidget): IResolvedResponse
 	// trailing newline that adds nothing to the quoted snippet. Only the end is
 	// trimmed: leading whitespace is part of what the user actually selected.
 	const direction = nativeSelection.focusNode === range.startContainer && nativeSelection.focusOffset === range.startOffset ? 'backward' : 'forward';
-	return { response: firstItem, text: nativeSelection.toString().trimEnd(), range: range.cloneRange(), direction };
+	const focus = createResolvedFocus(endpoints, direction);
+	const resolved: IResolvedResponseSelection = {
+		response: firstItem,
+		text: nativeSelection.toString().trimEnd(),
+		range: range.cloneRange(),
+		...focus,
+		direction,
+	};
+	return resolved;
 }
