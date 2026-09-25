@@ -648,6 +648,16 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.chatConfetti': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatConfetti', "Plays a joyful sound / audio cue when chat confetti is shown."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatConfetti.sound', "Plays a joyful sound when chat confetti is shown."),
+					...soundFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.codeActionTriggered': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.codeActionTriggered', "Plays a sound / audio cue - when a code action has been triggered."),
