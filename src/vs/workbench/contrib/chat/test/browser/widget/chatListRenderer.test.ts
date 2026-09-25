@@ -1392,6 +1392,50 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('persistent footer updates cached activity when a prior response tool changes', async () => {
+		const { model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundTerminal = new ChatToolInvocation(
+			{
+				invocationMessage: 'Regenerate policy data',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm run export-policy-data' },
+					language: 'shellscript',
+					didContinueInBackground: true,
+				},
+			},
+			{ id: 'bash', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+			'background-shell', undefined, {},
+		);
+		await backgroundTerminal.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTerminal);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({
+			text: 'What does policy mean?',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 22), new Range(1, 1, 1, 23), 'What does policy mean?')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Policy lets administrators centrally manage settings.') });
+		const nextResponse = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(nextResponse);
+		const node = { element: nextResponse, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		const whileRunning = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		const terminalData = backgroundTerminal.toolSpecificData;
+		assert.strictEqual(terminalData?.kind, 'terminal');
+		terminalData.terminalCommandState = { exitCode: 0 };
+		backgroundTerminal.notifyToolSpecificDataChanged();
+		renderer.renderElement(node, 0, template);
+		const afterCompletion = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		assert.deepStrictEqual({ whileRunning, afterCompletion }, {
+			whileRunning: 'Waiting for 1 background command',
+			afterCompletion: 'Working',
+		});
+		nextRequest.response?.complete();
+	});
+
 	test('working progress ignores subagent-owned response parts', () => {
 		const parentSubagent: IChatToolInvocationSerialized = {
 			kind: 'toolInvocationSerialized',
