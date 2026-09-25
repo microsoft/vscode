@@ -1083,7 +1083,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.renderBrowse();
 		}
 		this.layout(this.lastDimension);
-		this.scheduleContinuationIfNeeded();
 	}
 
 	private scheduleContinuationIfNeeded(): void {
@@ -1507,6 +1506,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.shouldQueryCatalog() && (this.pendingRecoveryReload || !this.loaded)) {
 			this.pendingRecoveryReload = false;
 			void this.loadCatalog(false);
+		} else {
+			this.render();
 		}
 		if (this.lastDimension) {
 			DOM.getWindow(this.container).requestAnimationFrame(() => this.layout(this.lastDimension));
@@ -1543,6 +1544,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const statusHeight = this.resultStatus.offsetHeight;
 		this.resultList.layout(Math.max(0, availableHeight - statusHeight), this.resultListContainer.clientWidth);
 		this.browseScrollable.scanDomNode();
+		this.scheduleContinuationIfNeeded();
 	}
 
 	getAccessibilityContent(): string {

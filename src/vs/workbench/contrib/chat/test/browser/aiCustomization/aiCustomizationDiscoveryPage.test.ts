@@ -374,6 +374,36 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual(fixture.page.getAccessibilityContent().match(/^mail-\d$/gm), ['mail-1', 'mail-2']);
 	});
 
+	test('hiding during a continuation resumes paging when shown again', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'resume-page' };
+		await fixture.requests[0].result.complete({
+			items: [resource('mail-1')],
+			nextCursor: cursor,
+		});
+		await timeout(0);
+		const cancelledRequest = fixture.requests[1];
+		fixture.page.setVisible(false);
+		fixture.page.setVisible(true);
+		await timeout(0);
+		await cancelledRequest.result.complete({ items: [resource('stale-mail')] });
+		await fixture.requests[2].result.complete({ items: [resource('mail-2')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			cancelled: cancelledRequest.token.isCancellationRequested,
+			cursors: fixture.requests.map(request => request.options.cursor),
+			visible: fixture.page.getAccessibilityContent().match(/^(?:mail-\d|stale-mail)$/gm),
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+		}, {
+			cancelled: true,
+			cursors: [undefined, cursor, cursor],
+			visible: ['mail-1', 'mail-2'],
+			busy: 'false',
+		});
+	});
+
 	test('changing query cancels a filtered backfill without publishing stale results', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin mail');
