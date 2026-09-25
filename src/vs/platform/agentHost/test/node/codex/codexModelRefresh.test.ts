@@ -195,7 +195,7 @@ suite('CodexAgent model refresh', () => {
 			metadata: undefined,
 			migrated: AgentChatMigrationDeferred,
 			models: [],
-			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
 		});
 
 		// Even an ambient catalog refresh must not cross the session boundary.
