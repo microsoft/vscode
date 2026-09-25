@@ -8,14 +8,15 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Event } from '../../../../base/common/event.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -24,6 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
@@ -39,7 +41,7 @@ import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/a
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { NewChatInputWidget } from './newChatInput.js';
+import { NEW_SESSION_PROMPT_PLACEHOLDER, NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -63,8 +65,11 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
+import { getSessionComparisonWorkspaceError, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
@@ -79,6 +84,28 @@ const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
+
+function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
+	if (!selectedFolderUri) {
+		return selectedWorkspace?.folders[0];
+	}
+	return selectedWorkspace?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
+}
+
+function getComparisonSessionFolder(session: ISession | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
+	if (!selectedFolderUri) {
+		return session?.workspace.get()?.folders[0];
+	}
+	return session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
+}
+
+function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
+	const selectedWorkspaceHasGitRemote = getComparisonSelectedWorkspaceFolder(selectedWorkspace, selectedFolderUri)?.gitRepository?.hasGitRemote;
+	if (selectedWorkspaceHasGitRemote !== undefined) {
+		return selectedWorkspaceHasGitRemote;
+	}
+	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
+}
 
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
@@ -122,6 +149,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
+	private readonly _compareAgentsEnabled: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
@@ -130,6 +158,13 @@ export class NewChatWidget extends Disposable {
 
 	/** In-flight background sends awaiting confirmation before their comments are cleared. */
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
+	private readonly _comparisonAttempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(this, []);
+	private readonly _comparisonJudgeHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
+	private readonly _comparisonSynthesisHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
+	private readonly _comparisonBranch = observableValue<string | undefined>(this, undefined);
+	private _comparisonSubmitArmed = false;
+	private readonly _comparisonSetupDialog = this._register(new MutableDisposable<SessionComparisonSetupDialog>());
+	private readonly _onDidChangeComparisonWorkspace = this._register(new Emitter<ISessionComparisonWorkspaceChange>());
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
@@ -169,6 +204,7 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
@@ -181,6 +217,7 @@ export class NewChatWidget extends Disposable {
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
 			}
+
 			return activeSession;
 		});
 
@@ -194,6 +231,11 @@ export class NewChatWidget extends Disposable {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
 			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
+		);
+		this._compareAgentsEnabled = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_ENABLED_SETTING)),
+			() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING),
 		);
 		this._useExperimentalComposerLayout = observableFromEvent(
 			this,
@@ -288,6 +330,7 @@ export class NewChatWidget extends Disposable {
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
 			() => this._hasEnoughSessionsForFirstRunNotices(),
 		);
+		const comparisonDescription = localize('runMultipleAgents.description', "Compares results and lets you synthesize the best concepts");
 
 		const creationProviderId = observableFromEvent(this, this.agentHostFilterService.onDidChange, () => isWeb ? this.agentHostFilterService.selectedHost?.sessionCreationProviderId : undefined);
 		const creationProviderKey = NewSessionCreationProviderIdContext.bindTo(contextKeyService);
@@ -314,7 +357,7 @@ export class NewChatWidget extends Disposable {
 			hasAdditionalSendContent: hasFeedback,
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
-			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
+			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
@@ -323,6 +366,14 @@ export class NewChatWidget extends Disposable {
 			sessionTypePickerOptions: {
 				providerId: creationProviderId,
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
+				additionalAction: {
+					id: 'sessions.runMultipleAgents',
+					label: localize('runMultipleAgents.label', "Run and Compare Agents..."),
+					description: comparisonDescription,
+					icon: Codicon.layers,
+					isVisible: () => this._shouldShowComparisonAction(),
+					run: () => void this._configureComparison(),
+				},
 				focusCommand: {
 					id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
 					label: localize('newSessionHarnessPicker.tooltip', "Choose the harness for the new session"),
@@ -377,6 +428,13 @@ export class NewChatWidget extends Disposable {
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
+			if (this._comparisonSetupDialog.value) {
+				const comparisonWorkspace = await this._getComparisonWorkspace();
+				if (comparisonWorkspace) {
+					this._onDidChangeComparisonWorkspace.fire(comparisonWorkspace);
+				}
+				return;
+			}
 			this._newChatInput.focus();
 		}));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
@@ -654,6 +712,13 @@ export class NewChatWidget extends Disposable {
 			this._register(autorun(reader => {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
+				this._compareAgentsEnabled.read(reader);
+				const session = this._session.read(reader);
+				session?.loading.read(reader);
+				const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+				if (session && provider && isAgentHostProvider(provider)) {
+					provider.isSessionConfigResolving(session.sessionId).read(reader);
+				}
 				const useHeaderHost = isQuickChat && !isWorkspacePickerQuickChat;
 				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
 				if (!target) {
@@ -1210,6 +1275,123 @@ export class NewChatWidget extends Disposable {
 		});
 	}
 
+	private _getComparisonBranch(session = this._session.get()): string | undefined {
+		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
+		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
+			const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+			if (typeof branch === 'string' && branch.trim()) {
+				return branch;
+			}
+		}
+		const selectedWorkspaceRepository = getComparisonSelectedWorkspaceFolder(this._workspacePicker.selectedResolved?.workspace, selectedFolderUri)?.gitRepository;
+		const selectedWorkspaceBranch = selectedWorkspaceRepository?.branchName?.trim() || selectedWorkspaceRepository?.baseBranchName?.trim();
+		if (selectedWorkspaceBranch) {
+			return selectedWorkspaceBranch;
+		}
+		const sessionRepository = getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository;
+		const workspaceBranch = sessionRepository?.branchName?.trim() || sessionRepository?.baseBranchName?.trim();
+		if (workspaceBranch) {
+			return workspaceBranch;
+		}
+		return undefined;
+	}
+
+	private _shouldShowComparisonAction(): boolean {
+		const session = this._session.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
+		const providerTransitionPending = !!this._pendingPreferredUpgrade.value || !!this._newSessionCreation.value;
+		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
+		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
+		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
+		if (!sessionMatchesSelectedFolder) {
+			return false;
+		}
+		const hasGitRemote = getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, selectedFolderUri);
+		if (hasGitRemote !== true) {
+			return false;
+		}
+		return this._compareAgentsEnabled.get()
+			&& selectedFolderUri !== undefined
+			&& !!session
+			&& hasGitRemote
+			&& (providerTransitionPending
+				|| (providerIsAgentHost
+					&& (resolvingConfig || this._getComparisonBranch(session) !== undefined)));
+	}
+
+	private async _getComparisonBranches(session: IActiveSession, selectedBranch: string): Promise<readonly string[]> {
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return [selectedBranch];
+		}
+		const branchSchema = provider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.Branch];
+		const branches = branchSchema?.enumDynamic
+			? (await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch)).map(item => item.value)
+			: (branchSchema?.enum ?? []).map(String);
+		return [...new Set([selectedBranch, ...branches].filter(branch => branch.trim().length > 0))];
+	}
+
+	private _getComparisonDefaultHarness(workspace: URI, session: IActiveSession): ISessionComparisonHarness | undefined {
+		const currentType = this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
+			providerId === session.providerId && sessionType.id === session.sessionType);
+		const defaultPermission = currentType
+			? this.sessionsProvidersService.getProvider(currentType.providerId)?.getPermissionOptionsForCreation?.(currentType.sessionType.id).find(option => option.isDefault && !option.locked)
+			: undefined;
+		return currentType ? {
+			providerId: currentType.providerId,
+			sessionTypeId: currentType.sessionType.id,
+			label: currentType.sessionType.label,
+			modelId: this._newChatInput.selectedModelState.get().currentModel?.identifier,
+			modelLabel: this._newChatInput.selectedModelState.get().currentModel?.metadata.name,
+			permissionId: defaultPermission?.id,
+			permissionLabel: defaultPermission?.label,
+		} : undefined;
+	}
+
+	private async _getComparisonSession(workspace: URI): Promise<IActiveSession | undefined> {
+		const isMatchingAgentHostSession = (session: IActiveSession | undefined): session is IActiveSession => {
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			return !!session
+				&& !!provider
+				&& isAgentHostProvider(provider)
+				&& !!session.workspace.get()?.folders.some(folder => this.uriIdentityService.extUri.isEqual(folder.root, workspace));
+		};
+		const session = this._session.get();
+		if (isMatchingAgentHostSession(session)) {
+			return session;
+		}
+		if (!this._pendingPreferredUpgrade.value && !this._newSessionCreation.value) {
+			return undefined;
+		}
+		return waitForState(this._session, candidate => isMatchingAgentHostSession(candidate));
+	}
+
+	private async _getComparisonWorkspace(preferredBranch?: string): Promise<ISessionComparisonWorkspaceChange | undefined> {
+		const workspace = this._workspacePicker.selectedFolderUri;
+		if (!workspace) {
+			return undefined;
+		}
+		const session = await this._getComparisonSession(workspace);
+		if (!session) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!preferredBranch && provider && isAgentHostProvider(provider)) {
+			await waitForState(provider.isSessionConfigResolving(session.sessionId), resolving => !resolving);
+		}
+		const branch = preferredBranch ?? this._getComparisonBranch(session);
+		return {
+			workspace,
+			branch,
+			branches: branch ? await this._getComparisonBranches(session, branch) : [],
+			hasGitRemote: getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace),
+			defaultHarness: this._getComparisonDefaultHarness(workspace, session),
+		};
+	}
+
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -1223,6 +1405,85 @@ export class NewChatWidget extends Disposable {
 				? this._workspaceRepositoryControlsHost ?? workspaceTrigger
 				: workspaceTrigger;
 			insertionAnchor?.after(sessionTypePicker);
+		}
+	}
+
+	private async _configureComparison(): Promise<void> {
+		const comparisonWorkspace = await this._getComparisonWorkspace(this._comparisonBranch.get());
+		if (!comparisonWorkspace) {
+			this._workspacePicker.showPicker();
+			return;
+		}
+		const { workspace, branch, branches, defaultHarness: currentHarness } = comparisonWorkspace;
+		if (!branch) {
+			this._workspacePicker.showPicker();
+			return;
+		}
+		const retainedAttempts = this._comparisonAttempts.get();
+		const initialAttempts = retainedAttempts.length >= 2
+			? retainedAttempts
+			: currentHarness
+				? [
+					...(retainedAttempts.length === 1 ? retainedAttempts : [{ id: generateUuid(), harness: currentHarness }]),
+					{ id: generateUuid(), harness: currentHarness },
+				]
+				: retainedAttempts;
+		const initialJudgeHarness = this._comparisonJudgeHarness.get() ?? currentHarness ?? initialAttempts[0]?.harness;
+		if (!initialJudgeHarness) {
+			return;
+		}
+		const retainedSynthesisHarness = this._comparisonSynthesisHarness.get();
+		const initialSynthesisHarness = retainedSynthesisHarness ?? currentHarness ?? initialAttempts[0]?.harness;
+		if (!initialSynthesisHarness) {
+			return;
+		}
+		const setupDialog = this._comparisonSetupDialog.value = this.instantiationService.createInstance(SessionComparisonSetupDialog);
+		let shouldRefocusInput = true;
+		try {
+			const result = await setupDialog.show({
+				workspace,
+				branch,
+				branches,
+				renderWorkspacePicker: container => this._workspacePicker.renderAdditionalTrigger(container, {
+					label: localize('sessionComparisonSetup.workspace', "Workspace"),
+					ariaLabel: localize('sessionComparisonSetup.workspaceAriaLabel', "Choose the workspace for this comparison"),
+					tooltip: () => this._workspacePicker.selectedResolved?.workspace.label ?? localize('sessionComparisonSetup.workspaceTooltip', "Choose the workspace for this comparison"),
+					icon: Codicon.project,
+					reflectsWorkspace: true,
+					attachesContext: false,
+					contextViewLayer: 1,
+					hideNoWorkspaceOption: true,
+				}),
+				onDidChangeWorkspace: this._onDidChangeComparisonWorkspace.event,
+				attachedContextCount: this._newChatInput.attachments.length,
+				prompt: this._newChatInput.getInputValue(),
+				setPrompt: prompt => this._newChatInput.setInputValue(prompt),
+			}, initialAttempts, initialJudgeHarness, initialSynthesisHarness);
+			this._comparisonAttempts.set(result.attempts, undefined);
+			this._comparisonJudgeHarness.set(result.judgeHarness, undefined);
+			this._comparisonSynthesisHarness.set(result.synthesisHarness, undefined);
+			this._comparisonBranch.set(result.branch, undefined);
+			if (result.confirmed) {
+				this._comparisonSubmitArmed = true;
+				try {
+					if (await this._newChatInput.submit()) {
+						this._comparisonAttempts.set([], undefined);
+						this._comparisonJudgeHarness.set(undefined, undefined);
+						this._comparisonSynthesisHarness.set(undefined, undefined);
+						this._comparisonBranch.set(undefined, undefined);
+						shouldRefocusInput = false;
+					}
+				} finally {
+					this._comparisonSubmitArmed = false;
+				}
+			}
+		} finally {
+			if (this._comparisonSetupDialog.value === setupDialog) {
+				this._comparisonSetupDialog.clear();
+			}
+		}
+		if (shouldRefocusInput) {
+			this._newChatInput.focus();
 		}
 	}
 
@@ -1334,6 +1595,112 @@ export class NewChatWidget extends Disposable {
 		for (const context of attachedContext ?? []) {
 			if (!requestContext.has(context.id)) {
 				requestContext.set(context.id, context);
+			}
+		}
+
+		if (this._comparisonSubmitArmed && this._comparisonAttempts.get().length > 0) {
+			const workspace = this._workspacePicker.selectedFolderUri;
+			if (!workspace) {
+				this._workspacePicker.showPicker();
+				return false;
+			}
+			const branch = this._comparisonBranch.get() ?? this._getComparisonBranch(session);
+			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace));
+			if (workspaceError) {
+				this.notificationService.error(workspaceError);
+				return false;
+			}
+			const availableTypes = this.sessionsManagementService.getSessionTypesForFolder(workspace);
+			const resolveHarness = (harness: ISessionComparisonHarness): ISessionComparisonHarness | undefined => {
+				const type = availableTypes.find(candidate =>
+					candidate.providerId === harness.providerId && candidate.sessionType.id === harness.sessionTypeId && candidate.sessionType.supportsWorktreeConfiguration);
+				const provider = type ? this.sessionsProvidersService.getProvider(type.providerId) : undefined;
+				const modelSnapshot = type
+					? provider?.getModelsSnapshotForCreation?.(workspace, type.sessionType.id, harness.modelId)
+					: undefined;
+				const resolution = harness.modelId ? modelSnapshot?.desiredModelResolution : undefined;
+				const configuredAutoModel = harness.modelId === undefined && harness.modelConfiguration
+					? modelSnapshot?.models.find(model => model.metadata.id === 'auto')
+					: undefined;
+				const permissionOptions = type
+					? provider?.getPermissionOptionsForCreation?.(type.sessionType.id)
+					: undefined;
+				const permission = permissionOptions?.find(option => option.id === harness.permissionId && !option.locked)
+					?? permissionOptions?.find(option => option.isDefault && !option.locked);
+				const resolvedModel = resolution?.kind === 'available' ? resolution.model : configuredAutoModel;
+				const resolvedModelId = resolvedModel?.identifier;
+				const preserveModelConfiguration = harness.modelConfiguration === undefined || resolvedModelId !== undefined;
+				return type ? {
+					providerId: harness.providerId,
+					sessionTypeId: harness.sessionTypeId,
+					label: type.sessionType.label,
+					...(resolvedModelId ? {
+						modelId: resolvedModelId,
+						...(resolution?.kind === 'available' ? { modelLabel: resolution.model.metadata.name } : {}),
+					} : {}),
+					...(preserveModelConfiguration && harness.modelConfiguration ? { modelConfiguration: harness.modelConfiguration } : {}),
+					...(preserveModelConfiguration && harness.modelConfigurationLabel ? { modelConfigurationLabel: harness.modelConfigurationLabel } : {}),
+					permissionId: permissionOptions ? permission?.id : harness.permissionId,
+					permissionLabel: permissionOptions ? permission?.label : harness.permissionLabel,
+				} : undefined;
+			};
+			const attempts = this._comparisonAttempts.get().flatMap(attempt => {
+				const harness = resolveHarness(attempt.harness);
+				return harness ? [{ id: attempt.id, harness }] : [];
+			});
+			if (attempts.length !== this._comparisonAttempts.get().length) {
+				this.notificationService.error(localize('sessionComparison.harnessUnavailable', "One or more selected agents no longer support this workspace or worktree isolation. Edit the comparison setup and choose another agent."));
+				return false;
+			}
+			if (attempts.length < 2) {
+				this.notificationService.error(localize('sessionComparison.minimumAttempts', "Configure at least two attempts to start a comparison."));
+				return false;
+			}
+			const unavailableModel = this._comparisonAttempts.get().find(attempt =>
+				attempt.harness.modelId && !attempts.some(candidate =>
+					candidate.id === attempt.id
+					&& candidate.harness.modelId));
+			if (unavailableModel) {
+				this.notificationService.error(localize('sessionComparison.modelUnavailable', "The selected model for {0} is no longer available. Edit the comparison setup and choose another model.", unavailableModel.harness.label));
+				return false;
+			}
+			const selectedJudgeHarness = this._comparisonJudgeHarness.get();
+			const judgeHarness = selectedJudgeHarness ? resolveHarness(selectedJudgeHarness) : undefined;
+			if (!selectedJudgeHarness || !judgeHarness) {
+				this.notificationService.error(localize('sessionComparison.judgeHarnessUnavailable', "The selected Judge agent no longer supports this workspace or worktree isolation. Edit the comparison setup and choose another agent."));
+				return false;
+			}
+			if (selectedJudgeHarness.modelId && !judgeHarness.modelId) {
+				this.notificationService.error(localize('sessionComparison.judgeModelUnavailable', "The selected Judge model is no longer available. Edit the comparison setup and choose another model."));
+				return false;
+			}
+			const selectedSynthesisHarness = this._comparisonSynthesisHarness.get();
+			const synthesisHarness = selectedSynthesisHarness ? resolveHarness(selectedSynthesisHarness) : undefined;
+			if (!selectedSynthesisHarness || !synthesisHarness) {
+				this.notificationService.error(localize('sessionComparison.synthesisHarnessUnavailable', "The selected Synthesizer agent no longer supports this workspace or worktree isolation. Edit the comparison setup and choose another agent."));
+				return false;
+			}
+			if (selectedSynthesisHarness.modelId && !synthesisHarness.modelId) {
+				this.notificationService.error(localize('sessionComparison.synthesisModelUnavailable', "The selected Synthesizer model is no longer available. Edit the comparison setup and choose another model."));
+				return false;
+			}
+			try {
+				const comparison = await this.sessionComparisonService.startComparison({
+					workspace,
+					prompt: request,
+					attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
+					attempts,
+					judgeHarness,
+					synthesisHarness,
+					branch,
+				});
+				this.sessionsService.unsetNewSession();
+				await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+				return true;
+			} catch (error) {
+				this.logService.error('Failed to start session comparison:', error);
+				this.notificationService.error(error);
+				return false;
 			}
 		}
 
@@ -1480,6 +1847,13 @@ export class NewChatWidget extends Disposable {
 			this._preferredDevContainerFolderUri = undefined;
 		}
 		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
+		if (this._comparisonAttempts.get().length > 0 && (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))) {
+			this._comparisonAttempts.set([], undefined);
+			this._comparisonJudgeHarness.set(undefined, undefined);
+			this._comparisonSynthesisHarness.set(undefined, undefined);
+			this._comparisonBranch.set(undefined, undefined);
+			this._comparisonSubmitArmed = false;
+		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
 			&& this._newChatInput.preparePromptOptionsRefresh();

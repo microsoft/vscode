@@ -319,8 +319,21 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (!targetSessionType) {
 				throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
 			}
+			const sourceChat = draft.session.mainChat.get();
+			const modelId = sourceChat.modelId.get();
+			const sourceModelSnapshot = this.getModelsSnapshot(sessionId, modelId);
+			const sourceModel = sourceModelSnapshot.models.find(model => model.identifier === modelId)
+				?? (sourceModelSnapshot.desiredModelResolution.kind === 'available' ? sourceModelSnapshot.desiredModelResolution.model : undefined);
+			const targetModel = sourceModel
+				? targetProvider.getModelsSnapshotForCreation?.(target.workspaceUri, targetSessionType.id)?.models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
+				: undefined;
+			const modelConfiguration = draft.modelConfiguration.captureModelConfiguration(modelId);
 			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id, {
 				metadata: detachedWorktree ? withAgentDevContainerWorktreeMetadata(undefined, detachedWorktree.handle) : undefined,
+				...(targetModel ? {
+					modelId: targetModel.identifier,
+					...(modelConfiguration !== undefined ? { modelConfiguration } : {}),
+				} : {}),
 			});
 			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
 			deleteReplacement = discardReplacement;
@@ -345,17 +358,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 					await targetProvider.setSessionConfigValue(replacement.sessionId, property, value);
 				}
 			}
-			const sourceChat = draft.session.mainChat.get();
 			const replacementChat = replacement.mainChat.get();
-			const modelId = sourceChat.modelId.get();
-			const sourceModelSnapshot = this.getModelsSnapshot(sessionId, modelId);
-			const sourceModel = sourceModelSnapshot.models.find(model => model.identifier === modelId)
-				?? (sourceModelSnapshot.desiredModelResolution.kind === 'available' ? sourceModelSnapshot.desiredModelResolution.model : undefined);
-			const targetModel = sourceModel
+			const resolvedTargetModel = targetModel ?? (sourceModel
 				? targetProvider.getModelsSnapshot(replacement.sessionId).models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
-				: undefined;
-			if (targetModel) {
-				targetProvider.setModel(replacement.sessionId, replacementChat.resource, targetModel.identifier, sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver);
+				: undefined);
+			if (resolvedTargetModel) {
+				targetProvider.setModel(replacement.sessionId, replacementChat.resource, resolvedTargetModel.identifier, sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver);
 			}
 			const selectedAgentUri = sourceChat.mode.get()?.id;
 			const targetAgents = selectedAgentUri ? targetProvider.getCustomAgents(replacement.sessionId) : [];

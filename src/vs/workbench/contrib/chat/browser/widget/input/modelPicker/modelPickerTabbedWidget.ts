@@ -8,6 +8,7 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -105,6 +106,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _context: ITabbedModelPickerContext | undefined;
 	private _anchor: HTMLElement | undefined;
+	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
@@ -153,7 +155,7 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.hide();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false): void {
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, contextViewLayer?: number, detailsModelId?: string, focusConfiguration = false): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 		}
@@ -161,6 +163,7 @@ export class TabbedModelPicker extends Disposable {
 		this._selectionVersion++;
 		this._context = context;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
+		this._contextViewLayer = contextViewLayer;
 		this._rememberSelection(context.selectedModelId);
 		this._showCurrent();
 		const detailsModel = context.models.find(model => model.identifier === detailsModelId);
@@ -244,6 +247,7 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
+			contextViewLayer: this._contextViewLayer,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			widgetClassNames: () => [
@@ -270,7 +274,7 @@ export class TabbedModelPicker extends Disposable {
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
 				const hint = current.cacheBreakHint ?? current.configurationCacheBreakHint;
-				const listOptions = withChatInputPickerMotion({
+				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
@@ -300,6 +304,9 @@ export class TabbedModelPicker extends Disposable {
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
+				const listOptions = anchor.closest('.monaco-dialog-box')
+					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
+					: baseListOptions;
 				return {
 					items,
 					listOptions,

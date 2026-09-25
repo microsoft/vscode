@@ -25,11 +25,12 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } f
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
+import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
-
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -38,11 +39,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate());
 
 	getProvider(accessor: ServicesAccessor) {
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		const sessionsService = accessor.get(ISessionsService);
+		const restoreFocus = createSessionsChatFocusRestorer(accessor);
 		const configurationService = accessor.get(IConfigurationService);
 		const archiveActionWording = getChatSessionArchiveActionWording(configurationService);
-		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
@@ -58,6 +57,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
 		}
 		content.push(getModePickerAccessibilityHelp());
+		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		content.push(localize('sessionsChat.inputPills', "When session metadata or active-turn status pills appear above the input, press Shift+Tab to reach them, use the Left and Right arrow keys to move between them, and press Enter or Space to activate one. Open the context menu{0} to choose which pills are shown. Pull Requests Options lets you show all pull requests or only open and draft ones. Subagent Options offers Show All and Show In Progress. These choices are remembered across sessions. If every entry of a pill is filtered out, its options are also available in any other pill's context menu or the toolbar context menu.", '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('sessionsChat.removeSessionRecord', "Recorded artifacts and references offer Remove from Session for each row. Use Tab to reach row actions. When only one item is visible, use its pill hover actions or context menu instead. Removal waits for persistence and only deletes the session record; it does not delete the linked resource, close a pull request or issue, or remove independent session associations."));
 		content.push(localize('sessionsChat.externalSessionFilter', "The Sessions list Filter menu includes an External submenu. Choose None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days to control which sessions from other applications are shown."));
@@ -79,6 +79,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			content.push(localize('sessionsChat.remoteInspection', "Ask the agent to inspect a remote session using its session link. Inspection reads its current state and latest response or error without changing focus, marking the chat as read, or approving pending requests. If the host is unavailable, the result explains why; inspection does not reconnect it."));
 		}
 		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
+		if (configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING)) {
+			content.push(localize('sessionsChat.compareAgents', "In the new-session input, open the agent picker and activate Run and Compare Agents to open a two-step comparison setup. Use Tab to reach the Attempts and Evaluation step buttons and activate either button to move directly to that step. In Attempts, choose a Git repository with at least one commit and a remote, choose the base branch, then edit the shared prompt or each attempt's agent, model, supported reasoning effort, and provider-specific Permissions selection. The Permissions picker uses the exact choices advertised by that agent, such as Manual permissions and Allow all for Copilot, Ask Before Edits and Bypass Permissions for Claude, or Default Permissions and Full Access for Codex. Check Allow all permissions for every participant to select each agent's allow-all choice for every attempt, the Judge, and the Synthesizer; uncheck it to restore every participant's provider default. Activate the adjacent information button for details about these choices. Organization policy may disable elevated choices or the bulk checkbox. Activate Next to configure the Judge and optional Synthesizer together on the Evaluation step, and use Back to revisit Attempts. Their information buttons describe each role. Use Add attempt for another run; Remove appears when more than two attempts exist. On the Evaluation step, activate Start sessions in parallel to submit, hover it for a token-usage warning, or press Escape to cancel. Open the comparison parent in the Sessions list to open every available attempt in a resizable grid. With two attempt panes, both chat inputs remain visible. With three or more, only the active attempt pane shows its chat input; focus another attempt pane to show its input. Screen-reader optimized mode keeps every attempt input visible. After the Judge finishes, its chat shows the winning attempt and a concise categorized list covering the decisive comparison evidence, validation, code quality, and solution, followed by strong points from other attempts. Focus the comparison result and use Open Accessible View{0} to read its verdict, attempt metrics, and synthesis decisions as plain text. Use Tab to reach an attempt name and activate its link to reveal that session. Use Tab to reach Attempt time and token usage, then press Enter or Space to expand the table of total time and total tokens. Activate Focus Winning Session to open the recommended attempt, or use its adjacent dropdown to focus another attempt. When synthesis is available, Synthesize Attempts starts the Judge's default plan. Open its More Actions menu and choose Additional Synthesis Instructions to enter requirements that are remembered and applied to either recommended or custom synthesis. Activate Start Synthesis with Instructions, or press Ctrl+Enter (Cmd+Enter on macOS) in that field, to start the recommended plan with those requirements. When the Judge reports multiple implementation decisions, activate Custom Synthesis to reveal a decision table. Each row describes one implementation decision and rates the attempts as a better, neutral, or worse choice. The table scrolls when its decisions or attempt columns exceed the available space. Use Tab to move between the choice buttons, select one attempt per row or let the Synthesizer decide, then activate Start Custom Synthesis. The instructions and choices guide a new synthesis session and do not modify the original attempts.", '<keybinding:editor.action.accessibleView>'));
+			content.push(localize('sessionsChat.compareAgentsGroupActions', "When every comparison session is idle, activate the check-mark Archive Comparison action in the comparison header to archive its sessions without deleting them. Delete Group remains available from the comparison header context menu."));
+			content.push(localize('sessionsChat.compareAgentsRationaleOrder', "Judge results identify candidates as Attempt N with agent, model, and effort, then present Why it won in this order: Comparison, Validation, Code quality, Solution."));
+			content.push(localize('sessionsChat.compareAgentsInactivePaneNotification', "When a question tool needs input in an inactive visible pane, the confirmation notification setting can show an operating system notification even while another pane in the Agents window is active."));
+		}
 		content.push(localize('sessionsChat.migrations', "When agent customizations need an update, a notice below the new-session input shows how many need attention. Use Tab to reach Review Migrations and open the Migrations page. Dismiss Migration Notice for This Workspace hides the notice for that workspace, including after restarting, and returns focus to the input."));
 		if (configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.newSessionPickers', "In a new-session composer, open and focus the workspace picker{0} or the harness picker{1}. Focus either picker control and open its context menu{2} to configure its keybinding.", `<keybinding:${FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID}>`, `<keybinding:${FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID}>`, '<keybinding:editor.action.showContextMenu>'));
@@ -176,15 +182,46 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			AccessibleViewProviderId.SessionsChat,
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
-			() => {
-				if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
-					previouslyFocused.focus();
-					return;
-				}
-				const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
-				view?.focus();
-			},
+			restoreFocus,
 			AccessibilityVerbositySettingId.SessionsChat,
 		);
 	}
+}
+
+export class SessionComparisonAccessibleView implements IAccessibleViewImplementation {
+	readonly priority = 121;
+	readonly name = 'sessionComparison';
+	readonly type = AccessibleViewType.View;
+	readonly when = SessionComparisonResultFocused;
+
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
+		const session = accessor.get(ISessionsService).activeSession.get();
+		const comparison = session
+			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session))
+			: undefined;
+		if (!comparison?.verdict) {
+			return undefined;
+		}
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.SessionsChat,
+			{ type: AccessibleViewType.View, language: 'plaintext' },
+			() => buildSessionComparisonAccessibleContent(comparison),
+			createSessionsChatFocusRestorer(accessor),
+			AccessibilityVerbositySettingId.SessionsChat,
+		);
+	}
+}
+
+function createSessionsChatFocusRestorer(accessor: ServicesAccessor): () => void {
+	const sessionsPartService = accessor.get(ISessionsPartService);
+	const sessionsService = accessor.get(ISessionsService);
+	const previouslyFocused = getActiveElement();
+	return () => {
+		if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+			previouslyFocused.focus();
+			return;
+		}
+		const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
+		view?.focus();
+	};
 }

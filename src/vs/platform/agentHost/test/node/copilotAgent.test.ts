@@ -936,6 +936,7 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
+	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext() { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext() { return undefined; }
@@ -977,6 +978,7 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig() { return undefined; }
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
+	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext(sessionUri: string): void {
 		this.released.push(sessionUri);
 	}
