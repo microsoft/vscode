@@ -118,9 +118,14 @@ const getParamRanges = (params: ReadFileParams, snapshot: NotebookDocumentSnapsh
 	return { start, end, truncated };
 };
 
+type ReadAdjustment = {
+	adjustedStartLine: number;
+	adjustedEndLine: number;
+};
+
 type EndLineInfo = {
 	adjustedEndLine: number;
-	startLines: Map<number, { adjustedStartLine: number; adjustedEndLine: number }>;
+	startLines: Map<number, ReadAdjustment>;
 };
 
 export class ReadFileTool implements ICopilotTool<ReadFileParams> {
@@ -209,6 +214,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				let continuousReadStartLine: number | undefined = undefined;
 				let adjustedStartLine: number | undefined = undefined;
 				let adjustedEndLine: number | undefined = undefined;
+				let adjustmentReservation: ReadAdjustment | undefined;
 				try {
 					continuousReadStartLine = this.isContinuousRead(options.chatSessionResource, uri, startLine);
 					if (continuousReadStartLine !== undefined && continuousReadStartLine >= 0 && continuousReadStartLine < startLine) {
@@ -217,7 +223,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					} else {
 						const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
 						if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							if (this.beginReadAdjustment(options.chatSessionResource, uri, startLine, endLine)) {
+							adjustmentReservation = this.beginReadAdjustment(options.chatSessionResource, uri, startLine, endLine);
+							if (adjustmentReservation !== undefined) {
 								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
 								const adjustedRange = regionResult?.regions[0]?.range;
 								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
@@ -251,14 +258,16 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception', documentSnapshot);
 					// this.logService.error(`Error processing grep result for requestId ${options.chatRequestId}: ${err}`);
 				} finally {
-					if (adjustedStartLine !== undefined || adjustedEndLine !== undefined) {
-						this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
-					} else{
-						this.cancelReadAdjustment(options.chatSessionResource, uri, startLine, endLine);
+					if (adjustmentReservation !== undefined) {
+						if (adjustedStartLine !== undefined || adjustedEndLine !== undefined) {
+							this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
+						} else {
+							this.cancelReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation);
+						}
 					}
 					if (doRealLineAdjustment) {
 						ranges = {
-							start: adjustedStartLine !== undefined ? adjustedStartLine + 1: ranges.start,
+							start: adjustedStartLine !== undefined ? adjustedStartLine + 1 : ranges.start,
 							end: adjustedEndLine !== undefined ? adjustedEndLine + 1 : ranges.end,
 							truncated: ranges.truncated,
 						};
@@ -428,7 +437,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		return TextDocumentSnapshot.create(await this.workspaceService.openTextDocument(uri));
 	}
 
-	private beginReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): boolean {
+	private beginReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): ReadAdjustment | undefined {
 		const sessionKey = sessionResource.toString();
 		let files = this.adjustedReadRequests.get(sessionKey);
 		if (files === undefined) {
@@ -451,11 +460,13 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 		const startLines = endLineInfo.startLines;
 		if (startLines.has(startLine)) {
-			return false;
+			return undefined;
 		}
 
-		startLines.set(startLine, { adjustedStartLine: startLine, adjustedEndLine: endLine });
-		return true;
+		// The entry identity prevents an evicted invocation from modifying a replacement reservation.
+		const reservation = { adjustedStartLine: startLine, adjustedEndLine: endLine };
+		startLines.set(startLine, reservation);
+		return reservation;
 	}
 
 	private isContinuousRead(sessionResource: vscode.Uri, uri: URI, startLine: number): number | undefined {
@@ -467,25 +478,28 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		return endLineInfo === undefined ? undefined : endLineInfo.adjustedEndLine + 1;
 	}
 
-	private completeReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, adjustedStartLine: number, adjustedEndLine: number): void {
+	private completeReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment, adjustedStartLine: number, adjustedEndLine: number): void {
 		const endLineInfo = this.adjustedReadRequests
 			.get(sessionResource.toString())
 			?.get(uri.toString())
 			?.get(endLine);
-		if (endLineInfo) {
+		if (endLineInfo && endLineInfo.startLines.get(startLine) === reservation) {
 			endLineInfo.adjustedEndLine = Math.min(endLineInfo.adjustedEndLine, adjustedEndLine);
 			endLineInfo.startLines.set(startLine, { adjustedStartLine, adjustedEndLine });
 		}
 	}
 
-	private cancelReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): void {
+	private cancelReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment): void {
 		const sessionKey = sessionResource.toString();
 		const files = this.adjustedReadRequests.get(sessionKey);
 		const filePath = uri.toString();
 		const endLines = files?.get(filePath);
 		const endLineInfo = endLines?.get(endLine);
-		endLineInfo?.startLines.delete(startLine);
-		if (endLineInfo?.startLines.size === 0) {
+		if (endLineInfo === undefined || endLineInfo.startLines.get(startLine) !== reservation) {
+			return;
+		}
+		endLineInfo.startLines.delete(startLine);
+		if (endLineInfo.startLines.size === 0) {
 			endLines?.delete(endLine);
 		}
 		if (endLines?.size === 0) {

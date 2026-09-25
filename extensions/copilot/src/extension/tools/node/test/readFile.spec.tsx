@@ -28,7 +28,7 @@ import { MarkdownString, Range } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { ToolName } from '../../common/toolNames';
 import { IToolsService } from '../../common/toolsService';
-import { GrepResultService, IGrepResultService } from '../grepResultService';
+import { GrepResultService, IGrepResultService, MAX_GREP_RESULT_SESSIONS } from '../grepResultService';
 import { IReadFileParamsV1, IReadFileParamsV2, ReadFileParams, ReadFileTool } from '../readFileTool';
 import { toolResultToString } from './toolTestUtils';
 
@@ -437,11 +437,13 @@ suite('ReadFile', () => {
 				firstRead: await invoke(input, firstSession, 'first-request'),
 				repeatedRead: await invoke(input, firstSession, 'followup-request'),
 				otherSessionRead: await invoke(input, secondSession, 'second-request'),
+				thirdRead: await invoke(input, firstSession, 'third-request'),
 				regionCalls: regionProvider.getRegions.mock.calls.length,
 			}).toEqual({
 				firstRead: expectedLines(1, 6),
 				repeatedRead: expectedLines(1, 10),
 				otherSessionRead: expectedLines(1, 6),
+				thirdRead: expectedLines(1, 10),
 				regionCalls: 2,
 			});
 		});
@@ -640,7 +642,7 @@ suite('ReadFile', () => {
 			});
 		});
 
-		test('does not shorten a duplicate while the first region lookup is pending', async () => {
+		test('preserves the reservation across duplicate reads during and after region lookup', async () => {
 			const started = new DeferredPromise<void>();
 			const response = new DeferredPromise<RegionResult>();
 			regionProvider.getRegions.mockImplementationOnce(() => {
@@ -651,8 +653,10 @@ suite('ReadFile', () => {
 			const firstRead = invoke();
 			await started.p;
 			let repeatedRead: string;
+			let thirdRead: string;
 			try {
 				repeatedRead = await invoke();
+				thirdRead = await invoke();
 			} finally {
 				await response.complete(createRegionResult());
 				await firstRead;
@@ -661,11 +665,57 @@ suite('ReadFile', () => {
 			expect({
 				firstRead: await firstRead,
 				repeatedRead,
+				thirdRead,
+				readAfterCompletion: await invoke(),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
 				regionCalls: regionProvider.getRegions.mock.calls.length,
 			}).toEqual({
 				firstRead: expectedLines(1, 6),
 				repeatedRead: expectedLines(1, 10),
+				thirdRead: expectedLines(1, 10),
+				readAfterCompletion: expectedLines(1, 10),
+				continuedRead: expectedLines(7, 20),
 				regionCalls: 1,
+			});
+		});
+
+		test.each([
+			{ name: 'fails', result: undefined, firstReadEnd: 10 },
+			{ name: 'succeeds', result: createRegionResult(3, 3), firstReadEnd: 4 },
+		])('preserves a replacement reservation when an evicted lookup $name', async ({ result, firstReadEnd }) => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<RegionResult | undefined>();
+			regionProvider.getRegions.mockImplementationOnce(() => {
+				void started.complete();
+				return response.p;
+			});
+
+			const firstRead = invoke();
+			await started.p;
+			let replacementRead: string;
+			try {
+				for (let i = 0; i < MAX_GREP_RESULT_SESSIONS; i++) {
+					addGrepResult(URI.file(`/sessions/eviction-${i}`));
+				}
+				addGrepResult();
+				replacementRead = await invoke();
+			} finally {
+				await response.complete(result);
+				await firstRead;
+			}
+
+			expect({
+				firstRead: await firstRead,
+				replacementRead,
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				repeatedRead: await invoke(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, firstReadEnd),
+				replacementRead: expectedLines(1, 6),
+				continuedRead: expectedLines(7, 20),
+				repeatedRead: expectedLines(1, 10),
+				regionCalls: 2,
 			});
 		});
 
