@@ -551,6 +551,100 @@ suite('ActionListWidget', () => {
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
 
+	for (const count of [1, 3, 30]) {
+		test(`opening ${count} interactive previews stays quiet until intentional hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let rendered = 0;
+			const widget = createActionListWidget(disposables, {
+				items: Array.from({ length: count }, (_, i) => ({
+					...action(`item-${i}`),
+					hover: {
+						content: () => {
+							rendered++;
+							const content = document.createElement('div');
+							content.textContent = `Details ${i}`;
+							return content;
+						},
+						expandable: true,
+						tabThroughPanel: true,
+					},
+				})),
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+			await timeout(1000);
+			const initial = { item: widget.getFocusedElement()?.item?.id, hidden: panel.style.display === 'none', rendered };
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(499);
+			const beforeDelay = rendered;
+			await timeout(1);
+			assert.deepStrictEqual({ initial, beforeDelay, afterDelay: rendered, content: panel.textContent }, {
+				initial: { item: 'item-0', hidden: true, rendered: 0 },
+				beforeDelay: 0,
+				afterDelay: 1,
+				content: 'Details 0',
+			});
+		}));
+	}
+
+	for (const key of ['ArrowRight', 'Tab', 'ArrowDown']) {
+		test(`${key} reveals an interactive preview after quiet initial focus`, () => {
+			let controls: HTMLElement[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: ['first', 'second'].map(id => ({
+					...action(id),
+					hover: {
+						content: () => {
+							const button = document.createElement('button');
+							button.textContent = `Details ${id}`;
+							controls = [button];
+							return button;
+						},
+						expandable: true,
+						tabThroughPanel: true,
+						getTabbableElements: () => controls,
+					},
+				})),
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const initiallyHidden = panel.style.display === 'none';
+			if (key === 'ArrowDown') {
+				widget.focusNext();
+			} else {
+				dispatchKeyDown(widget.domNode, { key });
+			}
+			assert.deepStrictEqual({
+				initiallyHidden,
+				visible: panel.style.display !== 'none',
+				content: panel.textContent,
+			}, { initiallyHidden: true, visible: true, content: `Details ${key === 'ArrowDown' ? 'second' : 'first'}` });
+		});
+	}
+
+	test('unrelated keys and modified Tab do not render an initially quiet preview', () => {
+		let renders = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('reference'),
+				hover: { content: () => { renders++; return document.createElement('div'); }, tabThroughPanel: true },
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		for (const event of [{ key: 'x' }, { key: 'Tab', ctrlKey: true }, { key: 'Tab', metaKey: true }, { key: 'Escape' }]) {
+			dispatchKeyDown(widget.domNode, event);
+		}
+		assert.deepStrictEqual({
+			renders,
+			hidden: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!.style.display === 'none',
+		}, { renders: 0, hidden: true });
+	});
+
 	function createPersistentPreview(side: 'left' | 'right' = 'right', pointerIntentOnly = false) {
 		const selected: string[] = [];
 		const contents = ['first', 'second', 'third'].map(label => {
@@ -1377,6 +1471,55 @@ suite('ActionListWidget', () => {
 		);
 	}));
 
+	for (const { preferred, top, expected } of [
+		{ preferred: AnchorPosition.ABOVE, top: 250, expected: AnchorPosition.ABOVE },
+		{ preferred: AnchorPosition.BELOW, top: 250, expected: AnchorPosition.BELOW },
+		{ preferred: AnchorPosition.ABOVE, top: 118, expected: AnchorPosition.ABOVE },
+		{ preferred: AnchorPosition.BELOW, top: 432, expected: AnchorPosition.BELOW },
+		{ preferred: AnchorPosition.ABOVE, top: 110, expected: AnchorPosition.BELOW },
+		{ preferred: AnchorPosition.BELOW, top: 460, expected: AnchorPosition.ABOVE },
+	]) {
+		test(`preferred anchor ${preferred} at ${top} resolves to ${expected} and stays stable after filtering`, () => withWindowInnerHeight(600, () => {
+			const list = createActionList(disposables, [action('first'), action('second'), action('third')], {
+				listOptions: { preferredAnchorPosition: preferred },
+				anchor: { x: 10, y: top, width: 20, height: 20 },
+			});
+			list.layout(200);
+			const initial = { position: list.anchorPosition, height: list.domNode.clientHeight };
+			list.filterInput!.value = 'first';
+			list.filterInput!.dispatchEvent(new Event('input'));
+			assert.deepStrictEqual({ initial, position: list.anchorPosition, filteredHeight: list.domNode.clientHeight }, {
+				initial: { position: expected, height: 72 },
+				position: expected,
+				filteredHeight: 24,
+			});
+		}));
+	}
+
+	test('preferred placement sizes against the capped height and fixed placement takes precedence', () => withWindowInnerHeight(600, () => {
+		const positions = [undefined, AnchorPosition.ABOVE].map(anchorPosition => {
+			const list = createActionList(disposables, Array.from({ length: 50 }, (_, i) => action(`item-${i}`)), {
+				listOptions: { preferredAnchorPosition: AnchorPosition.BELOW, anchorPosition },
+				anchor: { x: 10, y: 150, width: 20, height: 20 },
+			});
+			list.layout(200);
+			return list.anchorPosition;
+		});
+		assert.deepStrictEqual(positions, [AnchorPosition.BELOW, AnchorPosition.ABOVE]);
+	}));
+
+	test('preferred placement uses the larger available side when neither fits without a minimum height floor', () => withWindowInnerHeight(180, () => {
+		const list = createActionList(disposables, Array.from({ length: 50 }, (_, i) => action(`item-${i}`)), {
+			listOptions: { preferredAnchorPosition: AnchorPosition.BELOW },
+			anchor: { x: 10, y: 75, width: 20, height: 20 },
+		});
+		list.layout(200);
+		assert.deepStrictEqual({ position: list.anchorPosition, fits: list.domNode.parentElement!.getBoundingClientRect().height <= 75 }, {
+			position: AnchorPosition.ABOVE,
+			fits: true,
+		});
+	}));
+
 	test('full-height menus show all content instead of scrolling within the viewport fraction cap', () => withWindowInnerHeight(560, () => {
 		const states = [false, true].map(useFullHeight => {
 			const list = createActionList(disposables, Array.from({ length: 17 }, (_, index) => ({
@@ -2076,11 +2219,14 @@ suite('ActionListWidget', () => {
 		widget.focus();
 		const initial = {
 			focus: focusState(),
+			hidden: panel.style.display === 'none',
+		};
+		press('Tab');
+		const opened = {
 			panelRole: panel.getAttribute('role'),
 			panelLabel: panel.getAttribute('aria-label'),
 			contentOwnsPadding: panel.querySelector('.action-list-submenu-hover-header')?.classList.contains('content-owns-padding'),
 		};
-		press('Tab');
 		const copy = focusState();
 		press('Tab');
 		const repository = focusState();
@@ -2115,6 +2261,7 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual({
 			initial,
+			opened,
 			copy,
 			repository,
 			reference,
@@ -2128,6 +2275,9 @@ suite('ActionListWidget', () => {
 		}, {
 			initial: {
 				focus: { location: 'list', label: 'Action Widget' },
+				hidden: true,
+			},
+			opened: {
 				panelRole: 'dialog',
 				panelLabel: 'one',
 				contentOwnsPadding: true,
@@ -2957,6 +3107,63 @@ suite('ActionListWidget', () => {
 		});
 	}
 
+	for (const left of [80, 480]) {
+		test(`rich preview resizes beside a lower row at ${left} and preserves focus on resize`, () => withWindowInnerWidth(800, () => withWindowInnerHeight(800, () => {
+			const content = document.createElement('div');
+			content.style.cssText = 'width: 520px; max-width: 100%; height: 80px;';
+			const button = document.createElement('button');
+			button.textContent = 'Details';
+			content.appendChild(button);
+			const widget = createActionListWidget(disposables, {
+				items: Array.from({ length: 15 }, (_, i) => ({
+					...action(`item-${i}`),
+					hover: { content, tabThroughPanel: true, expandable: true, contentOwnsPadding: true },
+				})),
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.style.cssText = `position: fixed; left: ${left}px; top: 80px; width: 280px;`;
+			widget.layout(360, 280);
+			widget.focus();
+			widget.focusItemById('item-10');
+			dispatchKeyDown(widget.domNode, { key: 'ArrowRight' });
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[10].getBoundingClientRect();
+			button.focus();
+			const before = panel.getBoundingClientRect();
+			const parent = widget.domNode.getBoundingClientRect();
+			withWindowInnerWidth(1100, () => mainWindow.dispatchEvent(new Event('resize')));
+			const after = panel.getBoundingClientRect();
+			assert.deepStrictEqual({
+				beside: left === 80 ? before.left >= parent.right : before.right <= parent.left,
+				alignedToRow: Math.abs(before.top + before.height / 2 - row.top - row.height / 2) < 1,
+				readable: before.width >= 240,
+				shrunk: before.width < 530,
+				expands: after.width >= before.width,
+				focused: document.activeElement === button,
+				sameContent: panel.contains(content),
+			}, { beside: true, alignedToRow: true, readable: true, shrunk: true, expands: true, focused: true, sameContent: true });
+		})));
+	}
+
+	test('oversized rich preview scrolls inside a short viewport', () => withWindowInnerWidth(375, () => withWindowInnerHeight(200, () => {
+		const content = document.createElement('div');
+		content.style.cssText = 'width: 520px; max-width: 100%; height: 400px;';
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('reference'), hover: { content, tabThroughPanel: true, expandable: true } }],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.style.cssText = 'position: fixed; left: 20px; top: 80px; width: 260px;';
+		widget.focus();
+		dispatchKeyDown(widget.domNode, { key: 'ArrowRight' });
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+		const bounds = panel.getBoundingClientRect();
+		assert.deepStrictEqual({
+			contained: bounds.top >= 0 && bounds.bottom <= 200 && bounds.left >= 0 && bounds.right <= 375,
+			scrolls: viewport.scrollHeight > viewport.clientHeight,
+		}, { contained: true, scrolls: true });
+	})));
+
 	for (const width of [320, 375]) {
 		test(`tabThroughPanel hover panel clamps its width within a ${width}px mobile viewport`, () => {
 			withWindowInnerWidth(width, () => {
@@ -3033,7 +3240,7 @@ suite('ActionListWidget', () => {
 			wideWidth: panel.getBoundingClientRect().width,
 		}, {
 			narrowWidth: 312,
-			wideWidth: 490,
+			wideWidth: 368,
 		});
 	});
 

@@ -15,6 +15,7 @@ import { Action, IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { AnchorPosition } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -37,6 +38,46 @@ const getResourcePillHoverOptions = Reflect.get(ChatResourcePillActionViewItem.p
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards optional dropdown placement without forcing a side', () => {
+		const actual = [undefined, AnchorPosition.ABOVE, AnchorPosition.BELOW].map(preferredAnchorPosition => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			let placement: { preferred: AnchorPosition | undefined; fixed: AnchorPosition | undefined } | undefined;
+			instantiationService.stub(IActionWidgetService, {
+				isVisible: false,
+				show: (_user, _preview, _items, _delegate, _anchor, _container, _actions, _accessibility, options) => {
+					placement = { preferred: options?.preferredAnchorPosition, fixed: options?.anchorPosition };
+				},
+				hide: () => { },
+			});
+			const action = store.add(new Action('references', 'References'));
+			const sections = constObservable<readonly IChatPillSection[]>([{
+				title: 'References',
+				entries: [{ id: 'reference', label: 'Reference', open: () => { } }],
+			}]);
+			const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+				widgetId: 'references',
+				icon: Codicon.references,
+				title: 'References',
+				summaryLabel: count => `${count} References`,
+				summaryAriaLabel: count => `Show ${count} references`,
+				singleEntry: ChatPillSingleEntry.Summary,
+				preferredAnchorPosition,
+			}));
+			const container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			viewItem.render(container);
+			container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+			return placement;
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ preferred: undefined, fixed: undefined },
+			{ preferred: AnchorPosition.ABOVE, fixed: undefined },
+			{ preferred: AnchorPosition.BELOW, fixed: undefined },
+		]);
+	});
 
 	test('keeps an empty compact pill row keyboard-accessible', async () => {
 		const disposables = store.add(new DisposableStore());
