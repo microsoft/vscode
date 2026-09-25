@@ -374,7 +374,7 @@ export class ModelPickerWidget extends Disposable {
 		this._nameButton.setAttribute('aria-haspopup', 'true');
 		this._nameButton.setAttribute('aria-expanded', 'false');
 
-		// The readout opens model details in the tabbed picker, or the legacy configuration menu.
+		// The readout opens Auto choices, model details, or the legacy configuration menu.
 		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
 		this._configButton.tabIndex = 0;
 		this._configButton.setAttribute('role', 'button');
@@ -509,6 +509,9 @@ export class ModelPickerWidget extends Disposable {
 			(target?.isConnected ? target : previous)?.focus();
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
+		if (this._selectedModel && isAutoModel(this._selectedModel)) {
+			this._configButton?.setAttribute('aria-expanded', 'true');
+		}
 		this._domNode?.classList.toggle('model-picker-name-active', !detailsModelId);
 		picker.show(anchor, context, detailsModelId, focusConfiguration);
 	}
@@ -617,7 +620,7 @@ export class ModelPickerWidget extends Disposable {
 					link: this.getCacheBreakLearnMoreLink(),
 					dismiss: () => this.dismissCacheBreakHint(),
 				} : undefined,
-			}, showDetails ? this._selectedModel?.identifier : undefined, focusConfiguration);
+			}, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration);
 			return;
 		}
 
@@ -794,7 +797,7 @@ export class ModelPickerWidget extends Disposable {
 		if (this._configButton) {
 			const tabbed = this.isTabbedPickerEnabled();
 			this._configButton.classList.toggle('model-picker-config-summary', tabbed);
-			this._configButton.setAttribute('aria-haspopup', tabbed ? 'dialog' : 'menu');
+			this._configButton.setAttribute('aria-haspopup', tabbed && !showingAuto ? 'dialog' : 'menu');
 			this._configuration.renderButton(this._configButton, minimal || (tabbed && compact), noModelsAvailable, tabbed);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
