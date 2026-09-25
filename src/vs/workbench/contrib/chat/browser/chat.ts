@@ -19,7 +19,7 @@ import { PreferredGroup } from '../../../services/editor/common/editorService.js
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
-import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
+import { IChatModel, IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
@@ -209,7 +209,7 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(uri: URI, skipRequestSignal?: boolean): void;
+	acceptRequest(uri: URI, skipRequestSignal?: boolean, model?: IChatModel): void;
 	disposeRequest(requestId: URI): void;
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
