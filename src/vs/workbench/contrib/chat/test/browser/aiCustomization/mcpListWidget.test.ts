@@ -31,7 +31,7 @@ import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } f
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
@@ -71,6 +71,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -1306,6 +1307,7 @@ suite('mcpListWidget', () => {
 			const templateData = renderer.renderTemplate(container);
 			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
 			const widget = Object.create(McpListWidget.prototype) as {
+				cardListControllers: Map<HTMLElement, CustomizationCardListController>;
 				appendInstalledServerRow(parent: HTMLElement, presentation: { entry: Entry }): void;
 				createInstalledMcpServerDetailInput(entry: Entry): ReturnType<typeof createInstalledMcpServerDetailInput>;
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
@@ -1314,7 +1316,7 @@ suite('mcpListWidget', () => {
 			};
 			Object.assign(widget, {
 				cardDisposables: store,
-				cardListControllers: new Map<HTMLElement, never>(),
+				cardListControllers: new Map<HTMLElement, CustomizationCardListController>(),
 				agentHostCustomizationService,
 				agentPluginService,
 				extensionsWorkbenchService,
@@ -1323,7 +1325,7 @@ suite('mcpListWidget', () => {
 				workspaceService: { isSessionsWindow },
 				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
-				mcpServerCompatibility: observableValue<ReadonlyMap<string, never>>(widget, new Map<string, never>()),
+				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
 			const ariaSubscription = store.add(new MutableDisposable());
@@ -1382,7 +1384,12 @@ suite('mcpListWidget', () => {
 					const label = widget.getMcpEntryAriaLabel(entry);
 					ariaSubscription.value = autorun(reader => { ariaLabel = label.read(reader); });
 				},
-				renderInstalledRow: (parent: HTMLElement, entry: Entry) => widget.appendInstalledServerRow(parent, { entry }),
+				renderInstalledRow: (parent: HTMLElement, entry: Entry) => {
+					const controller = store.add(new CustomizationCardListController(parent, 'MCP Servers'));
+					widget.cardListControllers.set(parent, controller);
+					widget.appendInstalledServerRow(parent, { entry });
+					controller.finalize();
+				},
 				read: () => ({
 					text: templateData.description.textContent,
 					error: templateData.description.classList.contains('error'),
@@ -1567,6 +1574,7 @@ suite('mcpListWidget', () => {
 
 		function nativeServer() {
 			const outputCalls: string[] = [];
+			const startCalls: string[] = [];
 			const connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Native connection failed' });
 			const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
 			const definitions = createMcpDetailTestServer().readDefinitions();
@@ -1576,6 +1584,7 @@ suite('mcpListWidget', () => {
 				override readonly enablement = enablement;
 				override readonly capabilities = observableValue('capabilities', undefined);
 				override readDefinitions() { return definitions; }
+				override async start() { startCalls.push('native'); return this.connectionState.get(); }
 				override async showOutput() { outputCalls.push('native'); }
 			}();
 			const workbenchServer = new class extends mock<IWorkbenchMcpServer>() {
@@ -1586,8 +1595,32 @@ suite('mcpListWidget', () => {
 				override readonly installState = McpServerInstallState.Installed;
 				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() { }();
 			}();
-			return { server, workbenchServer, connectionState, enablement, outputCalls };
+			return { server, workbenchServer, connectionState, enablement, outputCalls, startCalls };
 		}
+
+		test('local built-in rows preserve stopped and starting lifecycle states', async () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			native.connectionState.set({ state: McpConnectionState.Kind.Stopped }, undefined);
+			const entry: Entry = { type: 'builtin-item', id: 'native', label: 'Native', description: 'Ordinary description', localServer: native.server };
+
+			ctx.render(entry);
+			const startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
+			startButton?.click();
+			await Promise.resolve();
+			native.connectionState.set({ state: McpConnectionState.Kind.Starting }, undefined);
+
+			assert.deepStrictEqual({
+				startButton: startButton?.textContent,
+				startCalls: native.startCalls,
+				startingSpinner: ctx.templateData.actions.querySelector('.mcp-server-status.codicon-loading') !== null,
+			}, {
+				startButton: 'Start',
+				startCalls: ['native'],
+				startingSpinner: true,
+			});
+		});
 
 		for (const kind of ['native', 'matched', 'builtin', 'plugin', 'matched-builtin', 'session-only', 'host-builtin-no-local'] as const) {
 			test(`${kind} errors show an icon and retain menu output routing`, async () => {
@@ -1840,11 +1873,15 @@ suite('mcpListWidget', () => {
 				disposables.add(ctx.store);
 				ctx.render();
 				ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+				const focusedLinkTabIndex = ctx.templateData.compatibilityLink?.tabIndex;
+				ctx.setFocusedIndex(-1);
+				ctx.notifyUnchanged();
 				return {
 					message: ctx.templateData.compatibilityMessage.textContent,
 					icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
 					badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
-					linkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
+					focusedLinkTabIndex,
+					unfocusedLinkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
 					migrationRequests: ctx.migrationRequests(),
 				};
 			};
@@ -1857,14 +1894,16 @@ suite('mcpListWidget', () => {
 					message: 'Unsupported. See Migrations for details.',
 					icon: 'mcp-server-state-icon codicon codicon-error compatibility unsupported',
 					badges: 0,
-					linkTabIndex: 0,
+					focusedLinkTabIndex: 0,
+					unfocusedLinkTabIndex: -1,
 					migrationRequests: 1,
 				},
 				partiallySupported: {
 					message: 'Partially supported. See Migrations for details.',
 					icon: 'mcp-server-state-icon codicon codicon-warning compatibility partially-supported',
 					badges: 0,
-					linkTabIndex: 0,
+					focusedLinkTabIndex: 0,
+					unfocusedLinkTabIndex: -1,
 					migrationRequests: 1,
 				},
 			});
@@ -1930,6 +1969,30 @@ suite('mcpListWidget', () => {
 				ariaLabel: 'Server One, Error, failed to start',
 				description: 'No description provided.',
 				showOutput: 'Show Output',
+			});
+		});
+
+		test('installed card registers Migrations outside the primary button', () => {
+			const native = nativeServer();
+			const ctx = createRenderer(createAgentHostServer(), false, true, undefined, 'unsupported');
+			disposables.add(ctx.store);
+			const parent = DOM.append(document.body, DOM.$('.plugin-list-widget'));
+			disposables.add({ dispose: () => parent.remove() });
+			const entry: Entry = { type: 'server-item', server: native.workbenchServer, localServer: native.server };
+
+			ctx.menu(entry, native.server);
+			ctx.renderInstalledRow(parent, entry);
+			const primaryAction = parent.querySelector<HTMLElement>('.customization-card-primary-action');
+			const migrationLink = parent.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+
+			assert.deepStrictEqual({
+				linkOutsidePrimaryAction: !!migrationLink && !primaryAction?.contains(migrationLink),
+				linkTabIndex: migrationLink?.tabIndex,
+				contentContainsLink: parent.querySelector('.mcp-installed-card-content')?.contains(migrationLink ?? null),
+			}, {
+				linkOutsidePrimaryAction: true,
+				linkTabIndex: -1,
+				contentContainsLink: true,
 			});
 		});
 

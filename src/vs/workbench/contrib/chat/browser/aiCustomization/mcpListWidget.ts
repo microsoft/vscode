@@ -217,6 +217,7 @@ export function getToggledMcpEnablementState(state: ContributionEnablementState)
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
+	readonly secondaryLine: HTMLElement;
 	readonly compatibilityMessage: HTMLElement;
 	readonly compatibilityMessageDisposables: DisposableStore;
 	compatibilityLink?: HTMLAnchorElement;
@@ -275,9 +276,10 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
 
-		const sourcePath = DOM.append(details, $('a.mcp-server-source-path'));
+		const secondaryLine = DOM.append(details, $('.mcp-server-secondary-line'));
+		const sourcePath = DOM.append(secondaryLine, $('a.mcp-server-source-path'));
 		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), sourcePath, ''));
-		const compatibilityMessage = DOM.append(details, $('.mcp-server-compatibility-message'));
+		const compatibilityMessage = DOM.append(secondaryLine, $('.mcp-server-compatibility-message'));
 		const compatibilityMessageDisposables = templateDisposables.add(new DisposableStore());
 		const description = DOM.append(details, $('.mcp-server-description'));
 		const descriptionHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), description, ''));
@@ -289,6 +291,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const template: IMcpServerItemTemplateData = {
 			container,
 			name,
+			secondaryLine,
 			compatibilityMessage,
 			compatibilityMessageDisposables,
 			sourcePath,
@@ -428,8 +431,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 				return;
 			}
 			templateData.container.classList.toggle('disabled', localDisabled);
-			const localError = !this.workspaceService.isSessionsWindow && connectionState?.state === McpConnectionState.Kind.Error ? connectionState : undefined;
-			this.updateStatus(templateData, element, currentEntry, localDisabled ? 'disabled' : localError?.state, compatibilityKind);
+			const localState = !this.workspaceService.isSessionsWindow ? connectionState?.state : undefined;
+			this.updateStatus(templateData, element, currentEntry, localDisabled ? 'disabled' : localState, compatibilityKind);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeSessionResource.read(reader);
@@ -458,6 +461,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpInstalledEntry, currentEntry: IMcpInstalledEntry | undefined, state: McpStatusKind | undefined, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, disabledReason?: CustomizationDisabledReason): void {
 		const isError = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error;
 		templateData.compatibilityLink = updateMcpCompatibilityMessage(templateData.compatibilityMessage, compatibilityKind, templateData.compatibilityMessageDisposables, this._openMigrations);
+		this.updateActionsTabbability(templateData);
 		if (isError) {
 			templateData.compatibilityMessage.style.display = 'none';
 		}
@@ -855,6 +859,7 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 	const migrationLink = message.firstElementChild as HTMLAnchorElement | null;
 	if (migrationLink) {
 		migrationLink.href = '#';
+		migrationLink.tabIndex = -1;
 		migrationLink.classList.add('mcp-server-compatibility-link');
 		disposables.add(DOM.addDisposableListener(migrationLink, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 	}
@@ -1107,7 +1112,7 @@ function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntr
 	}
 	if (!isSessionsWindow) {
 		const state = entry.localServer?.connectionState.get().state;
-		return entry.type === 'server-item' || state === McpConnectionState.Kind.Error ? state : undefined;
+		return state;
 	}
 	return undefined;
 }
@@ -2405,16 +2410,16 @@ export class McpListWidget extends Disposable {
 		const enabled = this.isInstalledEntryEnabled(entry);
 		row.classList.toggle('disabled', !enabled);
 
-		const primaryAction = this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.labelService, this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
-
+		const content = DOM.append(row, $('.mcp-installed-card-content'));
+		const primaryAction = this.addSurfaceActivation(content, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.labelService, this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
 		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(label);
 		name.title = label;
-		const compatibilityMessage = DOM.append(details, $('.mcp-server-compatibility-message'));
-		const compatibilityMessageDisposables = this.cardDisposables.add(new DisposableStore());
 		const description = DOM.append(details, $('.plugin-list-item-description'));
+		const compatibilityMessage = DOM.append(content, $('.mcp-server-compatibility-message'));
+		const compatibilityMessageDisposables = this.cardDisposables.add(new DisposableStore());
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		const getEntry = () => entry;
@@ -2432,7 +2437,7 @@ export class McpListWidget extends Disposable {
 			row,
 			primaryAction,
 			label,
-			actions: [signIn?.element, start.element, showOutput.element, toggle.element, more.element].filter((action): action is HTMLElement => action !== undefined),
+			actions: [compatibilityMessage, signIn?.element, start.element, showOutput.element, toggle.element, more.element].filter((action): action is HTMLElement => action !== undefined),
 			contextMenuAction: more.element,
 		});
 

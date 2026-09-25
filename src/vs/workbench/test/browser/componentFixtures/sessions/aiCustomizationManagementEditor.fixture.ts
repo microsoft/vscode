@@ -2653,8 +2653,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				selectedSection: AICustomizationManagementSection.McpServers,
 				activeSessionMcpServers: allStateMcpServers,
 				mcpServerCompatibility: [
-					{ id: 'mcp-slack', kind: 'unsupported' },
-					{ id: 'mcp-jira', kind: 'partiallySupported' },
+					{ id: 'linear-mcp', kind: 'unsupported' },
+					{ id: 'acme-mcp', kind: 'partiallySupported' },
 				],
 				configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 				width: 800,
@@ -2672,10 +2672,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				assert(disabledRow?.querySelector('[role="switch"]')?.getAttribute('aria-checked') === 'false', `The ${name} switch must be off.`);
 				assert(disabledRow?.querySelector('.mcp-server-disabled-label')?.textContent === label, `The ${name} row must show ${label}.`);
 			}
-			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Slack');
+			const unsupportedRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'Linear MCP');
 			const source = unsupportedRow?.querySelector('.mcp-server-source-path');
 			const migrationLink = unsupportedRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
-			assert(source?.textContent === '', 'MCP rows must not show configuration file paths.');
+			assert(source?.textContent === 'Plugin: Linear', 'Plugin provenance must share the compatibility secondary line.');
+			assert(source.parentElement === migrationLink?.closest('.mcp-server-secondary-line'), 'Plugin provenance and compatibility must share the secondary line.');
 			assert(migrationLink?.textContent === 'Migrations' && migrationLink.getAttribute('href') === '#', 'Compatibility messages must link to Migrations.');
 		},
 	}),

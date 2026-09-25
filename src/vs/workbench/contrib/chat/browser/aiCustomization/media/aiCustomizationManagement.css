@@ -841,6 +841,19 @@ per-word capitalization does not survive translation. */
 	gap: 6px;
 }
 
+.mcp-server-item .mcp-server-secondary-line {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.mcp-server-item .mcp-server-secondary-line > * {
+	flex-shrink: 1;
+	min-width: 0;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -2928,6 +2941,11 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-errorForeground);
 }
 
+.mcp-server-item .mcp-server-source-path.source-link + .mcp-server-compatibility-message::before {
+	content: "· ";
+	color: var(--vscode-descriptionForeground);
+}
+
 .plugin-list-widget .mcp-server-compatibility-link {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: underline;
@@ -3186,6 +3204,19 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .mcp-installed-home-row.disabled .plugin-list-item-details {
 	opacity: 0.6;
+}
+
+.plugin-list-widget .mcp-installed-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.plugin-list-widget .mcp-installed-card-content > .customization-card-primary-action {
+	display: flex;
+	flex: 1;
+	min-width: 0;
 }
 
 .plugin-list-widget .plugin-list-item .item-sync-checkbox {
