@@ -57,6 +57,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -211,7 +213,9 @@ function createTestSideEffects(
 		isActiveAgentTitleGenerationEnabled: () => configService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 	}, logService));
 	services.set(IAgentHostSessionTitleController, titleController);
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);

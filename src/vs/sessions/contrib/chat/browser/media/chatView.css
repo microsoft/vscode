@@ -284,7 +284,7 @@
 
 /* ---- Chat Input ---- */
 
-.agent-sessions-workbench .interactive-session .chat-input-container {
+.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-container {
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);

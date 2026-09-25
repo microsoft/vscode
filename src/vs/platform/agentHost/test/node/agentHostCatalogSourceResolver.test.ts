@@ -10,6 +10,7 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
@@ -108,6 +109,22 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not persist temporary input restrictions as read-only chats', async () => {
+		const state = sourceState();
+		const peer = `${chat}/peer`;
+		const meta = withChatInputState({ _meta: state.meta }, chat, { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } });
+		const result = await createResolver({}).buildCatalogSyncRequest(session, {
+			...state,
+			meta,
+			chats: [...state.chats.map(chat => ({ ...chat, archived: true })), { uri: peer, kind: 'peer', interactivity: ChatInteractivity.ReadOnly }],
+		}, {}, false);
+		assert.deepStrictEqual({
+			interactivity: result.data.chats.map(chat => chat.interactivity),
+			archived: result.data.chats.map(chat => chat.archived),
+			input: readChatInputState(result.data, chat),
+		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], archived: [true, undefined], input: undefined });
+	});
 
 	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
 		const live = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };

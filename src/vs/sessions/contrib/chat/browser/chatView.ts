@@ -233,6 +233,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
+	override readonly isInputBlocked: IObservable<boolean>;
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -338,6 +339,10 @@ export class ChatView extends AbstractChatView {
 			}
 		}));
 		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		this.isInputBlocked = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
+		});
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
@@ -541,7 +546,7 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full, this.isInputBlocked.read(reader));
 		});
 
 		// Skip loading if we're already showing this chat

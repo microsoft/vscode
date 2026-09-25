@@ -1122,6 +1122,8 @@ export interface IAgentConnection {
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
+	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;

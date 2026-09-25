@@ -7,6 +7,7 @@ import assert from 'assert';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -28,7 +29,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type ChatState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -750,6 +751,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('initial chat subscription includes input checks in both chat and session snapshots', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<void>();
+		agentService.subscribeBarriers.set(defaultChatUri, barrier);
+		const transport = connectClient('input-client', [sessionUri, defaultChatUri]);
+		const response = waitForResponse(transport, 1);
+		const input = { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } } as const;
+		stateManager.setSessionMeta(sessionUri, withChatInputState({}, defaultChatUri, input));
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionChatUpdated, chat: defaultChatUri, changes: { interactivity: ChatInteractivity.ReadOnly } });
+		await barrier.complete();
+		const result = (await response as { result: InitializeResult }).result;
+		const chat = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const session = result.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			subscribeCalls: agentService.subscribeCalls,
+			interactivity: chat.interactivity,
+			catalogInteractivity: session.chats[0].interactivity,
+			input: readChatInputState(session, defaultChatUri),
+		}, {
+			subscribeCalls: [{ resource: defaultChatUri, clientId: 'input-client' }],
+			interactivity: ChatInteractivity.ReadOnly, catalogInteractivity: ChatInteractivity.ReadOnly, input,
+		});
 	});
 
 	for (const cached of [false, true]) {
@@ -1618,13 +1643,14 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client action is dispatched and echoed', () => {
+	test('client action is dispatched and echoed', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		// Chat actions are emitted on the derived default-chat channel, so the
 		// client must subscribe to it (as the real UI bridge does) to see echoes.
 		const transport = connectClient('client-1', [sessionUri, defaultChatUri]);
+		await waitForResponse(transport, 1);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
@@ -1729,7 +1755,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unsupported chat actions are rejected, not dispatched', () => {
+	test('unsupported chat actions are rejected, not dispatched', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
@@ -1742,6 +1768,7 @@ suite('ProtocolServerHandler', () => {
 			const clientId = `unsupported-client-${index}`;
 			const clientSeq = 100 + index;
 			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			await waitForResponse(transport, 1);
 			transport.sent.length = 0;
 			agentService.handledActions.length = 0;
 

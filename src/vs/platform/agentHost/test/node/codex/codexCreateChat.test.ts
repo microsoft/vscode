@@ -25,7 +25,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -3914,6 +3914,168 @@ suite('CodexAgent chat backing durability', () => {
 			missingPeer: undefined,
 			corruptDefault: undefined,
 			sessions: [],
+		});
+	});
+
+	for (const { name, code, message, errorType, lateResume } of [
+		{ name: 'writer lock', code: -32600, message: 'thread locked-thread already has an active writer', errorType: 'CodexThreadInUse' },
+		{ name: 'late writer lock', code: -32600, message: 'thread locked-thread already has an active writer', errorType: 'CodexThreadInUse', lateResume: true },
+		{ name: 'unrelated invalid request', code: -32600, message: 'thread not found: locked-thread', errorType: 'CodexResumeFailed' },
+		{ name: 'different error code', code: -32603, message: 'thread locked-thread already has an active writer', errorType: 'CodexResumeFailed' },
+		{ name: 'different thread', code: -32600, message: 'thread another-thread already has an active writer', errorType: 'CodexResumeFailed' },
+		{ name: 'changed error wording', code: -32600, message: 'thread locked-thread already has an active writer; retry later', errorType: 'CodexResumeFailed' },
+	]) {
+		test(`classifies a resume failure (${name}) without starting or replacing the thread`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'resume-error-session');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const folder = URI.file('/repo/resume-error');
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'locked-thread';
+			entry.needsResume = true;
+			entry.firstTurnSent = true;
+			entry.codexTurnIdByHostTurnId.set('prior-host-turn', 'prior-codex-turn');
+			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const requests: string[] = [];
+			peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+
+			const sending = agent.chats.sendMessage(chat, 'continue', [folder], undefined, 'blocked-turn', undefined, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			let resume = await readNextRequest(peer.outbound);
+			if (lateResume) {
+				peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+				const inventory = await readNextRequest(peer.outbound);
+				entry.materializedCustomizationsSig = 'changed-before-turn';
+				peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+				const unsubscribe = await readNextRequest(peer.outbound);
+				peer.push({ id: unsubscribe.id, result: {} });
+				resume = await readNextRequest(peer.outbound);
+			}
+			peer.push({ id: resume.id, error: { code, message } });
+			await sending;
+
+			assert.deepStrictEqual({
+				requests,
+				threadId: resume.params.threadId,
+				backingThread: entry.threadId,
+				needsResume: entry.needsResume,
+				turnMappings: [...entry.codexTurnIdByHostTurnId],
+				actions: signals.flatMap(signal => signal.kind === 'action'
+					? [{ chat: signal.resource.toString(), action: signal.action }]
+					: []),
+			}, {
+				requests: lateResume ? ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'thread/unsubscribe', 'thread/resume'] : ['thread/unsubscribe', 'thread/resume'],
+				threadId: 'locked-thread',
+				backingThread: 'locked-thread',
+				needsResume: true,
+				turnMappings: [['prior-host-turn', 'prior-codex-turn']],
+				actions: [
+					{ chat: chat.toString(), action: { type: ActionType.ChatError, turnId: 'blocked-turn', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType, message } } } },
+					{ chat: chat.toString(), action: { type: ActionType.ChatTurnComplete, turnId: 'blocked-turn', duration: 0 } },
+				],
+			});
+		});
+	}
+
+	test('chat preparation detects a writer lock before sending and retries without starting a turn', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'prepare-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'locked-thread';
+		entry.needsResume = true;
+		entry.firstTurnSent = true;
+		entry.hasNativeHistory = false;
+		const actions: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => actions.push(signal)));
+		const requests: string[] = [];
+		peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+		const preparing = agent.chats.prepareChat!(chat, context);
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, error: { code: -32600, message: 'thread locked-thread already has an active writer' } });
+		const blocked = await preparing;
+		const stillNeedsResume = entry.needsResume;
+		const retry = agent.chats.prepareChat!(chat, context);
+		const resumed = await readNextRequest(peer.outbound);
+		peer.push({ id: resumed.id, result: { thread: { id: entry.threadId, cwd: '/repo' }, cwd: '/repo' } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const ready = await retry;
+		assert.deepStrictEqual({ blocked, stillNeedsResume, ready, requests, actions, threadId: entry.threadId, needsResume: entry.needsResume }, {
+			blocked: { error: { errorType: 'CodexThreadInUse', message: 'thread locked-thread already has an active writer' } },
+			stillNeedsResume: true, ready: {}, requests: ['thread/resume', 'thread/resume', 'mcpServerStatus/list'], actions: [], threadId: 'locked-thread', needsResume: false,
+		});
+	});
+
+	test('preparing a fresh chat leaves its native backing lazy', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'prepare-new-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context);
+		const result = await agent.chats.prepareChat!(chat, context);
+		assert.deepStrictEqual({ result, threadId: agent['_sessions'].get(AgentSession.id(session))?.threadId }, { result: {}, threadId: undefined });
+	});
+
+	test('a new send after a writer lock resumes the same thread and submits the prompt once', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'handoff-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		const folder = URI.file('/repo/handoff');
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'handoff-thread';
+		entry.needsResume = true;
+		entry.firstTurnSent = true;
+		entry.codexTurnIdByHostTurnId.set('prior-host-turn', 'prior-codex-turn');
+		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+		const requests: string[] = [];
+		peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+		const attachments = [{ type: MessageAttachmentKind.Simple, label: 'Context', modelRepresentation: 'Keep this context' }] as const;
+
+		const blocked = agent.chats.sendMessage(chat, 'continue', [folder], attachments, 'blocked-turn', undefined, undefined, context);
+		const blockedUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: blockedUnsubscribe.id, result: {} });
+		const blockedResume = await readNextRequest(peer.outbound);
+		peer.push({ id: blockedResume.id, error: { code: -32600, message: 'thread handoff-thread already has an active writer' } });
+		await blocked;
+		const sending = agent.chats.sendMessage(chat, 'continue', [folder], attachments, 'new-turn', undefined, undefined, context);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			requests,
+			threadIds: [blockedResume.params.threadId, resume.params.threadId, turn.params.threadId],
+			input: turn.params.input,
+			needsResume: entry.needsResume,
+			priorTurn: entry.codexTurnIdByHostTurnId.get('prior-host-turn'),
+		}, {
+			requests: ['thread/unsubscribe', 'thread/resume', 'thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'],
+			threadIds: ['handoff-thread', 'handoff-thread', 'handoff-thread'],
+			input: [{ type: 'text', text: 'continue\n\nKeep this context', text_elements: [] }],
+			needsResume: false,
+			priorTurn: 'prior-codex-turn',
 		});
 	});
 

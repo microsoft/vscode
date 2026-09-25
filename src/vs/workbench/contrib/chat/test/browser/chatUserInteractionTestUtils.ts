@@ -8,6 +8,7 @@ import { stub } from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -86,6 +87,7 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 		const response = upcastPartial<IChatResponseModel>({
 			session: upcastPartial<IChatModel>({
 				sessionResource: resource, onDidDispose: disposed.event,
+				isInputBlocked: constObservable(false),
 				getRequests: () => [upcastPartial<IChatRequestModel>({ id: requestId })],
 			}),
 			requestId,

@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -99,6 +100,8 @@ export interface IChatInputNotification {
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/** Optional header icon. Defaults to the severity icon. */
+	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];

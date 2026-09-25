@@ -750,8 +750,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.subscriptions.set(sub.uri, sub);
 			return undefined;
 		}
-		// Annotations need persisted data; changesets need their first-subscriber refresh before the snapshot is read.
-		if (isAnnotationsUri(channel) || parseChangesetUri(channel)) {
+		// Annotations need persisted data, changesets need their first-subscriber
+		// refresh, and chats need their input-availability check before snapshotting.
+		// Keep missing chat baselines on the normal debt/restore path: a fresh
+		// host may need authentication before it can materialize those chats.
+		if (isAnnotationsUri(channel) || parseChangesetUri(channel) || (isAhpChatChannel(channel) && this._stateManager.getSnapshot(channel))) {
 			return this._requestHandlers.subscribe(client, { channel }).then(result => result.snapshot).catch(error => {
 				this._logService.info(`[ProtocolServer] Initialize: failed to restore subscription ${channel}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;

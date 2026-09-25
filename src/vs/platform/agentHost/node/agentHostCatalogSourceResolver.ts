@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
@@ -242,6 +243,10 @@ export class AgentHostCatalogSourceResolver {
 				const titleSource = preferPersistedMetadata
 					? metadata[customChatTitleSourceMetadataKey(chat.uri)]
 					: metadataOverrides[customChatTitleSourceMetadataKey(chat.uri)] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)];
+				// Writer availability is checked again when the chat is opened. A
+				// temporary restriction must not become permanent after a restart.
+				const interactivity = chat.interactivity === ChatInteractivity.ReadOnly && readChatInputState({ _meta: state.meta }, chat.uri)
+					? ChatInteractivity.Full : chat.interactivity;
 				return {
 					uri: chat.uri,
 					order,
@@ -249,7 +254,7 @@ export class AgentHostCatalogSourceResolver {
 					summary: toCatalogSummary(summary),
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
-					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(interactivity !== undefined ? { interactivity } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),

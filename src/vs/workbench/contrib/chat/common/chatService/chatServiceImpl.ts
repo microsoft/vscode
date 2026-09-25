@@ -578,8 +578,8 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason });
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason } = props;
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -818,6 +818,7 @@ export class ChatService extends Disposable implements IChatService {
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState,
 			isReadOnly: providedSession.isReadOnly,
+			isInputBlocked: providedSession.isInputBlocked,
 			sessionTypeSelectionReason,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
@@ -1201,7 +1202,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model && model !== request.session) {
 			throw new Error(`Unknown session: ${request.session.sessionResource}`);
 		}
-		if (model.isReadOnly.get()) {
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
 			return;
 		}
 
@@ -1312,10 +1313,10 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
-		if (model.isReadOnly.get()) {
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
 			return {
 				kind: 'rejected',
-				reason: 'Session is read-only',
+				reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only',
 				...(newSessionResource ? { newSessionResource } : {}),
 			};
 		}
@@ -1339,8 +1340,8 @@ export class ChatService extends Disposable implements IChatService {
 				transferredMode = submittedMode ?? untitledMode;
 			}
 		}
-		if (model.isReadOnly.get()) {
-			return { kind: 'rejected', reason: 'Session is read-only', newSessionResource };
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
+			return { kind: 'rejected', reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only', newSessionResource };
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -2117,6 +2118,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
+		if (model.isInputBlocked.get()) {
+			return;
+		}
 		// Agent host sessions delegate queue management to the server.
 		// The server dispatches ChatTurnStarted with queuedMessageId when
 		// it consumes a queued message, so the client should not dequeue eagerly.
@@ -2533,7 +2537,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void> {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
-		if (!model) {
+		if (!model || model.isInputBlocked.get()) {
 			return;
 		}
 

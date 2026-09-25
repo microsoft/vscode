@@ -21,6 +21,7 @@ export interface IStartSessionProps {
 	readonly disableBackgroundKeepAlive?: boolean;
 	readonly inputState?: ISerializableChatModelInputState;
 	readonly isReadOnly?: IObservable<boolean>;
+	readonly isInputBlocked?: IObservable<boolean>;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 

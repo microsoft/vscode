@@ -1419,6 +1419,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
 	}
 
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._subscriptionManager.refreshSubscription(resource);
+	}
+
 	async importSession(session: URI): Promise<void> {
 		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString() });
 	}

@@ -50,6 +50,8 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -892,7 +894,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
+	const providerService = createTestAgentHostProviderService(() => queueAgent);
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
