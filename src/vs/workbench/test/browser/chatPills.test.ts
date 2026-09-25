@@ -13,6 +13,7 @@ import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWi
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
@@ -21,7 +22,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
-import { IFileService } from '../../../platform/files/common/files.js';
+import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
@@ -148,6 +149,7 @@ suite('ChatPills', () => {
 			resource,
 			imagePreview: { resource, mimeType: 'image/png' },
 			ariaDescription: 'design.png',
+			hoverActions: [disposables.add(new Action('copyRelativePath', 'Copy Relative Path'))],
 			open: () => { },
 		};
 		const sections = constObservable<readonly IChatPillSection[]>([{ title: 'Images', entries: [entry] }]);
@@ -170,6 +172,10 @@ suite('ChatPills', () => {
 			contentType: typeof mappedEntry.hover?.content,
 			contentOwnsPadding: mappedEntry.hover?.contentOwnsPadding,
 			hasDisposable: !!mappedEntry.hover?.disposable,
+			hasCandidateDisposer: !!mappedEntry.hover?.disposeContent,
+			expandable: mappedEntry.hover?.expandable,
+			showIndicator: mappedEntry.hover?.showIndicator,
+			tabThroughPanel: mappedEntry.hover?.tabThroughPanel,
 			alignToAnchorTop: mappedEntry.hover?.alignToAnchorTop,
 			preserveVerticalPosition: mappedEntry.hover?.preserveVerticalPosition,
 		}, {
@@ -178,6 +184,10 @@ suite('ChatPills', () => {
 			contentType: 'function',
 			contentOwnsPadding: true,
 			hasDisposable: true,
+			hasCandidateDisposer: true,
+			expandable: true,
+			showIndicator: false,
+			tabThroughPanel: true,
 			alignToAnchorTop: true,
 			preserveVerticalPosition: true,
 		});
@@ -190,9 +200,9 @@ suite('ChatPills', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const resourceLabels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		const runs: string[] = [];
-		const copy = store.add(new Action('copy', 'Copy path', undefined, true, async () => { runs.push('copy'); }));
-		const relative = store.add(new Action('relative', 'Copy relative path', undefined, true, async () => { runs.push('relative'); }));
-		const remove = withChatPillHoverLabel(store.add(new Action('remove', 'Remove design.png from Session', undefined, true, async () => { runs.push('remove'); })), 'Remove reference');
+		const copy = store.add(new Action('copy', 'Copy Path', undefined, true, async () => { runs.push('copy'); }));
+		const relative = store.add(new Action('relative', 'Copy Relative Path', undefined, true, async () => { runs.push('relative'); }));
+		const remove = withChatPillHoverLabel(store.add(new Action('remove', 'Remove design.png from Session', undefined, true, async () => { runs.push('remove'); })), 'Remove Reference');
 		const entry: IChatPillEntry = {
 			id: 'design',
 			label: 'design.png',
@@ -214,14 +224,15 @@ suite('ChatPills', () => {
 			trapFocus: options?.trapFocus,
 			runs,
 		}, {
-			labels: ['Copy path', 'Copy relative path', 'Remove reference'],
+			labels: ['Copy Path', 'Copy Relative Path', 'Remove Reference'],
 			trapFocus: true,
 			runs: ['copy', 'relative', 'remove'],
 		});
 	});
 
-	test('cancels image reads when their hover closes or is cancelled', () => {
+	test('cancels image reads when their hover closes or is cancelled', async () => {
 		const tokens: (CancellationToken | undefined)[] = [];
+		const resource = URI.file('/repo/design.png');
 		const fileService = upcastPartial<IFileService>({
 			readFile: (_resource, _options, token) => {
 				tokens.push(token);
@@ -231,7 +242,7 @@ suite('ChatPills', () => {
 		const entry = {
 			id: 'design',
 			label: 'design.png',
-			imagePreview: { resource: URI.file('/repo/design.png'), mimeType: 'image/png' },
+			imagePreview: { resource, mimeType: 'image/png' },
 			open: () => { },
 		};
 		const preview = createChatPillImagePreview(entry, fileService);
@@ -240,8 +251,89 @@ suite('ChatPills', () => {
 		store.add(createChatPillImagePreview(entry, fileService, cancellation.token).disposable);
 		cancellation.cancel();
 		store.add(createChatPillImagePreview(entry, fileService, CancellationToken.Cancelled).disposable);
+		let completedToken: CancellationToken | undefined;
+		const completedPreview = createChatPillImagePreview(entry, upcastPartial<IFileService>({
+			readFile: async (_resource, _options, token): Promise<IFileContent> => {
+				completedToken = token;
+				return {
+					resource,
+					name: 'design.png',
+					value: VSBuffer.fromString('image'),
+					etag: 'image-etag',
+					mtime: 0,
+					ctime: 0,
+					size: 5,
+					readonly: false,
+					locked: false,
+					executable: false,
+				};
+			},
+		}));
+		await timeout(0);
+		const completedBeforeClose = completedToken?.isCancellationRequested;
+		store.add(completedPreview.disposable).dispose();
 
-		assert.deepStrictEqual(tokens.map(token => token?.isCancellationRequested), [true, true]);
+		assert.deepStrictEqual({
+			pendingReads: tokens.map(token => token?.isCancellationRequested),
+			completedBeforeClose,
+			completedAfterClose: completedToken?.isCancellationRequested,
+		}, {
+			pendingReads: [true, true],
+			completedBeforeClose: false,
+			completedAfterClose: true,
+		});
+	});
+
+	test('disposes a rebuilt image preview candidate with the same entry id', () => {
+		const tokens: CancellationToken[] = [];
+		const fileService = upcastPartial<IFileService>({
+			readFile: (_resource, _options, token) => {
+				if (token) {
+					tokens.push(token);
+				}
+				return new Promise(() => { });
+			},
+		});
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IFileService, fileService);
+		const action = store.add(new Action('references', 'References'));
+		const resource = URI.file('/repo/design.png');
+		const createEntry = (): IChatPillEntry => ({
+			id: 'design',
+			label: 'design.png',
+			resource,
+			imagePreview: { resource, mimeType: 'image/png' },
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('chatPills.rebuiltImage', [{ title: 'Images', entries: [createEntry()] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const firstHover = getDropdownPillItems.call(viewItem)[1].hover!;
+		const firstContent = typeof firstHover.content === 'function' ? firstHover.content() : undefined;
+		sections.set([{ title: 'Images', entries: [createEntry()] }], undefined);
+		const replacementHover = getDropdownPillItems.call(viewItem)[1].hover!;
+		const replacementContent = typeof replacementHover.content === 'function' ? replacementHover.content() : undefined;
+
+		if (replacementContent instanceof HTMLElement) {
+			replacementHover.disposeContent?.(replacementContent);
+		}
+
+		assert.deepStrictEqual({
+			contentRebuilt: replacementContent !== firstContent,
+			firstCancelled: tokens[0]?.isCancellationRequested,
+			replacementCancelled: tokens[1]?.isCancellationRequested,
+		}, {
+			contentRebuilt: true,
+			firstCancelled: false,
+			replacementCancelled: true,
+		});
+		firstHover.disposable?.dispose();
 	});
 
 	test('uses the main DOM realm and target auxiliary window', () => {
@@ -490,9 +582,9 @@ suite('ChatPills', () => {
 		viewItem.render(container);
 
 		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
-		const copyAction = withChatPillHoverLabel(disposables.add(new Action('copy', 'Copy pull request URL')), 'Copy URL');
-		const copyHashAction = withChatPillHoverLabel(disposables.add(new Action('copyHash', 'Copy commit hash')), 'Copy hash');
-		const removeAction = withChatPillHoverLabel(disposables.add(new Action('remove', 'Remove pull request reference from session')), 'Remove reference');
+		const copyAction = withChatPillHoverLabel(disposables.add(new Action('copy', 'Copy Pull Request URL')), 'Copy URL');
+		const copyHashAction = withChatPillHoverLabel(disposables.add(new Action('copyHash', 'Copy Commit Hash')), 'Copy Hash');
+		const removeAction = withChatPillHoverLabel(disposables.add(new Action('remove', 'Remove Pull Request Reference from Session')), 'Remove Reference');
 		sections.set([{
 			title: 'Pull Requests', entries: [{
 				...entry('1', richHover),
@@ -525,13 +617,13 @@ suite('ChatPills', () => {
 		}, {
 			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
 			usesRichHover: true,
-			singularFooterActions: ['Copy URL', 'Copy hash', 'Remove reference'],
+			singularFooterActions: ['Copy URL', 'Copy Hash', 'Remove Reference'],
 			mappedEntry: {
 				label: 'Pull Request #1',
 				badge: '#1',
 				className: 'chat-pill-github-reference',
-				rowActions: ['Copy pull request URL', 'Remove pull request reference from session'],
-				footerActions: ['Copy hash'],
+				rowActions: ['Copy Pull Request URL', 'Remove Pull Request Reference from Session'],
+				footerActions: ['Copy Hash'],
 			},
 			summaryHover: 'Show 2 pull requests',
 		});

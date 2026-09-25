@@ -246,8 +246,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;

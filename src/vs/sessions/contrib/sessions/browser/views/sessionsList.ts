@@ -132,6 +132,7 @@ export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSessi
 /** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
+export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
@@ -284,7 +285,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
 		case CUSTOMIZATIONS_SECTION_ID:
-			return Codicon.settingsGear;
+			return Codicon.extensions;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -524,6 +525,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 				this.sourceContainer = template.container;
 			}
 			template.container.append(this.header);
+			DOM.show(this.header);
 			if (this.elementToRefocusAfterRerender) {
 				const activeElement = DOM.getActiveElement();
 				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
@@ -549,6 +551,11 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
 		const restoredToSource = target !== this.headerContainer;
 		target.append(this.header);
+		if (restoredToSource) {
+			DOM.show(this.header);
+		} else {
+			DOM.hide(this.header);
+		}
 		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
 		if (restoredToSource) {
 			this.elementToRefocusAfterRerender = undefined;
@@ -1959,6 +1966,7 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly migrationIndicator: HTMLElement;
 	readonly count: HTMLElement;
 	readonly newBadge: HTMLElement;
 	readonly chevron: HTMLElement;
@@ -2019,6 +2027,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
+		private readonly customizationsCount: IObservable<number> = constObservable(0),
+		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
 	) { }
@@ -2037,7 +2047,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
-		const label = DOM.append(container, $('span.session-section-label'));
+		const labelContainer = DOM.append(container, $('span.session-section-label-container'));
+		const label = DOM.append(labelContainer, $('span.session-section-label'));
+		const migrationIndicator = DOM.append(labelContainer, $('span.session-section-migration-indicator'));
+		migrationIndicator.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(container, $('span.session-section-count'));
 		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
 		newBadge.setAttribute('aria-hidden', 'true');
@@ -2086,7 +2099,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, migrationIndicator, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -2099,7 +2112,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
+		template.migrationIndicator.classList.remove('visible');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
@@ -2116,6 +2131,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			renderSessionHeaderToolbar(template, element, this.select);
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+			template.container.classList.add('session-section-customizations');
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
 				template.container.classList.toggle('active', active);
@@ -2125,6 +2141,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				} else {
 					row?.removeAttribute('aria-current');
 				}
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				template.count.textContent = String(this.customizationsCount.read(reader));
+				template.count.style.display = '';
+				template.migrationIndicator.classList.toggle('visible', this.customizationMigrationsAvailable.read(reader));
 			}));
 		}
 
@@ -2168,12 +2189,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
-		if (this.hideSectionCount || shortcut) {
-			template.count.textContent = '';
-			template.count.style.display = 'none';
-		} else {
-			template.count.textContent = String(element.sessions.length);
-			template.count.style.display = '';
+		if (element.id !== CUSTOMIZATIONS_SECTION_ID) {
+			if (this.hideSectionCount || shortcut) {
+				template.count.textContent = '';
+				template.count.style.display = 'none';
+			} else {
+				template.count.textContent = String(element.sessions.length);
+				template.count.style.display = '';
+			}
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
@@ -2482,6 +2505,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
+	readonly customizationsCount?: IObservable<number>;
+	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
@@ -2536,6 +2561,17 @@ class SessionsAccessibilityProvider {
 					return this.options?.automationNewBadgeVisible?.read(reader)
 						? localize('automationsNewFeatureAria', "{0}, new feature", label)
 						: label;
+				});
+			}
+			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+				return derived(this, reader => {
+					const count = this.options?.customizationsCount?.read(reader) ?? 0;
+					const countLabel = count === 1
+						? localize('customizationCountAria', "1 customization")
+						: localize('customizationsCountAria', "{0} customizations", count);
+					return this.options?.customizationMigrationsAvailable?.read(reader)
+						? localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel)
+						: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
 				});
 			}
 			if (isShortcutSection(element.id)) {
@@ -3056,6 +3092,8 @@ interface ISessionsListControlBaseOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
+	readonly customizationsCount?: IObservable<number>;
+	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
@@ -3239,6 +3277,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
+	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3315,7 +3354,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.excludedStatuses = this.loadExcludedStatuses();
 
 		// Load property filter state
-		this._excludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
+		const storedExcludeArchived = this.storageService.get(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
+		this._excludeArchived = storedExcludeArchived === undefined
+			? this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING) !== true
+			: this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
 		this._showEmptyGroups = this.storageService.getBoolean(SessionsList.SHOW_EMPTY_GROUPS_KEY, StorageScope.PROFILE, true);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
@@ -3439,6 +3481,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
+		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
+		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -3453,6 +3497,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.customViewService,
 			this.menuService,
 			customizationsActive,
+			customizationsCount,
+			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,
 		);
@@ -3480,10 +3526,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
-			() => {
-				const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
-				return headerHeight ? headerHeight + SESSIONS_HEADER_VERTICAL_SPACING : 0;
-			},
+			() => this.getSessionsHeaderHeight(),
 		);
 		this._delegate = delegate;
 		const sessionsHeaderRenderer = this.options.sessionsHeader
@@ -3517,6 +3560,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
+					customizationsCount,
+					customizationMigrationsAvailable,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 				}),
@@ -4294,12 +4339,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: SESSIONS_HEADER_SECTION,
 					collapsible: false,
 					collapsed: false,
-					children,
 				},
+				...children,
 			]);
 		} else {
 			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
 				this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);
+				DOM.show(this.options.sessionsHeader);
 				this.options.layoutSessionsHeader?.();
 			}
 			this.tree.setChildren(null, [...navigationChildren, ...children]);
@@ -4511,6 +4557,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.layout(height, width);
 	}
 
+	private getSessionsHeaderHeight(): number {
+		const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
+		if (headerHeight > 0) {
+			this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+		}
+		return this.sessionsHeaderHeight;
+	}
+
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
@@ -4570,6 +4624,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	openFind(): void {
+		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
+			this.tree.reveal(SESSIONS_HEADER_SECTION);
+			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
+		}
 		this.tree.openFind();
 	}
 

@@ -113,6 +113,26 @@ function getCopilotAvailability(allowSignedOutWhenUsable: boolean): SessionTypeA
 suite('SessionTypePickerActionItem', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps Cloud as a harness choice without nested creation controls', async () => {
+		let selected = false;
+		const item: ISessionTypeItem = {
+			type: AgentSessionProviders.Cloud, label: 'Cloud', hoverDescription: '', commandId: 'open.cloud',
+		};
+		const action = createSessionTypePickerAction(
+			baseAction, item, AgentSessionProviders.Cloud, SessionTypeAvailability.Available, true,
+			{ label: 'Agent Types', order: 1 }, undefined, Codicon.cloud, () => { selected = true; },
+		);
+		await action.run();
+		assert.deepStrictEqual({
+			label: action.label,
+			selected,
+			inlineToggle: action.inlineToggle,
+			standaloneToggle: action.standaloneToggle,
+		}, {
+			label: 'Cloud', selected: true, inlineToggle: undefined, standaloneToggle: undefined,
+		});
+	});
+
 	test('applies signed-out Agent Host availability in editor chat', () => {
 		assert.deepStrictEqual({
 			enabled: getCopilotAvailability(true),

@@ -8,7 +8,9 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import {
+	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	ICloudSandboxApiService,
 	isRetryableCloudSandboxError,
 	type CloudSandboxConnectResult,
@@ -180,10 +182,26 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			return;
 		}
 
-		// Keep the previous sealed token when a refresh omits it.
-		this._creds.token = result.token.encrypted_github_token
-			? result.token
-			: { ...result.token, encrypted_github_token: this._creds.token.encrypted_github_token, host_encryption_key: this._creds.token.host_encryption_key };
+		const previousToken = this._creds.token;
+		const refreshedToken = result.token;
+		const reusesSealedToken = !refreshedToken.encrypted_github_token;
+		const sealedToken = refreshedToken.encrypted_github_token || previousToken.encrypted_github_token;
+		const hostKey = refreshedToken.host_encryption_key;
+		if (hostKey) {
+			const sealedTokenMatchesKey = typeof sealedToken === 'string'
+				&& typeof hostKey.key_id === 'string' && hostKey.key_id.length > 0
+				&& sealedToken.startsWith(`${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${hostKey.key_id}.`);
+			const reusedKeyChanged = reusesSealedToken && previousToken.host_encryption_key !== undefined
+				&& !equals(previousToken.host_encryption_key, hostKey);
+			if (!sealedTokenMatchesKey || reusedKeyChanged) {
+				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
+				this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
+				return;
+			}
+		}
+		this._creds.token = reusesSealedToken
+			? { ...refreshedToken, encrypted_github_token: sealedToken, host_encryption_key: hostKey ?? previousToken.host_encryption_key }
+			: refreshedToken;
 
 		this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${this._address}`);
 		const delayMs = credentialRefreshDelayMs(result.token.expires_at);

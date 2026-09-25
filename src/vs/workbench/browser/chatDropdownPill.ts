@@ -357,7 +357,13 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				iconClass: action.class,
 				run: () => { void action.run(); },
 			}));
-			baseHover = actions.length ? { ...entry.hover, actions } : entry.hover;
+			baseHover = actions.length ? {
+				...entry.hover,
+				actions,
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+			} : entry.hover;
 			if (baseHover) {
 				this._dropdownHovers.set(entry, baseHover);
 			}
@@ -374,6 +380,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				content: () => {
 					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
 					return preview.element;
+				},
+				disposeContent: content => {
+					if (preview?.element === content) {
+						preview.disposable.dispose();
+						preview = undefined;
+					}
 				},
 				disposable: {
 					dispose: () => {

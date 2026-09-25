@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
@@ -16,7 +17,8 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { Memento } from '../../../common/memento.js';
-import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
+import { IOnboardingPresentation, onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
+import { runWithOnboardingPresentation } from './onboardingPresentationQueue.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
@@ -290,8 +292,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	private _isAutoEligible(scenario: IOnboardingScenario, ignoreTrigger = false): boolean {
-		// `command` triggers never run automatically.
-		if (scenario.trigger.kind === 'command') {
+		// Tryouts and command triggers never run automatically.
+		if (scenario.tryout || scenario.trigger.kind === 'command') {
 			return false;
 		}
 
@@ -391,39 +393,60 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private async _runPresentation(scenario: IOnboardingScenario): Promise<OnboardingOutcome> {
 		const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
-		if (!presentation) {
+		if (scenario.tryout || !presentation) {
 			return OnboardingOutcome.Aborted;
 		}
 
-		// Mark shown the moment a scenario starts so a crash/reload won't re-trigger it.
-		this._markShown(this._seenKey(scenario));
-
-		const abort = new Emitter<void>();
-		this._activeAbort = abort;
-		const startTime = Date.now();
-		let didReportShown = false;
+		const cancellation = new CancellationTokenSource();
 		try {
-			const result = await presentation.run(scenario, {
-				targetWindow: mainWindow,
-				onAbort: abort.event,
-				onDidShow: () => {
-					if (!didReportShown) {
-						didReportShown = true;
-						this._reportShown(scenario);
+			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
+				if (this._stopped) {
+					throw new CancellationError();
+				}
+				const abort = new Emitter<void>();
+				const listener = abort.event(() => cancellation.cancel());
+				this._activeAbort = abort;
+				try {
+					return await this._showPresentation(scenario, presentation, abort);
+				} finally {
+					if (this._activeAbort === abort) {
+						this._activeAbort = undefined;
 					}
+					listener.dispose();
+					abort.dispose();
 				}
 			});
-			this._recordOutcome(this._seenKey(scenario), result.outcome);
-			// Only emit outcome telemetry when a tour was genuinely displayed; a degenerate
-			// run that rendered nothing (no steps / all steps skipped) must not pollute metrics.
-			if (result.shown) {
-				this._reportOutcome(scenario, result, Date.now() - startTime);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return OnboardingOutcome.Aborted;
 			}
-			return result.outcome;
+			throw error;
 		} finally {
-			this._activeAbort = undefined;
-			abort.dispose();
+			cancellation.dispose(true);
 		}
+	}
+
+	private async _showPresentation(scenario: IOnboardingScenario, presentation: IOnboardingPresentation, abort: Emitter<void>): Promise<OnboardingOutcome> {
+		// Mark shown only after the window is available to present the scenario.
+		this._markShown(this._seenKey(scenario));
+		const startTime = Date.now();
+		let didReportShown = false;
+		const result = await presentation.run(scenario, {
+			targetWindow: mainWindow,
+			onAbort: abort.event,
+			onDidShow: () => {
+				if (!didReportShown) {
+					didReportShown = true;
+					this._reportShown(scenario);
+				}
+			}
+		});
+		this._recordOutcome(this._seenKey(scenario), result.outcome);
+		// Only emit outcome telemetry when a tour was genuinely displayed.
+		if (result.shown) {
+			this._reportOutcome(scenario, result, Date.now() - startTime);
+		}
+		return result.outcome;
 	}
 
 	/** Emit an impression when a presentation has rendered visible onboarding UI. */
