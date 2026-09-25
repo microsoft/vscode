@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2024", "DOM"],
+		"types": [],
+		"noEmit": true
+	},
+	"include": ["markdown-editor-src/**/*.ts"]
+}
