@@ -440,20 +440,21 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((resolve, reject) => {
+			const completionPromise: Promise<any> = new Promise((resolve, reject) => {
 				this.doResolve = resolve;
 				this.doReject = reject;
 			}).then(() => {
-				this.completionPromise = null;
-				this.doResolve = null;
-				if (!this.task) {
-					// canceled after the delay elapsed but before the task ran
+				if (this.completionPromise !== completionPromise) {
+					// canceled after the delay elapsed, possibly followed by a new trigger
 					throw new CancellationError();
 				}
-				const task = this.task;
+				this.completionPromise = null;
+				this.doResolve = null;
+				const task = this.task!;
 				this.task = null;
 				return task();
 			});
+			this.completionPromise = completionPromise;
 		}
 
 		const fn = () => {

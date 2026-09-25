@@ -644,6 +644,25 @@ suite('Async', () => {
 			const canceledWithCancellationError = await canceled.then(() => false, isCancellationError);
 			assert.deepStrictEqual({ canceledWithCancellationError, taskCalls }, { canceledWithCancellationError: true, taskCalls: 0 });
 		});
+
+		test('cancel and trigger after the delay elapsed settles both triggers', async () => {
+			const delayer = store.add(new async.Delayer<number>(MicrotaskDelay.MicrotaskDelay));
+			const calls: string[] = [];
+
+			const canceled = delayer.trigger(() => { calls.push('canceled'); return 1; });
+			let retriggered!: Promise<number | string>;
+			// runs after the delay elapsed but before the canceled task is invoked
+			queueMicrotask(() => {
+				delayer.cancel();
+				retriggered = delayer.trigger(() => { calls.push('retriggered'); return 2; });
+			});
+
+			const canceledResult = await canceled.then(value => value, error => isCancellationError(error) ? 'canceled' : error);
+			const stillPending = async.timeout(10);
+			const retriggeredResult = await Promise.race([retriggered, stillPending.then(() => 'pending')]);
+			stillPending.cancel();
+			assert.deepStrictEqual({ canceledResult, retriggeredResult, calls }, { canceledResult: 'canceled', retriggeredResult: 2, calls: ['retriggered'] });
+		});
 	});
 
 	suite('sequence', () => {
