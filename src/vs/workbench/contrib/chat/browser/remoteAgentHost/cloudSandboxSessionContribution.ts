@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -19,8 +18,6 @@ import {
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
-	ICloudSandboxCreatedSession,
-	ICloudSandboxCreateSessionRequest,
 	isCloudSandboxEnabled,
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxDiscoveryResult,
@@ -692,71 +689,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected abstract _updateRegistration(): void;
-
-	protected async _provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onAllocated?: (created: ICloudSandboxCreatedSession, provider: T) => void): Promise<ICloudSandboxCreatedSession & { readonly provider: T }> {
-		if (!this._isEnabled()) {
-			throw new Error('Copilot cloud sandbox connections are not enabled.');
-		}
-		const accountKey = await this._apiService.getAccountKey();
-		if (!this._isEnabled() || token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (!accountKey) {
-			throw new CloudSandboxAuthenticationRequiredError();
-		}
-		this._restoreAccount(accountKey);
-		const store = new DisposableStore();
-		const source = store.add(new CancellationTokenSource(token));
-		store.add(this._enabledCts.token.onCancellationRequested(() => source.cancel()));
-		let address: string | undefined;
-		let provider: T | undefined;
-		let recover: (() => void) | undefined;
-		try {
-			const created = await this._apiService.createSession(request, source.token);
-			if (!this._isEnabled() || source.token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			const name = request.repoNwo ?? created.taskId;
-			address = cloudSandboxAddress(created.environmentId);
-			this._provisioning.add(address);
-			const now = Date.now();
-			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
-			provider = this._providerInstances.get(address);
-			if (!provider) {
-				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
-			}
-			recover = this._seedProvisionedSession(provider, {
-				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
-				startTime: now,
-				modifiedTime: now,
-				summary: name,
-				project: discoveredSessionProject(request.repoNwo),
-			});
-			this._persistInventory();
-			onAllocated?.(created, provider);
-			await raceCancellationError(this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name }), source.token);
-			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
-				throw new CancellationError();
-			}
-			return { ...created, provider };
-		} catch (error) {
-			if (address && provider && this._providerInstances.get(address) === provider) {
-				recover?.();
-			}
-			throw error;
-		} finally {
-			if (address) {
-				this._provisioning.delete(address);
-			}
-			store.dispose();
-		}
-	}
-
-	/** Seeds the allocated session and optionally returns an action to reveal it if provisioning fails. */
-	protected _seedProvisionedSession(provider: T, session: IAgentSessionMetadata): (() => void) | undefined {
-		provider.seedSessions([session]);
-		return undefined;
-	}
 
 	/** Create the sessions provider for an environment if it doesn't exist yet. */
 	protected _ensureProvider(env: ICloudSandboxSessionEnvironment): void {

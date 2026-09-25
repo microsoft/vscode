@@ -14,7 +14,7 @@ import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatSession, IChatSessionCreationHandler, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -249,100 +249,6 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 
 		gatedEnabled.set(false);
 		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
-	});
-});
-
-suite('ChatSessionsService - creation handlers', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('notifies the composer when registration, repository availability, or visibility changes', () => {
-		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		const enabled = contextKeyService.createKey<boolean>('sandboxEnabled', true);
-		const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
-		const service = store.add(instantiationService.createInstance(ChatSessionsService));
-		const optionChanged = store.add(new Emitter<void>());
-		const resource = URI.parse('test-cloud:/untitled-draft');
-		let hasRepository = false;
-		const states: Array<boolean | undefined> = [];
-		store.add(service.onDidChangeSessionCreationOptions(() => {
-			states.push(service.getChatSessionCreationOption(resource)?.enabled);
-		}));
-		const registration = store.add(service.registerChatSessionCreationHandler(resource.scheme, {
-			when: 'sandboxEnabled',
-			onDidChangeOption: optionChanged.event,
-			getOption: () => ({ label: 'Sandbox', description: '', checked: false, enabled: hasRepository, setChecked: () => { } }),
-			createSession: async () => undefined,
-		}));
-		hasRepository = true;
-		optionChanged.fire();
-		enabled.set(false);
-		enabled.set(true);
-		registration.dispose();
-		optionChanged.fire();
-		enabled.set(false);
-
-		assert.deepStrictEqual(states, [false, true, undefined, true, undefined]);
-	});
-
-	test('uses the selected creation handler and preserves the normal path when it declines or is disposed', async () => {
-		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
-		const service = store.add(instantiationService.createInstance(ChatSessionsService));
-		const type = 'test-cloud';
-		const draft = URI.from({ scheme: type, path: '/untitled-draft' });
-		const item = (scheme: string): IChatSessionItem => ({
-			resource: URI.from({ scheme, path: '/created' }), label: scheme,
-			timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
-		});
-		let selected = false;
-		let normalCreates = 0;
-		store.add(service.registerChatSessionItemController(type, {
-			items: [], onDidChangeChatSessionItems: Event.None, refresh: async () => { },
-			newChatSessionItem: async () => { normalCreates++; return item(type); },
-		}));
-		const registration = store.add(service.registerChatSessionCreationHandler(type, {
-			when: 'true',
-			getOption: () => ({ label: 'Sandbox', description: '', checked: selected, enabled: true, setChecked: value => { selected = value; } }),
-			createSession: async () => selected ? item('test-sandbox') : undefined,
-		}));
-		const create = async () => (await service.createNewChatSessionItem(type, { prompt: 'hello', untitledResource: draft }, CancellationToken.None))?.resource.scheme;
-		const normal = await create();
-		service.getChatSessionCreationOption(draft)?.setChecked(true);
-		const sandbox = await create();
-		registration.dispose();
-		const afterDisposal = await create();
-		assert.deepStrictEqual({ normal, sandbox, afterDisposal, normalCreates }, {
-			normal: type, sandbox: 'test-sandbox', afterDisposal: type, normalCreates: 2,
-		});
-	});
-
-	test('when hides only the draft option and failures do not fall through to the normal provider', async () => {
-		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		const enabled = contextKeyService.createKey<boolean>('sandboxEnabled', true);
-		const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
-		const service = store.add(instantiationService.createInstance(ChatSessionsService));
-		const resource = URI.parse('test-cloud:/untitled-draft');
-		let normalCreates = 0;
-		const handler: IChatSessionCreationHandler = {
-			when: 'sandboxEnabled',
-			getOption: () => ({ label: 'Sandbox', description: '', checked: true, enabled: false, setChecked: () => { } }),
-			createSession: async () => { throw new Error('Sandbox disabled'); },
-		};
-		store.add(service.registerChatSessionCreationHandler(resource.scheme, handler));
-		store.add(service.registerChatSessionItemController(resource.scheme, {
-			items: [], onDidChangeChatSessionItems: Event.None, refresh: async () => { },
-			newChatSessionItem: async () => { normalCreates++; return undefined; },
-		}));
-		const whenEnabled = !!service.getChatSessionCreationOption(resource);
-		const existingOption = service.getChatSessionCreationOption(resource.with({ path: '/existing' }));
-		enabled.set(false);
-		await assert.rejects(service.createNewChatSessionItem(resource.scheme, { prompt: 'hello', untitledResource: resource }, CancellationToken.None), /Sandbox disabled/);
-		assert.deepStrictEqual({
-			whenEnabled,
-			draftOption: service.getChatSessionCreationOption(resource),
-			existingOption,
-			normalCreates,
-		}, { whenEnabled: true, draftOption: undefined, existingOption: undefined, normalCreates: 0 });
 	});
 });
 

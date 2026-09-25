@@ -59,7 +59,6 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -2213,99 +2212,6 @@ suite('ChatService', () => {
 			} as const;
 		}
 
-		for (const modelId of ['sandbox-model', undefined]) {
-			test(`retargets the first and late sends to the created provider with ${modelId ?? 'the host default'}`, async () => {
-				const sandboxType = 'sandbox-provider';
-				const sandboxResource = URI.from({ scheme: sandboxType, path: '/allocated-session' });
-				const sandboxRequests: IChatAgentRequest[] = [];
-				const completeResponse = new DeferredPromise<void>();
-				let cloudInvocations = 0;
-				let allocations = 0;
-				const { service, untitledResource, mockSessionsService } = setupUntitledRemote({
-					createItem: async () => { allocations++; return { ...realItem(sandboxResource), modelId }; },
-					invoke: async () => { cloudInvocations++; return {}; },
-				});
-				testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sandboxType, {
-					provideChatSessionContent: async resource => ({
-						sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
-					}),
-				}));
-				testDisposables.add(chatAgentService.registerAgent(sandboxType, { ...getAgentData(sandboxType), isDefault: true }));
-				testDisposables.add(chatAgentService.registerAgentImplementation(sandboxType, {
-					invoke: async request => { sandboxRequests.push(request); await completeResponse.p; return {}; },
-				}));
-				const draft = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
-				draft.object.inputModel.setIntendedModel({ modelId: 'cloud-model', reason: ModelSelectionReason.ProgrammaticSelection });
-				mockSessionsService.setSessionOption(untitledResource, 'models', 'cloud-model');
-				const attachment: IChatRequestVariableEntry = {
-					kind: 'file', id: 'readme', name: 'README.md', value: URI.file('/project/README.md'),
-				};
-				const options = {
-					agentId: remoteScheme,
-					userSelectedModelId: 'cloud-model',
-					userSelectedModelConfiguration: { reasoning: 'high' },
-					attachedContext: [attachment],
-				};
-				const firstSend = service.sendRequest(untitledResource, 'First prompt', options);
-				const concurrentSend = service.sendRequest(untitledResource, 'Duplicate prompt', options);
-				const first = await firstSend;
-				ChatSendResult.assertSent(first);
-				const concurrent = await concurrentSend;
-				completeResponse.complete();
-				await first.data.responseCompletePromise;
-				const second = await service.sendRequest(untitledResource, 'Next prompt', options);
-				ChatSendResult.assertSent(second);
-				await second.data.responseCompletePromise;
-
-				assert.deepStrictEqual({
-					allocations, cloudInvocations,
-					concurrent: concurrent.kind,
-					sandboxOptions: mockSessionsService.getSessionOptions(sandboxResource),
-					requests: sandboxRequests.map(request => ({
-						prompt: request.message,
-						resource: request.sessionResource.toString(),
-						modelId: request.userSelectedModelId,
-						attachments: request.variables.variables.map(variable => variable.id),
-					})),
-					intendedModel: service.getSession(sandboxResource)?.inputModel.intendedModel?.modelId,
-					modelConfiguration: service.getSession(sandboxResource)?.inputModel.intendedModel?.configuration,
-				}, {
-					allocations: 1, cloudInvocations: 0,
-					concurrent: 'rejected', sandboxOptions: undefined,
-					requests: ['First prompt', 'Next prompt'].map(prompt => ({
-						prompt, resource: sandboxResource.toString(), modelId, attachments: ['readme'],
-					})),
-					intendedModel: modelId,
-					modelConfiguration: undefined,
-				});
-			});
-		}
-
-		test('closing a draft cancels creation without sending to either provider', async () => {
-			const started = new DeferredPromise<void>();
-			const release = new DeferredPromise<void>();
-			const realResource = URI.from({ scheme: remoteScheme, path: '/cancelled-creation' });
-			let cancelled = false;
-			let invocations = 0;
-			const { service, untitledResource } = setupUntitledRemote({
-				createItem: async (_type, _request, token) => {
-					started.complete();
-					await release.p;
-					cancelled = token.isCancellationRequested;
-					return realItem(realResource);
-				},
-				invoke: async () => { invocations++; return {}; },
-			});
-			const draft = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
-			const sending = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
-			await started.p;
-			draft.dispose();
-			await timeout(0);
-			release.complete();
-			await assert.rejects(sending, /Canceled/);
-			assert.deepStrictEqual({ cancelled, invocations }, { cancelled: true, invocations: 0 });
-		});
-
 		test('carries the selected mode from the untitled session to the materialized session', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-mode' });
 			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
@@ -2572,14 +2478,12 @@ suite('ChatService', () => {
 			assert.ok(service.getSession(realResource), 'retry produces the real session');
 		});
 
-		test('concurrent sends fail together without falling back to the draft provider', async () => {
+		test('a concurrent waiter does not inherit the first send\'s materialization failure', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-shared-failure' });
 			let createCount = 0;
-			let invokeCount = 0;
 			const gate = new DeferredPromise<void>();
 			const { service, untitledResource } = setupUntitledRemote({
 				createItem: async () => { createCount++; await gate.p; throw new Error('boom'); },
-				invoke: async () => { invokeCount++; return {}; },
 			});
 			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
 
@@ -2587,18 +2491,14 @@ suite('ChatService', () => {
 			const p2 = service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
 			gate.complete();
 
-			const outcomes = await Promise.allSettled([p1, p2]);
-			assert.deepStrictEqual({
-				outcomes: outcomes.map(outcome => outcome.status),
-				createCount,
-				invokeCount,
-				createdSession: service.getSession(realResource),
-			}, {
-				outcomes: ['rejected', 'rejected'],
-				createCount: 1,
-				invokeCount: 0,
-				createdSession: undefined,
-			});
+			const firstOutcome = await p1.then(() => 'resolved', () => 'rejected');
+			const r2 = await p2;
+
+			assert.strictEqual(firstOutcome, 'rejected', 'the originating send surfaces the failure');
+			ChatSendResult.assertSent(r2);
+			assert.strictEqual(createCount, 1, 'the waiter did not start a second materialization');
+			assert.ok(!service.getSession(realResource), 'no real session was created');
+			await r2.data.responseCompletePromise;
 		});
 
 		test('disposing a materialized untitled session clears its re-target mapping', async () => {

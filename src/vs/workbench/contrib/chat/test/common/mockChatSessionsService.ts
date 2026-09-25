@@ -5,12 +5,12 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionItem, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCreationHandler, IChatSessionCreationOption, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
-import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -19,8 +19,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private readonly _onDidChangeSessionOptions = new Emitter<IChatSessionOptionsChangeEvent>();
 	readonly onDidChangeSessionOptions = this._onDidChangeSessionOptions.event;
-	private readonly _onDidChangeSessionCreationOptions = new Emitter<void>();
-	readonly onDidChangeSessionCreationOptions = this._onDidChangeSessionCreationOptions.event;
 
 	private readonly _onDidChangeItemsProviders = new Emitter<{ readonly chatSessionType: string }>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
@@ -46,7 +44,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private sessionItemControllers = new Map<string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
-	private readonly creationHandlers = new Map<string, IChatSessionCreationHandler>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
 	private sessionOptions = new ResourceMap<ChatSessionOptionsMap>();
@@ -326,28 +323,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
-	registerChatSessionCreationHandler(chatSessionType: string, handler: IChatSessionCreationHandler): IDisposable {
-		const store = new DisposableStore();
-		this.creationHandlers.set(chatSessionType, handler);
-		store.add(toDisposable(() => {
-			this.creationHandlers.delete(chatSessionType);
-			this._onDidChangeSessionCreationOptions.fire();
-		}));
-		if (handler.onDidChangeOption) {
-			store.add(handler.onDidChangeOption(() => this._onDidChangeSessionCreationOptions.fire()));
-		}
-		this._onDidChangeSessionCreationOptions.fire();
-		return store;
-	}
-
-	getChatSessionCreationOption(sessionResource: URI): IChatSessionCreationOption | undefined {
-		return isUntitledChatSession(sessionResource)
-			? this.creationHandlers.get(getChatSessionType(sessionResource))?.getOption(sessionResource)
-			: undefined;
-	}
-
-	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatNewSessionItem | undefined> {
-		return this.creationHandlers.get(chatSessionType)?.createSession(request, token);
+	async createNewChatSessionItem(_chatSessionType: string, _request: IChatNewSessionRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		return undefined;
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {

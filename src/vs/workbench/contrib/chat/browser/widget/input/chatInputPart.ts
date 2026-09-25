@@ -136,7 +136,6 @@ import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISess
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
-import { CloudSandboxCheckbox } from '../../remoteAgentHost/cloudSandboxCheckbox.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
@@ -3541,7 +3540,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
 		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
 		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
-		const cloudSandboxCheckbox = this._register(this.instantiationService.createInstance(CloudSandboxCheckbox, this._currentSessionResourceObservable));
 		const getCompactState = (states: Map<string, ISettableObservable<boolean>>, actionId: string): ISettableObservable<boolean> => {
 			let state = states.get(actionId);
 			if (!state) {
@@ -3886,9 +3884,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (customSecondaryItem) {
 					getCompactState(secondaryPickerCompactStates, action.id);
 					return customSecondaryItem;
-				}
-				if (action.id === CloudSandboxCheckbox.ID) {
-					return cloudSandboxCheckbox.createActionViewItem(action, options);
 				}
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {

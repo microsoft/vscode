@@ -2076,8 +2076,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label,
-.interactive-session .chat-secondary-input-toolbar .checkbox-action-item {
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
@@ -2085,21 +2084,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
-}
-
-.interactive-session .chat-secondary-input-toolbar .checkbox-action-item > .monaco-checkbox {
-	flex-shrink: 0;
-}
-
-.interactive-session .chat-secondary-input-toolbar .checkbox-action-item > .checkbox-label {
-	min-width: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
-.interactive-session .chat-secondary-input-toolbar .checkbox-action-item.disabled {
-	color: var(--vscode-disabledForeground);
 }
 
 /* Keep hover background while picker dropdown is open */
