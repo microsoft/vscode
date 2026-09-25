@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -17,6 +17,7 @@ import '../../browser/agentSessionsConfiguration.js';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
 	ChatConfiguration.UnifiedWorkspacePicker,
+	ChatConfiguration.OpenInEditorPreserveHiddenChat,
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
@@ -31,7 +32,24 @@ suite('Chat configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
-		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true, true]);
+	});
+
+	test('defines hidden Chat preservation as an opt-in experimental setting', () => {
+		const setting = configurationProperties[ChatConfiguration.OpenInEditorPreserveHiddenChat];
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			tags: setting.tags,
+			experiment: setting.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
 	});
 
 	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {

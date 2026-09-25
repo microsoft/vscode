@@ -23,7 +23,7 @@ suite('ChatSessionHandoff', () => {
 			}
 		}();
 
-		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async sessionResource => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, () => true, async sessionResource => {
 			openedSessions.push(sessionResource.toString());
 			return true;
 		});
@@ -48,7 +48,7 @@ suite('ChatSessionHandoff', () => {
 		}();
 		const results = [false, true];
 		let attempts = 0;
-		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => results[attempts++]);
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, () => true, async () => results[attempts++]);
 
 		await controller.open(session);
 		await controller.open(session);
@@ -66,7 +66,7 @@ suite('ChatSessionHandoff', () => {
 				return [];
 			}
 		}();
-		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, () => true, async () => {
 			attempts++;
 			return pendingOpen.p;
 		});
@@ -89,7 +89,7 @@ suite('ChatSessionHandoff', () => {
 			}
 		}();
 		let attempts = 0;
-		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, () => true, async () => {
 			attempts++;
 			return attempts === 1 ? true : pendingOpen.p;
 		});
@@ -115,7 +115,26 @@ suite('ChatSessionHandoff', () => {
 			}
 		}();
 		let attempts = 0;
-		const controller = new ChatSessionHandoffController(chatWidgetService, () => false, async () => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, () => false, async () => {
+			attempts++;
+			return true;
+		});
+
+		await controller.open(session);
+		await controller.open(session);
+
+		assert.strictEqual(attempts, 2);
+	});
+
+	test('reopens hidden Chat when the experiment is disabled', async () => {
+		const session = URI.parse('test:/session');
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override getAllWidgets(): readonly IChatWidget[] {
+				return [createChatWidget(session, false)];
+			}
+		}();
+		let attempts = 0;
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => false, () => true, async () => {
 			attempts++;
 			return true;
 		});

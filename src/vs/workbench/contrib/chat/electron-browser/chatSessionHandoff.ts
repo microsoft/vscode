@@ -16,11 +16,17 @@ export class ChatSessionHandoffController {
 
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
+		private readonly preserveHiddenChat: () => boolean,
 		private readonly isChatViewWidget: (widget: IChatWidget) => boolean,
 		private readonly openSession: (sessionResource: URI) => Promise<boolean>,
 	) { }
 
 	async open(sessionResource: URI): Promise<void> {
+		if (!this.preserveHiddenChat()) {
+			await this.openSession(sessionResource);
+			return;
+		}
+
 		const pendingOpen = this.pendingOpens.get(sessionResource);
 		if (pendingOpen) {
 			return pendingOpen;

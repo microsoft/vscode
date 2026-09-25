@@ -14,6 +14,7 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
@@ -40,7 +41,7 @@ import { IAgentHostService } from '../../../../platform/agentHost/common/agentSe
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatModeKind } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
@@ -72,12 +73,14 @@ class ChatCommandLineHandler extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService
 	) {
 		super();
 
 		this.chatSessionHandoffController = new ChatSessionHandoffController(
 			chatWidgetService,
+			() => configurationService.getValue<boolean>(ChatConfiguration.OpenInEditorPreserveHiddenChat) === true,
 			widget => isIChatViewViewContext(widget.viewContext),
 			async sessionResource => !!await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget),
 		);
