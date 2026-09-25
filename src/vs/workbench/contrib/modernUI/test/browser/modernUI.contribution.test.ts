@@ -36,6 +36,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
+import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -1094,14 +1095,14 @@ suite('ModernUIContribution', () => {
 			left: {
 				actionWidth: 36,
 				actionCenterOffset: 0,
-				windowMargin: 4,
+				windowMargin: 0,
 				panelGap: 0,
 				indicatorPanelPadding: 4,
 			},
 			right: {
 				actionWidth: 36,
 				actionCenterOffset: 0,
-				windowMargin: 4,
+				windowMargin: 0,
 				panelGap: 0,
 				indicatorPanelPadding: 4,
 			},
@@ -1208,7 +1209,7 @@ suite('ModernUIContribution', () => {
 			topRight: { left: ['8px', '0px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
 			topJustify: { left: ['8px', '8px', '0px', '8px'], right: ['8px', '8px', '8px', '0px'] },
 			hiddenPanel: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
-			compact: { left: ['8px', '0px', '0px', '8px'], right: ['0px', '8px', '8px', '0px'] },
+			compact: { left: ['0px', '0px', '0px', '0px'], right: ['0px', '0px', '0px', '0px'] },
 		});
 	});
 
@@ -1290,12 +1291,37 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
-			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 4),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 0),
 			classic: measure('monaco-workbench', 22, 0),
 		}, {
 			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
-			compactDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+		});
+	});
+
+	test('compact status bar keeps its horizontal padding independently of the panel perimeter', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-compact floating-panels');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		store.add(toDisposable(() => root.remove()));
+		const statusbar = appendElement(root, 'part statusbar');
+		const padding = (activitybarClasses: string) => {
+			root.className = `monaco-workbench modern-ui modern-ui-compact floating-panels ${activitybarClasses}`;
+			const style = getWindow(statusbar).getComputedStyle(statusbar);
+			return [style.paddingLeft, style.paddingRight];
+		};
+
+		assert.deepStrictEqual({
+			activitybarVisible: padding(''),
+			activitybarCompact: padding('activitybar-compact'),
+			activitybarHidden: padding('noactivitybar'),
+			compactActivitybarHidden: padding('activitybar-compact noactivitybar'),
+		}, {
+			activitybarVisible: ['4px', '4px'],
+			activitybarCompact: ['4px', '4px'],
+			activitybarHidden: ['4px', '4px'],
+			compactActivitybarHidden: ['4px', '4px'],
 		});
 	});
 
@@ -1742,6 +1768,42 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('modal editor sashes hide grips without changing resize affordances', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-sash-hoverBorder', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const workbenchSash = appendElement(root, 'monaco-sash vertical');
+		const modal = appendElement(root, 'monaco-modal-editor-block');
+		const resizable = appendElement(modal, 'modal-editor-resizable');
+		const verticalSash = appendElement(resizable, 'monaco-sash vertical');
+		const horizontalSash = appendElement(resizable, 'monaco-sash horizontal');
+		const sashes = [verticalSash, horizontalSash];
+		const targetWindow = getWindow(root);
+		const restingGrips = sashes.map(sash => targetWindow.getComputedStyle(sash, '::after').content);
+
+		verticalSash.classList.add('hover');
+		horizontalSash.classList.add('active');
+
+		assert.deepStrictEqual({
+			workbenchGrip: targetWindow.getComputedStyle(workbenchSash, '::after').content,
+			restingGrips,
+			interactiveGrips: sashes.map(sash => targetWindow.getComputedStyle(sash, '::after').content),
+			pointerEvents: sashes.map(sash => targetWindow.getComputedStyle(sash).pointerEvents),
+			cursors: sashes.map(sash => targetWindow.getComputedStyle(sash).cursor),
+			highlights: sashes.map(sash => targetWindow.getComputedStyle(sash, '::before').backgroundColor),
+		}, {
+			workbenchGrip: '""',
+			restingGrips: ['none', 'none'],
+			interactiveGrips: ['none', 'none'],
+			pointerEvents: ['auto', 'auto'],
+			cursors: ['ew-resize', 'ns-resize'],
+			highlights: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+		});
+	});
+
 	test('compact density hides sash grips', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact';
@@ -1796,7 +1858,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('compact vertical sash highlights meet the attached panel top', () => {
+	test('compact vertical sash highlights meet both panel edges', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -1816,8 +1878,8 @@ suite('ModernUIContribution', () => {
 			attachedInsets,
 			exposedTopInset: exposedStyle.top,
 		}, {
-			attachedInsets: ['0px', '4px'],
-			exposedTopInset: '4px',
+			attachedInsets: ['0px', '0px'],
+			exposedTopInset: '0px',
 		});
 	});
 
@@ -1855,7 +1917,85 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(getWindow(editor).getComputedStyle(editor).borderRadius, '8px');
 	});
 
-	test('compact density rounds only the panel cluster exterior', () => {
+	test('matches exposed macOS window corners without changing internal card corners', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar noactivitybar');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-bottom');
+		const elements = {
+			leftActivityBar: appendElement(grid, 'part activitybar left'),
+			rightActivityBar: appendElement(grid, 'part activitybar right'),
+			sidebar: appendElement(grid, 'part sidebar left floating-part-outer-left floating-part-outer-bottom'),
+			auxiliaryBar: appendElement(grid, 'part auxiliarybar right floating-part-outer-right floating-part-outer-bottom'),
+			panel: appendElement(grid, 'part panel bottom floating-part-outer-left floating-part-outer-right floating-part-outer-bottom'),
+			editor,
+			editorContent: appendElement(editor, 'content'),
+			webview: appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-right webview-overlay-outer-bottom'),
+			modalWebview: appendElement(root, 'webview-overlay-content webview-overlay-modal'),
+			internalPanel: appendElement(grid, 'part panel bottom floating-part-outer-bottom'),
+			sidebarAbovePanel: appendElement(grid, 'part sidebar left floating-part-outer-left'),
+		};
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(elements).map(([name, element]) => {
+			const style = getWindow(element).getComputedStyle(element);
+			return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
+		})), {
+			leftActivityBar: ['8px', '0px', '0px', '12px'],
+			rightActivityBar: ['0px', '8px', '12px', '0px'],
+			sidebar: ['8px', '8px', '8px', '12px'],
+			auxiliaryBar: ['8px', '8px', '12px', '8px'],
+			panel: ['8px', '8px', '12px', '12px'],
+			editor: ['8px', '8px', '12px', '12px'],
+			editorContent: ['8px', '8px', '11px', '11px'],
+			webview: ['8px', '8px', '11px', '11px'],
+			modalWebview: ['8px', '8px', '8px', '8px'],
+			internalPanel: ['8px', '8px', '8px', '8px'],
+			sidebarAbovePanel: ['8px', '8px', '8px', '8px'],
+		});
+	});
+
+	test('keeps macOS corner radii in sync with zoom, window borders and chrome', () => {
+		const root = appendElement(document.body, 'monaco-workbench');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-border-color: white;';
+		store.add(toDisposable(() => root.remove()));
+		const panel = appendElement(root, 'part panel bottom floating-part-outer-right floating-part-outer-bottom');
+		const radius = (classes: string, zoomFactor = 1) => {
+			root.className = `monaco-workbench modern-ui floating-panels ${classes}`;
+			root.style.setProperty('--window-zoom-factor', String(zoomFactor));
+			return getWindow(panel).getComputedStyle(panel).borderBottomRightRadius;
+		};
+
+		assert.deepStrictEqual({
+			tahoe: radius('mac macos-tahoe nostatusbar'),
+			olderMacOS: radius('mac nostatusbar'),
+			windowBorder: radius('mac macos-tahoe nostatusbar border hc-black'),
+			zoomedIn: radius('mac macos-tahoe nostatusbar', 2),
+			zoomedOut: radius('mac macos-tahoe nostatusbar', 0.5),
+			clamped: radius('mac macos-tahoe nostatusbar', 4),
+			statusBar: radius('mac macos-tahoe'),
+			fullscreen: radius('mac macos-tahoe nostatusbar fullscreen'),
+			compact: radius('mac macos-tahoe nostatusbar modern-ui-compact'),
+			web: radius('mac macos-tahoe nostatusbar web'),
+			windows: radius('windows nostatusbar'),
+			linux: radius('linux nostatusbar'),
+		}, {
+			tahoe: '12px',
+			olderMacOS: '6px',
+			windowBorder: '11px',
+			zoomedIn: '4px',
+			zoomedOut: '28px',
+			clamped: '0px',
+			statusBar: '8px',
+			fullscreen: '8px',
+			compact: '0px',
+			web: '8px',
+			windows: '8px',
+			linux: '8px',
+		});
+	});
+
+	test('compact density keeps the panel cluster flush and square', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
 		root.style.setProperty('--vscode-cornerRadius-large', '8px');
@@ -1872,9 +2012,9 @@ suite('ModernUIContribution', () => {
 		const sideBar = appendElement(grid, 'part sidebar floating-part-outer-left floating-part-outer-top floating-part-outer-bottom');
 		const panel = appendElement(grid, 'part panel');
 		const auxiliaryBar = appendElement(grid, 'part auxiliarybar floating-part-outer-right floating-part-outer-top floating-part-outer-bottom');
-		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom');
 		const editorContent = appendElement(editor, 'content');
-		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-top');
+		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-right webview-overlay-outer-top webview-overlay-outer-bottom');
 		const modalWebviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-modal');
 		const targetWindow = getWindow(root);
 		const activityBarStyle = targetWindow.getComputedStyle(activityBar);
@@ -1920,15 +2060,15 @@ suite('ModernUIContribution', () => {
 			modalWebviewOverlayRadius: modalWebviewOverlayContentStyle.borderRadius,
 		}, {
 			activityBar: {
-				corners: ['8px', '0px', '0px', '8px'],
-				cornerBorderCount: 2,
+				corners: ['0px', '0px', '0px', '0px'],
+				cornerBorderCount: 0,
 			},
 			sideBar: {
-				margin: ['0px', '0px', '4px', '4px'],
-				corners: ['8px', '0px', '0px', '8px'],
+				margin: ['0px', '0px', '0px', '0px'],
+				corners: ['0px', '0px', '0px', '0px'],
 				borderColor: 'rgba(0, 0, 0, 0)',
 				allBorderBackgroundsUseBorderBox: true,
-				cornerBorderCount: 2,
+				cornerBorderCount: 0,
 			},
 			panel: {
 				corners: ['0px', '0px', '0px', '0px'],
@@ -1937,20 +2077,49 @@ suite('ModernUIContribution', () => {
 				cornerBorderCount: 0,
 			},
 			auxiliaryBar: {
-				corners: ['0px', '8px', '8px', '0px'],
-				cornerBorderCount: 2,
+				corners: ['0px', '0px', '0px', '0px'],
+				cornerBorderCount: 0,
 			},
 			editor: {
-				margin: ['0px', '0px', '0px', '4px'],
-				corners: ['8px', '0px', '0px', '0px'],
+				margin: ['0px', '0px', '0px', '0px'],
+				corners: ['0px', '0px', '0px', '0px'],
 				borderColor: 'rgba(0, 0, 0, 0)',
 				allBorderBackgroundsUseBorderBox: true,
-				cornerBorderCount: 1,
+				cornerBorderCount: 0,
 			},
 			editorContentRadius: '0px',
-			webviewOverlayCorners: ['8px', '0px', '0px', '0px'],
+			webviewOverlayCorners: ['0px', '0px', '0px', '0px'],
 			modalWebviewOverlayRadius: '8px',
 		});
+	});
+
+	test('compact perimeter stays flush with hidden window chrome and restores the default density', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const parts = [
+			'activitybar left',
+			'activitybar right',
+			'sidebar floating-part-outer-left floating-part-outer-top floating-part-outer-bottom',
+			'auxiliarybar floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'panel top floating-part-outer-left floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'panel bottom floating-part-outer-left floating-part-outer-right floating-part-outer-top floating-part-outer-bottom',
+			'editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom',
+		].map(className => appendElement(grid, `part ${className}`));
+		const readGeometry = () => parts.map(part => {
+			const style = getWindow(part).getComputedStyle(part);
+			return { margin: style.margin, radius: style.borderRadius };
+		});
+		const defaultGeometry = readGeometry();
+
+		for (const chromeClasses of ['', 'top-window-edge', 'nostatusbar', 'top-window-edge nostatusbar']) {
+			root.className = `monaco-workbench modern-ui floating-panels modern-ui-compact ${chromeClasses}`;
+			assert.deepStrictEqual(readGeometry(), parts.map(() => ({ margin: '0px', radius: '0px' })), chromeClasses);
+		}
+
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		assert.deepStrictEqual(readGeometry(), defaultGeometry);
 	});
 
 	test('uses the editor background for the connected surface', () => {

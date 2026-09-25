@@ -3807,6 +3807,11 @@ declare namespace monaco.editor {
 		 */
 		selectionHighlightMaxLength?: number;
 		/**
+		 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+		 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
+		 */
+		selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
+		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to 'singleFile'.
 		 * 'off' disables occurrence highlighting
@@ -5227,58 +5232,59 @@ declare namespace monaco.editor {
 		selectionHighlight = 123,
 		selectionHighlightMaxLength = 124,
 		selectionHighlightMultiline = 125,
-		selectOnLineNumbers = 126,
-		showFoldingControls = 127,
-		showUnused = 128,
-		snippetSuggestions = 129,
-		smartSelect = 130,
-		smoothScrolling = 131,
-		stickyScroll = 132,
-		stickyTabStops = 133,
-		stopRenderingLineAfter = 134,
-		suggest = 135,
-		suggestFontSize = 136,
-		suggestLineHeight = 137,
-		suggestOnTriggerCharacters = 138,
-		suggestSelection = 139,
-		tabCompletion = 140,
-		tabIndex = 141,
-		trimWhitespaceOnDelete = 142,
-		unicodeHighlighting = 143,
-		unusualLineTerminators = 144,
-		useShadowDOM = 145,
-		useTabStops = 146,
-		wordBreak = 147,
-		wordSegmenterLocales = 148,
-		wordSeparators = 149,
-		wordWrap = 150,
-		wordWrapBreakAfterCharacters = 151,
-		wordWrapBreakBeforeCharacters = 152,
-		wordWrapColumn = 153,
-		wordWrapOverride1 = 154,
-		wordWrapOverride2 = 155,
-		wrappingIndent = 156,
-		wrappingStrategy = 157,
-		showDeprecated = 158,
-		inertialScroll = 159,
-		inlayHints = 160,
-		wrapOnEscapedLineFeeds = 161,
-		wordWrapIndicator = 162,
-		effectiveCursorStyle = 163,
-		editorClassName = 164,
-		pixelRatio = 165,
-		tabFocusMode = 166,
-		layoutInfo = 167,
-		wrappingInfo = 168,
-		defaultColorDecorators = 169,
-		colorDecoratorsActivatedOn = 170,
-		inlineCompletionsAccessibilityVerbose = 171,
-		effectiveEditContext = 172,
-		scrollOnMiddleClick = 173,
-		effectiveAllowVariableFonts = 174,
-		doubleClickSelectsBlock = 175,
-		fullwidthCharacterWidth = 176,
-		effectiveFullwidthCharacterWidth = 177
+		selectedTextMatchMode = 126,
+		selectOnLineNumbers = 127,
+		showFoldingControls = 128,
+		showUnused = 129,
+		snippetSuggestions = 130,
+		smartSelect = 131,
+		smoothScrolling = 132,
+		stickyScroll = 133,
+		stickyTabStops = 134,
+		stopRenderingLineAfter = 135,
+		suggest = 136,
+		suggestFontSize = 137,
+		suggestLineHeight = 138,
+		suggestOnTriggerCharacters = 139,
+		suggestSelection = 140,
+		tabCompletion = 141,
+		tabIndex = 142,
+		trimWhitespaceOnDelete = 143,
+		unicodeHighlighting = 144,
+		unusualLineTerminators = 145,
+		useShadowDOM = 146,
+		useTabStops = 147,
+		wordBreak = 148,
+		wordSegmenterLocales = 149,
+		wordSeparators = 150,
+		wordWrap = 151,
+		wordWrapBreakAfterCharacters = 152,
+		wordWrapBreakBeforeCharacters = 153,
+		wordWrapColumn = 154,
+		wordWrapOverride1 = 155,
+		wordWrapOverride2 = 156,
+		wrappingIndent = 157,
+		wrappingStrategy = 158,
+		showDeprecated = 159,
+		inertialScroll = 160,
+		inlayHints = 161,
+		wrapOnEscapedLineFeeds = 162,
+		wordWrapIndicator = 163,
+		effectiveCursorStyle = 164,
+		editorClassName = 165,
+		pixelRatio = 166,
+		tabFocusMode = 167,
+		layoutInfo = 168,
+		wrappingInfo = 169,
+		defaultColorDecorators = 170,
+		colorDecoratorsActivatedOn = 171,
+		inlineCompletionsAccessibilityVerbose = 172,
+		effectiveEditContext = 173,
+		scrollOnMiddleClick = 174,
+		effectiveAllowVariableFonts = 175,
+		doubleClickSelectsBlock = 176,
+		fullwidthCharacterWidth = 177,
+		effectiveFullwidthCharacterWidth = 178
 	}
 
 	export const EditorOptions: {
@@ -5414,6 +5420,7 @@ declare namespace monaco.editor {
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectionHighlightMaxLength: IEditorOption<EditorOption.selectionHighlightMaxLength, number>;
 		selectionHighlightMultiline: IEditorOption<EditorOption.selectionHighlightMultiline, boolean>;
+		selectedTextMatchMode: IEditorOption<EditorOption.selectedTextMatchMode, 'findOptions' | 'caseSensitive' | 'caseInsensitive'>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;

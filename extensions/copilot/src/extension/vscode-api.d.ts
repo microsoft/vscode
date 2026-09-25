@@ -13,6 +13,7 @@
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.aiSettingsSearch.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.aiTextSearchProvider.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.authLearnMore.d.ts" />
+/// <reference path="../../../../src/vscode-dts/vscode.proposed.authIssuers.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatDebug.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatHooks.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatInputNotification.d.ts" />

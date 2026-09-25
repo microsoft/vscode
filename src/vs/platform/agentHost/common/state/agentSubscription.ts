@@ -499,6 +499,15 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
+		// A snapshot can confirm a turn before this subscription receives its start acknowledgement.
+		const state = this._confirmedState;
+		for (let i = this._pendingActions.length - 1; i >= 0; i--) {
+			const action = this._pendingActions[i].action;
+			if (action.type === ActionType.ChatTurnStarted
+				&& (state?.activeTurn?.id === action.turnId || state?.turns.some(turn => turn.id === action.turnId))) {
+				this._pendingActions.splice(i, 1);
+			}
+		}
 		super._onSnapshotApplied(fromSeq);
 		this._recomputeOptimistic();
 	}
