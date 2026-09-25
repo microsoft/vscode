@@ -36,6 +36,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
+import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -1878,6 +1879,84 @@ suite('ModernUIContribution', () => {
 		const editor = appendElement(grid, 'part editor');
 
 		assert.deepStrictEqual(getWindow(editor).getComputedStyle(editor).borderRadius, '8px');
+	});
+
+	test('matches exposed macOS window corners without changing internal card corners', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar noactivitybar');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-bottom');
+		const elements = {
+			leftActivityBar: appendElement(grid, 'part activitybar left'),
+			rightActivityBar: appendElement(grid, 'part activitybar right'),
+			sidebar: appendElement(grid, 'part sidebar left floating-part-outer-left floating-part-outer-bottom'),
+			auxiliaryBar: appendElement(grid, 'part auxiliarybar right floating-part-outer-right floating-part-outer-bottom'),
+			panel: appendElement(grid, 'part panel bottom floating-part-outer-left floating-part-outer-right floating-part-outer-bottom'),
+			editor,
+			editorContent: appendElement(editor, 'content'),
+			webview: appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-right webview-overlay-outer-bottom'),
+			modalWebview: appendElement(root, 'webview-overlay-content webview-overlay-modal'),
+			internalPanel: appendElement(grid, 'part panel bottom floating-part-outer-bottom'),
+			sidebarAbovePanel: appendElement(grid, 'part sidebar left floating-part-outer-left'),
+		};
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(elements).map(([name, element]) => {
+			const style = getWindow(element).getComputedStyle(element);
+			return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
+		})), {
+			leftActivityBar: ['8px', '0px', '0px', '12px'],
+			rightActivityBar: ['0px', '8px', '12px', '0px'],
+			sidebar: ['8px', '8px', '8px', '12px'],
+			auxiliaryBar: ['8px', '8px', '12px', '8px'],
+			panel: ['8px', '8px', '12px', '12px'],
+			editor: ['8px', '8px', '12px', '12px'],
+			editorContent: ['8px', '8px', '11px', '11px'],
+			webview: ['8px', '8px', '11px', '11px'],
+			modalWebview: ['8px', '8px', '8px', '8px'],
+			internalPanel: ['8px', '8px', '8px', '8px'],
+			sidebarAbovePanel: ['8px', '8px', '8px', '8px'],
+		});
+	});
+
+	test('keeps macOS corner radii in sync with zoom, window borders and chrome', () => {
+		const root = appendElement(document.body, 'monaco-workbench');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-border-color: white;';
+		store.add(toDisposable(() => root.remove()));
+		const panel = appendElement(root, 'part panel bottom floating-part-outer-right floating-part-outer-bottom');
+		const radius = (classes: string, zoomFactor = 1) => {
+			root.className = `monaco-workbench modern-ui floating-panels ${classes}`;
+			root.style.setProperty('--window-zoom-factor', String(zoomFactor));
+			return getWindow(panel).getComputedStyle(panel).borderBottomRightRadius;
+		};
+
+		assert.deepStrictEqual({
+			tahoe: radius('mac macos-tahoe nostatusbar'),
+			olderMacOS: radius('mac nostatusbar'),
+			windowBorder: radius('mac macos-tahoe nostatusbar border hc-black'),
+			zoomedIn: radius('mac macos-tahoe nostatusbar', 2),
+			zoomedOut: radius('mac macos-tahoe nostatusbar', 0.5),
+			clamped: radius('mac macos-tahoe nostatusbar', 4),
+			statusBar: radius('mac macos-tahoe'),
+			fullscreen: radius('mac macos-tahoe nostatusbar fullscreen'),
+			compact: radius('mac macos-tahoe nostatusbar modern-ui-compact'),
+			web: radius('mac macos-tahoe nostatusbar web'),
+			windows: radius('windows nostatusbar'),
+			linux: radius('linux nostatusbar'),
+		}, {
+			tahoe: '12px',
+			olderMacOS: '6px',
+			windowBorder: '11px',
+			zoomedIn: '4px',
+			zoomedOut: '28px',
+			clamped: '0px',
+			statusBar: '8px',
+			fullscreen: '8px',
+			compact: '0px',
+			web: '8px',
+			windows: '8px',
+			linux: '8px',
+		});
 	});
 
 	test('compact density keeps the panel cluster flush and square', () => {
