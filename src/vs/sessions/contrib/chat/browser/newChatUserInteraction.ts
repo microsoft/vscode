@@ -52,6 +52,7 @@ export class NewChatUserInteraction extends Disposable {
 			window: _source.window,
 			visible: _source.visible.get() && (_source.hostVisible?.get() ?? true),
 			context: { location: ChatAgentLocation.Chat },
+			getSessionResource: () => this._chatResource,
 		});
 		this.timer.addDisposable(this);
 		if (!this.timer.isActive) {
