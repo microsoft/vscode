@@ -10,6 +10,9 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,9 +27,45 @@ import { ICustomViewService } from '../../../services/customView/browser/customV
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
 import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[CHAT_INBOX_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.MACHINE,
+			tags: ['experimental', 'advanced'],
+			description: localize('chat.agentSessions.inbox.enabled', "Enables the Sessions Inbox: a prioritized, actionable notifications view. When disabled, the Inbox entry in the Sessions list, the Inbox view, and its Show Inbox command are hidden."),
+			experiment: { mode: 'auto' },
+		},
+	},
+});
+
+/** Mirrors the Inbox enablement setting into a context key for `when` clauses and section visibility. */
+class ChatInboxEnabledContextContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatInboxEnabledContext';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+		const key = ChatInboxEnabledContext.bindTo(contextKeyService);
+		const update = () => key.set(configurationService.getValue<boolean>(CHAT_INBOX_ENABLED_SETTING) === true);
+		update();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_INBOX_ENABLED_SETTING)) {
+				update();
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(ChatInboxEnabledContextContribution.ID, ChatInboxEnabledContextContribution, WorkbenchPhase.BlockStartup);
 
 class InboxNotificationsCustomViewContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,13 +81,14 @@ class InboxNotificationsCustomViewContribution extends Disposable implements IWo
 			id: INBOX_NOTIFICATIONS_VIEW_ID,
 			ctor: new SyncDescriptor(InboxNotificationsView),
 		}, {
-			restore: contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true,
+			restore: contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true
+				&& contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key) === true,
 		}));
 
-		const chatEnabledContextKeys = new Set([ChatContextKeys.enabled.key]);
+		const inboxVisibilityContextKeys = new Set([ChatContextKeys.enabled.key, ChatInboxEnabledContext.key]);
 		this._register(contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(chatEnabledContextKeys)
-				&& !contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
+			if (event.affectsSome(inboxVisibilityContextKeys)
+				&& !(contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) && contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key))
 				&& customViewService.activeCustomView.get()?.id === INBOX_NOTIFICATIONS_VIEW_ID) {
 				customViewService.hideCustomView();
 			}
@@ -65,10 +105,10 @@ class ShowInboxNotificationsAction extends Action2 {
 			id: SHOW_INBOX_NOTIFICATIONS_COMMAND_ID,
 			title: localize2('sessions.showInboxNotifications', "Show Inbox"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatInboxEnabledContext),
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, EditorAreaFocusContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInboxEnabledContext, EditorAreaFocusContext.negate()),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			},
 		});

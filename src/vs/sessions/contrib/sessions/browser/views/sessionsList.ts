@@ -111,7 +111,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
+import { ChatInboxEnabledContext, INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
 import { IInboxNotificationsService } from '../../../inboxOne/common/inboxNotificationsService.js';
 
 const $ = DOM.$;
@@ -3894,7 +3894,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatContextKeys.enabled.key]);
+		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatInboxEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(sectionVisibilityKeys)) {
 				this.update();
@@ -4330,7 +4330,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const navigationChildren: IObjectTreeElement<SessionListItem>[] = [];
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
+			&& this.contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key)) {
 			navigationChildren.push(renderSection({ id: INBOX_NOTIFICATIONS_SECTION_ID, label: localize('inboxNotifications', "Inbox"), sessions: [] }));
 		}
 
