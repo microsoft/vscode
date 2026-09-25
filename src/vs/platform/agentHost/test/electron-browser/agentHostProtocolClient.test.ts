@@ -1879,6 +1879,31 @@ suite('AgentHostProtocolClient', () => {
 		}
 	});
 
+	test('UI timing uses its own capability and waits for the host acknowledgement', async () => {
+		const timing = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1,
+			result: 'hidden' as const, requestPhase: 'unknown' as const,
+			timeToTermination: 0, windowVisible: false, windowFocused: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, enabled
+				? getAgentHostExtensionInitializeResultMeta(true, false, true)
+				: { 'vscode.agentHostTiming': true });
+			transport.sentMessages.length = 0;
+			const report = client.reportUserInteraction(timing);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportChatUserInteraction', params: timing,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
+	});
+
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));

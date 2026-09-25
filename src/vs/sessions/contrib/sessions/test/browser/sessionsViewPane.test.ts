@@ -73,6 +73,7 @@ suite('Sessions - SessionsViewPane', () => {
 			};
 			const host = {
 				customizationsPresentation: presentation,
+				customizationsNavigationVisible: { set: () => { } },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
 				removeCustomizationsPane: () => {

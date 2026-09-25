@@ -225,6 +225,13 @@
 	opacity: 1;
 }
 
+.action-widget .monaco-list-row.action .action-item-additional-badges {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0 var(--vscode-spacing-size60, 6px);
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
