@@ -214,7 +214,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d45768ef875bb18b3f9b712a569d6012c45471ffe1c15f7ba54a9a1623e063c4)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/059b86b788d46a64c311d2165410f2cb7562a3a2ccd5aca76aee0d6f0370a8f6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3e91c2d96a3d810b164c5fd20ce9d0358fd8823458146ac68ffedcf13ad4a35a)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/DarkHighContrast
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5127c83d91aec7ec0776ea4d86d110d18e70c171100445e9ef2ceed836e19b04)

@@ -95,6 +95,12 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+Shared UI first-progress observations use the capability-gated VS Code-only
+`vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
+handler validates a content-free payload and drains the existing OTel exporter
+before acknowledging. The renderer clock and visibility semantics remain owned
+by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
+
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
@@ -459,7 +465,7 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
 
-The thread's permission profiles grant read-only access to its enabled skill directories, reapplied through the existing start/resume path when those directories or the selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. The filesystem override preserves the provider's existing restrictions and profile inheritance.
+The thread's permission profiles grant read-only access to enabled native skill directories (from `skills/list` across its workspace roots) and enabled synced plugin packages, including shared resources. Synced cache paths follow the session's plugin enablement even if a native catalog also lists them. Skip grants already covered by workspace roots, comparing canonical paths so a read grant cannot downgrade existing workspace write access. Reapply the grants through the existing start/resume path when the directories or selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. Use the shared `codexPermissionProfileReadRoots` builder to preserve the provider's baseline restrictions and profile inheritance.
 
 POSIX profiles start from an empty restricted filesystem policy and explicitly grant baseline access, including read-only workspace metadata. Do not replace that default confinement with explicit deny entries: Codex preserves denied reads even after approval, which prevents `require_escalated` from executing outside the sandbox. Both launch and per-thread skill profiles must allow approved commands to escalate without changing permissions for subsequent ordinary commands.
 

@@ -20,6 +20,11 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
+		});
+
 		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({

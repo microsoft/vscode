@@ -126,6 +126,8 @@ export type TooltipContent = string | IMarkdownString | HTMLElement | IManagedHo
 export interface ITooltipWithCommands {
 	readonly content: TooltipContent;
 	readonly commands: Command[];
+	/** Called only after the tooltip is displayed. */
+	readonly onDidShow?: () => void;
 }
 
 export function isTooltipWithCommands(thing: unknown): thing is ITooltipWithCommands {

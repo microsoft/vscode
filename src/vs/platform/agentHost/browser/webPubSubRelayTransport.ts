@@ -14,7 +14,8 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IntervalTimer, disposableTimeout } from '../../../base/common/async.js';
+import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../base/common/async.js';
+import { isObject } from '../../../base/common/types.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
@@ -26,8 +27,8 @@ import type { ParseGroupNameOptions } from '../common/webPubSub/groups.js';
 /** How often to sweep the reassembler for abandoned partial-chunk buffers. */
 const REASSEMBLY_SWEEP_INTERVAL_MS = 15_000;
 
-/** Upper bound on the WPS handshake (socket open → `connected` → all joinGroup acks). */
-const WPS_HANDSHAKE_TIMEOUT_MS = 30_000;
+/** Upper bound on the WPS handshake and publish acknowledgement waits, not host execution. */
+const WPS_TIMEOUT_MS = 30_000;
 
 /**
  * Minimal structural subset of the browser `WebSocket` interface this transport
@@ -81,7 +82,7 @@ export interface IWebPubSubRelayTransportOptions {
 	readonly groupValidation?: ParseGroupNameOptions;
 	/** Opens the underlying WebSocket. Defaults to a real browser socket. */
 	readonly webSocketFactory?: WebSocketFactory;
-	/** Invoked when an inbound frame can't be parsed or framed. */
+	/** Invoked for malformed frames or failed relay operations. */
 	readonly onProtocolError?: (err: unknown) => void;
 	/** Content-free receive counter, including control, malformed and chunk frames. */
 	readonly onDidReceiveFrame?: () => void;
@@ -116,11 +117,15 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweepTimer = this._register(new IntervalTimer());
+	private readonly _publishAckTimer = this._register(new RunOnceScheduler(() => this._checkPublishAckTimeout(), WPS_TIMEOUT_MS));
 
 	private _ws: IWebSocketLike | undefined;
 	private _ackId = 0;
 	private _lastReceivedSequenceId = 0;
 	private readonly _pendingJoinAcks = new Map<number, string>();
+	/** Publish acknowledgement deadlines in send order. */
+	private readonly _pendingPublishAcks = new Map<number, number>();
+	private _rejectConnect: ((err: Error) => void) | undefined;
 
 	/** Guards against firing onClose / resolving connect more than once. */
 	private _closed = false;
@@ -164,14 +169,16 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 			const settleResolve = () => {
 				handshakeStore.dispose();
+				this._rejectConnect = undefined;
 				this._connectResolved = true;
 				this._startObserving();
 				resolve();
 			};
 
+			this._rejectConnect = settleReject;
 			handshakeStore.add(disposableTimeout(() => {
 				settleReject(new Error('WPS handshake timed out'));
-			}, WPS_HANDSHAKE_TIMEOUT_MS));
+			}, WPS_TIMEOUT_MS));
 
 			ws.onopen = () => {
 				// WPS reliable JSON sends a `connected` system message after open;
@@ -207,6 +214,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	 * system event, joinGroup acks, or (defensively) early payload frames.
 	 */
 	private _handleHandshakeFrame(frame: Record<string, unknown>, onConnected: () => void, onFail: (err: Error) => void): void {
+		if (this._closed) {
+			return;
+		}
 		if (frame['type'] === 'system' && frame['event'] === 'connected') {
 			for (const group of this._options.joinGroups) {
 				const ackId = ++this._ackId;
@@ -222,6 +232,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (frame['type'] === 'ack') {
 			const ackId = typeof frame['ackId'] === 'number' ? frame['ackId'] : undefined;
 			if (ackId === undefined || !this._pendingJoinAcks.has(ackId)) {
+				this._handleInboundFrame(frame, onFail);
 				return;
 			}
 			const group = this._pendingJoinAcks.get(ackId);
@@ -236,7 +247,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			return;
 		}
 
-		this._ingestGroupFrame(frame, onFail);
+		this._handleInboundFrame(frame, onFail);
 	}
 
 	/** Switch the socket handlers over to steady-state observation. */
@@ -258,15 +269,32 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._options.onProtocolError?.(err);
 				return;
 			}
-			this._ingestGroupFrame(frame, () => this._fireClose());
+			this._handleInboundFrame(frame, () => this._fireClose());
 		};
 		ws.onclose = () => this._fireClose();
 		ws.onerror = () => this._fireClose();
 	}
 
-	/** Reassemble and surface a group-fanout frame as a {@link ProtocolMessage}. */
-	private _ingestGroupFrame(frame: Record<string, unknown>, onFail: (err: Error) => void): void {
+	/** Handle publish acknowledgements and reassemble incoming group frames. */
+	private _handleInboundFrame(frame: Record<string, unknown>, onFail: (err: Error) => void): void {
 		if (this._closed) {
+			return;
+		}
+		if (frame?.['type'] === 'ack') {
+			const ackId = frame['ackId'];
+			if (typeof ackId !== 'number' || !this._pendingPublishAcks.delete(ackId)) {
+				return;
+			}
+			this._schedulePublishAckTimeout();
+			const error = frame['error'];
+			const errorName = isObject(error) ? (error as { readonly name?: unknown }).name : undefined;
+			// Duplicate means the relay already accepted this publish, not that the host executed it.
+			if (frame['success'] === true || (frame['success'] === false && errorName === 'Duplicate')) {
+				return;
+			}
+			const failure = new Error('WPS publish failed');
+			this._options.onProtocolError?.(failure);
+			onFail(failure);
 			return;
 		}
 		if (frame?.['type'] === 'message' && frame['sequenceId'] !== undefined) {
@@ -304,14 +332,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 	}
 
-	/**
-	 * TODO: publish acks are requested but not tracked — a `success: false` ack is dropped by
-	 * {@link _ingestGroupFrame}, so the message never reaches the host, no JSON-RPC reply can
-	 * arrive, and the request stays pending forever while the transport still looks open. The
-	 * symptom is a session that stops responding mid-turn with no error. Fixing it means tracking
-	 * publish ack ids here and failing the transport on a rejected ack — kept as-is for now to stay
-	 * in sync with github-ui `ahp-relay/webpubsub/wps-transport.ts`, which behaves the same way.
-	 */
+	/** Publish each chunk once; rejection or a missing acknowledgement after 30 seconds fails the transport. */
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
@@ -325,7 +346,42 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			payload: message,
 		});
 		for (const frame of frames) {
-			this._sendRaw(frame);
+			this._pendingPublishAcks.set(frame.ackId, Date.now() + WPS_TIMEOUT_MS);
+			try {
+				this._sendRaw(frame);
+			} catch (err) {
+				this._pendingPublishAcks.delete(frame.ackId);
+				throw err;
+			} finally {
+				this._schedulePublishAckTimeout();
+			}
+		}
+	}
+
+	private _schedulePublishAckTimeout(): void {
+		const deadline = this._pendingPublishAcks.values().next().value;
+		if (deadline === undefined) {
+			this._publishAckTimer.cancel();
+		} else if (!this._publishAckTimer.isScheduled()) {
+			this._publishAckTimer.schedule(Math.max(0, deadline - Date.now()));
+		}
+	}
+
+	private _checkPublishAckTimeout(): void {
+		const deadline = this._pendingPublishAcks.values().next().value;
+		if (this._closed || deadline === undefined) {
+			return;
+		}
+		if (deadline > Date.now()) {
+			this._schedulePublishAckTimeout();
+			return;
+		}
+		const error = new Error('WPS publish acknowledgement timed out');
+		this._options.onProtocolError?.(error);
+		if (this._rejectConnect) {
+			this._rejectConnect(error);
+		} else {
+			this._fireClose();
 		}
 	}
 
@@ -346,6 +402,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private _closeSocket(): void {
 		this._closed = true;
 		this._sweepTimer.cancel();
+		this._publishAckTimer.cancel();
+		this._pendingJoinAcks.clear();
+		this._pendingPublishAcks.clear();
+		this._rejectConnect = undefined;
 		try {
 			this._ws?.close();
 		} catch {

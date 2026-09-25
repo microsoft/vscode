@@ -566,7 +566,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const session = sessionState.read(reader);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
@@ -595,7 +596,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!state) {
 				return lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource) ? lastValue : undefined;
 			}
-			if (state.status !== ChangesetStatus.Ready && lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource)) {
+			if (state.status !== ChangesetStatus.Ready
+				&& state.status !== ChangesetStatus.Recomputing
+				&& lastValue?.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };

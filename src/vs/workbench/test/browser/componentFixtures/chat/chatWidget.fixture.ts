@@ -89,7 +89,7 @@ export interface IFixtureMessage {
 		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
-		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
+		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
@@ -528,7 +528,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					await child.didExecuteTool({ content: [{ kind: 'text', value: '2' }] });
 				}
 			} else if (part.kind === 'mcpStarting') {
-				const servers = part.servers.map(name => ({ id: name, name }));
+				const servers = part.servers.map(name => ({
+					id: name,
+					name,
+					blocking: part.blocking,
+					background: part.background ? async () => { } : undefined,
+				}));
 				if (part.local) {
 					model.acceptResponseProgress(request, new ChatMcpServersStarting(observableValue<IAutostartResult>('mcpStartup', {
 						working: true,
@@ -1102,7 +1107,7 @@ const PERSISTENT_PROGRESS_THINKING: IFixtureMessage[] = [{
 
 const PERSISTENT_PROGRESS_MCP_STARTING: IFixtureMessage[] = [{
 	user: 'Use the workspace and documentation MCP servers',
-	assistant: [{ kind: 'mcpStarting', servers: ['workspace', 'documentation'] }],
+	assistant: [{ kind: 'mcpStarting', servers: ['workspace', 'documentation'], blocking: true, background: true }],
 	responseComplete: false,
 }];
 
@@ -1269,8 +1274,15 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		|| rendered.length > 3 && rendered.endsWith('...') && part.command.startsWith(rendered.slice(0, -3))))) {
 		throw new Error('The terminal command code block is empty or incomplete');
 	}
-	if (mcpStartup && !response.querySelector('.chat-mcp-servers-interaction')?.textContent?.includes('Starting MCP servers')) {
-		throw new Error('MCP startup did not use the real startup progress renderer');
+	if (mcpStartup) {
+		const mcpStartupPart = response.querySelector('.chat-mcp-servers-interaction');
+		const expectedMessage = mcpStartup.blocking ? 'Waiting for MCP servers' : 'Starting MCP servers';
+		if (!mcpStartupPart?.textContent?.includes(expectedMessage)) {
+			throw new Error('MCP startup did not use the real startup progress renderer');
+		}
+		if (mcpStartup.background && mcpStartupPart.querySelector('a[data-href="#skip"]')?.textContent !== 'Skip') {
+			throw new Error('Blocking MCP startup did not offer a Skip link');
+		}
 	}
 
 	if (options.expandThinking) {

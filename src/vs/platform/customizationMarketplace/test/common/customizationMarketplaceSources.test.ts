@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,12 +27,92 @@ suite('CustomizationMarketplaceSources', () => {
 		return configuration;
 	}
 
+	test('Marketplace visibility does not change legacy source enablement', () => {
+		const cases = [
+			{ marketplace: false, first: false, second: false, visible: [] },
+			{ marketplace: false, first: true, second: false, visible: [] },
+			{ marketplace: true, first: false, second: false, visible: [] },
+			{ marketplace: true, first: true, second: false, visible: ['first'] },
+			{ marketplace: true, first: true, second: true, visible: ['first', 'second'] },
+		];
+		assert.deepStrictEqual(cases.map(({ marketplace, first, second }) => {
+			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
+				'test.first.enabled': first,
+				'test.second.enabled': second,
+			});
+			return {
+				enabled: getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
+				visible: getVisibleCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
+			};
+		}), cases.map(({ first, second, visible }) => ({
+			enabled: sources.filter(source => source.id === 'first' ? first : second).map(source => source.id),
+			visible,
+		})));
+	});
+
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }
 		}());
 	}
+
+	test('GitHub Feed requires both switches; legacy sources remain available without Marketplace', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: false,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			'test.legacy.enabled': true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const marketplaceSources = [
+			CustomizationMarketplaceSources.AgentFinderPublicFeed,
+			{ id: 'legacy', enablementSetting: 'test.legacy.enabled' },
+		];
+		const calls: ICustomizationMarketplaceRequest[] = [];
+		const query = async (request: ICustomizationMarketplaceRequest) => {
+			calls.push(request);
+			return { items: [] };
+		};
+		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, marketplaceSources, { sourceIds: ['agentFinder'] }, CancellationToken.None, query), isCancellationError);
+		await queryEnabledCustomizationMarketplaceSources(configuration, marketplaceSources, {}, CancellationToken.None, query);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await queryEnabledCustomizationMarketplaceSources(configuration, marketplaceSources, {}, CancellationToken.None, query);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		await queryEnabledCustomizationMarketplaceSources(configuration, marketplaceSources, {}, CancellationToken.None, query);
+		assert.deepStrictEqual({
+			calls: calls.map(call => call.sourceIds),
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, marketplaceSources).map(source => source.id),
+		}, {
+			calls: [['legacy'], ['agentFinder', 'legacy'], ['legacy']],
+			enabled: ['legacy'],
+		});
+	});
+
+	test('hiding Marketplace cancels an in-flight GitHub Feed request but preserves a legacy source', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			'test.legacy.enabled': true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const marketplaceSources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, { id: 'legacy', enablementSetting: 'test.legacy.enabled' }];
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		let requestToken: CancellationToken | undefined;
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, marketplaceSources, { sourceIds: ['agentFinder'] }, CancellationToken.None, (_request, token) => {
+			requestToken = token;
+			return deferred.p;
+		});
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		await cancelled;
+		await deferred.complete({ items: [] });
+		assert.deepStrictEqual({
+			tokenCancelled: requestToken?.isCancellationRequested,
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, marketplaceSources).map(source => source.id),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, { tokenCancelled: true, enabled: ['legacy'], listening: false });
+	});
 
 	for (const enabledIds of [[], ['first'], ['second'], ['first', 'second']]) {
 		test(`queries only enabled sources: ${enabledIds.join(', ') || 'none'}`, async () => {
