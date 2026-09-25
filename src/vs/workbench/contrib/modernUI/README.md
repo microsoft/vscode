@@ -88,7 +88,7 @@ The `surface.*` colors provide shared framing defaults, not a replacement for ev
 
 Inside the panel, the existing `panelSection.border` separates horizontally arranged views and `panelSectionHeader.border` separates vertically stacked views. Neither controls the outer floating frame. Side bar section dividers use `sideBarSectionHeader.border`. High contrast border defaults use `contrastBorder`, but explicit theme overrides remain effective.
 
-Resize grip dots mark only boundaries between top-level parts, not editor splits or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
+Resize grip dots mark only boundaries between top-level parts, not modal editor frames, editor splits, or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
 
 Activity bar items in non-default top or bottom positions use the `modernTab.*` colors because they share the pane tab presentation.
 
