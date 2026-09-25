@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -614,7 +615,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}, {
 			atFive: {
 				id: 'chat.agentsParallelWork',
-				title: 'You\'re using the Copilot harness',
+				title: 'You\'re using a new Copilot experience',
 				action: 'Learn More',
 			},
 			atSix: undefined,
@@ -643,10 +644,17 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		await h.setTreatments('Experiment title', 'Experiment body');
 		const atFive = {
 			id: h.notification?.id,
+			telemetryId: h.notification?.telemetryId,
 			title: h.notification?.message,
-			description: h.notification?.description,
+			description: isMarkdownString(h.notification?.description) ? {
+				value: h.notification.description.value,
+				isTrusted: h.notification.description.isTrusted,
+			} : h.notification?.description,
 			actions: h.notification?.actions.map(action => ({
 				label: action.label,
+				ariaLabel: action.ariaLabel,
+				iconOnly: action.iconOnly,
+				tooltip: action.tooltip,
 				primary: action.primary,
 				keepOpen: action.keepOpen,
 				actionId: action.telemetryActionId,
@@ -662,10 +670,14 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			afterThreshold,
 			atSix: {
 				id: h.notification?.id,
+				telemetryId: h.notification?.telemetryId,
 				title: h.notification?.message,
 				description: h.notification?.description,
 				actions: h.notification?.actions.map(action => ({
 					label: action.label,
+					ariaLabel: action.ariaLabel,
+					iconOnly: action.iconOnly,
+					tooltip: action.tooltip,
 					primary: action.primary,
 					keepOpen: action.keepOpen,
 					actionId: action.telemetryActionId,
@@ -675,21 +687,27 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}, {
 			atFive: {
 				id: 'chat.agentsParallelWork',
-				title: 'You\'re using the Copilot harness',
-				description: 'The Copilot harness connects your model to tools and keeps your session state as work progresses.',
+				telemetryId: 'copilotHarnessIntroduction',
+				title: 'You\'re using a new Copilot experience',
+				description: {
+					value: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](command:github.copilot.report).',
+					isTrusted: { enabledCommands: ['github.copilot.report'] },
+				},
 				actions: [
-					{ label: 'Learn More', primary: true, keepOpen: true, actionId: 'learnMore' },
-					{ label: 'Ignore', primary: false, keepOpen: true, actionId: undefined },
+					{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'docsLink' },
+					{ label: '$(thumbsup)', ariaLabel: 'Helpful', iconOnly: true, tooltip: 'Helpful', primary: false, keepOpen: true, actionId: 'thumbsUp' },
+					{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
 				],
 			},
 			afterThreshold: undefined,
 			atSix: {
 				id: 'chat.agentsParallelWork',
+				telemetryId: undefined,
 				title: 'Experiment title',
 				description: 'Experiment body',
 				actions: [
-					{ label: 'Open Agents Window', primary: true, keepOpen: true, actionId: undefined },
-					{ label: 'Ignore', primary: false, keepOpen: true, actionId: undefined },
+					{ label: 'Open Agents Window', ariaLabel: undefined, iconOnly: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: undefined },
+					{ label: 'Ignore', ariaLabel: undefined, iconOnly: undefined, tooltip: 'Don\'t Show Again', primary: false, keepOpen: true, actionId: undefined },
 				],
 			},
 			posts: 2,
@@ -706,7 +724,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			title: h.notification?.message,
 			action: h.notification?.actions[0]?.label,
 		}, {
-			title: 'You\'re using the Copilot harness',
+			title: 'You\'re using a new Copilot experience',
 			action: 'Learn More',
 		});
 	});
@@ -726,12 +744,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			emptyAgain: h.notification,
 		}, {
 			emptyWorkspace: undefined,
-			folderTitle: 'You\'re using the Copilot harness',
+			folderTitle: 'You\'re using a new Copilot experience',
 			emptyAgain: undefined,
 		});
 	});
 
-	test('Learn More opens Copilot harness documentation without changing the parallel-work experiment', async () => {
+	test('Learn More opens Agent Host documentation without changing the parallel-work experiment', async () => {
 		const h = createHarness({ banner: false, running: false, copilotHarnessSessionCount: 5 });
 		h.showBanner();
 		await h.click(0);
@@ -744,19 +762,39 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			afterOpen,
 			nextTitle: h.notification?.message,
 		}, {
-			opened: ['https://code.visualstudio.com/docs/agents/run/agent-harnesses?referrer=in-product#_use-the-copilot-harness'],
+			opened: ['https://code.visualstudio.com/docs/agents/concepts/agent-host'],
 			enabled: false,
 			afterOpen: undefined,
-			nextTitle: 'You\'re using the Copilot harness',
+			nextTitle: 'You\'re using a new Copilot experience',
 		});
 	});
 
-	test('Ignore suppresses education until five sessions and parallel work are both present', async () => {
+	test('Thumbs Up dismisses the current education banner without suppressing future education', async () => {
+		const h = createHarness({ banner: false, running: false, copilotHarnessSessionCount: 4 });
+		h.showBanner();
+		await h.click(1);
+		const afterFeedback = h.notification;
+		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
+
+		assert.deepStrictEqual({
+			afterFeedback,
+			nextTitle: h.notification?.message,
+			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
+			updates: h.configuration.updates,
+		}, {
+			afterFeedback: undefined,
+			nextTitle: 'You\'re using a new Copilot experience',
+			enabled: false,
+			updates: [],
+		});
+	});
+
+	test('Thumbs Down suppresses education until five sessions and parallel work are both present', async () => {
 		const h = createHarness({ running: false, copilotHarnessSessionCount: 4 });
 		const contribution = h.showBanner();
 		const educationTitle = h.notification?.message;
-		await h.click(1);
-		const afterIgnore = h.notification;
+		await h.click(2);
+		const afterFeedback = h.notification;
 		contribution.dispose();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
 		h.showBanner();
@@ -767,20 +805,42 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 
 		assert.deepStrictEqual({
 			educationTitle,
-			afterIgnore,
+			afterFeedback,
 			underFive,
 			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
 			updates: h.configuration.updates,
 			parallelTitle: h.notification?.message,
 			parallelAction: h.notification?.actions[0]?.label,
 		}, {
-			educationTitle: 'You\'re using the Copilot harness',
-			afterIgnore: undefined,
+			educationTitle: 'You\'re using a new Copilot experience',
+			afterFeedback: undefined,
 			underFive: undefined,
 			enabled: true,
 			updates: [],
 			parallelTitle: 'Run agents side by side',
 			parallelAction: 'Open Agents Window',
+		});
+	});
+
+	test('X suppresses Copilot education like Thumbs Down', () => {
+		const h = createHarness({ banner: false, running: false, copilotHarnessSessionCount: 4 });
+		const contribution = h.showBanner();
+		h.dismiss();
+		const afterDismiss = h.notification;
+		contribution.dispose();
+		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
+		h.showBanner();
+
+		assert.deepStrictEqual({
+			afterDismiss,
+			next: h.notification,
+			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
+			updates: h.configuration.updates,
+		}, {
+			afterDismiss: undefined,
+			next: undefined,
+			enabled: false,
+			updates: [],
 		});
 	});
 

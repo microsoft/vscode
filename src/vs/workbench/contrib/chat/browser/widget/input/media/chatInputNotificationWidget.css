@@ -133,6 +133,10 @@
 	margin-left: auto;
 }
 
+.chat-input-notification-widget .chat-input-notification-actions.compact {
+	gap: var(--vscode-spacing-size40);
+}
+
 /* Action buttons */
 .chat-input-notification-widget .chat-input-notification-action-button {
 	font-size: var(--vscode-fontSize-label2);
@@ -152,6 +156,16 @@
 	color: var(--vscode-foreground);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	opacity: 0.8;
+}
+
+.chat-input-notification-widget .chat-input-notification-actions.compact .chat-input-notification-action-button:not(.icon-only) {
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.icon-only {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
 }
 
 .chat-input-notification-widget .chat-input-notification-action-button.secondary:hover {

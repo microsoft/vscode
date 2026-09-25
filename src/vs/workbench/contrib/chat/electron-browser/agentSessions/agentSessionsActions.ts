@@ -8,7 +8,9 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../b
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -40,7 +42,7 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -798,11 +800,14 @@ const enum AgentsParallelWorkNotificationKind {
 export class AgentsParallelWorkContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT = 5;
-	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/run/agent-harnesses?referrer=in-product#_use-the-copilot-harness';
+	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/concepts/agent-host';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
+	private static readonly COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID = 'copilotHarnessIntroduction';
+	private static readonly COPILOT_REPORT_ISSUE_COMMAND_ID = 'github.copilot.report';
 	private static readonly NOTIFICATION_ID = 'chat.agentsParallelWork';
 	private static readonly OPEN_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.open';
 	private static readonly LEARN_MORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.learnMore';
+	private static readonly FEEDBACK_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.feedback';
 	private static readonly IGNORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.ignore';
 	private static readonly TITLE_TREATMENT = 'chatAgentsParallelWorkBannerTitle';
 	private static readonly DESCRIPTION_TREATMENT = 'chatAgentsParallelWorkBannerDescription';
@@ -847,16 +852,26 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			this._dismissChat(resource);
 			return this._openerService.open(AgentsParallelWorkContribution.COPILOT_HARNESS_DOCS_URL, { openExternal: true });
 		}));
+		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID, (_accessor, inputUri: URI, resource: URI, helpful: boolean) => {
+			if (typeof helpful !== 'boolean' || !this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
+				return;
+			}
+			if (helpful) {
+				this._dismissChat(resource);
+			} else {
+				this._ignoreCopilotHarnessIntroduction(resource);
+			}
+		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
 			const posted = this._posted;
 			if (!posted) {
 				return;
 			}
-			this._dismissChat(posted.resource);
 			if (posted.kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction) {
-				this._storageService.store(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				this._ignoreCopilotHarnessIntroduction(posted.resource);
 				return;
 			}
+			this._dismissChat(posted.resource);
 			return this._configurationService.updateValue(ChatConfiguration.AgentsParallelWorkBannerEnabled, false, ConfigurationTarget.USER);
 		}));
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => this._onSessionChanged()));
@@ -914,6 +929,11 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			}
 		}
 		return count;
+	}
+
+	private _ignoreCopilotHarnessIntroduction(resource: URI): void {
+		this._storageService.store(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		this._dismissChat(resource);
 	}
 
 	private _dismissChat(resource: URI): void {
@@ -1018,10 +1038,10 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			return;
 		}
 		const title = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using the Copilot harness")
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using a new Copilot experience")
 			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
 		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "The Copilot harness connects your model to tools and keeps your session state as work progresses.")
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", createCommandUri(AgentsParallelWorkContribution.COPILOT_REPORT_ISSUE_COMMAND_ID).toString())
 			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
 		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.title === title && this._posted.description === description) {
 			return;
@@ -1033,37 +1053,70 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			// Revoke the old render before publishing its successor, retaining announcement de-duplication.
 			this._notificationService.refresh();
 		}
+		const actions: IChatInputNotificationAction[] = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? [{
+			kind: ChatInputNotificationActionKind.Command,
+			label: localize('agentsParallelWork.learnMore', "Learn More"),
+			telemetryActionId: 'docsLink',
+			commandId: AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID,
+			commandArgs: [posted.inputUri, resource],
+			primary: true,
+			keepOpen: true,
+		}, {
+			kind: ChatInputNotificationActionKind.Command,
+			label: `$(${Codicon.thumbsup.id})`,
+			ariaLabel: localize('agentsParallelWork.helpful', "Helpful"),
+			iconOnly: true,
+			tooltip: localize('agentsParallelWork.helpfulTooltip', "Helpful"),
+			telemetryActionId: 'thumbsUp',
+			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
+			commandArgs: [posted.inputUri, resource, true],
+			primary: false,
+			keepOpen: true,
+		}, {
+			kind: ChatInputNotificationActionKind.Command,
+			label: `$(${Codicon.thumbsdown.id})`,
+			ariaLabel: localize('agentsParallelWork.unhelpful', "Not Helpful"),
+			iconOnly: true,
+			tooltip: localize('agentsParallelWork.unhelpfulTooltip', "Not Helpful"),
+			telemetryActionId: 'thumbsDown',
+			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
+			commandArgs: [posted.inputUri, resource, false],
+			primary: false,
+			keepOpen: true,
+		}] : [{
+			kind: ChatInputNotificationActionKind.Command,
+			label: localize('agentsParallelWork.open', "Open Agents Window"),
+			commandId: AgentsParallelWorkContribution.OPEN_COMMAND_ID,
+			commandArgs: [posted.inputUri, resource],
+			primary: true,
+			keepOpen: true,
+		}, {
+			kind: ChatInputNotificationActionKind.Command,
+			label: localize('agentsParallelWork.ignore', "Ignore"),
+			tooltip: localize('agentsParallelWork.ignoreTooltip', "Don't Show Again"),
+			commandId: AgentsParallelWorkContribution.IGNORE_COMMAND_ID,
+			primary: false,
+			keepOpen: true,
+		}];
 		this._notificationService.setNotification({
 			id: AgentsParallelWorkContribution.NOTIFICATION_ID,
 			inputUri: posted.inputUri,
+			telemetryId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+				? AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID
+				: undefined,
 			severity: ChatInputNotificationSeverity.Info,
 			message: title,
-			description,
+			description: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+				? new MarkdownString(description, { isTrusted: { enabledCommands: [AgentsParallelWorkContribution.COPILOT_REPORT_ISSUE_COMMAND_ID] } })
+				: description,
 			sessionResources: [resource],
 			when: context => this._posted === posted && !context.sessionStarted && !context.isTransientChat,
 			dismissible: true,
-			onDismiss: () => this._dismissChat(resource),
+			onDismiss: () => kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+				? this._ignoreCopilotHarnessIntroduction(resource)
+				: this._dismissChat(resource),
 			autoDismissOnMessage: true,
-			actions: [{
-				kind: ChatInputNotificationActionKind.Command,
-				label: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-					? localize('agentsParallelWork.learnMore', "Learn More")
-					: localize('agentsParallelWork.open', "Open Agents Window"),
-				telemetryActionId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? 'learnMore' : undefined,
-				commandId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-					? AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID
-					: AgentsParallelWorkContribution.OPEN_COMMAND_ID,
-				commandArgs: [posted.inputUri, resource],
-				primary: true,
-				keepOpen: true,
-			}, {
-				kind: ChatInputNotificationActionKind.Command,
-				label: localize('agentsParallelWork.ignore', "Ignore"),
-				tooltip: localize('agentsParallelWork.ignoreTooltip', "Don't Show Again"),
-				commandId: AgentsParallelWorkContribution.IGNORE_COMMAND_ID,
-				primary: false,
-				keepOpen: true,
-			}],
+			actions,
 		});
 	}
 

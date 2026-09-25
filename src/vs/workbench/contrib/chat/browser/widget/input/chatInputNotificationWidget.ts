@@ -346,6 +346,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 			if (actions.length > 0) {
 				const actionsContainer = dom.append(bodyRow, $('.chat-input-notification-actions'));
+				actionsContainer.classList.toggle('compact', actions.some(action => action.iconOnly));
 
 				for (let i = 0; i < actions.length; i++) {
 					const action = actions[i];
@@ -366,8 +367,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 						secondary: !isPrimary,
 					}));
 					button.element.classList.add('chat-input-notification-action-button');
+					button.element.classList.toggle('icon-only', action.iconOnly === true);
 					button.label = action.label;
-					button.element.ariaLabel = `${ariaTitle} ${action.label}`;
+					button.element.ariaLabel = `${ariaTitle} ${action.ariaLabel ?? action.label}`;
 					if (action.tooltip) {
 						this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, action.tooltip));
 						button.element.setAttribute('aria-description', action.tooltip);

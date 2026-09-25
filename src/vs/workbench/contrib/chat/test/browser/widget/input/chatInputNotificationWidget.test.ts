@@ -624,6 +624,36 @@ suite('ChatInputNotificationWidget', () => {
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
 	});
 
+	test('uses explicit accessible labels for icon-only actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup)',
+				ariaLabel: 'Helpful',
+				iconOnly: true,
+				tooltip: 'Helpful',
+				commandId: 'test.helpful',
+			}],
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.deepStrictEqual({
+			icon: !!button?.querySelector('.codicon-thumbsup'),
+			iconOnly: button?.classList.contains('icon-only'),
+			compactActions: widget.domNode.querySelector('.chat-input-notification-actions')?.classList.contains('compact'),
+			ariaLabel: button?.getAttribute('aria-label'),
+			description: button?.getAttribute('aria-description'),
+		}, {
+			icon: true,
+			iconOnly: true,
+			compactActions: true,
+			ariaLabel: 'Copilot preview Helpful',
+			description: 'Helpful',
+		});
+	});
+
 	test('actions without explicit commandArgs are executed with empty args', async () => {
 		const commandService = new TestCommandService();
 		const { notificationService, widget } = createWidget({ commandService });
