@@ -26,6 +26,7 @@ suite('EditorWorkerService', () => {
 		instantiationService.stub(ITextResourceConfigurationService, new class extends mock<ITextResourceConfigurationService>() { }());
 		const proxy = new class extends mock<Proxied<EditorWorker>>() {
 			override $computeDefaultDocumentColors = async () => [];
+			override $computeStringDiff = async () => [];
 		}();
 		const withResources = sinon.stub(EditorWorkerClient.prototype, 'workerWithSyncedResources').resolves(proxy);
 		const disposeWorker = sinon.spy(EditorWorkerClient.prototype, 'dispose');
@@ -79,6 +80,25 @@ suite('EditorWorkerService', () => {
 			disposalsBeforeReplacementCloses: 0,
 			disposalsAfterReplacementCloses: 1,
 			recreated: true,
+		});
+	});
+
+	test('keeps a worker requested right after the last model is removed', async () => {
+		const { modelService, service, withResources, disposeWorker } = createServices();
+		const model = disposables.add(modelService.createModel('content', null));
+		await service.computeDefaultDocumentColors(model.uri);
+
+		model.dispose();
+		const edit = await service.computeStringEditFromDiff('a', 'a', { maxComputationTimeMs: 0 }, 'advanced');
+
+		assert.deepStrictEqual({
+			isEmpty: edit.isEmpty(),
+			disposed: disposeWorker.callCount,
+			sameWorker: withResources.firstCall.thisValue === withResources.lastCall.thisValue,
+		}, {
+			isEmpty: true,
+			disposed: 0,
+			sameWorker: true,
 		});
 	});
 
