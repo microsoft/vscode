@@ -24,9 +24,14 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 	_register<T extends IDisposable>(disposable: T): T;
 }) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
-	readonly headerRow: HTMLElement;
-	readonly headerLabel: HTMLElement;
-	readonly headerActions: HTMLElement;
+	readonly sessionsHeaders: ReadonlySet<{
+		readonly row: HTMLElement;
+		readonly label: HTMLElement;
+		readonly actions: HTMLElement;
+		readonly treeHeader: boolean;
+	}>;
+	readonly sessionsContent: HTMLElement | undefined;
+	readonly customizationsPresentation: string;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
 	readonly isFindWidgetOpen: boolean;
 }) => void;
@@ -76,6 +81,7 @@ suite('Sessions - SessionsViewPane', () => {
 				customizationsNavigationVisible: { set: () => { } },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
+				updateHeaderLayout: () => calls.push('updateHeader'),
 				removeCustomizationsPane: () => {
 					calls.push('removePane');
 					host._customizationsWidget = undefined;
@@ -103,12 +109,14 @@ suite('Sessions - SessionsViewPane', () => {
 			hiddenCustomizations: hiddenCustomizations.calls,
 		}, {
 			controlCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusTreatmentCustomizations',
 				'layout',
 			],
 			treatmentAutomations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'createPane',
@@ -116,6 +124,7 @@ suite('Sessions - SessionsViewPane', () => {
 				'layout',
 			],
 			hiddenCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusSessions',
@@ -273,14 +282,21 @@ suite('Sessions - SessionsViewPane', () => {
 		const headerRow = mainWindow.document.createElement('div');
 		const headerLabel = mainWindow.document.createElement('div');
 		const headerActions = mainWindow.document.createElement('div');
+		const sessionsContent = mainWindow.document.createElement('div');
 		headerLabel.style.display = 'none';
 		headerRow.append(headerLabel, headerActions);
 		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
 		Object.defineProperty(headerLabel, 'clientWidth', { configurable: true, value: 0 });
 		const host = {
-			headerRow,
-			headerLabel,
-			headerActions,
+			sessionsHeaders: new Set([{
+				row: headerRow,
+				label: headerLabel,
+				actions: headerActions,
+				toolbar: undefined,
+				treeHeader: true,
+			}]),
+			sessionsContent,
+			customizationsPresentation: 'treatment',
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
 		};

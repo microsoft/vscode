@@ -133,16 +133,17 @@ suite('Sessions list context menus', () => {
 			});
 		});
 		const container = harness.createContainer();
-		const sessionsHeaderContainer = mainWindow.document.createElement('div');
-		const sessionsHeader = mainWindow.document.createElement('div');
-		sessionsHeaderContainer.append(sessionsHeader);
-		container.prepend(sessionsHeaderContainer);
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			showNavigationShortcuts: () => showNavigationShortcuts,
-			sessionsHeader,
-			sessionsHeaderContainer,
+			createSessionsHeader: (parent, disposables) => {
+				const sessionsHeader = mainWindow.document.createElement('div');
+				sessionsHeader.textContent = 'Sessions';
+				parent.append(sessionsHeader);
+				disposables.add(toDisposable(() => sessionsHeader.remove()));
+				return sessionsHeader;
+			},
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);

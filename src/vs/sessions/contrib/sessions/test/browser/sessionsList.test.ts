@@ -432,12 +432,11 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 			const container = harness.createContainer();
-			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.appendChild(findWidgetContainer);
-			sessionsHeaderContainer.appendChild(sessionsHeader);
-			container.prepend(sessionsHeaderContainer);
+			container.prepend(sessionsHeader);
+			const treeHeaders = new Set<HTMLElement>();
 			let showNavigationShortcuts = false;
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
@@ -446,8 +445,15 @@ suite('Sessions - SessionsList', () => {
 				customizationsCount,
 				customizationMigrationsAvailable,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					parent.appendChild(treeHeader);
+					treeHeaders.add(treeHeader);
+					disposables.add(toDisposable(() => treeHeaders.delete(treeHeader)));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
@@ -465,7 +471,7 @@ suite('Sessions - SessionsList', () => {
 				ariaExpanded: element.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				hasChevron: element.querySelector('.session-section-chevron.collapsible') !== null,
 			}));
-			const headerInTreatment = sessionsHeader.closest('.sessions-list-header') !== null;
+			const headerInTreatment = container.querySelector('.sessions-list-header .test-sessions-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
@@ -487,6 +493,10 @@ suite('Sessions - SessionsList', () => {
 			list.updateNavigationVisibility();
 			list.focusAutomations();
 			await timeout(350);
+			const treeHeaderCountAfterControl = treeHeaders.size;
+			const controlAutomationsFocused = list.isAutomationsFocused();
+			list.dispose();
+			const treeHeaderCountAfterDispose = treeHeaders.size;
 
 			assert.deepStrictEqual({
 				findInput,
@@ -500,8 +510,10 @@ suite('Sessions - SessionsList', () => {
 				customizationsPresentation,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
-				headerRestoredToControl: sessionsHeader.parentElement === sessionsHeaderContainer,
-				controlAutomationsFocused: list.isAutomationsFocused(),
+				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
+				treeHeaderCountAfterControl,
+				treeHeaderCountAfterDispose,
+				controlAutomationsFocused,
 			}, {
 				findInput,
 				focusBeforeSwitch: findInput,
@@ -522,7 +534,9 @@ suite('Sessions - SessionsList', () => {
 				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
-				headerRestoredToControl: true,
+				stableFindHeaderUnmoved: true,
+				treeHeaderCountAfterControl: 1,
+				treeHeaderCountAfterDispose: 0,
 				controlAutomationsFocused: true,
 			});
 		});
@@ -553,8 +567,14 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => true,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer: sessionsContent,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					parent.appendChild(treeHeader);
+					disposables.add(toDisposable(() => treeHeader.remove()));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
 			list.layout(200, 400);
@@ -569,13 +589,15 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					focusedElement: mainWindow.document.activeElement,
 					findInput,
-					headerInTree: sessionsHeader.closest('.sessions-list-header') !== null,
+					headerInTree: listContainer.querySelector('.sessions-list-header .test-sessions-header') !== null,
+					treeHeaderAriaHidden: listContainer.querySelector('.sessions-list-header')?.closest('.monaco-list-row')?.getAttribute('aria-hidden'),
 					shortcutLabels: Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent),
 					sessionRows: listContainer.querySelectorAll('.session-item').length,
 				}, {
 					focusedElement: findInput,
 					findInput,
 					headerInTree: true,
+					treeHeaderAriaHidden: 'true',
 					shortcutLabels: ['Automations', 'Customizations'],
 					sessionRows: 0,
 				});
@@ -585,7 +607,7 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('does not stick the Sessions header while retaining section sticky scroll', async () => {
+		test('sticks independently owned Sessions headers while retaining section sticky scroll', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
@@ -602,62 +624,81 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
-			sessionsHeader.textContent = 'Sessions';
-			sessionsHeader.style.height = '28px';
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.append(findWidgetContainer);
 			sessionsHeaderContainer.appendChild(sessionsHeader);
 			container.prepend(sessionsHeaderContainer);
+			const activeHeaders = new Set<HTMLElement>();
+			const allHeaders: HTMLElement[] = [];
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => true,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					treeHeader.style.height = '28px';
+					parent.appendChild(treeHeader);
+					activeHeaders.add(treeHeader);
+					allHeaders.push(treeHeader);
+					disposables.add(toDisposable(() => activeHeaders.delete(treeHeader)));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
-			list.layout(120, 400);
+			list.layout(200, 400);
+			await timeout(0);
+			const sourceHeader = container.querySelector<HTMLElement>('.monaco-list-rows .test-sessions-header');
+			const sourceHeaderOwner = sourceHeader?.parentElement;
+			const sourceHeaderRowHeight = sourceHeader?.closest<HTMLElement>('.monaco-list-row')?.style.height;
 			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
 			tree.scrollTop = 400;
 			await timeout(0);
-			const headerInStickyContainer = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const stickySectionLabel = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .session-section-label')?.textContent;
+			const stickyHeader = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
+			const stickySectionLabels = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row .session-section-label'), element => element.textContent);
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
-			const headerParkedAfterScroll = sessionsHeader.parentElement === sessionsHeaderContainer;
-			const headerHiddenAfterScroll = sessionsHeader.style.display === 'none' && sessionsHeader.getAttribute('aria-hidden') === 'true';
-			list.layout(120, 400);
-			tree.scrollTop = 0;
-			await timeout(0);
-			const headerRowHeightAfterHiddenLayout = sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height;
+			const stickyHeaderOwnsDistinctDom = stickyHeader !== null && stickyHeader !== sourceHeader && stickyHeader.parentElement !== sourceHeaderOwner;
+			const stickyHeaderAriaLabel = stickyHeader?.closest('.monaco-tree-sticky-row')?.getAttribute('aria-label');
+			list.layout(0, 400);
+			list.layout(200, 400);
 			tree.scrollTop = 400;
 			await timeout(0);
+			const stickyHeaderAfterZeroHeight = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
 			list.openFind();
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
 			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
+			const hiddenTreeHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+			const treeHeaderHiddenForFind = hiddenTreeHeader?.style.visibility === 'hidden'
+				&& hiddenTreeHeader.closest('.monaco-list-row')?.getAttribute('aria-hidden') === 'true';
 
 			assert.deepStrictEqual({
-				headerText: sessionsHeader.textContent,
-				headerInStickyContainer,
-				stickySectionLabel,
+				sourceHeaderRowHeight,
+				stickyHeaderText: stickyHeader?.textContent,
+				stickyHeaderOwnsDistinctDom,
+				stickyHeaderAriaLabel,
+				stickySectionLabels,
 				navigationVisibleAfterScroll,
-				headerParkedAfterScroll,
-				headerHiddenAfterScroll,
-				headerRowHeightAfterHiddenLayout,
-				headerRevealedForFind: sessionsHeader.closest('.monaco-list-rows') !== null,
-				headerVisibleForFind: sessionsHeader.style.display === '' && !sessionsHeader.hasAttribute('aria-hidden'),
+				stickyHeaderRestoredAfterZeroHeight: stickyHeaderAfterZeroHeight?.textContent,
+				stableFindHeaderUnmoved: sessionsHeader.parentElement === sessionsHeaderContainer && findWidgetContainer.parentElement === sessionsHeader,
+				treeHeaderHiddenForFind,
 				findFocusedAfterOffscreenOpen,
+				distinctHeaderInstances: new Set(allHeaders).size === allHeaders.length,
+				activeHeaderCount: activeHeaders.size,
 			}, {
-				headerText: 'Sessions',
-				headerInStickyContainer: false,
-				stickySectionLabel: 'Recent',
+				sourceHeaderRowHeight: '38px',
+				stickyHeaderText: 'Sessions',
+				stickyHeaderOwnsDistinctDom: true,
+				stickyHeaderAriaLabel: 'Sessions',
+				stickySectionLabels: ['Recent'],
 				navigationVisibleAfterScroll: false,
-				headerParkedAfterScroll: true,
-				headerHiddenAfterScroll: true,
-				headerRowHeightAfterHiddenLayout: '38px',
-				headerRevealedForFind: true,
-				headerVisibleForFind: true,
+				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
+				stableFindHeaderUnmoved: true,
+				treeHeaderHiddenForFind: true,
 				findFocusedAfterOffscreenOpen: true,
+				distinctHeaderInstances: true,
+				activeHeaderCount: 1,
 			});
 			list.closeFind();
 			await timeout(350);

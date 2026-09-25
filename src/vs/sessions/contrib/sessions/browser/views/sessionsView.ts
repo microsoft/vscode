@@ -83,6 +83,10 @@ export interface ISessionsHeaderElements {
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 }
 
+interface IRegisteredSessionsHeader extends ISessionsHeaderElements {
+	readonly treeHeader: boolean;
+}
+
 export function renderSessionsHeader(
 	parent: HTMLElement,
 	phoneLayout: boolean,
@@ -118,9 +122,8 @@ export class SessionsView extends ViewPane {
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
-	private headerRow: HTMLElement | undefined;
-	private headerLabel: HTMLElement | undefined;
-	private headerActions: HTMLElement | undefined;
+	private sessionsContent: HTMLElement | undefined;
+	private readonly sessionsHeaders = new Set<IRegisteredSessionsHeader>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
@@ -219,7 +222,7 @@ export class SessionsView extends ViewPane {
 		const sessionsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-section'));
 
 		// Sessions content container
-		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
+		const sessionsContent = this.sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
 		// On phone, the desktop header content (label + new button + filter/find toolbar)
 		// is hidden in favor of the mobile filter chip row + the (+) button in the
@@ -227,13 +230,10 @@ export class SessionsView extends ViewPane {
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
-		const header = renderSessionsHeader(sessionsHeaderContainer, phoneLayout, this.instantiationService, this.scopedContextKeyService, this._register(new DisposableStore()));
-		const headerRow = this.headerRow = header.row;
-		this.headerLabel = header.label;
-		this.headerActions = header.actions;
+		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, false, this._register(new DisposableStore()));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
-		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
+		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
@@ -253,9 +253,9 @@ export class SessionsView extends ViewPane {
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
 			findWidgetContainer,
-			sessionsHeader: headerRow,
-			sessionsHeaderContainer,
-			layoutSessionsHeader: () => this.updateHeaderLayout(),
+			createSessionsHeader: (container, disposables) => {
+				return this.createSessionsHeader(container, phoneLayout, true, disposables).row;
+			},
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -408,6 +408,15 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, treeHeader: boolean, disposables: DisposableStore): ISessionsHeaderElements {
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables);
+		const registeredHeader: IRegisteredSessionsHeader = { ...header, treeHeader };
+		this.sessionsHeaders.add(registeredHeader);
+		disposables.add(toDisposable(() => this.sessionsHeaders.delete(registeredHeader)));
+		this.updateHeaderLayout();
+		return header;
+	}
+
 	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
 		if (this.customizationsPresentation === presentation) {
 			return;
@@ -418,6 +427,7 @@ export class SessionsView extends ViewPane {
 		const wasTreatment = this.customizationsPresentation === 'treatment';
 		this.customizationsPresentation = presentation;
 		this.customizationsNavigationVisible.set(presentation === 'treatment', undefined);
+		this.updateHeaderLayout();
 
 		if (wasTreatment !== (presentation === 'treatment')) {
 			this.sessionsControl?.updateNavigationVisibility();
@@ -787,27 +797,33 @@ export class SessionsView extends ViewPane {
 	}
 
 	private updateHeaderLayout(): void {
-		if (!this.headerRow || !this.headerLabel || !this.headerActions) {
-			return;
-		}
+		const treatment = this.customizationsPresentation === 'treatment';
+		this.sessionsContent?.classList.toggle('sessions-find-header-overlay', treatment && this.isFindWidgetOpen);
+		const showStableHeader = !treatment || this.isFindWidgetOpen;
+		for (const header of this.sessionsHeaders) {
+			if (!header.treeHeader) {
+				header.row.style.display = showStableHeader ? '' : 'none';
+				header.row.toggleAttribute('aria-hidden', !showStableHeader);
+			}
 
-		// On phone the desktop header content is hidden; the row is only
-		// visible when the find widget is open (so the user can search).
-		if (isPhoneLayout(this.layoutService)) {
-			this.headerRow.classList.toggle('phone-layout-empty', !this.isFindWidgetOpen);
-			return;
-		}
+			// On phone the desktop header content is hidden; the row is only
+			// visible when the find widget is open (so the user can search).
+			if (isPhoneLayout(this.layoutService)) {
+				header.row.classList.toggle('phone-layout-empty', !this.isFindWidgetOpen);
+				continue;
+			}
 
-		if (this.isFindWidgetOpen) {
-			this.headerLabel.style.display = 'none';
-			this.headerActions.style.display = 'none';
-			return;
-		}
+			if (this.isFindWidgetOpen) {
+				header.label.style.display = 'none';
+				header.actions.style.display = 'none';
+				continue;
+			}
 
-		this.headerLabel.style.display = '';
-		this.headerActions.style.display = '';
-		if (this.headerRow.clientWidth > 0 && this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
-			this.headerLabel.style.display = 'none';
+			header.label.style.display = '';
+			header.actions.style.display = '';
+			if (header.row.clientWidth > 0 && header.label.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+				header.label.style.display = 'none';
+			}
 		}
 	}
 
