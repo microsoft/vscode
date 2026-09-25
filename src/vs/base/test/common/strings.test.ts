@@ -121,6 +121,14 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
 		assertCompareIgnoreCase('O', '/');
+
+		assertCompareIgnoreCase('[', 'a');
+		assertCompareIgnoreCase('\\', 'A');
+		assertCompareIgnoreCase(']', 'z');
+		assertCompareIgnoreCase('^', 'Z');
+		assertCompareIgnoreCase('_', 'b');
+		assertCompareIgnoreCase('`', 'B');
+		assertCompareIgnoreCase('a_b', 'aab');
 	});
 
 	test('compareIgnoreCase (substring)', () => {
