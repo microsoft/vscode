@@ -92,7 +92,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AGENTIC_SIGN_IN_COMMAND_ID,
-			title: localize2('signIn', "Sign in to use GitHub Copilot"),
+			title: localize2('signIn', "Sign in with GitHub"),
 			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
@@ -572,7 +572,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();
 		const codexAccount = this.codexAccountService.account;
-		const codexAccountVisible = shouldShowCodexAccount(this.configurationService, true);
+		// Keep agent-specific accounts hidden until the shared account resolves.
+		const codexAccountVisible = !this.isAccountLoading && shouldShowCodexAccount(this.configurationService, true);
 		const partitioned = this.partitionMenuActions(rawActions);
 
 		const identities = append(panel, $('.sessions-account-titlebar-panel-identities'));

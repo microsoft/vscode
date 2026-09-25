@@ -14,10 +14,14 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { CONTEXT_DEFAULT_ACCOUNT_STATE, DefaultAccountStatus } from '../../../../../services/accounts/browser/defaultAccount.js';
 import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatSetupFromAccountsWhen } from '../../../browser/chatSetup/chatSetupContributions.js';
 import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogProviders, shouldShowMicrosoftProvider, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
@@ -178,6 +182,29 @@ suite('Chat setup dialog presentation', () => {
 			settingOff: false,
 			settingOn: true,
 		});
+	});
+});
+
+suite('Chat setup Accounts entry', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('remains available after prior setup when the GitHub account is signed out', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const accountStatus = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
+		ChatContextKeys.Setup.hidden.bindTo(contextKeyService).set(false);
+		ChatContextKeys.Setup.disabledInWorkspace.bindTo(contextKeyService).set(false);
+		ChatContextKeys.Setup.completed.bindTo(contextKeyService).set(true);
+		ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService).set(false);
+
+		const when = ChatSetupFromAccountsWhen;
+		assert.ok(when);
+		const matches = () => when.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) });
+		accountStatus.set(DefaultAccountStatus.Unavailable);
+		assert.strictEqual(matches(), true);
+
+		accountStatus.set(DefaultAccountStatus.Available);
+		assert.strictEqual(matches(), false);
 	});
 });
 

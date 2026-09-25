@@ -33,7 +33,7 @@ suite('Sessions - Account Menu', () => {
 			.find(item => item.command.id === 'workbench.action.agenticSignIn');
 
 		assert.ok(signIn);
-		assert.strictEqual(typeof signIn.command.title === 'string' ? signIn.command.title : signIn.command.title.value, 'Sign in to use GitHub Copilot');
+		assert.strictEqual(typeof signIn.command.title === 'string' ? signIn.command.title : signIn.command.title.value, 'Sign in with GitHub');
 	});
 
 	test('uses the shared Chat setup flow for Copilot sign-in', async () => {
