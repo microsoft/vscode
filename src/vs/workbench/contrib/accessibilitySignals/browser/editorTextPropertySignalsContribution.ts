@@ -149,7 +149,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 					const newValueAtPosition = s.source.isPresentAtPosition(args.position, reader);
 					const newValueOnLine = s.source.isPresentOnLine(args.position.lineNumber, reader);
 
-					if (lastValueAtPosition !== undefined && lastValueAtPosition !== undefined) {
+					if (lastValueAtPosition !== undefined && lastValueOnLine !== undefined) {
 						if (!lastValueAtPosition && newValueAtPosition) {
 							trigger(s.property, s.source, 'positional');
 						}
