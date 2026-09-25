@@ -240,12 +240,15 @@ export interface IAgentHostGitService {
 	 */
 	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
 	/**
-	 * Copies the git-ignored files matching `globs` into the worktree.
-	 * `onProgress` counts the individual files covered, but only fires as whole
-	 * entries finish — a wholly-ignored directory such as `node_modules` is
-	 * copied as one recursive unit, so its files all land in a single step.
+	 * Copies the git-ignored files matching `patterns` into the worktree.
+	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
+	 * matched by git itself. `sessionId` scopes the temporary files used while
+	 * matching. `onProgress` counts the individual files covered, but only
+	 * fires as whole entries finish — a wholly-ignored directory such as
+	 * `node_modules` is copied as one recursive unit, so its files all land in
+	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session

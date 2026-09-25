@@ -25,10 +25,11 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -37,6 +38,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -51,6 +53,7 @@ import { registerBuiltInChatContributions } from '../../node/chatContributions/b
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -875,6 +878,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostWorktreeIsolation, worktree],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostPeerChatPersistenceService, {
+			_serviceBrand: undefined,
+			setArchived: async () => { },
+		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
@@ -903,6 +910,24 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
 	return { service, stateManager, database: usageDatabase, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService };
+}
+
+function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
+	const metadata = options?.metadata ?? withRemoteSessionOrigin(stateManager.getSessionState(session)?._meta, {
+		session: 'remote-origin-copilot:/source',
+		chat: 'remote-origin-copilot:/source#original-chat',
+		depth: 1,
+	});
+	stateManager.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: metadata });
+	stateManager.dispatchServerAction(session, {
+		type: ActionType.SessionActiveClientSet,
+		activeClient: {
+			clientId: 'remote-reply-client',
+			tools: options?.enabled === false ? [] : [{ name: SendRemoteMessageToolReferenceName, description: 'Reply', inputSchema: { type: 'object' } }],
+			customizations: [],
+		},
+	});
+	return metadata;
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1053,6 +1078,53 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(first, firstAgain);
 		assert.deepStrictEqual([first.get(), second.get(), factoryCalls], [1, 2, 2]);
 		contributions.dispose();
+	});
+
+	test('chat archive contribution persists accepted peer chat actions and logs failures', async () => {
+		const session = 'agent-host-session://archive';
+		const peerChat = buildChatUri(session, 'peer');
+		const failingChat = buildChatUri(session, 'failing-peer');
+		const persisted: { session: string; chat: string; archived: boolean }[] = [];
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error, ...args: unknown[]): void {
+				errors.push([message, ...args].map(value => String(value)).join(' '));
+			}
+		};
+		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
+			_serviceBrand: undefined,
+			setArchived: async (session: URI, chat: URI, archived: boolean) => {
+				if (chat.toString() === failingChat) {
+					throw new Error('write failed');
+				}
+				persisted.push({ session: session.toString(), chat: chat.toString(), archived });
+			},
+		};
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(ChatArchiveContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: false }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'rejected'));
+		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			persisted,
+			errors,
+		}, {
+			persisted: [
+				{ session, chat: peerChat, archived: true },
+				{ session, chat: peerChat, archived: false },
+			],
+			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+		});
 	});
 
 	test('deleteMemento drops a keyed entry so it is recreated from its factory', () => {
@@ -1608,6 +1680,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
 		const sideChat = buildChatUri(contributions.session, 'side');
 		contributions.stateManager.addChat(contributions.session, sideChat, {
 			title: 'Side Chat',
@@ -1630,12 +1703,97 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<terminal_chat>')) {
 				return 'chatSurface';
 			}
+			if (instruction.includes('<remote_session_origin>')) {
+				return 'remoteSessionOrigin';
+			}
 			if (instruction === 'rename instruction') {
 				return 'sessionTitle';
 			}
 			return undefined;
-		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
+		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('supplies stable remote reply instructions on every turn without changing the task text', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const messages = ['Exact initial task', 'Exact follow-up task'].map(text => ({ text, origin: { kind: MessageKind.Agent } }));
+		const results: IOutgoingTurnContributionResult[] = [];
+		for (const [index, message] of messages.entries()) {
+			results.push(await contributions.service.outgoingTurn({
+				session: contributions.session, chat: buildDefaultChatUri(contributions.session), message, turnId: `${index}`,
+			}));
+		}
+		const instruction = results[0].instructions?.[0] ?? '';
+		assert.deepStrictEqual({
+			messages: results.map(result => result.message),
+			stableInstructions: results[0].instructions?.length === 1 && results[0].instructions[0] === results[1].instructions?.[0],
+			exactOrigin: instruction.includes('session "origin"') && instruction.includes('exact originating chat'),
+			toolDiscovery: instruction.includes('Load send_remote_message with tool search if needed'),
+			noPolling: instruction.includes('do not sleep or poll'),
+			noRetry: instruction.includes('Do not retry uncertain delivery'),
+		}, { messages, stableInstructions: true, exactOrigin: true, toolDiscovery: true, noPolling: true, noRetry: true });
+	});
+
+	test('remote reply guidance requires reports for delegated work without acknowledgement loops', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session, chat: buildDefaultChatUri(contributions.session),
+			message: { text: 'Check whether the repository exists', origin: { kind: MessageKind.Agent } }, turnId: 'report-back',
+		});
+		const instruction = result.instructions?.[0] ?? '';
+		assert.deepStrictEqual({
+			noImplicitForwarding: instruction.includes('Final answers are not forwarded'),
+			requiredBeforeFinishing: instruction.includes('send_remote_message with session "origin" before ending your turn'),
+			followUps: instruction.includes('including follow-ups'),
+			noReminderRequired: instruction.includes('For each delegated task'),
+			blockers: instruction.includes('results, blockers, or questions'),
+			explicitOptOut: instruction.includes('unless explicitly told not to report back'),
+			noAcknowledgementLoop: instruction.includes('Do not acknowledge messages with no new task or question'),
+			honestDelivery: instruction.includes('Only claim delivery after "sent" or "queued"'),
+			visibleFailure: instruction.includes('report failures here'),
+		}, {
+			noImplicitForwarding: true, requiredBeforeFinishing: true, followUps: true, noReminderRequired: true,
+			blockers: true, explicitOptOut: true, noAcknowledgementLoop: true, honestDelivery: true, visibleFailure: true,
+		});
+	});
+
+	test('restores remote reply guidance from session metadata independently of compacted history', async () => {
+		const first = createBuiltInContributions(disposables);
+		const metadata = configureRemoteSessionReply(first.stateManager, first.session);
+		const restoredMetadata: Record<string, unknown> = JSON.parse(JSON.stringify(metadata));
+		const restored = createBuiltInContributions(disposables);
+		configureRemoteSessionReply(restored.stateManager, restored.session, { metadata: restoredMetadata });
+		await restored.service.hydrateTurns({ session: restored.session, chat: buildDefaultChatUri(restored.session) }, [hydrationTurn('compacted-history')]);
+		const message: Message = { text: 'Continue the exact task', origin: { kind: MessageKind.Agent } };
+		const result = await restored.service.outgoingTurn({
+			session: restored.session, chat: buildDefaultChatUri(restored.session), message, turnId: 'restored-turn',
+		});
+		assert.deepStrictEqual({
+			message: result.message,
+			hasReplyGuidance: result.instructions?.some(instruction => instruction.includes('<remote_session_origin>')),
+			requiresReport: result.instructions?.some(instruction => instruction.includes('send_remote_message with session "origin" before ending your turn')),
+		}, { message, hasReplyGuidance: true, requiresReport: true });
+	});
+
+	test('omits remote reply guidance when the origin or enabled reply tool is absent', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const turn: IOutgoingTurn = {
+			session: contributions.session, chat: buildDefaultChatUri(contributions.session),
+			message: { text: 'Task', origin: { kind: MessageKind.User } }, turnId: 'guidance-gates',
+		};
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { metadata: {} });
+		const noOrigin = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { enabled: false });
+		const noTool = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session);
+		const enabled = await contributions.service.outgoingTurn(turn);
+		configureRemoteSessionReply(contributions.stateManager, contributions.session, { enabled: false });
+		const disabledAgain = await contributions.service.outgoingTurn(turn);
+		assert.deepStrictEqual([noOrigin, noTool, enabled, disabledAgain].map(result =>
+			result.instructions?.some(instruction => instruction.includes('<remote_session_origin>')) ?? false,
+		), [false, false, true, false]);
 	});
 
 	test('awaits external session adoption before later outgoing contributions', async () => {
@@ -2283,12 +2441,17 @@ suite('AgentHostChatContributions', () => {
 
 	test('rejects incoming requests for archived sessions and read-only chats', () => {
 		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const archivedChat = createBuiltInContributions(disposables);
+		const archivedPeerChat = buildChatUri(archivedChat.session, 'archived');
+		archivedChat.stateManager.addChat(archivedChat.session, archivedPeerChat, { title: 'Archived' });
+		archivedChat.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		const readOnly = createBuiltInContributions(disposables);
 		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
 		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
 
 		assert.deepStrictEqual({
 			archived: archived.service.incomingRequest(incomingRequest(archived.session)),
+			archivedChat: archivedChat.service.incomingRequest(incomingRequest(archivedChat.session, archivedPeerChat)),
 			readOnly: readOnly.service.incomingRequest(incomingRequest(readOnly.session, readOnlyChat)),
 		}, {
 			archived: {
@@ -2296,6 +2459,14 @@ suite('AgentHostChatContributions', () => {
 				error: {
 					errorType: 'archived',
 					message: 'This session is archived and read-only. Restore the session to continue the conversation.',
+				},
+				stage: 'validation',
+			},
+			archivedChat: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This chat is archived and read-only. Restore the chat to continue the conversation.',
 				},
 				stage: 'validation',
 			},

@@ -128,11 +128,9 @@ export interface IWorkspacePickerNoWorkspaceOption {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
-	readonly tooltip?: string | (() => string);
+	readonly tooltip?: string;
 	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	readonly icon?: ThemeIcon;
-	readonly contextViewLayer?: number;
-	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -569,17 +567,6 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
-	/**
-	 * Renders another trigger without replacing the primary picker controls.
-	 */
-	renderAdditionalTrigger(container: HTMLElement, options: IWorkspacePickerTrigger): IDisposable {
-		const disposables = new DisposableStore();
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
-		disposables.add({ dispose: () => slot.remove() });
-		disposables.add(this._addTrigger(slot, options));
-		return disposables;
-	}
-
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
@@ -645,11 +632,10 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
 			if (options.focusCommand) {
-				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
 				registerPickerKeybindingPresentation(
 					triggerDisposables,
 					trigger,
-					tooltip,
+					options.tooltip,
 					options.focusCommand.id,
 					options.focusCommand.when,
 					options.focusCommand.enabled,
@@ -659,10 +645,7 @@ export class WorkspacePicker extends Disposable {
 					this.keybindingService,
 				);
 			} else {
-				const tooltip = options.tooltip;
-				triggerDisposables.add(typeof tooltip === 'function'
-					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
-					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
+				triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -883,7 +866,6 @@ export class WorkspacePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			this._buildListOptions(items, undefined),
-			this._triggerOptions.get(triggerElement)?.contextViewLayer,
 		);
 	}
 
@@ -923,7 +905,6 @@ export class WorkspacePicker extends Disposable {
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
-			contextViewLayer: this._triggerOptions.get(triggerElement)?.contextViewLayer,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
 	}
@@ -1599,16 +1580,21 @@ export class WorkspacePicker extends Disposable {
 				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
 				|| !repositoryId
 				|| !localRepositoryIds?.has(repositoryId));
-		const orderedRecentWorkspaceEntries = (this._useConsolidatedRemoteWorkspaces()
+		const orderByWorkspaceKind = (entries: typeof recentWorkspaceEntries) => this._useConsolidatedRemoteWorkspaces()
 			? [
-				...recentWorkspaceEntries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
-				...recentWorkspaceEntries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+				...entries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+				...entries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			]
-			: recentWorkspaceEntries)
+			: entries;
+		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace))
 			.slice(0, useRemoteSubmenu ? MAX_UNIFIED_RECENT_WORKSPACES : undefined);
+		const orderedRecentWorkspaceEntries = [
+			...recentEntries,
+			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
+		];
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
-		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
+		for (const { workspace, providerId, repositoryId, isSessionWorkspace } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -1640,7 +1626,7 @@ export class WorkspacePicker extends Disposable {
 				disabled: this._isProviderUnavailable(providerId),
 				item,
 				submenuActions,
-				onRemove: () => this._removeRecentWorkspace(folderUri),
+				onRemove: isSessionWorkspace ? undefined : () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 
@@ -1868,10 +1854,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		const hideNoWorkspaceOption = this._activeTriggerElement
-			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
-			: false;
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true || hideNoWorkspaceOption) {
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
 			return items;
 		}
 
@@ -2378,7 +2361,18 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces (sessions' own history) --
 
 	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		return this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces());
+		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces());
+		const seen = new Set(recentWorkspaces.map(({ workspace }) =>
+			this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri)));
+		const sessionWorkspaces = (this._sessionWorkspaceFallback?.getWorkspaces() ?? []).filter(({ workspace }) => {
+			const key = this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri);
+			if (seen.has(key)) {
+				return false;
+			}
+			seen.add(key);
+			return true;
+		});
+		return [...recentWorkspaces, ...sessionWorkspaces];
 	}
 
 	protected _removeRecentWorkspace(folderUri: URI): void {

@@ -42,10 +42,11 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -3416,6 +3417,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects independent archive actions for the default chat', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(defaultChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				sessionArchived: ((getStateManager(svc).getSessionState(session.toString())?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+				sessionArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for tool chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const toolChat = buildChatUri(session, 'tool');
+			getStateManager(svc).addChat(session.toString(), toolChat, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(toolChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(toolChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
+		test('rejects independent archive actions for side chats', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const sideChat = buildChatUri(session, 'side');
+			getStateManager(svc).addChat(session.toString(), sideChat, {
+				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(sideChat, {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatArchived: ((getStateManager(svc).getChatState(sideChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+			}, {
+				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				chatArchived: false,
+			});
+		});
+
 		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -4624,6 +4705,65 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
+		test('remote session origin and cumulative depth survive creation, listing and host restoration', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const agent = disposables.add(new MockAgent('copilot'));
+			const creating = createService();
+			registerTestAgentProvider(creating, agent);
+			const origin = { session: 'remote-source-copilot:/parent', chat: 'remote-source-copilot:/parent#peer', depth: 2 };
+			const session = await creating.createSession({ provider: 'copilot', _meta: withRemoteSessionOrigin(undefined, origin) });
+			const created = getStateManager(creating).getSessionState(session.toString());
+			const persisted = await perSession.database(session).getMetadata(REMOTE_SESSION_ORIGIN_METADATA_KEY);
+
+			agent.sessionMetadataOverrides = { _meta: {} };
+			const restoredService = createService();
+			registerTestAgentProvider(restoredService, agent);
+			const listed = (await restoredService.listSessions()).find(candidate => isEqual(candidate.session, session));
+			assert.ok(listed);
+			await restoredService.restoreSession(session);
+			const restored = getStateManager(restoredService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				createdOrigin: readRemoteSessionOrigin(created),
+				createdDepth: readRemoteSessionDepth(created),
+				persisted,
+				listedOrigin: readRemoteSessionOrigin(listed),
+				listedDepth: readRemoteSessionDepth(listed),
+				restoredOrigin: readRemoteSessionOrigin(restored),
+				restoredDepth: readRemoteSessionDepth(restored),
+			}, {
+				createdOrigin: origin,
+				createdDepth: 2,
+				persisted: JSON.stringify(origin),
+				listedOrigin: origin,
+				listedDepth: 2,
+				restoredOrigin: origin,
+				restoredDepth: 2,
+			});
+		});
+
+		test('remote session origin persistence failure rolls back creation', async () => {
+			const db = new class extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[REMOTE_SESSION_ORIGIN_METADATA_KEY]) {
+						throw new Error('Remote origin persistence failed');
+					}
+					return super.setMetadataValues(values);
+				}
+			}();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(creating, agent);
+			const origin = { session: 'agent-host-copilot:/parent', chat: 'agent-host-copilot:/parent', depth: 1 };
+			await assert.rejects(creating.createSession({ provider: 'copilot', _meta: withRemoteSessionOrigin(undefined, origin) }), /Remote origin persistence failed/);
+			assert.deepStrictEqual(await agent.listSessions(), []);
+		});
+
 
 		test('creates session via specified provider', async () => {
 			registerTestAgentProvider(service, copilotAgent);
@@ -7869,6 +8009,39 @@ suite('AgentService (node dispatcher)', () => {
 					{ session: hostCreated.toString(), external: false, source: 'restore' },
 				].sort((a, b) => a.session.localeCompare(b.session)),
 			);
+		});
+
+		test('discovery keeps a workspace-less external session external across rediscovery', async () => {
+			const sessionData = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			const session = AgentSession.uri('copilot', 'workspaceless-external');
+			const chat: IAgentDiscoveredChat = {
+				...discoveredChat(session),
+				workingDirectories: [URI.file('/home/user/.copilot/chats/2026-09-23/app-chat')],
+				_meta: withSessionWorkspaceless(undefined, true),
+			};
+			const internals = svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>; _sessionRegistry: AgentSessionRegistry };
+
+			await internals._registerDiscoveredChats(agent, [chat]);
+			// Stale-external pruning unregisters the row but keeps the session database.
+			await internals._sessionRegistry.unregister(session);
+			await internals._registerDiscoveredChats(agent, [chat]);
+
+			const registered = (await internals._sessionRegistry.list()).find(entry => entry.session.toString() === session.toString());
+			const listed = (await svc.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+			assert.deepStrictEqual({
+				registered: { external: registered?.external, source: registered?.source },
+				workspaceless: readSessionWorkspaceless(listed?._meta),
+				persistedHostMarker: await sessionData.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				registered: { external: true, source: 'discovery' },
+				workspaceless: true,
+				persistedHostMarker: undefined,
+			});
 		});
 
 		test('rediscovery advances recency without overwriting durable unread state for an existing external session', async () => {
@@ -19444,6 +19617,39 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('central chat catalog excludes ordinary tool-origin peer rows', async () => {
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const session = AgentSession.uri('copilot', 'tool-origin-peer');
+			const peer = buildChatUri(session, 'peer');
+			const toolChat = buildChatUri(session, 'spawned-tool');
+			await catalogDatabase.registerRuntimeSession(session.toString(), {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const replacement = await catalogDatabase.replaceSessionChatCatalog(session.toString(), [
+				{ chat: peer, order: 0 },
+				{
+					chat: toolChat,
+					order: 1,
+					origin: JSON.stringify({ kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-call' }),
+				},
+			], undefined);
+			assert.strictEqual(replacement.status, 'applied');
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+
+			const chats = await (localService as unknown as {
+				_readCentralChatCatalog(session: URI): Promise<readonly { readonly uri: string }[] | undefined>;
+			})._readCentralChatCatalog(session);
+
+			assert.deepStrictEqual(chats?.map(chat => chat.uri), [buildDefaultChatUri(session), peer]);
+		});
+
 		test('lossy cached peer recovery preserves provider backing data from legacy enumeration', async () => {
 			class LossyFallbackDatabase extends AgentHostDatabase {
 				hiddenCatalogReads = 0;
@@ -20910,6 +21116,40 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('onDidChangeChatData does not persist tool-origin chats as peer membership', async () => {
+			const onDidChangeChatData = disposables.add(new Emitter<IAgentChatDataChange>());
+			class MultiChatAgent extends MockAgent {
+				override readonly onDidChangeChatData = onDidChangeChatData.event;
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerUri);
+
+			const toolCallId = 'tool-1';
+			const toolChatUri = URI.parse(buildSubagentChatUri(session.toString(), toolCallId));
+			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId },
+			});
+			onDidChangeChatData.fire({ chat: toolChatUri, providerData: 'tool-backing' });
+			onDidChangeChatData.fire({ chat: peerUri, providerData: 'peer-backing-v2' });
+			for (let i = 0; i < 50; i++) {
+				const persisted = await readCatalog(db);
+				if (persisted.find(entry => entry.uri === peerUri.toString())?.providerData === 'peer-backing-v2') {
+					break;
+				}
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual((await readCatalog(db)).map(entry => entry.uri), [peerUri.toString()]);
+		});
+
 		test('disposeChat removes the chat from the persisted catalog', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
@@ -21342,6 +21582,38 @@ suite('AgentService (node dispatcher)', () => {
 				legacyCalls: 0,
 				peerInCatalog: true,
 				legacyInCatalog: false,
+			});
+		});
+
+		test('restore removes transcript-discovered subagents from persisted peer membership', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const toolCallId = 'tc-sub';
+			const toolChatUri = buildSubagentChatUri(session.toString(), toolCallId);
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: toolChatUri, providerData: 'tool-backing' }]));
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId, name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId, toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId, agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_complete', session, toolCallId, result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found 3 issues' }] } },
+			];
+			getStateManager(localService).deleteSession(session.toString());
+
+			await localService.restoreSession(session);
+
+			const state = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				persistedPeers: await readCatalog(db),
+				restoredToolChats: state?.chats
+					.filter(chat => chat.origin?.kind === ChatOriginKind.Tool)
+					.map(chat => chat.resource),
+			}, {
+				persistedPeers: [],
+				restoredToolChats: [toolChatUri],
 			});
 		});
 		// ---- RV-1: legacy migration persists the catalog atomically ----------

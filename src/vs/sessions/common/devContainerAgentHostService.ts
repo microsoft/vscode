@@ -13,6 +13,8 @@ import { createDecorator } from '../../platform/instantiation/common/instantiati
 /** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
 
+export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idleTimeout';
+
 /** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
 export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
 

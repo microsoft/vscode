@@ -26,7 +26,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -39,6 +39,7 @@ suite('Dev Container Agent Host Connector', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	// Capture these before configuration registry tests clear global registrations.
 	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
+	const devContainerIdleTimeoutProperty = configurationRegistry.getConfigurationProperties()[DevContainerIdleTimeoutSettingId];
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
 
 	test('requires Docker and a default Dev Container configuration', async () => {
@@ -420,6 +421,20 @@ suite('Dev Container Agent Host Connector', () => {
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['onExP'],
 			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('registers a five-minute Dev Container idle timeout in seconds', () => {
+		assert.deepStrictEqual({
+			type: devContainerIdleTimeoutProperty.type,
+			default: devContainerIdleTimeoutProperty.default,
+			minimum: devContainerIdleTimeoutProperty.minimum,
+			scope: devContainerIdleTimeoutProperty.scope,
+		}, {
+			type: 'integer',
+			default: 300,
+			minimum: 0,
+			scope: ConfigurationScope.APPLICATION,
 		});
 	});
 

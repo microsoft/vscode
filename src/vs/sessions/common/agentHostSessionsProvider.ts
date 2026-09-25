@@ -110,6 +110,8 @@ export interface IAgentHostMcpServer {
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
 	stop(): Promise<void>;
+	/** Continues a blocking startup in the background when the host supports it. */
+	background?(): Promise<void>;
 	setEnabled(enabled: boolean): void;
 }
 

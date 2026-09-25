@@ -101,7 +101,7 @@ import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile,
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
 import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
@@ -1155,6 +1155,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private readonly _accountRefreshSequencer = new Sequencer();
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
+	private _openAIAccountRateLimits: ICodexAccountInfo['rateLimits'];
 	private _openAIAccountRateLimitUpdatedAt: number | undefined;
 	private _openAIAccountRateLimitRequest = 0;
 	private _openAIAccountProfileImage: ICodexAccountInfo['profileImage'];
@@ -1434,6 +1435,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			&& previousState.email === state.email;
 		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
+			this._openAIAccountRateLimits = undefined;
 			this._openAIAccountRateLimitUpdatedAt = undefined;
 			this._openAIAccountRateLimitRequest++;
 			this._openAIAccountProfileImage = undefined;
@@ -1545,6 +1547,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			profileImage: state.authType === 'chatgpt' ? this._openAIAccountProfileImage : undefined,
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
+			rateLimits: state.authType === 'chatgpt' ? this._openAIAccountRateLimits : undefined,
 		};
 	}
 
@@ -1989,17 +1992,16 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _buildCustomizationLaunch(session: ICodexSession): Promise<ICodexCustomizationLaunch> {
 		const plugins = this._enabledClientPlugins(session);
-		const [workspaceAgents, workspaceSkills] = await Promise.all([
+		const [workspaceAgents, workspaceSkills, skillReadRoots] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
 			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
+			this._customizationReadRoots(session, plugins),
 		]);
 		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const developerInstructions = [
 			customization.developerInstructions,
 			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
 		].filter(instruction => instruction.length > 0).join('\n\n');
-		const skillReadRoots = distinctAbsolutePaths(plugins
-			.flatMap(plugin => plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? [])).sort();
 		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
 		let skillPermissionProfile: string | undefined;
 		if (skillReadRoots.length) {
@@ -2047,6 +2049,39 @@ export class CodexAgent extends Disposable implements IAgent {
 			selectedCapabilityRoots,
 			signature,
 		};
+	}
+
+	/** Include native skill resources and enabled plugin packages without downgrading workspace access. */
+	private async _customizationReadRoots(session: ICodexSession, plugins: readonly ICodexClientPlugin[]): Promise<string[]> {
+		const connection = await this._ensureConnection();
+		const skills = await this._fetchSkills(session, connection.client);
+		const roots = distinctAbsolutePaths((skills?.data ?? []).flatMap(entry =>
+			(entry.skills ?? []).filter(skill => skill.enabled).map(skill => dirname(skill.path))));
+		const pluginRoots = plugins.flatMap(plugin => plugin.synced.pluginDir
+			? [plugin.synced.pluginDir.fsPath]
+			: plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? []);
+		const config = this._readSessionConfig(session.configurationResource);
+		const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+		const mode = session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode;
+		const workspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, mode) ?? [];
+		const canonicalUri = async (path: string): Promise<URI> => URI.file(await fs.promises.realpath(path).catch(() => path));
+		const [canonicalRoots, canonicalPluginRoots, canonicalWorkspaceRoots, pluginCacheRoot] = await Promise.all([
+			Promise.all(roots.map(canonicalUri)),
+			Promise.all(pluginRoots.map(canonicalUri)),
+			Promise.all(workspaceRoots.map(canonicalUri)),
+			canonicalUri(this._pluginManager.basePath.fsPath),
+		]);
+		// Synced cache paths follow this session's plugin enablement, even if a
+		// native catalog also discovers a cached skill.
+		const readableRoots = [
+			...canonicalRoots.filter(root => !extUriBiasedIgnorePathCase.isEqualOrParent(root, pluginCacheRoot)),
+			...canonicalPluginRoots,
+		];
+		// A more-specific read entry would override an existing workspace write
+		// grant. Canonicalize both sides so symlinked skills retain that access.
+		return distinctAbsolutePaths(readableRoots
+			.filter(root => !canonicalWorkspaceRoots.some(workspace => extUriBiasedIgnorePathCase.isEqualOrParent(root, workspace)))
+			.map(root => root.fsPath)).sort();
 	}
 
 	private _enabledClientPlugins(session: ICodexSession): readonly ICodexClientPlugin[] {
@@ -3378,7 +3413,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (request !== this._openAIAccountRateLimitRequest || !this._isCurrentChatGPTAccountClient(client, accountEmail)) {
 				return;
 			}
-			this._openAIAccountRateLimit = codexAccountRateLimitFromResponse(response);
+			this._openAIAccountRateLimits = codexAccountRateLimitsFromResponse(response);
+			this._openAIAccountRateLimit = this._openAIAccountRateLimits[0];
 			this._openAIAccountRateLimitUpdatedAt = this._openAIAccountRateLimit ? Date.now() : undefined;
 			this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
 		} catch (error) {
@@ -7711,12 +7747,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/** Fetch the native skill catalog for every workspace root. */
+	private async _fetchSkills(session: ICodexSession, client: ICodexAppServerClient): Promise<SkillsListResponse | undefined> {
+		const skills = await client.request<'skills/list', SkillsListResponse>('skills/list', {
+			cwds: this._workingDirectories(session).map(directory => directory.fsPath),
+		}).catch(err => { this._logService.warn(`[Codex] skills/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; });
+		return session.managedWorkingDirectory && skills
+			? { ...skills, data: skills.data.map(entry => ({ ...entry, skills: entry.skills.filter(skill => skill.scope !== 'repo') })) }
+			: skills;
+	}
+
 	/**
-	 * Fetches the skills and hooks codex has loaded for `session`'s working
-	 * directory (`skills/list` + `hooks/list`, both cwd-scoped) and projects
-	 * them into {@link DirectoryCustomization} containers. Best-effort: returns
-	 * an empty array when no connection is ready, no working directory is known,
-	 * or the app-server rejects the request.
+	 * Projects native skills and primary-workspace hooks into customization
+	 * containers. Best-effort when no connection or working directory is known.
 	 */
 	private async _fetchSkillHookContainers(session: ICodexSession): Promise<DirectoryCustomization[]> {
 		if (this._connection.kind !== 'ready' || !session.workingDirectory) {
@@ -7725,18 +7768,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		const cwd = session.workingDirectory.fsPath;
 		const client = this._connection.client;
 		const [skills, hooks] = await Promise.all([
-			client.request<'skills/list', SkillsListResponse>('skills/list', { cwds: [cwd] })
-				.catch(err => { this._logService.warn(`[Codex] skills/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; }),
+			this._fetchSkills(session, client),
 			client.request<'hooks/list', HooksListResponse>('hooks/list', { cwds: [cwd] })
 				.catch(err => { this._logService.warn(`[Codex] hooks/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; }),
 		]);
-		const effectiveSkills = session.managedWorkingDirectory && skills
-			? { ...skills, data: skills.data.map(entry => ({ ...entry, skills: entry.skills.filter(skill => skill.scope !== 'repo') })) }
-			: skills;
 		const effectiveHooks = session.managedWorkingDirectory && hooks
 			? { ...hooks, data: hooks.data.map(entry => ({ ...entry, hooks: entry.hooks.filter(hook => hook.source !== 'project') })) }
 			: hooks;
-		return [...codexSkillsToContainers(effectiveSkills), ...codexHooksToContainers(effectiveHooks)];
+		return [...codexSkillsToContainers(skills), ...codexHooksToContainers(effectiveHooks)];
 	}
 
 	/** Builds per-thread project-hook grants bound to the current Workspace Trust snapshot. */

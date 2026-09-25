@@ -19,7 +19,7 @@ import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
@@ -86,6 +86,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			experiment: { mode: 'auto' }
 		},
+		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			description: localize('sessions.list.showArchivedByDefault', "Controls whether the Done or Archived section is shown by default in the sessions list. This default is ignored after the corresponding filter is changed."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
 			tags: ['preview'],
@@ -99,7 +107,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
 			type: 'boolean',
-			tags: ['preview'],
 			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
 			default: true,
 			experiment: { mode: 'auto' }

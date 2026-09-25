@@ -259,12 +259,7 @@ suite('codexMapAppServerEvents', () => {
 				outputTokens: 6,
 				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
-				_meta: {
-					reasoningOutputTokens: 2,
-					modelContextWindow: 200000,
-					turnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
-					directTurnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
-				},
+				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
 			},
 		}]);
 	});

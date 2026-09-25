@@ -42,6 +42,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
+import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -57,7 +58,6 @@ import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/a
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
 const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
-const DEV_CONTAINER_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const CACHED_SESSIONS_STORAGE_PREFIX_LEGACY = 'remoteAgentHost.cachedSessions.';
@@ -349,6 +349,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
 			}
+			if (e.affectsConfiguration(DevContainerIdleTimeoutSettingId)) {
+				this._devContainerIdleScheduler.cancel();
+				this._devContainerIdleSince = undefined;
+				this._scheduleDevContainerStopIfIdle();
+			}
 		}));
 		this._register(autorun(reader => this.setAuthenticationPending(authenticationPending.read(reader))));
 	}
@@ -489,18 +494,23 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	private _scheduleDevContainerStopIfIdle(): void {
-		if (!this._devContainerLifecycle || !this.connection || this._store.isDisposed) {
+		const idleTimeoutMs = this._configurationService.getValue<number>(DevContainerIdleTimeoutSettingId) * 1000;
+		if (!this._devContainerLifecycle || !this.connection || this._store.isDisposed || idleTimeoutMs <= 0) {
 			this._devContainerIdleScheduler.cancel();
 			this._devContainerIdleSince = undefined;
 			return;
 		}
+		const previousIdleSince = this._devContainerIdleSince;
 		if (this._isDevContainerIdle()) {
 			this._devContainerIdleSince ??= Date.now();
 		} else {
 			this._devContainerIdleSince = undefined;
 		}
-		if (!this._devContainerIdleCheckRunning && !this._devContainerIdleScheduler.isScheduled()) {
-			this._devContainerIdleScheduler.schedule();
+		if (!this._devContainerIdleCheckRunning && (!this._devContainerIdleScheduler.isScheduled() || previousIdleSince !== this._devContainerIdleSince)) {
+			const delay = this._devContainerIdleSince === undefined
+				? DEV_CONTAINER_IDLE_POLL_INTERVAL_MS
+				: Math.min(DEV_CONTAINER_IDLE_POLL_INTERVAL_MS, Math.max(0, idleTimeoutMs - (Date.now() - this._devContainerIdleSince)));
+			this._devContainerIdleScheduler.schedule(delay);
 		}
 	}
 
@@ -516,9 +526,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._devContainerIdleCheckRunning = true;
 		let stopped = false;
 		try {
-			if (this._devContainerLifecycle && this._isDevContainerIdle()
+			const idleTimeoutMs = this._configurationService.getValue<number>(DevContainerIdleTimeoutSettingId) * 1000;
+			if (this._devContainerLifecycle && idleTimeoutMs > 0 && this._isDevContainerIdle()
 				&& this._devContainerIdleSince !== undefined
-				&& Date.now() - this._devContainerIdleSince >= DEV_CONTAINER_IDLE_TIMEOUT_MS) {
+				&& Date.now() - this._devContainerIdleSince >= idleTimeoutMs) {
 				this._devContainerIdleSince = undefined;
 				stopped = await this._devContainerLifecycle.stop();
 			}
@@ -905,6 +916,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
 		this._devContainerIdleSince = undefined;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
@@ -943,6 +955,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
 		this.updateResourceLabelHomes();
