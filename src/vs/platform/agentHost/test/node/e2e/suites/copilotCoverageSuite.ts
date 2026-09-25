@@ -171,8 +171,8 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return { toolNames: [...starts.values()], responseText: getMarkdownResponseText(context.client) };
 	}
 
-	// Windows retains the provider scratch directory after session disposal.
-	(context.isWindows ? test.skip : test)('workspaceless session uses and cleans up a provider scratch directory', async function () {
+	// Release-only skip for the catalog-write/disposal race fixed on main in https://github.com/microsoft/vscode/pull/337566.
+	test.skip('workspaceless session uses and cleans up a provider scratch directory', async function () {
 		this.timeout(180_000);
 		const sessionUri = await createWorkspacelessSession('workspaceless-scratch');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-workspaceless-scratch', 'Reply exactly "ready".', 1);
