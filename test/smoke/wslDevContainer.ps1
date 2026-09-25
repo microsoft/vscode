@@ -229,17 +229,32 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 }
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
-$importStartTime = Get-Date
-$importOutput = & $wsl --import $Distribution $install $archive --version 2 2>&1
-$importExitCode = $LASTEXITCODE
-if ($importExitCode -ne 0) {
+# The hosted WSL2 utility VM sometimes stops right after boot, failing the import with -1, so retry.
+$maxImportAttempts = 3
+for ($importAttempt = 1; ; $importAttempt++) {
+	$importStartTime = Get-Date
+	$importOutput = & $wsl --import $Distribution $install $archive --version 2 2>&1
+	$importExitCode = $LASTEXITCODE
+	if ($importExitCode -eq 0) {
+		break
+	}
 	$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
 	New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
-	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution.log"
-	@("WSL2 kernel installer exit code: $($installer.ExitCode)", "Import exit code: $importExitCode", 'Import output:') + @($importOutput | ForEach-Object { "$_" -replace "`0", '' }) |
+	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution-attempt-$importAttempt.log"
+	@("Import attempt: $importAttempt of $maxImportAttempts", "WSL2 kernel installer exit code: $($installer.ExitCode)", "Import exit code: $importExitCode", 'Import output:') + @($importOutput | ForEach-Object { "$_" -replace "`0", '' }) |
 		Tee-Object -FilePath $diagnosticsPath
 	Write-WslDiagnostics $importStartTime $install | Tee-Object -FilePath $diagnosticsPath -Append
-	throw "Explicit WSL2 import failed with exit code $importExitCode. WSL1 is not supported by this test."
+	if ($importAttempt -ge $maxImportAttempts) {
+		throw "Explicit WSL2 import failed with exit code $importExitCode after $importAttempt attempts. WSL1 is not supported by this test."
+	}
+	Write-Warning "Explicit WSL2 import attempt $importAttempt failed with exit code $importExitCode. Resetting WSL before retrying."
+	# Drop any partial registration and stop the utility VM before starting again from an empty directory.
+	& $wsl --unregister $Distribution 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
+	& $wsl --shutdown 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
+	Write-Host "wsl --shutdown exit code: $LASTEXITCODE"
+	Remove-Item -LiteralPath $install -Recurse -Force
+	New-Item -ItemType Directory -Path $install | Out-Null
+	Start-Sleep -Seconds (10 * $importAttempt)
 }
 $importOutput | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
 Invoke-Wsl 'uname -a; cat /etc/os-release'

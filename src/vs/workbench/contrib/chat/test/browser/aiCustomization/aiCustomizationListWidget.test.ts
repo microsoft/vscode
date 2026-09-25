@@ -12,19 +12,16 @@ import { derived, observableValue } from '../../../../../../base/common/observab
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -43,14 +40,12 @@ suite('aiCustomizationListWidget', () => {
 			instructions: usesCustomizationTreePresentation(AICustomizationManagementSection.Instructions),
 			hooks: usesCustomizationTreePresentation(AICustomizationManagementSection.Hooks),
 			prompts: usesCustomizationTreePresentation(AICustomizationManagementSection.Prompts),
-			promptsKeepCardLayout: usesCustomizationCardLayout(AICustomizationManagementSection.Prompts),
 		}, {
 			agents: true,
 			skills: true,
 			instructions: true,
 			hooks: true,
-			prompts: false,
-			promptsKeepCardLayout: true,
+			prompts: true,
 		});
 	});
 
@@ -575,10 +570,13 @@ suite('aiCustomizationListWidget', () => {
 		let instaService: TestInstantiationService;
 		const searchBarHeight = 40;
 		const headerHeight = 30;
+		const searchBarMargin = 16;
 		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
 			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
 			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
 			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+			Object.defineProperty(widget.element, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: 0 }) });
+			Object.defineProperty(widget.element.querySelector('.list-container')!, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: headerHeight + searchBarHeight + searchBarMargin }) });
 		};
 
 		const descriptor: IHarnessDescriptor = {
@@ -683,7 +681,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '414px');
 		});
 
 		test('falls back to supplied layout height when rendered container height is 0', () => {
@@ -695,7 +693,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
@@ -732,20 +730,15 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
 				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
 				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
-				workspaceTabSelected: widget.element.querySelector('.customization-tree-tab.checked')?.getAttribute('aria-selected'),
 			}, {
 				badgeDisplay: 'none',
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
-				workspaceTabSelected: 'true',
 			});
 		});
 
-		test('tree layout replaces rows when switching customization pages', async () => {
-			instaService.stub(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.ChatCustomizationsListLayout]: 'tree',
-			}));
+		test('replaces tree rows when switching customization pages', async () => {
 			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
 				id: 'agent-one',
 				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
@@ -872,7 +865,6 @@ suite('aiCustomizationListWidget', () => {
 				list.dispatchEvent(new FocusEvent('focus'));
 				const focusedList = listService.lastFocusedList;
 				assert(focusedList);
-				await focusedList.focusNext(1, false, new KeyboardEvent('keydown'));
 				const activeDescendant = list.getAttribute('aria-activedescendant');
 				const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
 
@@ -888,7 +880,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 		}
 
-		test('async section rerenders update the selected group tree', async () => {
+		test('async section rerenders update the grouped tree', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);
 			let completeLoading!: () => void;
 			const loading = new Promise<void>(resolve => completeLoading = resolve);
@@ -930,25 +922,14 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(500, 800);
 
-			const tabs = Array.from(widget.element.querySelectorAll<HTMLElement>('.customization-tree-tab'), tab => ({
-				label: tab.firstChild?.textContent,
-				count: tab.querySelector('.customization-tab-count')?.textContent,
-				selected: tab.getAttribute('aria-selected'),
-			}));
-			const workspaceRowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
-			widget.element.querySelectorAll<HTMLElement>('.customization-tree-tab')[1].click();
-			const userRowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
+			const groups = Array.from(widget.element.querySelectorAll<HTMLElement>('.group-label'), label => label.textContent);
+			const rowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
 			assert.deepStrictEqual({
-				tabs,
-				workspaceRowCount,
-				userRowCount,
+				groups,
+				rowCount,
 			}, {
-				tabs: [
-					{ label: 'Workspace', count: '4', selected: 'true' },
-					{ label: 'User', count: '2', selected: 'false' },
-				],
-				workspaceRowCount: 4,
-				userRowCount: 2,
+				groups: ['Workspace', 'User'],
+				rowCount: 6,
 			});
 		});
 	});

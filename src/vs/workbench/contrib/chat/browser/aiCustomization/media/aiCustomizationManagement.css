@@ -258,15 +258,12 @@
 .plugin-list-widget > .section-title-header,
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
-.plugin-list-widget > .customization-tree-tabs,
 .plugin-list-widget > .mcp-list-container,
 .ai-customization-list-widget > .section-title-header,
 .ai-customization-list-widget > .list-search-and-button-container,
-.ai-customization-list-widget > .customization-tree-tabs,
 .ai-customization-list-widget > .list-container,
 .tools-list-widget > .section-title-header,
 .tools-list-widget > .tools-list-search-and-button-container,
-.tools-list-widget > .tools-tree-tabs,
 .tools-list-widget > .tools-list-tree {
 	width: min(100%, 840px);
 	margin-inline: auto;
@@ -451,131 +448,14 @@
 	flex: 1;
 }
 
-.customization-tree-tabs {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	height: var(--vscode-spacing-size320);
-	margin-bottom: var(--vscode-spacing-size80);
-	box-sizing: border-box;
-	flex-shrink: 0;
-}
-
-.customization-tree-tabs.actions-only {
-	justify-content: flex-end;
-}
-
-.customization-tree-tabs.actions-only .customization-tree-tabs-list {
-	display: none;
-}
-
-.customization-tree-tabs-list {
-	min-width: 0;
-	overflow: hidden;
-}
-
-.customization-tree-tabs-list .monaco-action-bar {
-	overflow: hidden;
-}
-
-.customization-tree-tabs-list .actions-container {
-	gap: var(--vscode-spacing-size40);
-}
-
-.customization-tree-tabs-list .action-item {
-	padding: 0;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	height: var(--vscode-spacing-size240);
-	padding: 0 var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--vscode-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	opacity: 0.8;
-	white-space: nowrap;
-	box-sizing: border-box;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab:hover {
-	background-color: var(--vscode-modernTab-hoverBackground, var(--vscode-toolbar-hoverBackground));
-	opacity: 1;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	background-color: var(--vscode-modernTab-activeBackground, var(--vscode-toolbar-hoverBackground));
-	color: var(--vscode-modernTab-activeForeground, var(--vscode-foreground));
-	opacity: 1;
-}
-
-.hc-black .customization-tree-tabs-list .action-label.customization-tree-tab.checked,
-.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-}
-
-.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
-	background-color: transparent;
-}
-
-.customization-tree-tabs-list .action-label.customization-tree-tab:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.customization-tree-tab .customization-tab-count {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	min-height: var(--vscode-spacing-size160);
-	padding: 0 var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-	line-height: var(--vscode-spacing-size160);
-	box-sizing: border-box;
-}
-
-.hc-black .customization-tree-tab .customization-tab-count,
-.hc-light .customization-tree-tab .customization-tab-count {
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-}
-
-.customization-tree-tab-actions {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	height: 100%;
-}
-
-.customization-tree-tab-actions .plugin-card-section-actions,
-.customization-tree-tab-actions .list-button-group {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-}
-
 .customization-tree-container .monaco-list-row,
 .ai-customization-list-widget .list-container .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .customization-tree-container .monaco-list-row .group-chevron,
-.ai-customization-list-widget .list-container .monaco-list-row .group-chevron,
-.tree-layout .group-chevron {
+.ai-customization-list-widget .list-container .monaco-list-row .group-chevron {
 	display: none;
-}
-
-.tabs-layout .monaco-tl-twistie {
-	width: 0;
-	padding: 0;
-	transform: none;
 }
 
 .customization-tree-container .monaco-list-row .plugin-list-item:hover,
@@ -592,12 +472,6 @@
 
 .ai-customization-list-widget .list-container .ai-customization-list-item {
 	padding-inline: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-}
-
-.ai-customization-list-widget.tabs-layout .list-container .ai-customization-list-item,
-.plugin-list-widget.tabs-layout .mcp-list-container .plugin-list-item,
-.mcp-list-widget.tabs-layout .mcp-list-container .mcp-server-item {
-	padding-left: var(--vscode-spacing-size40);
 }
 
 .ai-customization-list-widget .list-container {
@@ -1241,6 +1115,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .mcp-list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget .plugin-card-scroll,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .section-title-header,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-marketplace-back-container,
@@ -1264,7 +1139,6 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
 	max-width: none;
@@ -3168,14 +3042,6 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
-	background-color: transparent;
-}
-
-.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
 .plugin-list-widget .virtualized-section-list .monaco-list-row:not(:first-child) {
 	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
@@ -3186,10 +3052,6 @@ per-word capitalization does not survive translation. */
 	background: transparent;
 	border-radius: 0;
 	cursor: pointer;
-}
-
-.plugin-list-widget .plugin-home-row.customization-home-row.disabled {
-	opacity: 0.6;
 }
 
 .plugin-list-widget .customization-card-primary-action {
@@ -3209,16 +3071,6 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	align-self: stretch;
 	flex: 1;
-}
-
-.plugin-list-widget .customization-row-primary {
-	display: flex;
-	align-items: center;
-	align-self: stretch;
-	flex: 1;
-	min-width: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
 }
 
 .plugin-list-widget .customization-card-primary-action:focus-visible,
@@ -3403,10 +3255,6 @@ per-word capitalization does not survive translation. */
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
-.plugin-list-widget .customization-home-row:hover {
-	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 65%, transparent);
-}
-
 /* The enablement switch is the shared `Switch` widget; its styling lives in base. */
 
 .plugin-list-widget .plugin-list-item-install-button {
@@ -3510,8 +3358,7 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .available-mcp-servers-section .plugin-card-section-header,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-header,
-.plugin-list-widget.narrow-layout .customization-card-section .plugin-card-section-header {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-header {
 	align-items: stretch;
 	flex-wrap: wrap;
 }
@@ -3519,21 +3366,13 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-actions,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-card-section-actions,
 .plugin-list-widget.narrow-layout .available-mcp-servers-section .plugin-card-section-actions,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-actions,
-.plugin-list-widget.narrow-layout .customization-card-section .plugin-card-section-actions {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-card-section-actions {
 	width: 100%;
 }
 
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-available-action,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-installed-action,
-.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-installed-action,
-.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action,
-.plugin-list-widget.narrow-layout .customization-card-section .customization-generate-action {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
-.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action > .monaco-button {
+.plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-installed-action {
 	flex: 1 1 auto;
 	min-width: 0;
 }

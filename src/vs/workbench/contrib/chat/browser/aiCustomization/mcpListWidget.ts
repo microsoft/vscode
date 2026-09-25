@@ -12,6 +12,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -68,7 +69,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
-import { asTreeRenderer, CustomizationListLayout, CustomizationTreeTabs, getCustomizationListLayout, getSelectedCustomizationGroup, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
@@ -1432,7 +1433,6 @@ export class McpListWidget extends Disposable {
 	private cardScrollable!: DomScrollableElement;
 	private cardScrollableNode!: HTMLElement;
 	private sectionLayoutContainer: HTMLElement | undefined;
-	private treeTabs!: CustomizationTreeTabs;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchObjectTree<IMcpSectionEntry>;
 	private emptyContainer!: HTMLElement;
@@ -1450,7 +1450,6 @@ export class McpListWidget extends Disposable {
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
-	private selectedGroupKey: string | undefined;
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IMcpSectionEntry>[] = [];
 	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
@@ -1542,10 +1541,6 @@ export class McpListWidget extends Disposable {
 			}
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
-			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsListLayout)) {
-				this.renderMcpTree();
-				this.layout(this.lastHeight, this.lastWidth);
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
@@ -1641,12 +1636,6 @@ export class McpListWidget extends Disposable {
 			}
 		}));
 
-		this.treeTabs = this._register(new CustomizationTreeTabs(this.element, localize('mcpServerGroups', "MCP Server Groups")));
-		this._register(this.treeTabs.onDidSelect(groupKey => {
-			this.selectedGroupKey = groupKey;
-			this.renderMcpTree();
-		}));
-
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
@@ -1711,7 +1700,9 @@ export class McpListWidget extends Disposable {
 			],
 			{
 				indent: 8,
+				renderIndentGuides: RenderIndentGuides.None,
 				hideTwistiesOfChildlessElements: false,
+				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
@@ -1883,7 +1874,6 @@ export class McpListWidget extends Disposable {
 		}
 		this.searchInput.value = '';
 		this.searchQuery = '';
-		this.selectedGroupKey = 'available';
 		void this.queryGallerySnapshot(true);
 	}
 
@@ -1925,7 +1915,7 @@ export class McpListWidget extends Disposable {
 			this.renderMcpHome();
 			if (revealMarketplace) {
 				const group = this.currentTreeGroups.find(group => group.id === 'available');
-				if (group && getCustomizationListLayout(this.configurationService) === CustomizationListLayout.Tree) {
+				if (group) {
 					this.list?.reveal(group.element);
 				}
 			}
@@ -2131,59 +2121,37 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderMcpTree(): void {
-		if (!this.treeTabs || !this.list) {
+		if (!this.list) {
 			return;
 		}
 
 		const showGallery = !this.isGalleryDiscoveryEnabled();
-		const layout = getCustomizationListLayout(this.configurationService);
-		this.element.classList.toggle('tabs-layout', layout === CustomizationListLayout.Tabs);
-		this.element.classList.toggle('tree-layout', layout === CustomizationListLayout.Tree);
 		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
-		const grouped = new Map<string, IMcpSectionEntry[]>([
-			['user', []],
-			['workspace', []],
-			['plugins', []],
-			['extensions', []],
-			['builtin', []],
-			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
-		]);
-
-		for (const entry of allInstalledEntries) {
-			grouped.get(getMcpEntryGroup(entry))!.push(entry);
-		}
-
-		const tabDefinitions = [
-			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
-			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
-			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins."), icon: Codicon.plug },
-			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
-			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
-			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
-		].filter(group => group.id === 'available'
-			? showGallery
-			: group.id === 'user' || group.id === 'workspace' || grouped.get(group.id)!.length > 0);
-		const definitions = layout === CustomizationListLayout.Tree
-			? [
-				{
-					id: 'installed',
-					label: localize('installedMcpServersSection', "Installed"),
-					description: localize('installedMcpServersSectionDescription', "MCP servers installed or provided by the active workspace, plugins, extensions, and agent host."),
-					icon: mcpServerIcon,
-				},
-				...tabDefinitions.filter(group => group.id === 'available'),
-			]
-			: tabDefinitions;
+		const definitions = [
+			{
+				id: 'installed',
+				label: localize('installedMcpServersSection', "Installed"),
+				description: localize('installedMcpServersSectionDescription', "MCP servers installed or provided by the active workspace, plugins, extensions, and agent host."),
+				icon: mcpServerIcon,
+				entries: allInstalledEntries,
+			},
+			...(showGallery ? [{
+				id: 'available',
+				label: localize('availableMcpServersSection', "Available"),
+				description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."),
+				icon: Codicon.globe,
+				entries: this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item' as const, server })),
+			}] : []),
+		];
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
-			const entries = group.id === 'installed' ? allInstalledEntries : grouped.get(group.id)!;
 			const element: IMcpGroupHeaderEntry = {
 				type: 'group-header',
 				id: `mcp-group-${group.id}`,
 				group: group.id,
 				label: group.label,
 				icon: group.icon,
-				count: entries.length,
+				count: group.entries.length,
 				isFirst: index === 0,
 				description: group.description,
 				collapsed: false,
@@ -2192,39 +2160,23 @@ export class McpListWidget extends Disposable {
 				id: group.id,
 				label: group.label,
 				description: group.description,
-				count: entries.length,
+				count: group.entries.length,
 				element,
-				children: entries,
+				children: group.entries,
 			};
 		});
 
 		this.cardScrollableNode.style.display = 'none';
 		this.cardDisposables.clear();
-		this.treeTabs.clearActions();
-		this.treeTabs.element.classList.remove('actions-only');
-		this.treeTabs.element.style.display = layout === CustomizationListLayout.Tabs ? '' : 'none';
-		if (layout === CustomizationListLayout.Tabs) {
-			const selected = getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey);
-			this.selectedGroupKey = selected?.id;
-			if (selected) {
-				this.treeTabs.setGroups(this.currentTreeGroups, selected.id);
-				if (selected.id === 'user' || selected.id === 'workspace') {
-					this.renderInstalledSectionActions(this.treeTabs.actionsElement);
-				}
-				this.list.setChildren(null, selected.children.map(element => ({ element })));
-				this.updateMcpTreeEmptyState(selected.children.length);
-			}
-		} else {
-			const children: IObjectTreeElement<IMcpSectionEntry>[] = this.currentTreeGroups.map(group => ({
-				element: group.element,
-				collapsible: true,
-				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: group.children.map(element => ({ element })),
-			}));
-			this.list.setChildren(null);
-			this.list.setChildren(null, children);
-			this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
-		}
+		const children: IObjectTreeElement<IMcpSectionEntry>[] = this.currentTreeGroups.map(group => ({
+			element: group.element,
+			collapsible: true,
+			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: group.children.map(element => ({ element })),
+		}));
+		this.list.setChildren(null);
+		this.list.setChildren(null, children);
+		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
 	}
 
 	private updateMcpTreeEmptyState(itemCount: number): void {
@@ -2249,9 +2201,6 @@ export class McpListWidget extends Disposable {
 	}
 
 	private getVisibleMcpEntries(): readonly IMcpSectionEntry[] {
-		if (getCustomizationListLayout(this.configurationService) === CustomizationListLayout.Tabs) {
-			return getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey)?.children ?? [];
-		}
 		return this.currentTreeGroups.flatMap(group => [group.element, ...group.children]);
 	}
 
@@ -2263,13 +2212,8 @@ export class McpListWidget extends Disposable {
 		this.renderMcpTree();
 	}
 
-	private renderInstalledSectionActions(header: HTMLElement): void {
-		this.renderInstalledSectionActionsWithDisposables(header, this.cardDisposables);
-	}
-
 	private renderMcpTreeGroupActions(entry: IMcpGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (getCustomizationListLayout(this.configurationService) !== CustomizationListLayout.Tree
-			|| entry.group !== 'installed') {
+		if (entry.group !== 'installed') {
 			return;
 		}
 		this.renderInstalledSectionActionsWithDisposables(container, disposables);
@@ -2685,8 +2629,7 @@ export class McpListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const tabsHeight = this.treeTabs.element.style.display === 'none' ? 0 : this.treeTabs.element.offsetHeight;
-		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight - tabsHeight);
+		const listHeight = getCustomizationTreeContentHeight(this.element, this.listContainer, availableHeight);
 
 		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
