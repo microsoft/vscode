@@ -39,6 +39,34 @@
 	inset-inline: 0;
 }
 
+/* The group owns the connected frame; the outer card only reserves its space. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) {
+	border-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container {
+	position: relative;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
+	border-top-color: var(--modern-ui-connected-tab-border);
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill {
+	background-clip: border-box;
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
 	height: var(--vscode-spacing-size320);

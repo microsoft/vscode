@@ -10,6 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
 import { renderSessionsEmptyState } from '../../browser/parts/sessionsEmptyState.js';
 import '../../browser/parts/media/editorPart.css';
+import '../../browser/media/workbench.css';
+import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
@@ -20,6 +26,101 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 
 suite('Sessions - EditorPart', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('connected detail tabs join a single card frame without transparent corner gaps', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
+		for (const [name, value] of Object.entries({
+			'--vscode-spacing-size20': '2px',
+			'--vscode-spacing-size40': '4px',
+			'--vscode-spacing-size60': '6px',
+			'--vscode-spacing-size80': '8px',
+			'--vscode-spacing-size200': '20px',
+			'--vscode-cornerRadius-small': '4px',
+			'--vscode-cornerRadius-large': '8px',
+			'--vscode-strokeThickness': '1px',
+			'--vscode-editorGroupHeader-tabsBorder': '#445566',
+			'--vscode-agentsPanel-border': '#abcdef',
+			'--vscode-focusBorder': '#00ff00',
+			'--vscode-contrastBorder': '#ffffff',
+		})) {
+			workbench.style.setProperty(name, value);
+		}
+		const grid = appendElement(workbench, 'monaco-grid-view');
+		const card = appendElement(grid, 'part editor editor-tabs-multiple');
+		const content = appendElement(card, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		group.style.width = '358px';
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const scrollable = appendElement(row, 'monaco-scrollable-element');
+		const tabs = appendElement(scrollable, 'tabs-container');
+		const first = appendElement(tabs, 'tab active connected-tab-top-row');
+		const firstFill = appendElement(first, 'tab-fill');
+		const second = appendElement(tabs, 'tab connected-tab-top-row');
+		const secondFill = appendElement(second, 'tab-fill');
+		appendElement(group, 'editor-container').style.height = '96px';
+
+		try {
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				for (const active of [true, false]) {
+					group.classList.toggle('active', active);
+					const border = theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : 'rgb(68, 85, 102)';
+					for (const compact of [false, true]) {
+						title.classList.toggle('compact-height', compact);
+						for (const zoom of [0.8, 1, 1.25]) {
+							workbench.style.zoom = String(zoom);
+							for (const firstActive of [true, false]) {
+								first.classList.toggle('active', firstActive);
+								second.classList.toggle('active', !firstActive);
+								const fill = firstActive ? firstFill : secondFill;
+								const cap = mainWindow.getComputedStyle(fill);
+								const frame = mainWindow.getComputedStyle(group, '::after');
+								assert.deepStrictEqual({
+									outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
+									frame: [frame.borderTopColor, frame.borderRightColor, frame.borderBottomColor, frame.borderLeftColor],
+									frameInsets: [frame.top, frame.right, frame.bottom, frame.left],
+									frameRadius: frame.borderRadius,
+									frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
+									framePointerEvents: frame.pointerEvents,
+									capTop: fill.getBoundingClientRect().top - group.getBoundingClientRect().top,
+									capBorder: cap.borderTopColor,
+									firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
+									firstLeftBorder: mainWindow.getComputedStyle(firstFill).borderLeftColor,
+								}, {
+									outerBorder: 'rgba(0, 0, 0, 0)',
+									frame: [border, border, border, border],
+									frameInsets: ['0px', '0px', '0px', '0px'],
+									frameRadius: '7px',
+									frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
+									framePointerEvents: 'none',
+									capTop: 0,
+									capBorder: border,
+									firstBackgroundClip: 'border-box',
+									firstLeftBorder: 'rgba(0, 0, 0, 0)',
+								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
+							}
+						}
+					}
+				}
+				workbench.classList.remove(theme);
+			}
+
+			for (const excluded of ['phone-layout', 'modal-editor-part']) {
+				const target = excluded === 'phone-layout' ? workbench : card;
+				target.classList.add(excluded);
+				assert.strictEqual(mainWindow.getComputedStyle(group, '::after').content, 'none');
+				target.classList.remove(excluded);
+			}
+			workbench.classList.remove('modern-ui-connected-editor-tabs');
+			assert.deepStrictEqual({
+				frame: mainWindow.getComputedStyle(group, '::after').content,
+				outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
+			}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
+		} finally {
+			workbench.remove();
+		}
+	});
 
 	test('constrains the Browser navbar to the editor header height', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench dock-detail-panel');
