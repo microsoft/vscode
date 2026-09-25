@@ -32,6 +32,17 @@ suite('MarkdownString', () => {
 		assert.strictEqual(mds.value, '\\#&nbsp;foo\n\n\\*bar\\*');
 	});
 
+	test('appendText escapes both angle brackets #316998', () => {
+		const inputs = ['<div>text</div>', '<span', '\\<span>', '1 < 2 > 0', '<first>\n<second>'];
+		assert.deepStrictEqual(inputs.map(input => new MarkdownString().appendText(input).value), [
+			'\\<div\\>text\\</div\\>',
+			'\\<span',
+			'\\\\\\<span\\>',
+			'1&nbsp;\\<&nbsp;2&nbsp;\\>&nbsp;0',
+			'\\<first\\>\n\n\\<second\\>',
+		]);
+	});
+
 	test('appendLink', function () {
 
 		function assertLink(target: string, label: string, title: string | undefined, expected: string) {
