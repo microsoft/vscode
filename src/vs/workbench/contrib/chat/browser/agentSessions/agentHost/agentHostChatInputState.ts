@@ -5,6 +5,8 @@
 
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -88,10 +90,15 @@ export class AgentHostChatInputState extends Disposable {
 			id: this._notificationId,
 			telemetryId: 'agentHost.chatInput',
 			severity: ChatInputNotificationSeverity.Error,
-			message: checking ? localize('agentHost.checkingConversationTitle', "Checking Conversation") : locked ? localize('agentHost.conversationInUse', "Conversation in Use") : localize('agentHost.conversationUnavailable', "Conversation Unavailable"),
+			icon: locked || checking ? Codicon.lock : undefined,
+			message: checking ? localize('agentHost.checkingConversationTitle', "Checking Conversation") : locked ? localize('agentHost.conversationInUse', "This chat is open in another app") : localize('agentHost.conversationUnavailable', "Conversation Unavailable"),
 			description: checking
 				? localize('agentHost.checkingConversation', "Checking whether this conversation is available…")
-				: locked ? localize('agentHost.codexWriterLockRetry', "{0} Select Retry to continue in VS Code.", codexWriterLockMessage()) : localize('agentHost.prepareChatFailed', "Couldn't prepare this conversation. Select Retry to try again. {0}", error?.message ?? ''),
+				: locked ? new MarkdownString()
+					.appendMarkdown(escapeMarkdownSyntaxTokens(localize('agentHost.codexWriterLockExplanation', "The other app has locked this chat. It must release the lock before you can continue here.")))
+					.appendMarkdown('  \n')
+					.appendMarkdown(escapeMarkdownSyntaxTokens(localize('agentHost.codexWriterLockRetry', "Quit the other app (e.g. ChatGPT, Codex CLI), then retry.")))
+					: localize('agentHost.prepareChatFailed', "Couldn't prepare this conversation. Select Retry to try again. {0}", error?.message ?? ''),
 			actions: checking ? [] : [{
 				kind: ChatInputNotificationActionKind.Command,
 				label: localize('agentHost.retryPreparation', "Retry"),
