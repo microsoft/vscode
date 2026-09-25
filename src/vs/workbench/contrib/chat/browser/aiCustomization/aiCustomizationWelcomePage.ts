@@ -8,7 +8,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -113,11 +113,11 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting));
+		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.sources);
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
 	}
 
 	private createImplementation(): void {

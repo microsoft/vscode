@@ -544,8 +544,8 @@ suite('SessionChatInputToolbar', () => {
 				branches: ['main', 'feature/rich-hover'],
 				branchArrowAriaHidden: 'true',
 				branchControls: [
-					{ tagName: 'BUTTON', ariaLabel: 'Copy base branch main' },
-					{ tagName: 'BUTTON', ariaLabel: 'Copy head branch feature/rich-hover' },
+					{ tagName: 'BUTTON', ariaLabel: 'Copy Base Branch main' },
+					{ tagName: 'BUTTON', ariaLabel: 'Copy Head Branch feature/rich-hover' },
 				],
 				unresolvedLabel: 'Recorded pull request title',
 				unresolvedBadge: '#332982',
@@ -767,7 +767,7 @@ suite('SessionChatInputToolbar', () => {
 		visibility.toggle(SessionChatPillKind.Subagents);
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 		const read = () => ({
-			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
+			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent),
 			visible: toolbar.visible,
 		});
 
@@ -840,7 +840,7 @@ suite('SessionChatInputToolbar', () => {
 				document.body.appendChild(toolbar.element);
 				store.add(toDisposable(() => toolbar.element.remove()));
 				toolbar.setSession(session, chat);
-				const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+				const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent);
 				const openMenu = (target: HTMLElement) => {
 					menuActions = [];
 					target.dispatchEvent(keyboard

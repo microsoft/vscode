@@ -132,6 +132,7 @@ export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSessi
 /** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
+export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
@@ -284,7 +285,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
 		case CUSTOMIZATIONS_SECTION_ID:
-			return Codicon.settingsGear;
+			return Codicon.extensions;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -491,8 +492,6 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 //#region Sessions Header Renderer
 
 interface ISessionsHeaderTemplate {
-	readonly container: HTMLElement;
-	readonly isSticky: boolean;
 	readonly disposables: DisposableStore;
 }
 
@@ -500,76 +499,36 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	static readonly TEMPLATE_ID = 'sessions-header';
 	readonly templateId = SessionsHeaderRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'sessions-list-header-row';
-	private elementToRefocusAfterRerender: HTMLElement | undefined;
-	private sourceContainer: HTMLElement | undefined;
 
 	constructor(
-		private readonly header: HTMLElement,
-		private readonly headerContainer: HTMLElement,
-		private readonly layoutHeader: () => void,
+		private readonly createHeader: (container: HTMLElement, disposables: DisposableStore) => void,
+		private readonly findOpen: IObservable<boolean>,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionsHeaderTemplate {
 		const disposables = new DisposableStore();
 		container.classList.add('sessions-list-header', this.rowClassName);
+		this.createHeader(container, disposables);
 		for (const eventType of [DOM.EventType.POINTER_DOWN, DOM.EventType.CLICK, DOM.EventType.CONTEXT_MENU]) {
 			disposables.add(DOM.addDisposableListener(container, eventType, event => event.stopPropagation()));
 		}
-		return { container, isSticky: container.classList.contains('monaco-tree-sticky-row'), disposables };
-	}
-
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
-		if (isSessionSection(node.element) && node.element.id === SESSIONS_HEADER_SECTION_ID) {
-			if (!template.isSticky) {
-				this.sourceContainer = template.container;
+		disposables.add(autorun(reader => {
+			const hidden = this.findOpen.read(reader);
+			container.style.visibility = hidden ? 'hidden' : '';
+			container.style.pointerEvents = hidden ? 'none' : '';
+			const row = container.closest<HTMLElement>('.monaco-list-row');
+			if (hidden) {
+				row?.setAttribute('aria-hidden', 'true');
+			} else {
+				row?.removeAttribute('aria-hidden');
 			}
-			template.container.append(this.header);
-			if (this.elementToRefocusAfterRerender) {
-				const activeElement = DOM.getActiveElement();
-				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
-					this.elementToRefocusAfterRerender.focus({ preventScroll: true });
-				}
-				this.elementToRefocusAfterRerender = undefined;
-			}
-			this.layoutHeader();
-		}
+		}));
+		return { disposables };
 	}
 
-	private preserveFocusedElement(): void {
-		const activeElement = DOM.getActiveElement();
-		if (DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.header)) {
-			this.elementToRefocusAfterRerender = activeElement;
-		}
-	}
-
-	private restoreHeader(template: ISessionsHeaderTemplate): void {
-		if (this.header.parentElement !== template.container) {
-			return;
-		}
-		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
-		const restoredToSource = target !== this.headerContainer;
-		target.append(this.header);
-		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
-		if (restoredToSource) {
-			this.elementToRefocusAfterRerender = undefined;
-		}
-		this.layoutHeader();
-	}
-
-	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
-		this.preserveFocusedElement();
-		if (!template.isSticky && this.sourceContainer === template.container) {
-			this.sourceContainer = undefined;
-		}
-		this.restoreHeader(template);
-	}
+	renderElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionsHeaderTemplate): void { }
 
 	disposeTemplate(template: ISessionsHeaderTemplate): void {
-		this.preserveFocusedElement();
-		if (!template.isSticky && this.sourceContainer === template.container) {
-			this.sourceContainer = undefined;
-		}
-		this.restoreHeader(template);
 		template.disposables.dispose();
 	}
 }
@@ -1959,6 +1918,7 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly migrationIndicator: HTMLElement;
 	readonly count: HTMLElement;
 	readonly newBadge: HTMLElement;
 	readonly chevron: HTMLElement;
@@ -2019,6 +1979,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
+		private readonly customizationsCount: IObservable<number> = constObservable(0),
+		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
 	) { }
@@ -2037,7 +1999,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
-		const label = DOM.append(container, $('span.session-section-label'));
+		const labelContainer = DOM.append(container, $('span.session-section-label-container'));
+		const label = DOM.append(labelContainer, $('span.session-section-label'));
+		const migrationIndicator = DOM.append(labelContainer, $('span.session-section-migration-indicator'));
+		migrationIndicator.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(container, $('span.session-section-count'));
 		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
 		newBadge.setAttribute('aria-hidden', 'true');
@@ -2086,7 +2051,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, migrationIndicator, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -2099,7 +2064,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
+		template.migrationIndicator.classList.remove('visible');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
@@ -2116,6 +2083,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			renderSessionHeaderToolbar(template, element, this.select);
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+			template.container.classList.add('session-section-customizations');
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
 				template.container.classList.toggle('active', active);
@@ -2125,6 +2093,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				} else {
 					row?.removeAttribute('aria-current');
 				}
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				template.count.textContent = String(this.customizationsCount.read(reader));
+				template.count.style.display = '';
+				template.migrationIndicator.classList.toggle('visible', this.customizationMigrationsAvailable.read(reader));
 			}));
 		}
 
@@ -2168,12 +2141,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
-		if (this.hideSectionCount || shortcut) {
-			template.count.textContent = '';
-			template.count.style.display = 'none';
-		} else {
-			template.count.textContent = String(element.sessions.length);
-			template.count.style.display = '';
+		if (element.id !== CUSTOMIZATIONS_SECTION_ID) {
+			if (this.hideSectionCount || shortcut) {
+				template.count.textContent = '';
+				template.count.style.display = 'none';
+			} else {
+				template.count.textContent = String(element.sessions.length);
+				template.count.style.display = '';
+			}
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
@@ -2482,6 +2457,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
+	readonly customizationsCount?: IObservable<number>;
+	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
@@ -2536,6 +2513,17 @@ class SessionsAccessibilityProvider {
 					return this.options?.automationNewBadgeVisible?.read(reader)
 						? localize('automationsNewFeatureAria', "{0}, new feature", label)
 						: label;
+				});
+			}
+			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+				return derived(this, reader => {
+					const count = this.options?.customizationsCount?.read(reader) ?? 0;
+					const countLabel = count === 1
+						? localize('customizationCountAria', "1 customization")
+						: localize('customizationsCountAria', "{0} customizations", count);
+					return this.options?.customizationMigrationsAvailable?.read(reader)
+						? localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel)
+						: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
 				});
 			}
 			if (isShortcutSection(element.id)) {
@@ -3056,7 +3044,11 @@ interface ISessionsListControlBaseOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
+	readonly customizationsCount?: IObservable<number>;
+	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly findWidgetContainer?: HTMLElement;
+	readonly createSessionsHeader?: (container: HTMLElement, disposables: DisposableStore) => HTMLElement;
+	readonly onDidScroll?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -3076,15 +3068,7 @@ interface ISessionsListControlBaseOptions {
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
 
-export type ISessionsListControlOptions = ISessionsListControlBaseOptions & ({
-	readonly sessionsHeader: HTMLElement;
-	readonly sessionsHeaderContainer: HTMLElement;
-	readonly layoutSessionsHeader?: () => void;
-} | {
-	readonly sessionsHeader?: undefined;
-	readonly sessionsHeaderContainer?: undefined;
-	readonly layoutSessionsHeader?: undefined;
-});
+export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
 
 /**
  * @deprecated Use {@link ISessionsListControlOptions} instead.
@@ -3173,7 +3157,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
-	private readonly findFocusRestore = this._register(new MutableDisposable());
 	/**
 	 * Reactively reconciles each chat row's virtualized height with its live
 	 * approval and workspace state. Owned by the list (not the row templates), so
@@ -3239,6 +3222,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
+	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
+	private readonly sessionsHeaders = new Set<HTMLElement>();
+	private readonly findOpen = observableValue(this, false);
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3303,9 +3289,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
-		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
-			throw new Error('Sessions header and its container must be provided together.');
-		}
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
@@ -3315,7 +3298,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.excludedStatuses = this.loadExcludedStatuses();
 
 		// Load property filter state
-		this._excludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
+		const storedExcludeArchived = this.storageService.get(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
+		this._excludeArchived = storedExcludeArchived === undefined
+			? this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING) !== true
+			: this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
 		this._showEmptyGroups = this.storageService.getBoolean(SessionsList.SHOW_EMPTY_GROUPS_KEY, StorageScope.PROFILE, true);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
@@ -3439,6 +3425,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
+		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
+		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -3453,6 +3441,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.customViewService,
 			this.menuService,
 			customizationsActive,
+			customizationsCount,
+			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,
 		);
@@ -3480,14 +3470,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
-			() => {
-				const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
-				return headerHeight ? headerHeight + SESSIONS_HEADER_VERTICAL_SPACING : 0;
-			},
+			() => this.getSessionsHeaderHeight(),
 		);
 		this._delegate = delegate;
-		const sessionsHeaderRenderer = this.options.sessionsHeader
-			? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
+		const sessionsHeaderRenderer = this.options.createSessionsHeader
+			? [new SessionsHeaderRenderer((container, disposables) => {
+				const header = this.options.createSessionsHeader!(container, disposables);
+				this.sessionsHeaders.add(header);
+				disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
+			}, this.findOpen)]
 			: [];
 
 		this.tree = this._register(instantiationService.createInstance(
@@ -3517,6 +3508,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
+					customizationsCount,
+					customizationMigrationsAvailable,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 				}),
@@ -3618,8 +3611,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: 'force-no-twistie',
 			}
 		));
+		this.tree.setFocusNavigationFilter(node => !this.findOpen.get()
+			|| !node.element
+			|| !isSessionSection(node.element)
+			|| node.element.id !== SESSIONS_HEADER_SECTION_ID);
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+		if (this.options.onDidScroll) {
+			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
+		}
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
 		// the session whose guides it belongs to, so hovering/selecting/focusing
@@ -3796,6 +3796,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this.tree.onDidChangeFindOpenState(open => {
 			isFindOpen = open;
+			this.findOpen.set(open, undefined);
 			this._onDidChangeFindOpenState.fire(open);
 			updateFindPatternState();
 		}));
@@ -3805,19 +3806,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// and the find widget is open. Opening the empty find widget should not
 		// reorder the list, and closing find should restore the capped layout.
 		this._register(this.tree.onDidChangeFindPattern(pattern => {
-			const activeElement = DOM.getActiveElement();
-			const elementToRefocus = this.options.sessionsHeader && DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.options.sessionsHeader)
-				? activeElement
-				: undefined;
 			findPattern = pattern;
 			updateFindPatternState();
-			if (elementToRefocus) {
-				this.findFocusRestore.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(elementToRefocus), () => {
-					if (isFindOpen && elementToRefocus.isConnected) {
-						elementToRefocus.focus({ preventScroll: true });
-					}
-				});
-			}
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -4287,7 +4277,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(archivedSection));
 		}
 
-		if (showNavigationShortcuts && this.options.sessionsHeader) {
+		if (showNavigationShortcuts && this.options.createSessionsHeader) {
 			this.tree.setChildren(null, [
 				...navigationChildren,
 				{
@@ -4298,10 +4288,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			]);
 		} else {
-			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
-				this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);
-				this.options.layoutSessionsHeader?.();
-			}
 			this.tree.setChildren(null, [...navigationChildren, ...children]);
 		}
 		this.nestedSessionResources = nextNestedSessionResources;
@@ -4505,10 +4491,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	layout(height: number, width: number): void {
-		if (this.options.sessionsHeader && this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
+		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
 			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
 		}
 		this.tree.layout(height, width);
+	}
+
+	private getSessionsHeaderHeight(): number {
+		for (const header of this.sessionsHeaders) {
+			const headerHeight = header.offsetHeight;
+			if (headerHeight > 0) {
+				this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+				break;
+			}
+		}
+		return this.sessionsHeaderHeight;
 	}
 
 	setCompact(): void {
@@ -4561,12 +4558,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	updateNavigationVisibility(): void {
-		const activeElement = DOM.getActiveElement();
-		const elementToRefocus = this.options.sessionsHeader && DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.options.sessionsHeader)
-			? activeElement
-			: undefined;
 		this.update();
-		elementToRefocus?.focus({ preventScroll: true });
 	}
 
 	openFind(): void {

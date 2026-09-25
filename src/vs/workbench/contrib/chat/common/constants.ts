@@ -106,6 +106,7 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
@@ -142,6 +143,7 @@ export enum ChatConfiguration {
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
+	BtwTipEnabled = 'chat.btwTip.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -151,6 +153,11 @@ export enum ChatConfiguration {
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
+}
+
+export const enum ChatClosedPromoNotification {
+	None = 'none',
+	CopilotIconPopup = 'copilotIconPopup',
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
@@ -392,6 +399,9 @@ export function isNewChatSessionTypeUsable(
 	agentHostEnabled = true,
 	managedSandboxEnforced = false,
 ): boolean {
+	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+		return false;
+	}
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
@@ -592,7 +602,8 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
 
 function getVisibleNonLocalEditorChatSessionTypes(

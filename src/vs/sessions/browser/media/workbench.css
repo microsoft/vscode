@@ -272,9 +272,9 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
-	--part-background: var(--vscode-editor-background);
-	--vscode-sideBar-background: var(--vscode-editor-background);
-	background: var(--vscode-editor-background);
+	--part-background: var(--vscode-agentsDetail-background);
+	--vscode-sideBar-background: var(--vscode-agentsDetail-background);
+	background: var(--vscode-agentsDetail-background);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
@@ -309,7 +309,7 @@
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list-rows {
-	background-color: var(--vscode-editor-background);
+	background-color: var(--vscode-agentsDetail-background);
 }
 
 .agent-sessions-workbench .explorer-folders-view .monaco-list-row,

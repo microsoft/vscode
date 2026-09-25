@@ -26,6 +26,7 @@ suite('CustomizationMarketplaceIpc', () => {
 			id: 'agentFinder',
 			displayName: 'GitHub Feed',
 			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
+			requiresMarketplaceVisibility: true,
 		});
 	});
 

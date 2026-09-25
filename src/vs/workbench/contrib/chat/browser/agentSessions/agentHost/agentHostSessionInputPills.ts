@@ -114,9 +114,8 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
-function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
-	return artifact.isArtifact
-		&& artifact.type === type
+function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
+	return artifact.type === type
 		&& artifact.isGitHub === true
 		&& typeof artifact.link === 'string'
 		&& isGitHubArtifactLink(artifact.link);
@@ -130,15 +129,15 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta, sessionWorkingDirectory);
-	const artifactPullRequests = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
-	const artifactIssues = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
+	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
+	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
-	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
-	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
-	const pullRequestArtifacts = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry]));
-	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
-	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
-	const issueArtifacts = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry]));
+	const pullRequestUrls = dedupeLinks(recordedPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
+	const pullRequestTitles = new Map(recordedPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestArtifacts = new Map(recordedPullRequests.map(entry => [linkKey(entry.link), entry]));
+	const issueUrls = dedupeLinks(recordedIssues.map(entry => entry.link));
+	const issueTitles = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry.label]));
+	const issueArtifacts = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
@@ -312,6 +311,8 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		if (!entry) {
 			entry = this._createEntry<IGitHubIssueHoverModel>(target);
 			this._issues.set(key, entry);
+		}
+		if (!entry.subscription.value) {
 			this._initializeIssue(entry);
 		}
 		return entry.value;
@@ -323,6 +324,8 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		if (!entry) {
 			entry = this._createEntry<IPullRequestHoverDetails>(target);
 			this._pullRequests.set(key, entry);
+		}
+		if (!entry.subscription.value) {
 			this._initializePullRequest(entry);
 		}
 		return entry.value;
@@ -369,8 +372,9 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			}));
 			void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
 		}, error => {
-			if (!controller.signal.aborted) {
+			if (!controller.signal.aborted && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
+				entry.subscription.clear();
 			}
 		});
 	}
@@ -402,8 +406,9 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
 			void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
 		}, error => {
-			if (!controller.signal.aborted) {
+			if (!controller.signal.aborted && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
+				entry.subscription.clear();
 			}
 		});
 	}
@@ -451,7 +456,11 @@ function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullReque
 }
 
 function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
-	const checks = snapshot.checks.value?.checks;
+	const checksValue = snapshot.checks.value;
+	if (!checksValue || checksValue.headSha !== snapshot.core.value?.headSha) {
+		return undefined;
+	}
+	const checks = checksValue.checks;
 	if (!checks?.length) {
 		return undefined;
 	}
@@ -484,6 +493,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pullRequestHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
 	private readonly _issueHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
+	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -501,7 +511,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
-		const gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
+		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
@@ -556,7 +566,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const session = sessionState.read(reader);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
@@ -585,7 +596,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!state) {
 				return lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource) ? lastValue : undefined;
 			}
-			if (state.status !== ChangesetStatus.Ready && lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource)) {
+			if (state.status !== ChangesetStatus.Ready
+				&& state.status !== ChangesetStatus.Recomputing
+				&& lastValue?.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
@@ -628,7 +642,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					}
 				}
 			}
-			gitHubReferenceResolver.retain(
+			this._gitHubReferenceResolver.retain(
 				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
 				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
 			);
@@ -663,7 +677,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.pullRequestUrls,
 				'pullRequest',
 				reader,
-				gitHubReferenceResolver,
+				this._gitHubReferenceResolver,
 				gitHubState.read(reader),
 				currentMetadata.pullRequestTitles,
 				currentMetadata.pullRequestArtifacts,
@@ -681,7 +695,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.issueUrls,
 				'issue',
 				reader,
-				gitHubReferenceResolver,
+				this._gitHubReferenceResolver,
 				undefined,
 				currentMetadata.issueTitles,
 				currentMetadata.issueArtifacts,
@@ -812,10 +826,15 @@ export class AgentHostSessionInputPills extends Disposable {
 					hoverTabbableElements = hover.tabbableElements;
 					return hover.element;
 				}
+				const activeElement = getWindow(cached.element).document.activeElement;
+				const focusedIndex = cached.tabbableElements.findIndex(element => element === activeElement || element.contains(activeElement));
 				cached.element.className = hover.element.className;
 				cached.element.replaceChildren(...hover.element.childNodes);
 				cached.tabbableElements = hover.tabbableElements;
 				hoverTabbableElements = cached.tabbableElements;
+				if (focusedIndex >= 0) {
+					cached.tabbableElements[focusedIndex]?.focus();
+				}
 				return cached.element;
 			} : undefined;
 			const stateDescription = pullRequestDetails
@@ -837,8 +856,8 @@ export class AgentHostSessionInputPills extends Disposable {
 				toolbarActions: [withChatPillHoverLabel(toAction({
 					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
 					label: kind === 'pullRequest'
-						? localize('agentHostSessionPills.copyPullRequest', "Copy pull request URL")
-						: localize('agentHostSessionPills.copyIssue', "Copy issue URL"),
+						? localize('agentHostSessionPills.copyPullRequest', "Copy Pull Request URL")
+						: localize('agentHostSessionPills.copyIssue', "Copy Issue URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				}), chatPillCopyUrlHoverLabel)],
@@ -907,7 +926,7 @@ export class AgentHostSessionInputPills extends Disposable {
 						? `chat.agentHost.sessionPills.copyFilePath.${artifact.id}`
 						: `chat.agentHost.sessionPills.copyResourceUri.${artifact.id}`,
 					label: artifact.type === SessionArtifactType.File
-						? localize('agentHostSessionPills.copyFilePath', "Copy path")
+						? localize('agentHostSessionPills.copyFilePath', "Copy Path")
 						: localize('agentHostSessionPills.copyResourceUri', "Copy URI"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(fullPath ?? resource.toString(true)),
@@ -915,7 +934,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...(relativePath ? {
 					hoverActions: [toAction({
 						id: `chat.agentHost.sessionPills.copyFileRelativePath.${artifact.id}`,
-						label: localize('agentHostSessionPills.copyFileRelativePath', "Copy relative path"),
+						label: localize('agentHostSessionPills.copyFileRelativePath', "Copy Relative Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(relativePath),
 					})],
@@ -951,14 +970,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			const copyAction = artifact.type === SessionArtifactType.Commit
 				? withChatPillHoverLabel(toAction({
 					id: `chat.agentHost.sessionPills.copyCommitUrl.${artifact.id}`,
-					label: localize('agentHostSessionPills.copyCommitUrl', "Copy commit URL"),
+					label: localize('agentHostSessionPills.copyCommitUrl', "Copy Commit URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(link.toString(true)),
 				}), chatPillCopyUrlHoverLabel)
 				: artifact.type === SessionArtifactType.Website
 					? withChatPillHoverLabel(toAction({
 						id: `chat.agentHost.sessionPills.copyWebsiteUrl.${artifact.id}`,
-						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy website URL"),
+						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy Website URL"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(link.toString(true)),
 					}), chatPillCopyUrlHoverLabel)
@@ -966,8 +985,8 @@ export class AgentHostSessionInputPills extends Disposable {
 						? withChatPillHoverLabel(toAction({
 							id: `chat.agentHost.sessionPills.copyReferenceUrl.${artifact.id}`,
 							label: artifact.type === SessionArtifactType.PullRequest
-								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy pull request URL")
-								: localize('agentHostSessionPills.copyIssueUrl', "Copy issue URL"),
+								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy Pull Request URL")
+								: localize('agentHostSessionPills.copyIssueUrl', "Copy Issue URL"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => this._clipboardService.writeText(link.toString(true)),
 						}), chatPillCopyUrlHoverLabel)
@@ -980,7 +999,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
 					hoverActions: [withChatPillHoverLabel(toAction({
 						id: `chat.agentHost.sessionPills.copyCommitHash.${artifact.id}`,
-						label: localize('agentHostSessionPills.copyCommitHash', "Copy commit hash"),
+						label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
 					}), chatPillCopyHashHoverLabel)],
@@ -998,7 +1017,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				id: artifact.id,
 				label: artifact.label,
 				icon,
-				ariaLabel: localize('agentHostSessionPills.copyCommit', "Copy commit hash for {0}", artifact.label),
+				ariaLabel: localize('agentHostSessionPills.copyCommit', "Copy Commit Hash for {0}", artifact.label),
 				tooltip: artifact.commitHash,
 				open: () => { void this._clipboardService.writeText(artifact.commitHash!); },
 			};
@@ -1015,7 +1034,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
 		return withChatPillHoverLabel(toAction({
 			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
-			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from session", artifact.label),
+			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => removeArtifact(artifact),
 		}), chatPillRemoveReferenceHoverLabel);

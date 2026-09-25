@@ -61,7 +61,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -412,6 +412,8 @@ suite('Sessions - SessionsList', () => {
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
+			const customizationsCount = observableValue(disposables, 7);
+			const customizationMigrationsAvailable = observableValue(disposables, true);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
@@ -430,20 +432,28 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 			const container = harness.createContainer();
-			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.appendChild(findWidgetContainer);
-			sessionsHeaderContainer.appendChild(sessionsHeader);
-			container.prepend(sessionsHeaderContainer);
+			container.prepend(sessionsHeader);
+			const treeHeaders = new Set<HTMLElement>();
 			let showNavigationShortcuts = false;
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => showNavigationShortcuts,
+				customizationsCount,
+				customizationMigrationsAvailable,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					parent.appendChild(treeHeader);
+					treeHeaders.add(treeHeader);
+					disposables.add(toDisposable(() => treeHeaders.delete(treeHeader)));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
@@ -461,9 +471,17 @@ suite('Sessions - SessionsList', () => {
 				ariaExpanded: element.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				hasChevron: element.querySelector('.session-section-chevron.collapsible') !== null,
 			}));
-			const headerInTreatment = sessionsHeader.closest('.sessions-list-header') !== null;
+			const headerInTreatment = container.querySelector('.sessions-list-header .test-sessions-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
+			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
+			const customizationsPresentation = {
+				count: customizationsSection?.querySelector('.session-section-count')?.textContent,
+				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
+				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
+				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
@@ -475,6 +493,10 @@ suite('Sessions - SessionsList', () => {
 			list.updateNavigationVisibility();
 			list.focusAutomations();
 			await timeout(350);
+			const treeHeaderCountAfterControl = treeHeaders.size;
+			const controlAutomationsFocused = list.isAutomationsFocused();
+			list.dispose();
+			const treeHeaderCountAfterDispose = treeHeaders.size;
 
 			assert.deepStrictEqual({
 				findInput,
@@ -485,25 +507,36 @@ suite('Sessions - SessionsList', () => {
 				shortcutActionTargets,
 				shortcutCollapseStates,
 				headerInTreatment,
+				customizationsPresentation,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
-				headerRestoredToControl: sessionsHeader.parentElement === sessionsHeaderContainer,
-				controlAutomationsFocused: list.isAutomationsFocused(),
+				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
+				treeHeaderCountAfterControl,
+				treeHeaderCountAfterDispose,
+				controlAutomationsFocused,
 			}, {
 				findInput,
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
 				treatmentNavigationLabels: ['Automations', 'Customizations'],
-				treatmentAriaLabels: ['Automations', 'Customizations', 'Sessions'],
+				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
 				shortcutActionTargets: [0, 0],
 				shortcutCollapseStates: [
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
 				headerInTreatment: true,
+				customizationsPresentation: {
+					count: '7',
+					migrationIndicatorVisible: true,
+					migrationIndicatorOutsideLabel: true,
+					hasExtensionsIcon: true,
+				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
-				headerRestoredToControl: true,
+				stableFindHeaderUnmoved: true,
+				treeHeaderCountAfterControl: 1,
+				treeHeaderCountAfterDispose: 0,
 				controlAutomationsFocused: true,
 			});
 		});
@@ -534,8 +567,14 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => true,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer: sessionsContent,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					parent.appendChild(treeHeader);
+					disposables.add(toDisposable(() => treeHeader.remove()));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
 			list.layout(200, 400);
@@ -550,13 +589,15 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					focusedElement: mainWindow.document.activeElement,
 					findInput,
-					headerInTree: sessionsHeader.closest('.sessions-list-header') !== null,
+					headerInTree: listContainer.querySelector('.sessions-list-header .test-sessions-header') !== null,
+					treeHeaderAriaHidden: listContainer.querySelector('.sessions-list-header')?.closest('.monaco-list-row')?.getAttribute('aria-hidden'),
 					shortcutLabels: Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent),
 					sessionRows: listContainer.querySelectorAll('.session-item').length,
 				}, {
 					focusedElement: findInput,
 					findInput,
 					headerInTree: true,
+					treeHeaderAriaHidden: 'true',
 					shortcutLabels: ['Automations', 'Customizations'],
 					sessionRows: 0,
 				});
@@ -566,7 +607,7 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('keeps the Sessions header sticky after navigation scrolls away', async () => {
+		test('sticks independently owned Sessions headers while retaining section sticky scroll', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
@@ -583,84 +624,107 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
-			sessionsHeader.textContent = 'Sessions';
-			sessionsHeader.style.height = '32px';
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.append(findWidgetContainer);
 			sessionsHeaderContainer.appendChild(sessionsHeader);
 			container.prepend(sessionsHeaderContainer);
+			const activeHeaders = new Set<HTMLElement>();
+			const allHeaders: HTMLElement[] = [];
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				showNavigationShortcuts: () => true,
 				findWidgetContainer,
-				sessionsHeader,
-				sessionsHeaderContainer,
+				createSessionsHeader: (parent, disposables) => {
+					const treeHeader = mainWindow.document.createElement('div');
+					treeHeader.className = 'test-sessions-header';
+					treeHeader.textContent = 'Sessions';
+					treeHeader.style.height = '28px';
+					parent.appendChild(treeHeader);
+					activeHeaders.add(treeHeader);
+					allHeaders.push(treeHeader);
+					disposables.add(toDisposable(() => activeHeaders.delete(treeHeader)));
+					return treeHeader;
+				},
 				onSessionOpen: () => { },
 			}));
-			list.layout(120, 400);
+			list.layout(200, 400);
+			await timeout(0);
+			const sourceHeader = container.querySelector<HTMLElement>('.monaco-list-rows .test-sessions-header');
+			const sourceHeaderOwner = sourceHeader?.parentElement;
+			const sourceHeaderRowHeight = sourceHeader?.closest<HTMLElement>('.monaco-list-row')?.style.height;
 			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
-			tree.scrollTop = 120;
+			tree.scrollTop = 400;
 			await timeout(0);
-			const headerInStickyContainer = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const stickyHeaderRow = sessionsHeader.closest<HTMLElement>('.monaco-tree-sticky-row');
-			const stickyHeaderHoverBackground = stickyHeaderRow
-				? mainWindow.getComputedStyle(stickyHeaderRow).getPropertyValue('--vscode-list-hoverBackground').trim()
-				: undefined;
+			const stickyHeader = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
+			const stickySectionLabels = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row .session-section-label'), element => element.textContent);
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
+			const stickyHeaderOwnsDistinctDom = stickyHeader !== null && stickyHeader !== sourceHeader && stickyHeader.parentElement !== sourceHeaderOwner;
+			const stickyHeaderAriaLabel = stickyHeader?.closest('.monaco-tree-sticky-row')?.getAttribute('aria-label');
 			list.layout(0, 400);
+			list.layout(200, 400);
+			tree.scrollTop = 400;
 			await timeout(0);
-			const headerRestoredWhileHidden = sessionsHeader.parentElement === sessionsHeaderContainer;
-			list.layout(120, 400);
-			await timeout(0);
-			const headerVisibleAfterRelayout = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
+			const stickyHeaderAfterZeroHeight = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
+			const scrollTopBeforeFind = tree.scrollTop;
 			list.openFind();
+			const scrollTopAfterFind = tree.scrollTop;
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
-			const findFocusedAfterStickyScroll = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterOpeningFind = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			assert.ok(findInput);
-			findInput.value = 'no matching session';
-			findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-			await timeout(30);
-			const findFocusedAfterFiltering = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterFiltering = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const headerAttachedAfterFiltering = sessionsHeader.parentElement !== null;
-			list.closeFind();
-			await timeout(350);
-			tree.scrollTop = 0;
-			await timeout(0);
+			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
+			const navigationTree = Reflect.get(list, 'tree') as {
+				focusFirst(): void;
+				focusNext(): void;
+				getFocus(): SessionListItem[];
+			};
+			navigationTree.focusFirst();
+			const focusedHeaderWhileFindOpen: boolean[] = [];
+			for (let index = 0; index < 50; index++) {
+				const focusedElement = navigationTree.getFocus()[0];
+				if (!focusedElement) {
+					break;
+				}
+				focusedHeaderWhileFindOpen.push((focusedElement as ISessionSection).id === 'sessionsHeader');
+				navigationTree.focusNext();
+			}
+			const hiddenTreeHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+			const treeHeaderHiddenForFind = hiddenTreeHeader?.style.visibility === 'hidden'
+				&& hiddenTreeHeader.closest('.monaco-list-row')?.getAttribute('aria-hidden') === 'true';
 
 			assert.deepStrictEqual({
-				headerText: sessionsHeader.textContent,
-				headerInStickyContainer,
-				stickyHeaderHoverBackground,
+				sourceHeaderRowHeight,
+				stickyHeaderText: stickyHeader?.textContent,
+				stickyHeaderOwnsDistinctDom,
+				stickyHeaderAriaLabel,
+				stickySectionLabels,
 				navigationVisibleAfterScroll,
-				headerRestoredWhileHidden,
-				headerVisibleAfterRelayout,
-				findFocusedAfterStickyScroll,
-				headerStickyAfterOpeningFind,
-				findFocusedAfterFiltering,
-				headerStickyAfterFiltering,
-				headerAttachedAfterFiltering,
-				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
-				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
-				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
+				stickyHeaderRestoredAfterZeroHeight: stickyHeaderAfterZeroHeight?.textContent,
+				stableFindHeaderUnmoved: sessionsHeader.parentElement === sessionsHeaderContainer && findWidgetContainer.parentElement === sessionsHeader,
+				treeHeaderHiddenForFind,
+				findFocusedAfterOffscreenOpen,
+				focusedHeaderWhileFindOpen: focusedHeaderWhileFindOpen.some(Boolean),
+				scrollTopAfterFind,
+				scrollTopBeforeFind,
+				distinctHeaderInstances: new Set(allHeaders).size === allHeaders.length,
+				activeHeaderCount: activeHeaders.size,
 			}, {
-				headerText: 'Sessions',
-				headerInStickyContainer: true,
-				stickyHeaderHoverBackground: 'transparent',
+				sourceHeaderRowHeight: '38px',
+				stickyHeaderText: 'Sessions',
+				stickyHeaderOwnsDistinctDom: true,
+				stickyHeaderAriaLabel: 'Sessions',
+				stickySectionLabels: ['Recent'],
 				navigationVisibleAfterScroll: false,
-				headerRestoredWhileHidden: true,
-				headerVisibleAfterRelayout: true,
-				findFocusedAfterStickyScroll: true,
-				headerStickyAfterOpeningFind: true,
-				findFocusedAfterFiltering: true,
-				headerStickyAfterFiltering: false,
-				headerAttachedAfterFiltering: true,
-				navigationRestoredAfterScroll: true,
-				headerRestoredAfterScroll: true,
-				headerRowHeight: '42px',
+				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
+				stableFindHeaderUnmoved: true,
+				treeHeaderHiddenForFind: true,
+				findFocusedAfterOffscreenOpen: true,
+				focusedHeaderWhileFindOpen: false,
+				scrollTopAfterFind: scrollTopBeforeFind,
+				scrollTopBeforeFind: 400,
+				distinctHeaderInstances: true,
+				activeHeaderCount: 2,
 			});
+			list.closeFind();
+			await timeout(350);
 		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {
@@ -2440,6 +2504,36 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('archived filter default', () => {
+		function getExcludeArchived(settingValue: boolean, storedValue?: boolean): boolean {
+			const harness = createListHarness(disposables, []);
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, settingValue);
+			if (storedValue !== undefined) {
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.excludeArchived', storedValue, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			return list.isExcludeArchived();
+		}
+
+		test('uses the setting only until the user has changed the filter', () => {
+			assert.deepStrictEqual({
+				defaultHidden: getExcludeArchived(false),
+				experimentShows: getExcludeArchived(true),
+				existingHiddenChoice: getExcludeArchived(true, true),
+				existingShownChoice: getExcludeArchived(false, false),
+			}, {
+				defaultHidden: true,
+				experimentShows: false,
+				existingHiddenChoice: true,
+				existingShownChoice: false,
+			});
+		});
+	});
+
 	suite('empty group filter', () => {
 		test('hides empty custom and default groups and persists the filter', () => {
 			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 2 };
@@ -3501,7 +3595,7 @@ suite('Sessions - SessionsList', () => {
 					title: 'Session',
 					location: 'Workspace · /workspace/mainBranch · main-work2 files changed+5-1',
 					pullRequest: 'Main pull request',
-					sessionSummary: 'Session summarymain · /workspacepeer · /workspace4 files changed+20-8Main pull requestPeer pull request',
+					sessionSummary: 'Session summarymain · /workspacepeer · /workspace4 files changed+20-8Peer pull request',
 					changes: ['+5', '-1'],
 				},
 				peer: {
@@ -3571,6 +3665,89 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				worktreePending: false,
 				branch: 'peer-work',
+			});
+		});
+
+		suite('session hover pull requests', () => {
+
+			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {
+				const root = URI.file(`/workspace/${name}`);
+				return {
+					root,
+					workingDirectory: root,
+					name,
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: undefined,
+						baseBranchName: 'main',
+						branchName: `${name}-work`,
+						gitHubInfo: constObservable({
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequests: pullRequestNumbers.map(number => ({
+								owner: 'microsoft',
+								repo: 'vscode',
+								number,
+								uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+								title: `PR ${number}`,
+								createdByThisSession: true,
+							})),
+						}),
+					},
+				};
+			}
+
+			function summarizePullRequests(session: ISession) {
+				const data = getSessionSummaryHoverData(
+					session,
+					upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+					upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+					upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+					upcastPartial<IPreferencesService>({}),
+				);
+				return {
+					pullRequests: data.pullRequests?.map(pullRequest => pullRequest.title),
+					sessionSummary: data.sessionSummary && {
+						workspaces: data.sessionSummary.workspaces.map(workspace => workspace.name),
+						pullRequests: data.sessionSummary.pullRequests?.map(pullRequest => pullRequest.title),
+					},
+				};
+			}
+
+			test('multi-folder session summary lists only pull requests the main chat section does not show', () => {
+				const main = createPullRequestFolder('main', [1, 2]);
+				const peer = createPullRequestFolder('peer', [2, 3]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([main, peer], [[main], [peer]])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: {
+						workspaces: ['main', 'peer'],
+						pullRequests: ['PR 3'],
+					},
+				});
+			});
+
+			test('multi-folder session summary omits its pull request list when the main chat section shows them all', () => {
+				const main = createPullRequestFolder('main', [1, 2]);
+				const peer = createPullRequestFolder('peer', [2]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([main, peer], [[main], [peer]])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: {
+						workspaces: ['main', 'peer'],
+						pullRequests: undefined,
+					},
+				});
+			});
+
+			test('single-folder session lists its pull requests without a session summary', () => {
+				const folder = createPullRequestFolder('main', [1, 2]);
+
+				assert.deepStrictEqual(summarizePullRequests(createMultiFolderSession([folder], [undefined])), {
+					pullRequests: ['PR 1', 'PR 2'],
+					sessionSummary: undefined,
+				});
 			});
 		});
 

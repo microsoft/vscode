@@ -9,6 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -23,10 +24,42 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
+		{ name: 'default', hostsEnabled: true, toolsEnabled: undefined, aiDisabled: false, enabled: false },
+		{ name: 'enabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: false, enabled: true },
+		{ name: 'tools disabled', hostsEnabled: true, toolsEnabled: false, aiDisabled: false, enabled: false },
+		{ name: 'hosts disabled', hostsEnabled: false, toolsEnabled: true, aiDisabled: false, enabled: false },
+		{ name: 'AI disabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: true, enabled: false },
+	]) {
+		test(`describes remote delegation only when available: ${name}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[RemoteAgentHostsEnabledSettingId]: hostsEnabled,
+				[RemoteSessionToolsEnabledSettingId]: toolsEnabled,
+				'chat.disableAIFeatures': aiDisabled,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+			const content = provider.provideContent();
+			assert.deepStrictEqual({
+				delegation: content.includes('originating chat while this Agents window remains connected'),
+				inspection: content.includes('inspect a remote session using its session link'),
+				readOnly: content.includes('without changing focus, marking the chat as read, or approving pending requests'),
+			}, { delegation: enabled, inspection: enabled, readOnly: enabled });
+		});
+	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -344,7 +377,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	test('describes the Codicon background Celebrate button', () => {
+	test('describes the background Celebrate button and tint toggle', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -355,11 +388,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-		const backgroundHelp = provider.provideContent().split('\n').find(line => line.includes('Set Background'));
+		const content = provider.provideContent();
+		const backgroundHelp = content.split('\n').find(line => line.includes('Set Background'));
+		const tintHelp = content.split('\n').find(line => line.includes('Tint Window to Match Background'));
 
 		assert.deepStrictEqual({
 			activation: backgroundHelp?.includes('press Tab to find it, then press Enter or Space to activate it'),
 			nextButton: backgroundHelp?.includes('Each activation selects another random icon as the next Celebrate button.'),
-		}, { activation: true, nextButton: true });
+			tintKeyboardAccess: tintHelp?.includes('Command Palette'),
+			tintCheckedState: tintHelp?.includes('A check mark means tinting is enabled.'),
+			tintPreservesImage: tintHelp?.includes('Turning it off keeps the background image'),
+		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 });
