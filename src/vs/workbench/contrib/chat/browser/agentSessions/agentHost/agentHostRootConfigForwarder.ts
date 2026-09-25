@@ -28,7 +28,7 @@ export interface IForwardedRootConfigKey {
 }
 
 /**
- * Shared engine that forwards VS Code-derived values into the **local** agent
+ * Shared engine that forwards JustRide-derived values into the **local** agent
  * host's root config so the host (and the CLI session launcher) can read them
  * via `getRootValue`. Not a contribution itself: a workbench contribution
  * constructs one with its own {@link IForwardedRootConfigKey} table and drives

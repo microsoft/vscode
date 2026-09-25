@@ -402,7 +402,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string): string {
 		// Point any GitHub target at the new-issue form, not just extensions. The
-		// VS Code / Marketplace targets can be a bare repo URL (e.g. a `data.uri`
+		// JustRide / Marketplace targets can be a bare repo URL (e.g. a `data.uri`
 		// override or a `reportIssueUrl` without the `/issues/new` suffix), which
 		// would otherwise open the repo landing page instead of the pre-filled
 		// issue form. The `isGitHubUrl` guard leaves non-GitHub issue trackers

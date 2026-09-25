@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Adapted from github-ui `https://github.com/github/github-ui/blob/main/packages/ahp-relay/webpubsub/wps-transport.ts`
-// (Microsoft, MIT) to VS Code's push-based {@link IClientTransport} contract.
+// (Microsoft, MIT) to JustRide's push-based {@link IClientTransport} contract.
 //
 // Connects to Azure Web PubSub using the reliable JSON subprotocol and
 // translates between AHP JSON-RPC messages and WPS `sendToGroup` /

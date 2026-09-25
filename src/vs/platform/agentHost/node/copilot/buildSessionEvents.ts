@@ -29,7 +29,7 @@ const MIGRATION_PRODUCER = 'vscode-copilot-migration';
 
 /**
  * Options controlling how {@link buildSessionEventsFromTurns} synthesizes a
- * Copilot SDK event log from VS Code turns.
+ * Copilot SDK event log from JustRide turns.
  */
 export interface IBuildSessionEventsOptions {
 	/** The target session id (stamped on the `session.start` event). */
@@ -47,7 +47,7 @@ export interface IBuildSessionEventsOptions {
 }
 
 /**
- * Translates a sequence of VS Code {@link Turn}s into a Copilot SDK
+ * Translates a sequence of JustRide {@link Turn}s into a Copilot SDK
  * {@link SessionEvent} log (the on-disk `events.jsonl` shape), reversing the
  * reconstruction performed by `mapSessionEvents`.
  *
@@ -272,7 +272,7 @@ export function serializeSessionEventsToJsonl(events: readonly SessionEvent[]): 
 
 /**
  * Convenience combining {@link buildSessionEventsFromTurns} and
- * {@link serializeSessionEventsToJsonl}: turns the given VS Code turns directly
+ * {@link serializeSessionEventsToJsonl}: turns the given JustRide turns directly
  * into the `events.jsonl` bytes to write for the target session.
  */
 export function buildSessionEventLogFromTurns(turns: readonly Turn[], options: IBuildSessionEventsOptions): string {

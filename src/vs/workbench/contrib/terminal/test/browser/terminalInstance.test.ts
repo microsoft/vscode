@@ -475,7 +475,7 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(droppedOn, ['second']);
 		});
 
-		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
+		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in JustRide and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];
 			const originalSoftDispatch = keybindingService.softDispatch;
@@ -958,7 +958,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(result, undefined);
 		});
 
-		test('should return undefined when fileService cannot handle the resource (VS Code web ENOPRO scenario)', async () => {
+		test('should return undefined when fileService cannot handle the resource (JustRide web ENOPRO scenario)', async () => {
 			// Simulates server-linux-x64-web where remoteAuthority is falsy from the
 			// terminal's perspective, so URI.file() is produced but the browser
 			// FileService has no file:// provider registered.

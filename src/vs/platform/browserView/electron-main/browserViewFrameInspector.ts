@@ -153,7 +153,7 @@ export class BrowserViewFrameInspector extends Disposable {
 			switch (event.method) {
 				case 'Overlay.inspectNodeRequested': {
 					const params = event.params as { backendNodeId: number };
-					// Only handle this event when VS Code's own element picker is active.
+					// Only handle this event when JustRide's own element picker is active.
 					// This event also fires when the user inspects elements via the
 					// DevTools built-in inspect cursor — in that case we must not
 					// silently add the element to Copilot Chat as context.

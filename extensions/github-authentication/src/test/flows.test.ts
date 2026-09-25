@@ -138,7 +138,7 @@ suite('getFlows', () => {
 			]
 		},
 		{
-			label: 'Code - OSS. Local filesystem. GitHub.com',
+			label: 'JustRide. Local filesystem. GitHub.com',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: false,
@@ -151,7 +151,7 @@ suite('getFlows', () => {
 			]
 		},
 		{
-			label: 'Code - OSS. Local filesystem. GitHub Hosted Enterprise',
+			label: 'JustRide. Local filesystem. GitHub Hosted Enterprise',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: false,
@@ -164,7 +164,7 @@ suite('getFlows', () => {
 			]
 		},
 		{
-			label: 'Code - OSS. Local filesystem. GitHub Enterprise Server',
+			label: 'JustRide. Local filesystem. GitHub Enterprise Server',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: false,

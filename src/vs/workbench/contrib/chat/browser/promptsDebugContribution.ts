@@ -70,10 +70,10 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			if (isFirstInvocation) {
 				const cts = new CancellationTokenSource();
 				try {
-					// For agent-host (Copilot CLI) sessions, VS Code core still collects
+					// For agent-host (Copilot CLI) sessions, JustRide core still collects
 					// instructions and hooks and passes them into the agent-host request,
 					// so those discovery events are relevant. Agent / skill / slash-command
-					// discovery reflects VS Code's own chat-participant discovery, which the
+					// discovery reflects JustRide's own chat-participant discovery, which the
 					// agent host does not consume (the agent host surfaces its actually loaded
 					// customizations separately), so we suppress those to avoid noise.
 					const discoveryTypes = isAgentHostTarget(getChatSessionType(sessionResource))

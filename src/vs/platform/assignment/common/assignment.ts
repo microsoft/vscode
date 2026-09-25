@@ -82,7 +82,7 @@ export enum Filters {
 	ExtensionVersion = 'X-VSCode-ExtensionVersion',
 
 	/**
-	 * The language in use by VS Code
+	 * The language in use by JustRide
 	 */
 	Language = 'X-VSCode-Language',
 
@@ -93,17 +93,17 @@ export enum Filters {
 	TargetPopulation = 'X-VSCode-TargetPopulation',
 
 	/**
-	 * The platform (OS) on which VS Code is running.
+	 * The platform (OS) on which JustRide is running.
 	 */
 	Platform = 'X-VSCode-Platform',
 
 	/**
-	 * The release/build date of VS Code (UTC) in the format yyyymmddHH.
+	 * The release/build date of JustRide (UTC) in the format yyyymmddHH.
 	 */
 	ReleaseDate = 'X-VSCode-ReleaseDate',
 
 	/**
-	 * The kind of window VS Code is running in (`editor` or `agents`).
+	 * The kind of window JustRide is running in (`editor` or `agents`).
 	 */
 	WindowKind = 'X-VSCode-WindowKind',
 }
@@ -205,7 +205,7 @@ export enum AssignmentsFilters {
 }
 
 /**
- * Emits the generic VS Code core filters for the new TAS assignments API using the new
+ * Emits the generic JustRide core filters for the new TAS assignments API using the new
  * userParam key names, so the assignments endpoint never receives the legacy header keys.
  */
 export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilterProvider {

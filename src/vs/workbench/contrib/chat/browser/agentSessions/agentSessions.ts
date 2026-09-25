@@ -128,7 +128,7 @@ export { isAgentHostTarget };
  * a new agent host session. The conversation transcript travels as an
  * attachment so the target agent can pick up the work.
  *
- * Both VS Code (the main window) and the Agents window surface agent host
+ * Both JustRide (the main window) and the Agents window surface agent host
  * sessions, but they open sessions through different infrastructure. To avoid
  * registering a command per session type, agent host delegation is funneled
  * through this single command id. The Agents window registers a handler that
@@ -174,7 +174,7 @@ export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 export function getAgentSessionProviderDescription(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
-			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
+			return localize('chat.session.providerDescription.local', "Run tasks within JustRide chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Background:
 			return localize('chat.session.providerDescription.background', "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.");
 		case AgentSessionProviders.Cloud:

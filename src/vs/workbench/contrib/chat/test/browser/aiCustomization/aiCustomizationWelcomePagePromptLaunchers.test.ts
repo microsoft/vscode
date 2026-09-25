@@ -38,7 +38,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 		));
 		const category: ICustomizationMigrationCategorySummary = {
 			id: CustomizationMigrationCategoryId.UserData,
-			label: 'VS Code Profile Customizations',
+			label: 'JustRide Profile Customizations',
 			description: 'Move customizations.',
 			actionLabel: 'Migrate...',
 			actionAriaLabel: 'Migrate User Data customizations',

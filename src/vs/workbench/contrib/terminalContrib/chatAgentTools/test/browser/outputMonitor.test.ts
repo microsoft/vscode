@@ -845,14 +845,14 @@ suite('OutputMonitor', () => {
 	});
 
 	suite('detectsVSCodeTaskFinishMessage', () => {
-		test('detects VS Code task completion messages', () => {
+		test('detects JustRide task completion messages', () => {
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('The terminal will be reused by tasks. Press any key to close. Please provide the required input to the terminal.'), true);
 			// Case insensitive
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
-			// With " * " prefix (VS Code adds this to task messages)
+			// With " * " prefix (JustRide adds this to task messages)
 			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Press any key to close the terminal.'), true);
 		});
@@ -931,7 +931,7 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('PRESS ANY KEY TO CONTINUE'), true);
 		});
 
-		test('does not match VS Code task finish messages', () => {
+		test('does not match JustRide task finish messages', () => {
 			// These should be handled by detectsVSCodeTaskFinishMessage, not this function
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to close the terminal.'), false);
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Terminal will be reused by tasks, press any key to close it.'), false);

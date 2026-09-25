@@ -376,7 +376,7 @@ export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown
  * One workbench chat-input chip bound to a single agent-host session-config
  * property. Used both for dedicated well-known property chips
  * (`SessionConfigKey.Mode`, `.AutoApprove`) and for generic per-property chips
- * advertised by an agent's config schema but not known to VS Code.
+ * advertised by an agent's config schema but not known to JustRide.
  */
 export class AgentHostChatInputPicker extends Disposable {
 

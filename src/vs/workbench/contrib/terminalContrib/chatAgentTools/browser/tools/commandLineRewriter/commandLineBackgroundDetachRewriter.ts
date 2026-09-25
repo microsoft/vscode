@@ -11,7 +11,7 @@ import { isBash, isFish, isPowerShell, isZsh } from '../../runInTerminalHelpers.
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 /**
- * Wraps background terminal commands so their processes survive VS Code shutdown.
+ * Wraps background terminal commands so their processes survive JustRide shutdown.
  *
  * On POSIX (bash/zsh/fish), uses `nohup <command> &` to ignore SIGHUP and
  * detach from the terminal's process group.

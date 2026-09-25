@@ -1,5 +1,5 @@
 {
-	"name": "Code - OSS",
+	"name": "JustRide",
 	"build": {
 		"dockerfile": "Dockerfile"
 	},

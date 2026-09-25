@@ -597,7 +597,7 @@ export class McpAddConfigurationCommand {
 					}
 					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
 					await this._editorService.openEditor({ resource });
-					this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
+					this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. JustRide input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
 					return;
 				}
 			}

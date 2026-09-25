@@ -10,10 +10,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const IUserAttentionService = createDecorator<IUserAttentionService>('userAttentionService');
 
 /**
- * Service that tracks whether the user is actively paying attention to VS Code.
+ * Service that tracks whether the user is actively paying attention to JustRide.
  *
  * This is determined by:
- * * VS Code window has focus
+ * * JustRide window has focus
  * * User has performed some activity (keyboard/mouse) within the last minute
  */
 export interface IUserAttentionService {
@@ -23,21 +23,21 @@ export interface IUserAttentionService {
 
 	/**
 	 * Observable that is true when user activity was recently detected (within the last 500ms).
-	 * This includes keyboard typing and mouse movements/clicks while VS Code is focused.
+	 * This includes keyboard typing and mouse movements/clicks while JustRide is focused.
 	 * The 500ms window prevents event spam from continuous mouse movement.
 	 */
 	readonly isUserActive: IObservable<boolean>;
 
 	/**
-	 * Observable that indicates whether the user is actively paying attention to VS Code.
+	 * Observable that indicates whether the user is actively paying attention to JustRide.
 	 * This is true when:
-	 * * VS Code has focus, AND
+	 * * JustRide has focus, AND
 	 * * There was user activity within the last minute
 	 */
 	readonly hasUserAttention: IObservable<boolean>;
 
 	/**
-	 * The total time in milliseconds that the user has been paying attention to VS Code.
+	 * The total time in milliseconds that the user has been paying attention to JustRide.
 	 */
 	readonly totalFocusTimeMs: number;
 

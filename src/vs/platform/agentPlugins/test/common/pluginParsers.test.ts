@@ -207,7 +207,7 @@ suite('pluginParsers', () => {
 			});
 		});
 
-		test('preserves VS Code OAuth client configuration', () => {
+		test('preserves JustRide OAuth client configuration', () => {
 			assert.deepStrictEqual(normalizeMcpServerConfiguration({
 				type: 'http',
 				url: 'https://mcp.slack.com/mcp',
@@ -330,7 +330,7 @@ suite('pluginParsers', () => {
 
 	suite('convertBareEnvVarsToVsCodeSyntax', () => {
 
-		test('converts bare env vars to VS Code syntax', () => {
+		test('converts bare env vars to JustRide syntax', () => {
 			const def = {
 				name: 'test',
 				uri: URI.file('/plugin'),

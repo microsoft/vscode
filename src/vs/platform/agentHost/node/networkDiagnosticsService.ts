@@ -95,7 +95,7 @@ export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 	 * Probe connectivity from the agent host process to a single `url`. Resolves
 	 * the proxy (for reporting), performs an IPv4 DNS lookup, and then a
 	 * reachability request through {@link IRequestService} — so the probe
-	 * traverses the same proxy / TLS / certificate stack the rest of VS Code
+	 * traverses the same proxy / TLS / certificate stack the rest of JustRide
 	 * uses. Each step is individually timed and never throws; failures are
 	 * captured on the result.
 	 */
@@ -123,8 +123,8 @@ export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 			dnsIpv4, dnsIpv6,
 		};
 
-		// Reachability: a GET through IRequestService, which applies VS Code's proxy,
-		// strictSSL, and certificate handling — the path the rest of VS Code uses.
+		// Reachability: a GET through IRequestService, which applies JustRide's proxy,
+		// strictSSL, and certificate handling — the path the rest of JustRide uses.
 		const probeStart = Date.now();
 		try {
 			const context = await this._requestService.request({

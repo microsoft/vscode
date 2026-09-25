@@ -44,7 +44,7 @@ export async function generateCustomizationDebugReport(
 	const lines: string[] = [];
 
 	lines.push(`== Customization Debug: ${section} (${promptType}) ==`);
-	lines.push(`Window: ${workspaceService.isSessionsWindow ? 'Sessions' : 'Core VS Code'}`);
+	lines.push(`Window: ${workspaceService.isSessionsWindow ? 'Sessions' : 'Core JustRide'}`);
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 

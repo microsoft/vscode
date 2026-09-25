@@ -8,7 +8,7 @@ import type { ChatInputRequest } from '../state/protocol/channels-chat/state.js'
 /**
  * Why the agent requested chat input.
  *
- * AHP no longer models this on {@link ChatInputRequest}; VS Code keeps the
+ * AHP no longer models this on {@link ChatInputRequest}; JustRide keeps the
  * classification for telemetry and UI by carrying it in the request's open
  * metadata bag.
  */

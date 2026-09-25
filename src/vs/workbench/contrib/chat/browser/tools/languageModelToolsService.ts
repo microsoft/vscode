@@ -188,14 +188,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
 
-		// Create the internal VS Code tool set
+		// Create the internal JustRide tool set
 		this.vscodeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'vscode',
 			VSCodeToolReference.vscode,
 			{
 				icon: ThemeIcon.fromId(Codicon.vscode.id),
-				description: localize('copilot.toolSet.vscode.description', 'Use VS Code features'),
+				description: localize('copilot.toolSet.vscode.description', 'Use JustRide features'),
 				deprecated: true,
 			}
 		));

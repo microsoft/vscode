@@ -166,7 +166,7 @@ import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
-	title: 'VS Code Agent Host',
+	title: 'JustRide Agent Host',
 	// The codex `clientInfo.version` is informational. Hardcoded to a
 	// non-empty placeholder; bumping it isn't required when our code
 	// changes.
@@ -3282,7 +3282,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
-			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
+			'remoteControl/status/changed', // Remote-control state is not part of the JustRide integration.
 			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
 			'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
 		] as const;

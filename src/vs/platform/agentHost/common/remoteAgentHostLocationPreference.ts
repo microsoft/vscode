@@ -8,7 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 /**
  * Where a remote host's agents should run: a dedicated (standalone) agent
- * host process, or inside a remote VS Code editor window.
+ * host process, or inside a remote JustRide editor window.
  */
 export type RemoteAgentHostLocationPreference = 'dedicated' | 'editor';
 

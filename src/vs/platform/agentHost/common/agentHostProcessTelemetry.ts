@@ -22,11 +22,11 @@ type AgentHostProcessErrorEvent = AgentHostProcessErrorData & {
 };
 
 type AgentHostProcessErrorClassification = {
-	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the agent host process was launched by the JustRide main process or JustRide CLI.' };
 	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of agent host process failure.' };
 	code?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The agent host process exit code, when available.' };
 	restartCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of agent host restart attempts before this failure.' };
-	willRestart: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether VS Code will attempt to restart the agent host after this failure.' };
+	willRestart: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether JustRide will attempt to restart the agent host after this failure.' };
 	isError: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this is an error event.' };
 	callstack?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of an agent host process start failure.' };
 	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The message of an agent host process start failure.' };

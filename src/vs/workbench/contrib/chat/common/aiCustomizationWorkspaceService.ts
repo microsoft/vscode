@@ -105,7 +105,7 @@ export interface IAICustomizationWorkspaceService {
 	readonly managementSections: readonly AICustomizationManagementSection[];
 
 	/**
-	 * Whether this is a sessions window (vs core VS Code).
+	 * Whether this is a sessions window (vs core JustRide).
 	 */
 	readonly isSessionsWindow: boolean;
 

@@ -199,7 +199,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		// Allow 3 seconds for VS Code to close
+		// Allow 3 seconds for JustRide to close
 		spawn('sleep 3 && ' + path.basename(process.argv[0]), {
 			shell: true,
 			detached: true,

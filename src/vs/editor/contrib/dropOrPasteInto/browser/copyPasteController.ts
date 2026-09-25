@@ -205,7 +205,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const dataTransfer = new VSDataTransfer();
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
 
-		// Save off a handle pointing to data that VS Code maintains.
+		// Save off a handle pointing to data that JustRide maintains.
 		const handle = generateUuid();
 		this.setCopyMetadata(e.clipboardData, {
 			id: handle,

@@ -550,7 +550,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/instructions/database.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Database', description: 'Database migration and query patterns', applyTo: 'src/db/**' },
 	{ uri: URI.file('/workspace/team-rules/architecture.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, source: PromptFileSource.ConfigWorkspace, name: 'Architecture', description: 'Shared architecture rules' },
 	// Instructions — user
-	{ uri: URI.file('/user-data/prompts/personal.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData, name: 'Personal Instructions', description: 'VS Code profile instructions' },
+	{ uri: URI.file('/user-data/prompts/personal.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData, name: 'Personal Instructions', description: 'JustRide profile instructions' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'Strict TypeScript conventions' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/commit-messages.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'Commit Messages', description: 'Conventional commit format' },
@@ -567,7 +567,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/agents/api-designer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'API Designer', description: 'REST and GraphQL API design' },
 	{ uri: URI.file('/workspace/.github/agents/performance-tuner.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Performance Tuner', description: 'Performance profiling and optimization' },
 	// Agents — user
-	{ uri: URI.file('/user-data/prompts/legacy.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData, name: 'Legacy Agent', description: 'VS Code profile agent' },
+	{ uri: URI.file('/user-data/prompts/legacy.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData, name: 'Legacy Agent', description: 'JustRide profile agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/debugger.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Debugger', description: 'Interactive debugging assistant' },
 	{ uri: URI.file('/home/dev/.copilot/agents/nls-helper.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'NLS Helper', description: 'Natural language searching code for clarity' },
@@ -606,7 +606,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/prompts/convert-to-ts.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Convert to TS', description: 'Convert JavaScript to TypeScript' },
 	{ uri: URI.file('/workspace/.github/prompts/summarize-pr.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Summarize PR', description: 'Generate PR description from diff' },
 	// Prompts — user
-	{ uri: URI.file('/user-data/prompts/profile.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData, name: 'Profile Prompt', description: 'VS Code profile prompt' },
+	{ uri: URI.file('/user-data/prompts/profile.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData, name: 'Profile Prompt', description: 'JustRide profile prompt' },
 	{ uri: URI.file('/home/dev/.copilot/prompts/translate.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Translate', description: 'Translate strings for i18n' },
 	{ uri: URI.file('/home/dev/.copilot/prompts/commit-msg.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Commit Message', description: 'Generate conventional commit' },
 	// Prompts - extension (built-in + third-party)
@@ -705,7 +705,7 @@ const fixtureToolSets: readonly IToolSet[] = [
 	{
 		id: 'vscode-core-tools',
 		referenceName: 'vscode',
-		description: 'VS Code',
+		description: 'JustRide',
 		detail: 'Built-in editor and workspace tools.',
 		icon: Codicon.tools,
 		source: ToolDataSource.Internal,
@@ -962,7 +962,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			? { kind: 'mcp', id: 'mcp.config.ws0.remote-browser' }
 			: { kind: 'plugin', uri: URI.file(`/user/plugins/${resource.identifier.split('/').pop()}`) };
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in JustRide.' }],
 		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
@@ -2502,7 +2502,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
-	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
+	// Full editor with Local (JustRide) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },

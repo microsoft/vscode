@@ -83,9 +83,9 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 			activity: [{
 				id: 'profile-prompts', categoryLabel: 'Prompts to skills', scopeLabel: 'Your profile', storage: PromptsStorage.user,
 				items: [
-					{ label: 'prepare-release', sourceLabel: 'VS Code profile/prepare-release.prompt.md', targetLabel: '~/.agents/skills/prepare-release/SKILL.md', operation: 'converted' },
-					{ label: 'release-manager', sourceLabel: 'VS Code profile/release-manager.agent.md', targetLabel: '~/.agents/agents/release-manager.agent.md', operation: 'moved' },
-					{ label: 'typescript-style', sourceLabel: 'VS Code profile/typescript-style.instructions.md', targetLabel: '~/.agents/instructions/typescript-style.instructions.md', operation: 'copied' },
+					{ label: 'prepare-release', sourceLabel: 'JustRide profile/prepare-release.prompt.md', targetLabel: '~/.agents/skills/prepare-release/SKILL.md', operation: 'converted' },
+					{ label: 'release-manager', sourceLabel: 'JustRide profile/release-manager.agent.md', targetLabel: '~/.agents/agents/release-manager.agent.md', operation: 'moved' },
+					{ label: 'typescript-style', sourceLabel: 'JustRide profile/typescript-style.instructions.md', targetLabel: '~/.agents/instructions/typescript-style.instructions.md', operation: 'copied' },
 				],
 			}],
 		};

@@ -17,7 +17,7 @@ import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './ag
  * Forwards the `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in
  * into the **local** agent host's root config under the short key
  * {@link AgentHostConfigKey.AllowSignedOutWhenUsable}. This closes the two-reader
- * contract: the workbench reads the VS Code setting directly, while the node-side
+ * contract: the workbench reads the JustRide setting directly, while the node-side
  * Layer 1 gate reads the root-config bag (keyed only by short keys), so the flag
  * must be mirrored here or the node side would never see it. Gated on
  * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard

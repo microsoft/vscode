@@ -324,10 +324,10 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	}
 
 	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string; runtimeUrlTemplate?: string; runtimeVersion?: string }): Promise<void> {
-		// Bridge VS Code's proxy settings into this process's environment before any
+		// Bridge JustRide's proxy settings into this process's environment before any
 		// first-use download, so both our own fetches and the native Foundry Local
 		// model download route through the configured proxy (they read the OS/env
-		// proxy, not VS Code settings directly).
+		// proxy, not JustRide settings directly).
 		this._applyProxyEnv(options.proxyUrl, options.noProxy, options.proxyStrictSSL, options.proxyAuthorization);
 
 		// Record where the native runtime is published (from product.json). When
@@ -355,9 +355,9 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	}
 
 	/**
-	 * Apply VS Code's proxy settings as environment variables for this process, so
+	 * Apply JustRide's proxy settings as environment variables for this process, so
 	 * every download leg (our fetches and the native model download) honors a proxy
-	 * configured only in VS Code (not in the OS environment):
+	 * configured only in JustRide (not in the OS environment):
 	 * - `http.proxy`/`http.noProxy` → `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`.
 	 * - `http.proxyAuthorization` (a `Basic <base64>` value) → folded into the proxy
 	 *   URL's userinfo so both our `HttpsProxyAgent` and the native HTTP stack send
@@ -531,7 +531,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// libraries) is available before loading the SDK. We do not ship
 				// it — the addon requires a newer glibc than our minimum supported
 				// Linux distros — so in packaged builds it is downloaded on demand
-				// from VS Code's CDN (per `product.dictationRuntime`) into a
+				// from JustRide's CDN (per `product.dictationRuntime`) into a
 				// per-user cache and the SDK loader is pointed at it via env var.
 				// This is a no-op once cached. In dev builds (no product config)
 				// the SDK resolves its addon + core libs from node_modules, so we
@@ -545,7 +545,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					this._sdk = await import('foundry-local-sdk');
 				}
 				if (!this._manager) {
-					// Store downloaded model files under VS Code's cache dir so
+					// Store downloaded model files under JustRide's cache dir so
 					// subsequent sessions load without re-downloading ("model
 					// management"). `createAsync` avoids blocking the event loop
 					// during native init.
@@ -571,7 +571,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					// download UI appears immediately rather than waiting for the
 					// SDK's first progress callback.
 					this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
-					// Bridge VS Code cancellation to the AbortSignal the SDK expects.
+					// Bridge JustRide cancellation to the AbortSignal the SDK expects.
 					const ac = new AbortController();
 					const sub = cts.token.onCancellationRequested(() => ac.abort());
 					try {

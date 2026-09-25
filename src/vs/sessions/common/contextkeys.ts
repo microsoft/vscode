@@ -65,7 +65,7 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
 /**
  * Focus is inside the Agents window's editor surface: an editor part, or the
  * auxiliary bar, which the single-pane layout docks into the side pane as the
- * detail panel (Files/Changes). Shortcuts shared with VS Code's editor
+ * detail panel (Files/Changes). Shortcuts shared with JustRide's editor
  * commands defer to those commands while this holds.
  */
 export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;

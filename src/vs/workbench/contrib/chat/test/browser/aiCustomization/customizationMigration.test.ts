@@ -188,7 +188,7 @@ suite('customizationMigration', () => {
 				PromptsConfig.SKILLS_LOCATION_KEY,
 				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 			],
-			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
+			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both JustRide and Copilot can use them.`,
 			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
 			consequence: 'The option to clear unused location settings after migration is selected by default.',
 		});
@@ -250,7 +250,7 @@ suite('customizationMigration', () => {
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
 			agent: {
-				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot ignores. Move it to keep it available.',
+				card: 'User data customizations are only used by JustRide. Found 1 agent that Copilot ignores. Move it to keep it available.',
 				confirmation: {
 					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
 					detail: 'This moves 1 agent out of user data.',
@@ -259,11 +259,11 @@ suite('customizationMigration', () => {
 				},
 			},
 			instruction: {
-				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
+				card: 'User data customizations are only used by JustRide. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
 				confirmation: 'This moves 1 instruction file out of user data.',
 			},
 			mixed: {
-				card: 'User data customizations are only used by VS Code. Found 2 customizations that Copilot ignores. Move them to keep them available.',
+				card: 'User data customizations are only used by JustRide. Found 2 customizations that Copilot ignores. Move them to keep them available.',
 				confirmation: 'This moves 2 customizations out of user data.',
 			},
 			migrated: 'Migrated 1 user data customization.',

@@ -1071,7 +1071,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			rpc: { options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
-		// legacy VS Code settings bridge, so an enterprise session governed solely by
+		// legacy JustRide settings bridge, so an enterprise session governed solely by
 		// GitHub or MDM policy looks exactly like this one from the host's side.
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {

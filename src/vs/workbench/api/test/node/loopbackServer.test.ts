@@ -62,7 +62,7 @@ function getScriptBlock(html: string): string {
 	return html.substring(start + '<script>'.length, end);
 }
 
-function render(appUri: URI, appName = 'Visual Studio Code'): string {
+function render(appUri: URI, appName = 'JustRide'): string {
 	return new LoopbackAuthServer(new NullLogger(), appUri, appName).getHtml();
 }
 

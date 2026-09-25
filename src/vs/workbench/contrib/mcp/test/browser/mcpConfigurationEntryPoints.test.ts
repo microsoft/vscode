@@ -700,7 +700,7 @@ suite('MCP configuration entry points', () => {
 			});
 		}
 
-		test('shows the active VS Code profile destination rather than the default profile', async () => {
+		test('shows the active JustRide profile destination rather than the default profile', async () => {
 			const fixture = setupGlobal();
 			const profileResource = URI.file('/user/profiles/custom/mcp.json');
 			fixture.instantiation.stub(IUserDataProfileService, upcastDeepPartial<IUserDataProfileService>({ currentProfile: { mcpResource: profileResource } }));
@@ -713,7 +713,7 @@ suite('MCP configuration entry points', () => {
 			]);
 		});
 
-		test('unavailable host falls back to VS Code user configuration', async () => {
+		test('unavailable host falls back to JustRide user configuration', async () => {
 			const fixture = setupGlobal();
 			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
 			fixture.quickInput.selections.push('Command (stdio)', 'Global');

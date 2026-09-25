@@ -72,7 +72,7 @@ export function getRemoteCLIArchiveName(quality: string): string {
 }
 
 /**
- * Install root for the VS Code CLI on the remote machine. Shared with
+ * Install root for the JustRide CLI on the remote machine. Shared with
  * Remote-SSH's exec-server installer so the two features can reuse each
  * other's installations. Also the parent of the agent host lockfile dir.
  */

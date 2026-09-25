@@ -144,7 +144,7 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 				return;
 			}
 			this.chatPetService.setAccessory(accessoryId);
-			status(localize('sessionsChatPetBadgeHatSelected', "VS Code pet is now wearing {0}", accessory.label));
+			status(localize('sessionsChatPetBadgeHatSelected', "JustRide pet is now wearing {0}", accessory.label));
 		}));
 		return button.element;
 	}

@@ -1,40 +1,39 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"sharedDataFolderName": ".vscode-oss-shared",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "JustRide",
+	"nameLong": "JustRide",
+	"applicationName": "justride",
+	"dataFolderName": ".justride",
+	"sharedDataFolderName": ".justride-shared",
+	"win32MutexName": "justride",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"tunnelApplicationName": "code-tunnel-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
-	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
-	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
-	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
-	"win32TunnelMutex": "vscodeoss-tunnel",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
-	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
-	"linuxDesktopName": "com.visualstudio.CodeOSS",
-	"linuxIconName": "code-oss",
+	"serverApplicationName": "justride-server",
+	"serverDataFolderName": ".justride-server",
+	"tunnelApplicationName": "justride-tunnel",
+	"win32DirName": "JustRide",
+	"win32NameVersion": "JustRide",
+	"win32RegValueName": "JustRide",
+	"win32x64AppId": "{{E3B65494-2F67-47DE-8C14-A61F2AE59451}",
+	"win32arm64AppId": "{{F7F9E565-E079-4A3E-A28D-446E27AE7AD8}",
+	"win32x64UserAppId": "{{9293963E-2EE7-444E-951A-EB20F88FDAC2}",
+	"win32arm64UserAppId": "{{7E6E4AE6-1DFF-4094-8A40-C5BFC67D5EE4}",
+	"win32AppUserModelId": "com.justride",
+	"win32ShellNameShort": "&JustRide",
+	"win32TunnelServiceMutex": "justride-tunnelservice",
+	"win32TunnelMutex": "justride-tunnel",
+	"darwinBundleIdentifier": "com.justride",
+	"darwinProfileUUID": "B82ECFC1-FDD1-4689-8022-12654BCC3244",
+	"darwinProfilePayloadUUID": "2C96C781-3DED-441A-92D0-00ABD6242E06",
+	"linuxDesktopName": "com.justride",
+	"linuxIconName": "justride",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
-	"urlProtocol": "code-oss",
+	"urlProtocol": "justride",
 	"agentsTelemetryAppName": "agents",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
@@ -87,74 +86,6 @@
 			}
 		}
 	],
-	"defaultChatAgent": {
-		"extensionId": "GitHub.copilot",
-		"chatExtensionId": "GitHub.copilot-chat",
-		"chatExtensionOutputId": "GitHub.copilot-chat.GitHub Copilot Chat.log",
-		"chatExtensionOutputExtensionStateCommand": "github.copilot.debug.extensionState",
-		"documentationUrl": "https://aka.ms/github-copilot-overview",
-		"termsStatementUrl": "https://aka.ms/github-copilot-terms-statement",
-		"privacyStatementUrl": "https://aka.ms/github-copilot-privacy-statement",
-		"skusDocumentationUrl": "https://aka.ms/github-copilot-plans",
-		"optimizeUsageDocumentationUrl": "https://aka.ms/token-usage-tips",
-		"publicCodeMatchesUrl": "https://aka.ms/github-copilot-match-public-code",
-		"managePlanUrl": "https://aka.ms/github-copilot-manage-plan",
-		"upgradePlanUrl": "https://aka.ms/github-copilot-upgrade-plan",
-		"signUpUrl": "https://aka.ms/github-sign-up",
-		"provider": {
-			"default": {
-				"id": "github",
-				"name": "GitHub"
-			},
-			"enterprise": {
-				"id": "github-enterprise",
-				"name": "GHE"
-			},
-			"google": {
-				"id": "google",
-				"name": "Google"
-			},
-			"apple": {
-				"id": "apple",
-				"name": "Apple"
-			},
-			"microsoft": {
-				"id": "microsoft",
-				"name": "Microsoft"
-			}
-		},
-		"providerExtensionId": "vscode.github-authentication",
-		"providerUriSetting": "github-enterprise.uri",
-		"providerScopes": [
-			[
-				"read:user",
-				"user:email",
-				"repo",
-				"workflow"
-			],
-			[
-				"user:email"
-			],
-			[
-				"read:user"
-			]
-		],
-		"entitlementUrl": "https://api.github.com/copilot_internal/user",
-		"entitlementSignupLimitedUrl": "https://api.github.com/copilot_internal/subscribe_limited_user",
-		"chatQuotaExceededContext": "github.copilot.chat.quotaExceeded",
-		"completionsQuotaExceededContext": "github.copilot.completions.quotaExceeded",
-		"walkthroughCommand": "github.copilot.open.walkthrough",
-		"completionsMenuCommand": "github.copilot.toggleStatusMenu",
-		"chatRefreshTokenCommand": "github.copilot.refreshToken",
-		"generateCommitMessageCommand": "github.copilot.git.generateCommitMessage",
-		"resolveMergeConflictsCommand": "github.copilot.git.resolveMergeConflicts",
-		"completionsAdvancedSetting": "github.copilot.advanced",
-		"completionsEnablementSetting": "github.copilot.enable",
-		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled",
-		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
-		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
-		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
-	},
 	"trustedExtensionAuthAccess": {
 		"github": [
 			"GitHub.copilot-chat"
@@ -169,7 +100,7 @@
 	"onboardingKeymaps": [
 		{
 			"id": "vscode",
-			"label": "VS Code",
+			"label": "JustRide",
 			"description": "Default keyboard mapping"
 		},
 		{

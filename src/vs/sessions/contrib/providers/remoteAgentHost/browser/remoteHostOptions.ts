@@ -287,7 +287,7 @@ export function supportsRemoteAgentHostLocationPreference(preferenceKey: string,
 
 /**
  * Whether a host's connection details are authored in the user's SSH config
- * file rather than in VS Code settings.
+ * file rather than in JustRide settings.
  *
  * True only for SSH hosts identified by an `~/.ssh/config` alias:
  * `computeSSHConnectionKey` keys those as `ssh:<alias>`, while an SSH host

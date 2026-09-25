@@ -512,7 +512,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	// --- Browser and background activity pills ------------------------------
 
 	SessionChatPills_BackgroundBrowser: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'Visual Studio Code' }] })),
+		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'JustRide' }] })),
 	}),
 
 	SessionChatPills_BackgroundBrowserFallback: defineComponentFixture({
@@ -528,7 +528,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	SessionChatPills_BackgroundBrowsersMultiple: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'Visual Studio Code' }, { title: 'GitHub' }] })),
+		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'JustRide' }, { title: 'GitHub' }] })),
 	}),
 
 	SessionChatPills_BackgroundSubagentsMultiple: defineComponentFixture({
@@ -537,7 +537,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_BackgroundMixed: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
-			browsers: [{ title: 'Visual Studio Code' }, { title: 'GitHub', ownerSubagent: 0 }],
+			browsers: [{ title: 'JustRide' }, { title: 'GitHub', ownerSubagent: 0 }],
 			subagents: ['Investigate authentication'],
 		})),
 	}),

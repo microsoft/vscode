@@ -95,7 +95,7 @@ function pluginCustomization(uri: string, workspace: string): ClientPluginCustom
 function activeClient(customization?: ClientPluginCustomization): SessionActiveClient {
 	return {
 		clientId: 'client',
-		displayName: 'VS Code',
+		displayName: 'JustRide',
 		tools: [],
 		...(customization ? { customizations: [customization] } : {}),
 	};

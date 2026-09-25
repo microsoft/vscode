@@ -21,7 +21,7 @@ import { agentModelCallMetaKey, readAgentModelCallDiagnostics, type IAgentModelC
 
 /**
  * Directory (under the client's user data home) that holds the per-session
- * token-usage sidecar files. Kept separate from VS Code's other user-data
+ * token-usage sidecar files. Kept separate from JustRide's other user-data
  * folders and never written into the CLI's `~/.copilot` tree.
  */
 const USAGE_DIR = 'agentHostUsage';
@@ -30,7 +30,7 @@ const MAX_USAGE_BYTES = 2 * 1024 * 1024;
 /**
  * One captured Copilot `ChatUsage` action, i.e. the usage report for a single
  * model call. Persisted as a line in the session's sidecar so per-turn/per-round
- * token metrics survive a VS Code restart (the reduced chat state keeps only the
+ * token metrics survive a JustRide restart (the reduced chat state keeps only the
  * last request's input/cache per turn, and `events.jsonl` only records
  * `outputTokens` until `session.shutdown`).
  */
@@ -284,7 +284,7 @@ abstract class AgentHostActionRecorder extends Disposable {
 
 /**
  * Captures Copilot `ChatUsage` actions on the client and appends them to a
- * stable, client-local per-session sidecar so token metrics survive a VS Code
+ * stable, client-local per-session sidecar so token metrics survive a JustRide
  * restart and feed accurate per-round Cache Explorer numbers.
  *
  * Dedup: a single model call can surface multiple `ChatUsage` actions —

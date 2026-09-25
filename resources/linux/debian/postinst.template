@@ -22,6 +22,9 @@ if hash update-mime-database 2>/dev/null; then
 	update-mime-database /usr/share/mime
 fi
 
+# JustRide is a rebrand of Code - OSS; @@NAME@@ is now "justride" so the
+# legacy stable-build check would no longer match, keep the repo setup
+# disabled until it is wired up for the new brand.
 if [ "@@NAME@@" != "code-oss" ]; then
 	# Remove the legacy bin command if this is the stable build
 	if [ "@@NAME@@" = "code" ]; then

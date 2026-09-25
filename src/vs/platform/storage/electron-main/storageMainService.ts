@@ -45,7 +45,7 @@ export interface IStorageMainService {
 
 	/**
 	 * Provides access to the application shared storage that is shared
-	 * across VS Code and Agents app.
+	 * across JustRide and Agents app.
 	 */
 	readonly applicationSharedStorage: IStorageMain;
 
@@ -204,7 +204,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Use the local application storage as fallback for transparent migration
 		// of keys from APPLICATION to APPLICATION_SHARED scope. The agents window is
-		// now part of the same VS Code app, so there is no separate "host" app DB to
+		// now part of the same JustRide app, so there is no separate "host" app DB to
 		// fall back to.
 		const applicationSharedStorage = new ApplicationSharedStorageMain(this.getStorageOptions(), sharedStorageFolderPath, this.applicationStorage, this.logService, this.fileService);
 

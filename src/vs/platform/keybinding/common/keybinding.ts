@@ -20,7 +20,7 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 	/**
 	 * When `true`, the keybinding is registered as a system-wide (OS global) shortcut that fires
-	 * even when VS Code does not have focus. Desktop only; ignored on web/server. Only honored for
+	 * even when JustRide does not have focus. Desktop only; ignored on web/server. Only honored for
 	 * user `keybindings.json` entries (not extension-contributed keybindings).
 	 */
 	systemWide?: boolean;

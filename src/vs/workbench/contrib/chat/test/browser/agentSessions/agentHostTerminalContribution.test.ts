@@ -410,7 +410,7 @@ suite('AgentHostTerminalContribution', () => {
 		assert.strictEqual(resolver.lastOptions?.remoteAuthority, undefined);
 	});
 
-	test('dispatches enableCustomTerminalTool from the VS Code setting', async () => {
+	test('dispatches enableCustomTerminalTool from the JustRide setting', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 

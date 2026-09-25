@@ -526,7 +526,7 @@ class OpenInExternalBrowserAction extends Action2 {
 			if (url) {
 				const openerService = accessor.get(IOpenerService);
 				await openerService.open(url, {
-					// ensures that VS Code itself doesn't try to open the URL, even for non-"http(s):" scheme URLs.
+					// ensures that JustRide itself doesn't try to open the URL, even for non-"http(s):" scheme URLs.
 					openExternal: true,
 					// ensures that the link isn't opened in Integrated Browser or other contributed external openers. False is the default, but just being explicit here.
 					allowContributedOpeners: false

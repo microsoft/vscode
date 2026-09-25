@@ -41,7 +41,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	}
 
 	private async updateWorkspaceFolders(workspace: ISessionWorkspace | undefined): Promise<void> {
-		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
+		// Auto-trust an isolated worktree JustRide created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
 		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
 		const activeSessionFolders = this.getWorkspaceFolderData(workspace);

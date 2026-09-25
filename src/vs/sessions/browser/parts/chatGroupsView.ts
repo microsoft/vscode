@@ -67,7 +67,7 @@ interface ISerializedChatGroupsLayout {
  * Hosts the grid of chat groups within a single {@link IActiveSession}. Chats
  * default to a single group (tab strip). Dragging a chat tab to a group's edge
  * splits it into a new group; dropping it onto another group's center moves it
- * there — mirroring VS Code editor groups.
+ * there — mirroring JustRide editor groups.
  *
  * The session is the single source of truth for which chats exist; the grid is
  * a UI-only partition over those chats. The partition (groups, their assigned

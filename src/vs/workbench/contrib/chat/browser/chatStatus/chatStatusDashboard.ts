@@ -46,9 +46,10 @@ import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import product from '../../../../../platform/product/common/product.js';
+import { IDefaultChatAgent } from '../../../../../base/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 
-const defaultChat = product.defaultChatAgent;
+const defaultChat = product.defaultChatAgent ?? ({} as IDefaultChatAgent);
 const completionsConfigurationTargets = [
 	ConfigurationTarget.WORKSPACE_FOLDER,
 	ConfigurationTarget.WORKSPACE,

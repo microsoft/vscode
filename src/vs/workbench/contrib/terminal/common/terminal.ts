@@ -331,7 +331,7 @@ export const enum ProcessState {
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
 	KilledDuringLaunch = 4,
-	// The process was killed by the user (the event originated from VS Code).
+	// The process was killed by the user (the event originated from JustRide).
 	KilledByUser = 5,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.

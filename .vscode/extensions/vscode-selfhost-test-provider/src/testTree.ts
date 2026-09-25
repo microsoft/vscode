@@ -43,7 +43,7 @@ export async function isVsCodeWorkspaceFolder(folder: vscode.WorkspaceFolder): P
 	try {
 		const buffer = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, 'package.json'));
 		const pkg = JSON.parse(textDecoder.decode(buffer));
-		return pkg.name === 'code-oss-dev';
+		return pkg.name === 'justride';
 	} catch {
 		return false;
 	}

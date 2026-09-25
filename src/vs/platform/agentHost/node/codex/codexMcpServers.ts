@@ -356,7 +356,7 @@ export function codexMcpServersFromConfig(servers: Record<string, unknown> | und
 // Rather than drive codex's own `mcpServer/oauth/login` browser flow, we reuse
 // the *same* mechanism the Copilot agent uses: report the server as
 // `McpServerStatus.AuthRequired` so the workbench acquires an OAuth bearer
-// token (VS Code dynamic client registration), then inject that token into the
+// token (JustRide dynamic client registration), then inject that token into the
 // server's per-thread `http_headers.Authorization`. Verified against the real
 // codex binary: it forwards `http_headers` on every MCP HTTP request, so a
 // workbench-acquired bearer authenticates the connection.

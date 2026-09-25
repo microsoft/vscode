@@ -255,7 +255,7 @@ export function createCommandUri(commandId: string, ...commandArgs: unknown[]): 
 }
 
 /**
- * VS Code addresses some content with placeholder `http` URLs whose authority is wrapped in
+ * JustRide addresses some content with placeholder `http` URLs whose authority is wrapped in
  * underscores, such as `http://_vscodecontentref_/0`. Underscores are illegal in hostnames, so
  * no real site collides with this shape.
  */

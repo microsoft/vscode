@@ -314,7 +314,7 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 	// Match node_modules or node_modules.asar at any position in the path, capturing the node_modules/... suffix
 	const nodeModulesRegex = /(?:^|[\\\/])((node_modules|node_modules\.asar)[\\\/].*)$/;
-	// Match VS Code extension paths:
+	// Match JustRide extension paths:
 	// 1. User extensions: .vscode/extensions/, .vscode-insiders/extensions/, .vscode-server/extensions/, .vscode-server-insiders/extensions/, etc.
 	// 2. Built-in extensions: resources/app/extensions/
 	// Capture everything from the vscode folder or resources/app/extensions onwards
@@ -334,7 +334,7 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 		// anoynimize user file paths that do not need to be retained or cleaned up.
 		if (!overlappingRange) {
-			// Check if this is a VS Code extension path - if so, preserve the .vscode*/extensions/... portion
+			// Check if this is a JustRide extension path - if so, preserve the .vscode*/extensions/... portion
 			const vscodeExtMatch = vscodeExtensionsPathRegex.exec(result[0]);
 			if (vscodeExtMatch) {
 				// Keep ".vscode[-variant]/extensions/extension-name/..." but redact the parent folder

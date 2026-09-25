@@ -28,7 +28,7 @@ suite('Sessions - Reopen Closed Chat or Session keybinding', () => {
 	const boundToChord = () => KeybindingsRegistry.getDefaultKeybindings()
 		.filter(item => item.keybinding?.getHashCode() === CTRL_SHIFT_T);
 
-	test('takes Ctrl/Cmd+Shift+T from VS Code\'s Reopen Closed Editor only outside the editor scope', () => {
+	test('takes Ctrl/Cmd+Shift+T from JustRide\'s Reopen Closed Editor only outside the editor scope', () => {
 		const rule = boundToChord().find(item => item.command === REOPEN_CLOSED_ITEM_ID)!;
 		const evaluate = (values: Record<string, boolean>) => rule.when?.evaluate(context(values)) ?? true;
 

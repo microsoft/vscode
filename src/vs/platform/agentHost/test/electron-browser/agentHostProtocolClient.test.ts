@@ -208,7 +208,7 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	}
 
 	fireExtensionRequest(id: number, method: string, params: Record<string, unknown>): void {
-		// VS Code-private reverse requests intentionally are not part of the public AHP ProtocolMessage union.
+		// JustRide-private reverse requests intentionally are not part of the public AHP ProtocolMessage union.
 		this._onMessage.fire({ jsonrpc: '2.0', id, method, params } as unknown as ProtocolMessage);
 	}
 
@@ -1904,7 +1904,7 @@ suite('AgentHostProtocolClient', () => {
 		}
 	});
 
-	test('importSession sends the VS Code extension request without a turn', async () => {
+	test('importSession sends the JustRide extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));
 		assert.deepStrictEqual(transport.sentMessages, [{
@@ -1923,7 +1923,7 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(result, error);
 	});
 
-	test('removeSessionArtifact sends the VS Code extension request', async () => {
+	test('removeSessionArtifact sends the JustRide extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
 		const resultPromise = client.removeSessionArtifact(session, 'artifact-1');

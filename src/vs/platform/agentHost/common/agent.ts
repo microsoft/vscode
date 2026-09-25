@@ -1132,7 +1132,7 @@ export interface IMcpNotification {
 export interface IActiveClient {
 	/** Client identifier (matches `clientId` from `initialize`). */
 	readonly clientId: string;
-	/** Human-readable client name (e.g. `"VS Code"`), if provided. */
+	/** Human-readable client name (e.g. `"JustRide"`), if provided. */
 	readonly displayName: string | undefined;
 	/** This client's tools. Assigning replaces the set (full replacement). */
 	tools: readonly ToolDefinition[];

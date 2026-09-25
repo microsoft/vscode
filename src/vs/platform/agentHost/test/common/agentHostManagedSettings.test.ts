@@ -232,7 +232,7 @@ suite('AgentHostManagedSettings', () => {
 		});
 	});
 
-	test('keeps an absolute command path that VS Code treats as a literal', () => {
+	test('keeps an absolute command path that JustRide treats as a literal', () => {
 		const configurationService = createConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
 			// Starts and ends with `/` but the trailing segment is not a flag list,
@@ -248,7 +248,7 @@ suite('AgentHostManagedSettings', () => {
 	test('skips a wildcard command key rather than broadening it', () => {
 		const configurationService = createConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
-			// `*` is a literal in VS Code but a command-boundary wildcard in the SDK,
+			// `*` is a literal in JustRide but a command-boundary wildcard in the SDK,
 			// so bridging this would require approval for every git command.
 			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { 'git *': false, 'rm': false } },
 		});

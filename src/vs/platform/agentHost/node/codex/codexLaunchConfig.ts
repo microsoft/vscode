@@ -127,7 +127,7 @@ export function buildCodexLaunchConfig(
 	}
 	env.OPENAI_API_KEY = proxy.nonce;
 	const overrides = [
-		`model_providers.vscode-proxy.name="VS Code Proxy"`,
+		`model_providers.vscode-proxy.name="JustRide Proxy"`,
 		`model_providers.vscode-proxy.base_url="${proxy.baseUrl}/v1"`,
 		`model_providers.vscode-proxy.wire_api="responses"`,
 		`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,

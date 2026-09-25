@@ -20,7 +20,7 @@
 			{
 				"id": "vscode.builtin-renderer",
 				"entrypoint": "./renderer-out/index.js",
-				"displayName": "VS Code Builtin Notebook Output Renderer",
+				"displayName": "JustRide Builtin Notebook Output Renderer",
 				"requiresMessaging": "never",
 				"mimeTypes": [
 					"image/gif",

@@ -167,12 +167,12 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:
-	// * VS Code's language usage
+	// * JustRide's language usage
 	// * Languages with 'problematic' syntaxes that have caused incorrect language detection
 	private adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
 		switch (modelResult.languageId) {
 			// For the following languages, we increase the confidence because
-			// these are commonly used languages in VS Code and supported
+			// these are commonly used languages in JustRide and supported
 			// by the model.
 			case 'js':
 			case 'html':
@@ -197,12 +197,12 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 			// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
 			// negativeConfidenceCorrection from the confidence.
 
-			// languages that are provided by default in VS Code
+			// languages that are provided by default in JustRide
 			case 'bat':
 			case 'ini':
 			case 'makefile':
 			case 'sql':
-			// languages that aren't provided by default in VS Code
+			// languages that aren't provided by default in JustRide
 			case 'csv':
 			case 'toml':
 				// Other considerations for negativeConfidenceCorrection that

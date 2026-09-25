@@ -400,7 +400,7 @@ export async function showConfigureHooksQuickPick(
 							.filter(([hookType]) => targetHookTypes.has(hookType))
 							.map(makeItem);
 					} else {
-						// No target: group into Default (shared), VS Code Only, Copilot Only
+						// No target: group into Default (shared), JustRide Only, Copilot Only
 						const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode]));
 						const copilotTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot]));
 						const allEntries = Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][];

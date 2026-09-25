@@ -44,7 +44,7 @@ export interface IProtocolTransport extends IDisposable {
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 
-	/** Route used by a VS Code client to reach the agent host. */
+	/** Route used by a JustRide client to reach the agent host. */
 	readonly clientConnectionKind?: AgentHostClientConnectionKind;
 
 	/** Fires when a message is received from the remote end. */

@@ -53,7 +53,7 @@ export const enum AgentHostLogSourceKind {
 	WireLog = 'wire',
 	/** The Copilot SDK process logs under `<COPILOT_HOME>/logs`. */
 	CliLog = 'cliLog',
-	/** A VS Code output channel (agent host process, renderer, shared). */
+	/** A JustRide output channel (agent host process, renderer, shared). */
 	ProcessChannel = 'processChannel',
 	/** The remote machine's `agenthost.log`, downloaded on demand. */
 	RemoteProcessLog = 'remoteProcessLog',

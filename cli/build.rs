@@ -189,11 +189,11 @@ fn apply_win32_version_resources() {
 	let name_long = product
 		.get("nameLong")
 		.and_then(|v| v.as_str())
-		.unwrap_or("Code - OSS");
+		.unwrap_or("JustRide");
 	let application_name = product
 		.get("applicationName")
 		.and_then(|v| v.as_str())
-		.unwrap_or("code");
+		.unwrap_or("justride");
 	let exe_name = format!("{application_name}.exe");
 
 	let base_version = package_json.version.split('-').next().unwrap_or("0.0.0");

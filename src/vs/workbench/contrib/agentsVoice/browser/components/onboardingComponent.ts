@@ -96,7 +96,7 @@ export function createOnboarding(): OnboardingComponent {
 	miniViewLink.href = '#';
 	miniViewLink.style.cssText = 'color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;';
 	miniViewLink.textContent = localize('agentsVoice.openMiniView', "Open the mini-view");
-	const miniViewSuffix = document.createTextNode(' ' + localize('agentsVoice.miniViewSuffix', "to multitask while VS Code is not in the foreground."));
+	const miniViewSuffix = document.createTextNode(' ' + localize('agentsVoice.miniViewSuffix', "to multitask while JustRide is not in the foreground."));
 	miniViewTextSpan.append(miniViewLink, miniViewSuffix);
 	miniViewRow.append(miniViewIconWrap, miniViewTextSpan);
 

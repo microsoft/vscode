@@ -130,12 +130,12 @@ export const chatThinkingShimmer = registerColor(
 export const chatWorkingProgressStableIconForeground = registerColor(
 	'chat.workingProgressStableIconForeground',
 	{ dark: '#007ACC', light: '#007ACC', hcDark: activeContrastBorder, hcLight: activeContrastBorder },
-	localize('chat.workingProgressStableIconForeground', 'Foreground color of the Stable VS Code icon in the chat working progress indicator.'));
+	localize('chat.workingProgressStableIconForeground', 'Foreground color of the Stable JustRide icon in the chat working progress indicator.'));
 
 export const chatWorkingProgressInsidersIconForeground = registerColor(
 	'chat.workingProgressInsidersIconForeground',
 	{ dark: '#24BFA5', light: '#24BFA5', hcDark: activeContrastBorder, hcLight: activeContrastBorder },
-	localize('chat.workingProgressInsidersIconForeground', 'Foreground color of the Insiders VS Code icon in the chat working progress indicator.'));
+	localize('chat.workingProgressInsidersIconForeground', 'Foreground color of the Insiders JustRide icon in the chat working progress indicator.'));
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',

@@ -769,10 +769,10 @@ export class ReleaseNotesManager extends Disposable {
  * ```
  *
  * Supported conditions:
- * - `IN_PRODUCT` - Content shown in VS Code (both Stable and Insiders)
+ * - `IN_PRODUCT` - Content shown in JustRide (both Stable and Insiders)
  * - `WEB` - Content shown on the website only
- * - `STABLE` - Content shown in VS Code Stable only
- * - `INSIDERS` - Content shown in VS Code Insiders only
+ * - `STABLE` - Content shown in JustRide Stable only
+ * - `INSIDERS` - Content shown in JustRide Insiders only
  * - `TRYOUTS` - Content shown only when the local Try This renderer is provided
  *
  * On the website, the entire block is a single HTML comment, so the

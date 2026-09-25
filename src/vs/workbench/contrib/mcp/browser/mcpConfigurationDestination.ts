@@ -116,7 +116,7 @@ export class McpConfigurationDestination {
 		items.push({
 			kind: WorkspaceMcpConfigKind.LegacyVscode,
 			label: WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY],
-			description: adding ? localize('mcp.config.legacy.deprecated', "Deprecated") : localize('mcp.config.legacy', "VS Code workspace configuration"),
+			description: adding ? localize('mcp.config.legacy.deprecated', "Deprecated") : localize('mcp.config.legacy', "JustRide workspace configuration"),
 			detail: rootError,
 		});
 		const selected = await this.quickInputService.pick(items, {

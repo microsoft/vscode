@@ -52,7 +52,7 @@ export namespace ThemeSettingDefaults {
 /**
  * Migrates legacy theme settings IDs to their current equivalents.
  * Theme IDs were simplified: "Default" prefix was removed from built-in themes,
- * and "Experimental" prefix was replaced when VS Code themes became GA.
+ * and "Experimental" prefix was replaced when JustRide themes became GA.
  */
 export function migrateThemeSettingsId(settingsId: string): string {
 	switch (settingsId) {
@@ -61,10 +61,10 @@ export function migrateThemeSettingsId(settingsId: string): string {
 		case 'Default Dark+': return 'Dark+';
 		case 'Default Light+': return 'Light+';
 		case 'Experimental Dark':
-		case 'VS Code Dark':
+		case 'JustRide Dark':
 			return ThemeSettingDefaults.COLOR_THEME_DARK;
 		case 'Experimental Light':
-		case 'VS Code Light':
+		case 'JustRide Light':
 			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
 	}
 	return settingsId;

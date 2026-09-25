@@ -24,7 +24,7 @@ import type { SkillsListResponse } from './protocol/generated/v2/SkillsListRespo
  * Codex reports its *effective* skills and hooks through the cwd-scoped
  * `skills/list` and `hooks/list` app-server methods (see
  * `codex-rs/.../catalog_processor.rs`). Codex natively discovers skills from
- * the VS Code `.agents/skills` convention (`<repo>/.agents/skills` at repo
+ * the JustRide `.agents/skills` convention (`<repo>/.agents/skills` at repo
  * scope and `~/.agents/skills` at user scope) as well as `.codex` and bundled
  * roots. These helpers project those catalogs into the AHP
  * {@link DirectoryCustomization} containers that back the workbench

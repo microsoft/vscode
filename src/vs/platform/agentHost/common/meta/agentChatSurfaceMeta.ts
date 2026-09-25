@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** The metadata key for VS Code-owned chat-surface information. */
+/** The metadata key for JustRide-owned chat-surface information. */
 export const VSCODE_CHAT_SURFACE_META_KEY = 'vscode.chat.surface';
 
 interface IHasChatSurfaceMeta {
@@ -24,7 +24,7 @@ export interface IEditorInlineChatSurfaceMeta {
 	readonly targetUri?: string;
 }
 
-/** VS Code-owned metadata describing the chat surface that created a session. */
+/** JustRide-owned metadata describing the chat surface that created a session. */
 export type IChatSurfaceMeta = ITerminalChatSurfaceMeta | IEditorInlineChatSurfaceMeta;
 
 /** Reads recognized chat-surface metadata, dropping malformed values. */
@@ -62,7 +62,7 @@ export function readChatSurfaceMeta(source: IHasChatSurfaceMeta): IChatSurfaceMe
 	}
 }
 
-/** Adds VS Code's typed chat-surface metadata to an open request metadata bag. */
+/** Adds JustRide's typed chat-surface metadata to an open request metadata bag. */
 export function withChatSurfaceMeta(meta: Record<string, unknown> | undefined, surface: IChatSurfaceMeta | undefined): Record<string, unknown> | undefined {
 	if (!surface) {
 		return meta;

@@ -1750,7 +1750,7 @@ suite('Sessions - ChatGroupsView', () => {
 			reconnecting: 'Reconnecting...',
 			reconnectingIn: seconds => `Reconnecting in ${seconds}s`,
 			incompatibleTitle: 'Cannot Connect to the Environment',
-			incompatible: 'This environment is incompatible with this version of Visual Studio Code.',
+			incompatible: 'This environment is incompatible with this version of JustRide.',
 		};
 		sessionsProvidersService.provider = provider;
 		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
@@ -1789,12 +1789,12 @@ suite('Sessions - ChatGroupsView', () => {
 			offlineBanner: { visible: true, message: 'Environment offline.', action: 'Connect' },
 			incompatible: {
 				title: 'Cannot Connect to the Environment',
-				description: 'This environment is incompatible with this version of Visual Studio Code.',
+				description: 'This environment is incompatible with this version of JustRide.',
 				action: undefined,
 			},
 			incompatibleBanner: {
 				visible: true,
-				message: 'This environment is incompatible with this version of Visual Studio Code.',
+				message: 'This environment is incompatible with this version of JustRide.',
 				action: undefined,
 			},
 			connected: { recoveryVisible: false, bannerVisible: false },

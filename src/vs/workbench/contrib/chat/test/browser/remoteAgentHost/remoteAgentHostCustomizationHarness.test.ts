@@ -400,7 +400,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', load: { kind: CustomizationLoadStatus.Loaded } };
+		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data', load: { kind: CustomizationLoadStatus.Loaded } };
 		const synced: Customization = {
 			...bundleRef,
 			clientId: 'test-client',
@@ -471,7 +471,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		// The synthetic bundle itself should NOT appear as a top-level item
-		assert.ok(!items.some(i => i.name === 'VS Code Synced Data'), 'synthetic bundle should be hidden');
+		assert.ok(!items.some(i => i.name === 'JustRide Synced Data'), 'synthetic bundle should be hidden');
 		// But its expanded child should appear
 		const skillItem = items.find(i => i.name === 'my-skill');
 		assert.ok(skillItem, 'expanded skill from bundle should be present');
@@ -482,7 +482,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', };
+		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data', };
 		const synced: Customization = {
 			...bundleRef,
 			clientId: 'test-client',
@@ -802,9 +802,9 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 	test('provider recovers original provenance for synthetic-bundle children via the origin resolver', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 
-		// The synthetic "VS Code Synced Data" bundle lives under the synced scheme.
+		// The synthetic "JustRide Synced Data" bundle lives under the synced scheme.
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', };
+		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data', };
 
 		connection.setRootState({ agents: [createAgentInfo([])] });
 
@@ -862,7 +862,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 	test('provider keeps client group for recovered user provenance', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', };
+		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data', };
 		connection.setRootState({ agents: [createAgentInfo([])] });
 
 		const ruleResource = URI.parse(`${bundleUri}/rules/user-rule.instructions.md`);
@@ -919,7 +919,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
-		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', };
+		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'JustRide Synced Data', };
 
 		connection.setRootState({ agents: [createAgentInfo([])] });
 

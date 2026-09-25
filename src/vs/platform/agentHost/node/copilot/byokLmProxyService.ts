@@ -81,7 +81,7 @@ type ByokLmProxyState = undefined;
 
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
- * BYOK models provided by VS Code extensions. The runtime is configured with a
+ * BYOK models provided by JustRide extensions. The runtime is configured with a
  * `type: 'openai'`, `wireApi: 'responses'` provider whose `baseUrl` points
  * here; inbound `POST /v/<vendor>/responses` requests are authenticated,
  * translated, and forwarded to the renderer LM API via

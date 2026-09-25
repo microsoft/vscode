@@ -5857,7 +5857,7 @@ export class AgentService extends Disposable implements IAgentService {
 			for (const chat of chatsToDelete) {
 				await this._sessionDataService.deleteSessionData(chat);
 			}
-			// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+			// Remove the JustRide per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 			// performed by the provider above. No-op when the directory does not exist.
 			//
 			// Runs before the worktree is removed: subscribers of the will-delete

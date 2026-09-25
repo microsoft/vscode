@@ -63,9 +63,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
 /**
  * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
  * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
- * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * cannot be loosened by the user. JustRide only *reads* it to decide which chat harness to offer,
  * and deliberately declares no configuration policy for it: the control is runtime-owned, and
- * mirroring it as a VS Code policy would invert ownership.
+ * mirroring it as a JustRide policy would invert ownership.
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 

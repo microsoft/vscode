@@ -7,7 +7,7 @@ import type { InitializeResult } from '../state/protocol/common/commands.js';
 
 export const AgentHostArtifactRemovalCapabilityMetaKey = 'vscode.removeSessionArtifact';
 
-/** Whether the host advertises the VS Code-only artifact removal request. */
+/** Whether the host advertises the JustRide-only artifact removal request. */
 export function supportsAgentHostArtifactRemoval(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[AgentHostArtifactRemovalCapabilityMetaKey] === true;
 }

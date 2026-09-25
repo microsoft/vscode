@@ -786,7 +786,7 @@ suite('mcpListWidget', () => {
 	suite('getServerItemContextMenuActions', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
 
-		test('replaces the VS Code workspace action with agent-host workspace and session actions', () => {
+		test('replaces the JustRide workspace action with agent-host workspace and session actions', () => {
 			const { service, calls } = createAgentHostCustomizations();
 			const server = createAgentHostServer({
 				enabled: false,
@@ -825,7 +825,7 @@ suite('mcpListWidget', () => {
 			]);
 		});
 
-		test('keeps the VS Code-owned enablement set without an active agent-host session', () => {
+		test('keeps the JustRide-owned enablement set without an active agent-host session', () => {
 			const localActions = trackActions(disposables, [
 				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
 				new Action(EnableMcpServerForWorkspaceAction.ID, 'Enable (Workspace)'),
@@ -970,7 +970,7 @@ suite('mcpListWidget', () => {
 				});
 			});
 
-			test('keeps legacy VS Code workspace actions without an active agent-host session', () => {
+			test('keeps legacy JustRide workspace actions without an active agent-host session', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'server-def-id', false, agentHostService, createAgentPluginService(), sessionResource, undefined));

@@ -46,7 +46,7 @@ suite('New Session Folder Quick Pick', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('lists the sessions\' own recents followed by VS Code\'s recents, then a Browse entry', () => {
+	test('lists the sessions\' own recents followed by JustRide\'s recents, then a Browse entry', () => {
 		const ownRecentUri = URI.file('/repo-a');
 		const vsCodeRecentUri = URI.file('/repo-b');
 

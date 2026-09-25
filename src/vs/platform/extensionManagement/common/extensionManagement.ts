@@ -406,7 +406,7 @@ export interface IExtensionGalleryCapabilities {
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
 /**
- * Service to interact with the Visual Studio Code Marketplace to get extensions.
+ * Service to interact with the JustRide Marketplace to get extensions.
  * @throws Error if the Marketplace is not enabled or not reachable.
  */
 export interface IExtensionGalleryService {

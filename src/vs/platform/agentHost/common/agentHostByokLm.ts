@@ -16,7 +16,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
  * `URI`, or `workbench/contrib/chat` types) so they survive both the local
  * utility-process IPC channel and the remote JSON-RPC transport without a
  * translation step. The node side converts OpenAI Responses wire payloads
- * to/from these; the renderer side converts these to/from the VS Code
+ * to/from these; the renderer side converts these to/from the JustRide
  * LM API (`ILanguageModelsService`).
  */
 
@@ -193,7 +193,7 @@ export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>(
 
 /**
  * Renderer-side handler that services {@link IByokLmChatRequest}s by calling
- * the VS Code Language Model API. Implemented in the workbench (where
+ * the JustRide Language Model API. Implemented in the workbench (where
  * `ILanguageModelsService` lives) and reached from the node agent host over
  * the reverse bridge.
  */

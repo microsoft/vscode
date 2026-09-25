@@ -63,7 +63,7 @@ export class CodexChatDiscovery extends Disposable {
 		this._watchers.clear();
 		this._home = home;
 		const sessions = URI.joinPath(home, 'sessions');
-		// App-server fs/watch is shallow; VS Code's recursive watcher follows missing/replaced dated directories.
+		// App-server fs/watch is shallow; JustRide's recursive watcher follows missing/replaced dated directories.
 		this._watchers.add(this._fileService.onDidFilesChange(event => {
 			if (event.affects(sessions)) {
 				this.invalidate();

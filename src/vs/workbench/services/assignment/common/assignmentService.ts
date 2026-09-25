@@ -47,7 +47,7 @@ export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentS
 /**
  * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
  * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
- * VS Code both query treatments by the bare name, so this prefix must be accounted for when a
+ * JustRide both query treatments by the bare name, so this prefix must be accounted for when a
  * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
  */
 const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';

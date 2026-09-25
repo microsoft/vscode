@@ -12,7 +12,7 @@
 export const AiAgentEnvVar = 'AI_AGENT';
 
 /**
- * The value VS Code announces for processes it spawns on behalf of an agent
+ * The value JustRide announces for processes it spawns on behalf of an agent
  * session, following the `github_copilot_<surface>` form asked of every GitHub
  * Copilot surface. Must stay stable: it is a wire contract with the reporting
  * pipeline, and `gh` only accepts values matching `[a-zA-Z0-9_-]+`.

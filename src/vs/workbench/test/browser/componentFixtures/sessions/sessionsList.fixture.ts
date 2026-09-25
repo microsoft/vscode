@@ -843,7 +843,7 @@ const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
 ];
 const UNREAD_STATUS_ICON_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'workspace-less', title: 'Fix worktree workspace mapping', minutesAgo: 1, isRead: false },
-	{ id: 'workspace', title: 'Fix VS Code #331780', workspace: 'vscode', minutesAgo: 2, isRead: false },
+	{ id: 'workspace', title: 'Fix JustRide #331780', workspace: 'vscode', minutesAgo: 2, isRead: false },
 ];
 const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
 	{

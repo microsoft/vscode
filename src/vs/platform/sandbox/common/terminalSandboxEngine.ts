@@ -804,7 +804,7 @@ export class TerminalSandboxEngine extends Disposable {
 	 * Returns whether a candidate filesystem path is covered by a sandbox allow/deny
 	 * matcher. Both values are normalized with the target sandbox OS semantics before
 	 * comparison. Non-glob matchers are treated as exact-or-parent matches; glob
-	 * matchers are evaluated with VS Code's glob matcher.
+	 * matchers are evaluated with JustRide's glob matcher.
 	 *
 	 * Examples:
 	 * - Linux/macOS: `/workspace/project/src/file.ts` matches `/workspace/project`.

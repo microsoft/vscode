@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Re-exports the protocol reducers and adds VS Code-specific helpers.
+// Re-exports the protocol reducers and adds JustRide-specific helpers.
 // The actual reducer logic lives in the auto-generated protocol layer.
 
 // Re-export reducers from the protocol layer
@@ -20,7 +20,7 @@ const PERMISSION_REQUEST_TOOL_KINDS: Readonly<Partial<Record<AgentPermissionRequ
 };
 
 /**
- * Extracts the VS Code-specific `toolKind` rendering hint for a tool call.
+ * Extracts the JustRide-specific `toolKind` rendering hint for a tool call.
  *
  * Normally the `_meta.toolKind` flag an agent adapter injects (e.g.
  * `copilotEventMapper`); it is not part of the protocol. A remote agent host

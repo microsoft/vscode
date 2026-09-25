@@ -752,7 +752,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 *
 	 * This fails the launch closed unconditionally. The host cannot tell whether a
 	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * legacy VS Code settings bridge, which is itself behind a false-by-default
+	 * legacy JustRide settings bridge, which is itself behind a false-by-default
 	 * compatibility setting, while server and MDM policy is discovered by the runtime
 	 * itself under `enableManagedSettings`. Gating a security control on that signal
 	 * would leave exactly the enterprise sessions it protects unprotected, so the
@@ -994,7 +994,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
-			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
+			// JustRide owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {

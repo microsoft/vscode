@@ -23,7 +23,7 @@ export const TUNNEL_MIN_PROTOCOL_VERSION = 5;
 /** Well-known port for the agent host on tunnel machines. */
 export const TUNNEL_AGENT_HOST_PORT = 31546;
 
-/** Label used to identify VS Code server launcher tunnels. */
+/** Label used to identify JustRide server launcher tunnels. */
 export const TUNNEL_LAUNCHER_LABEL = 'vscode-server-launcher';
 
 /** Address prefix for tunnel-backed connections (e.g. `tunnel:myTunnelId`). */

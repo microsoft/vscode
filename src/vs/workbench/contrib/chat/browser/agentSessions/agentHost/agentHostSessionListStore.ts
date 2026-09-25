@@ -107,9 +107,9 @@ export class AgentHostSessionListStore extends Disposable {
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
 
-		// Re-fetch the session list whenever the set of VS Code workspace
+		// Re-fetch the session list whenever the set of JustRide workspace
 		// folders changes, since filtering depends on it. The agent host itself
-		// doesn't know which workspace this VS Code window has open.
+		// doesn't know which workspace this JustRide window has open.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			if (this._options.filterToWorkspace === false) {
 				return;

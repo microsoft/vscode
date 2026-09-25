@@ -460,7 +460,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return {
 				kind: 'unavailable',
 				message: resource.mediaType === CustomizationMarketplaceMediaType.CursorPlugin
-					? localize('customizationMarketplace.cursorUnsupported', "Cursor plugins cannot be installed in VS Code. Open the resource to view its installation instructions.")
+					? localize('customizationMarketplace.cursorUnsupported', "Cursor plugins cannot be installed in JustRide. Open the resource to view its installation instructions.")
 					: localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."),
 			};
 		}

@@ -101,7 +101,7 @@ class FileCompletionCandidateAccessor implements IItemAccessor<IFileCompletionCa
  * this provider enumerates files under the session's effective working directories
  * (via {@link AgentHostWorkspaceFiles}, which uses ripgrep and respects
  * `.gitignore`), ranks them with the same fuzzy scorer used by the
- * VS Code Quick Open file picker, and returns up to {@link MAX_RESULTS}
+ * JustRide Quick Open file picker, and returns up to {@link MAX_RESULTS}
  * matches.
  */
 export class AgentHostFileCompletionProvider implements IAgentHostCompletionItemProvider {

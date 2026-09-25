@@ -873,7 +873,7 @@ suite('buildModelPickerItems', () => {
 		}));
 		assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [action.label, action.disabled ?? false, action.description]), [
 			['Auto', false, undefined],
-			['HydraFusion', true, 'Update VS Code'],
+			['HydraFusion', true, 'Update JustRide'],
 		]);
 	});
 

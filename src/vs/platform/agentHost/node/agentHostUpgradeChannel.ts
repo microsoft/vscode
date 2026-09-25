@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Environment variable populated by the VS Code CLI when it spawns the
+ * Environment variable populated by the JustRide CLI when it spawns the
  * agent host server. Its value is the path of a unix-domain socket
  * (POSIX) or named pipe (Windows) on which the CLI is serving its HTTP
  * management API. Presence of the variable also serves as the "I was

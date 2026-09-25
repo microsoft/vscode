@@ -178,7 +178,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 
 /**
  * Builds enablement actions for a plugin customization published by an agent host.
- * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
+ * Legacy JustRide-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
 export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
 	const enablement = getCustomizationScopeEnablement(customization);

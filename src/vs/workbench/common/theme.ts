@@ -299,8 +299,8 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', STATUS_BAR_FOREGROUND, localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
-	dark: '#007ACC',
-	light: '#007ACC',
+	dark: '#0F7B74',
+	light: '#0D9488',
 	hcDark: null,
 	hcLight: null,
 }, localize('statusBarBackground', "Status bar background color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
@@ -313,8 +313,8 @@ export const STATUS_BAR_INACTIVE_BACKGROUND = registerColor('statusBar.inactiveB
 }, localize('statusBarInactiveBackground', "Status bar background color when a workspace or folder is opened and the window is inactive. Debugging and other background overrides take precedence. If not set, the current status bar background is used."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
-	dark: '#68217A',
-	light: '#68217A',
+	dark: '#0B5F55',
+	light: '#0B5F55',
 	hcDark: null,
 	hcLight: null,
 }, localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));

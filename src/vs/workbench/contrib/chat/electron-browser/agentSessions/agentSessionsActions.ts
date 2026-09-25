@@ -519,7 +519,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	/**
 	 * Set once the user dismisses (X) or opens the tip. Suppresses the tip for
 	 * the rest of this window's lifetime — intentionally in-memory only, so it
-	 * shows again the next time VS Code is reopened.
+	 * shows again the next time JustRide is reopened.
 	 */
 	private _dismissedForWindow = false;
 

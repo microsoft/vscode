@@ -72,7 +72,7 @@ export const GenAiAttr = {
 export const CopilotChatAttr = {
 	TURN_INDEX: 'copilot_chat.turn.index',
 	TIME_TO_FIRST_TOKEN: 'copilot_chat.time_to_first_token',
-	/** VS Code chat session ID from CapturingToken — the definitive session identifier */
+	/** JustRide chat session ID from CapturingToken — the definitive session identifier */
 	CHAT_SESSION_ID: 'copilot_chat.chat_session_id',
 	/** Hook type / event name (e.g. PreToolUse, PostToolUse, Stop) */
 	HOOK_TYPE: 'copilot_chat.hook_type',

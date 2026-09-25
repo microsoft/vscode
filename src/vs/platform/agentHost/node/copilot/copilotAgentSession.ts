@@ -51,7 +51,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
+import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScripts.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -3627,7 +3627,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Whether VS Code's auto-reply setting is enabled in the root config.
+	 * Whether JustRide's auto-reply setting is enabled in the root config.
 	 */
 	private _isAutoReplyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;

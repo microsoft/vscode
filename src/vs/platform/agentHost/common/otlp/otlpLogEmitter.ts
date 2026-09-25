@@ -59,7 +59,7 @@ export function parseOtlpLogLevel(value: string): OtlpLogLevelName | undefined {
 }
 
 /**
- * Map a VS Code {@link LogLevel} onto the corresponding OTLP
+ * Map a JustRide {@link LogLevel} onto the corresponding OTLP
  * `SeverityNumber` and short name.
  */
 export function logLevelToOtlpSeverity(level: LogLevel): { severityNumber: number; severityText: OtlpLogLevelName } {
@@ -77,7 +77,7 @@ export function logLevelToOtlpSeverity(level: LogLevel): { severityNumber: numbe
 }
 
 /**
- * Map a VS Code {@link LogLevel} onto the matching OTLP level name used in
+ * Map a JustRide {@link LogLevel} onto the matching OTLP level name used in
  * the protocol's `{level}` template. Returns `undefined` for
  * {@link LogLevel.Off} since "no logs" is represented by not subscribing
  * at all.
@@ -90,7 +90,7 @@ export function logLevelToOtlpLevelName(level: LogLevel): OtlpLogLevelName | und
 }
 
 /**
- * Reverse of {@link logLevelToOtlpSeverity}: returns the closest VS Code
+ * Reverse of {@link logLevelToOtlpSeverity}: returns the closest JustRide
  * log level for a given OTLP `SeverityNumber`. Used on the client side to
  * pick which `ILogger.{trace,debug,...}` call to route an incoming record
  * through.

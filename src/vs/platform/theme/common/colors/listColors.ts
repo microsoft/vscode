@@ -31,7 +31,7 @@ export const listFocusAndSelectionOutline = registerColor('list.focusAndSelectio
 	nls.localize('listFocusAndSelectionOutline', "List/Tree outline color for the focused item when the list/tree is active and selected. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground',
-	{ dark: '#04395E', light: '#0060C0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
+	{ dark: '#0E4A44', light: '#0A7D72', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) },
 	nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground',

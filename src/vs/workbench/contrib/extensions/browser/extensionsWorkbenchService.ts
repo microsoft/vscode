@@ -477,7 +477,7 @@ export class Extension implements IExtension {
 
 		if (this.type === ExtensionType.System) {
 			return Promise.resolve(`# ${this.displayName || this.name}
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with JustRide. It can be disabled but not uninstalled.
 ## Features
 ${this.description}
 `);
@@ -515,7 +515,7 @@ ${this.description}
 		}
 
 		if (this.type === ExtensionType.System) {
-			return Promise.resolve(`Please check the [VS Code Release Notes](command:${ShowCurrentReleaseNotesActionId}) for changes to the built-in extensions.`);
+			return Promise.resolve(`Please check the [JustRide Release Notes](command:${ShowCurrentReleaseNotesActionId}) for changes to the built-in extensions.`);
 		}
 
 		return Promise.reject(new Error('not available'));
@@ -2864,7 +2864,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
-		if (!areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
+		if (!this.productService.defaultChatAgent || !areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
 			for (const packExtension of this.getAllPackedExtensions(extension, this.local)) {
 				if (packExtension.local && !extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
 					extensionsToUninstall.push({ extension: packExtension.local });

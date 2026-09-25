@@ -455,7 +455,7 @@ function createVariantFixtures(variant: 'cards' | 'noCards') {
 		ChatInputChanges: defineComponentFixture({
 			...representativeThemeOptions,
 			labels: { kind: 'screenshot' },
-			expectedVisualDescriptions: [treatment, 'Five realistic VS Code source changes match the Git changes editor order and breadcrumb treatment.'],
+			expectedVisualDescriptions: [treatment, 'Five realistic JustRide source changes match the Git changes editor order and breadcrumb treatment.'],
 			render: context => renderMultiDiffVisualFixture(context, {
 				height: 720,
 				variant,

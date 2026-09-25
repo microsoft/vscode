@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// VS Code logo silhouette path, extracted from sessions/contrib/chat/browser/media/vscode-icon.svg.
+// JustRide logo silhouette path, extracted from sessions/contrib/chat/browser/media/vscode-icon.svg.
 // The aquarium cannot use that SVG file directly because each fish renders the
 // logo as live, same-document SVG geometry: fish.ts stores this path in a
 // shared <symbol>, then renders clipped <use> slices with staggered CSS

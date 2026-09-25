@@ -139,7 +139,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				accessSKUs: ['copilot_business'],
 				accessScopes: ['openid', 'profile', 'email', 'offline_access'],
 			},
-			nameLong: 'VS Code Test',
+			nameLong: 'JustRide Test',
 		});
 
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
@@ -478,7 +478,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// that for this case rather than the transient "check your network connection".
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
-		requestHandler = () => mockResponse(400, { message: 'Only VS Code clients version 1.104.2 or later are allowed.' });
+		requestHandler = () => mockResponse(400, { message: 'Only JustRide clients version 1.104.2 or later are allowed.' });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
@@ -602,7 +602,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				accessSKUs: ['copilot_business'],
 				accessScopes: ['api://marketplace.example.com/.default', 'offline_access'],
 			},
-			nameLong: 'VS Code Test',
+			nameLong: 'JustRide Test',
 		});
 		let requestedScopes: readonly string[] | undefined;
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -631,7 +631,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				nlsBaseUrl: '',
 				accessSKUs: ['copilot_business'],
 			},
-			nameLong: 'VS Code Test',
+			nameLong: 'JustRide Test',
 		});
 		let sessionsRequested = false;
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -777,7 +777,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		fireConfigChange(ExtensionGalleryServiceUrlConfigKey);
 
 		// A different marketplace, not a different sign-in — the existing wording still applies.
-		assert.deepStrictEqual(restartPrompts, ['VS Code Test is now configured to a different Marketplace. Please restart to apply the changes.']);
+		assert.deepStrictEqual(restartPrompts, ['JustRide Test is now configured to a different Marketplace. Please restart to apply the changes.']);
 	});
 
 	test('an unrelated configuration change does not prompt for restart', async () => {

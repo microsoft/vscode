@@ -28,7 +28,7 @@ export class LocalGitService implements ILocalGitService {
 			const major = Number(match?.groups?.major);
 			const minor = Number(match?.groups?.minor);
 			if (!(major > 2 || (major === 2 && minor >= 31))) {
-				throw new Error(localize('gitAuthenticationRequiresNewerGit', "VS Code GitHub authentication requires Git 2.31 or later. Update Git and retry."));
+				throw new Error(localize('gitAuthenticationRequiresNewerGit', "JustRide GitHub authentication requires Git 2.31 or later. Update Git and retry."));
 			}
 			this._supportsAuthenticationEnvironment = true;
 		}

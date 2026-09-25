@@ -24,7 +24,7 @@ const LEARN_MORE_URL = 'https://aka.ms/VSCode/Agents/docs';
  * open on web (vscode.dev / insiders.vscode.dev) and no agent hosts have
  * been discovered. Replaces the workspace picker — which can't surface
  * any useful items without a host — with a heading, a description that
- * tells the user how to bring a host online with the VS Code CLI, and
+ * tells the user how to bring a host online with the JustRide CLI, and
  * a "Learn more" link to the docs.
  */
 export class NoAgentHostEmptyState extends Disposable {
@@ -61,7 +61,7 @@ export class NoAgentHostEmptyState extends Disposable {
 		// command they copy actually exists on their machine: `code` for
 		// stable, `code-insiders` for any non-stable channel (insider /
 		// exploration / dev). The agents window does not ship its own CLI —
-		// it relies on the regular VS Code CLI to expose the agent host.
+		// it relies on the regular JustRide CLI to expose the agent host.
 		const cliBinary = this._productService.quality === 'stable' ? 'code' : 'code-insiders';
 		const command = `${cliBinary} tunnel`;
 

@@ -40,7 +40,7 @@ export function resolveTunnelCommandLocation(appRoot: string, platform: NodeJS.P
 	return join(binParentLocation, 'bin', `${tunnelApplicationName}${platform === 'win32' ? '.exe' : ''}`);
 }
 
-/** How to reach and run a VS Code installation's bundled CLI. */
+/** How to reach and run a JustRide installation's bundled CLI. */
 export interface ICodeTunnelCliOptions {
 	readonly appRoot: string;
 	readonly isBuilt: boolean;
@@ -52,7 +52,7 @@ export interface ICodeTunnelCliOptions {
 	readonly onLog?: (message: string) => void;
 }
 
-/** Runs the code-tunnel CLI for a VS Code installation. */
+/** Runs the code-tunnel CLI for a JustRide installation. */
 export class CodeTunnelCli {
 
 	private _commandLocation: string | undefined;

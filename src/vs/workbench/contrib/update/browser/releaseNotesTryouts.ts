@@ -111,7 +111,7 @@ export class ReleaseNotesTryouts extends Disposable {
 				continue;
 			}
 			if (!this._tryoutService.getTryout(id)) {
-				this.replaceInvalidLink(link, localize('releaseNotes.tryout.unknown', "This example is not available in this version of VS Code."));
+				this.replaceInvalidLink(link, localize('releaseNotes.tryout.unknown', "This example is not available in this version of JustRide."));
 				continue;
 			}
 
@@ -141,7 +141,7 @@ export class ReleaseNotesTryouts extends Disposable {
 		const metadata = this._tryoutService.getTryout(id)?.tryout;
 		const availability = metadata ? this.getAvailability(id) : {
 			kind: 'unavailable' as const,
-			message: localize('releaseNotes.tryout.unknown', "This example is not available in this version of VS Code."),
+			message: localize('releaseNotes.tryout.unknown', "This example is not available in this version of JustRide."),
 		};
 		const empty = { id, label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' };
 		if (availability.kind === 'hidden') {
@@ -238,7 +238,7 @@ export class ReleaseNotesTryouts extends Disposable {
 			if (!availability || availability.kind !== 'ready' && (action !== 'setup' || availability.kind !== 'unavailable' || !availability.action)) {
 				this.update();
 				if (availability?.kind !== 'hidden') {
-					this._notificationService.warn(availability?.kind === 'unavailable' ? availability.message : localize('releaseNotes.tryout.unknown', "This example is not available in this version of VS Code."));
+					this._notificationService.warn(availability?.kind === 'unavailable' ? availability.message : localize('releaseNotes.tryout.unknown', "This example is not available in this version of JustRide."));
 				}
 				this.restoreFocus(index, action);
 				return;

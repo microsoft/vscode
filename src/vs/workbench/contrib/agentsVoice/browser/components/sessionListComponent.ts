@@ -194,7 +194,7 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 		} else {
 			const openInVSCode = dom.$('button');
 			openInVSCode.style.cssText = `${btnStyle}background:var(--vscode-button-background);`;
-			openInVSCode.textContent = localize('agentsVoice.openInVSCode', "Open in VS Code");
+			openInVSCode.textContent = localize('agentsVoice.openInVSCode', "Open in JustRide");
 			openInVSCode.addEventListener('click', () => props.onOpenSession(session.resource));
 			confBtns.append(openInVSCode);
 		}

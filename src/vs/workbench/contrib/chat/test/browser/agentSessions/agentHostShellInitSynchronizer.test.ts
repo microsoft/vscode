@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostShellToolInitScriptEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { createShellInitScript, type IShellInitScript, type ShellInitScriptShell } from '../../../../../../platform/agentHost/common/shellInitScript.js';
+import { createShellInitScript, type IShellInitScript, type ShellInitScriptShell } from '../../../../../../platform/agentHost/common/shellInitScripts.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
