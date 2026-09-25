@@ -280,6 +280,10 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
+	customizationMigrationNotice?: {
+		readonly workspace: IObservable<URI | undefined>;
+		readonly onDidChangeAvailability: (available: boolean) => void;
+	};
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
