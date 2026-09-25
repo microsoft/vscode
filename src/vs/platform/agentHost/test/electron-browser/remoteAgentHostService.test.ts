@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -932,6 +933,76 @@ suite('RemoteAgentHostService', () => {
 			await waitForFactoryConnection(factory, expectedConnectionCount);
 			client.connectDeferred.complete();
 			await wait;
+		}
+
+		for (const removal of ['removed', 'unregistered', 'disabled'] as const) {
+			for (const outcome of ['success', 'failure'] as const) {
+				test(`abandons a ${removal} factory attempt before its late ${outcome}`, async () => {
+					const address = 'cloudsandbox:replaced';
+					const entry = cloudSandboxEntry('Sandbox', address);
+					const first = disposables.add(new MockProtocolClient(address));
+					const second = disposables.add(new MockProtocolClient(address));
+					const released = new DeferredPromise<void>();
+					const transport = makeTransportDisposable();
+					disposables.add(transport.disposable);
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override async createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
+							const created = await super.createConnection(entry);
+							if (created.connection.clientId === first.clientId) {
+								try {
+									await released.p;
+								} catch (error) {
+									created.connection.dispose();
+									created.transportDisposable?.dispose();
+									throw error;
+								}
+							}
+							return created;
+						}
+					}(RemoteAgentHostEntryType.CloudSandbox));
+					const registration = disposables.add(service.registerConnectionFactory(factory));
+					factory.stage(entry, first, transport.disposable);
+					service.reconnect(address);
+					const cancelled = assert.rejects(service.waitForConnection(address), isCancellationError);
+					await waitForFactoryConnection(factory, 1);
+
+					if (removal === 'removed') {
+						await service.removeRemoteAgentHost(address);
+					} else if (removal === 'unregistered') {
+						registration.dispose();
+						disposables.add(service.registerConnectionFactory(factory));
+					} else {
+						configService.setEnabled(false);
+						configService.setEnabled(true);
+					}
+
+					factory.stage(entry, second);
+					service.reconnect(address);
+					assert.strictEqual(factory.createdConnectionCount, 2, 'a new dial must not join the abandoned factory');
+					const connected = service.waitForConnection(address);
+					await cancelled;
+					if (outcome === 'success') {
+						await released.complete();
+					} else {
+						await released.error(new Error('abandoned factory failed'));
+					}
+					await timeout(0);
+					await second.connectDeferred.complete();
+					const result = await connected;
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+
+					assert.deepStrictEqual({
+						clientId: result.clientId,
+						activeClientId: service.getConnection(address)?.clientId,
+						oldTransportDisposed: transport.disposed(),
+						attempts: factory.createdConnectionCount,
+					}, {
+						clientId: second.clientId, activeClientId: second.clientId, oldTransportDisposed: true, attempts: 2,
+					});
+				});
+			}
 		}
 
 		test('observes one initial retry and a complete inner-to-outer recovery without a terminal handoff', () => runWithFakedTimers({}, async () => {

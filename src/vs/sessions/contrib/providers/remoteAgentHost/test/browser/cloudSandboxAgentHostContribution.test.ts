@@ -322,6 +322,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			await harness.onConnect?.();
 			return cloudSandboxAddress(connectOptions.environmentId);
 		}
+		override async disconnect(): Promise<void> { }
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
