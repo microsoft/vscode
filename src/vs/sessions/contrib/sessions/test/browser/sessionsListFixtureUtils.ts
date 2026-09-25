@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
+import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
@@ -16,16 +20,19 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandAction } from '../../../../../platform/action/common/action.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, IChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextMenuMenuDelegate } from '../../../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -35,6 +42,7 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -60,15 +68,15 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { buildTestSession, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
+import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
-import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
 import '../../browser/media/sessionsList.css';
@@ -146,6 +154,8 @@ export interface ISessionsListFixtureInteraction {
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
 	readonly createGroupFrom?: readonly string[];
+	/** The row whose production context menu is open, as after a right-click. Applied last, since the menu takes focus. */
+	readonly contextMenu?: SessionsListFixtureRow;
 }
 
 /** The Sessions header above the list. */
@@ -238,6 +248,73 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 
 type MenuActionGroups = [string, Array<MenuItemAction | SubmenuItemAction>][];
 
+/**
+ * Renders context menus in the fixture with the production menu widget and
+ * styles, where the shared fixture services show nothing.
+ */
+class FixtureContextMenuService extends Disposable implements IContextMenuService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly shownMenu = this._register(new MutableDisposable());
+	private readonly onDidShowContextMenuEmitter = this._register(new Emitter<void>());
+	readonly onDidShowContextMenu = this.onDidShowContextMenuEmitter.event;
+	private readonly onDidHideContextMenuEmitter = this._register(new Emitter<void>());
+	readonly onDidHideContextMenu = this.onDidHideContextMenuEmitter.event;
+
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly focus: (target: { focus(): void }) => void,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+	) {
+		super();
+	}
+
+	showContextMenu(menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		const delegate = ContextMenuMenuDelegate.transform(menuDelegate, this.menuService, this.contextKeyService);
+		const actions = delegate.getActions();
+		if (!actions.length) {
+			return;
+		}
+		this.shownMenu.clear();
+
+		const store = new DisposableStore();
+		if (DOM.getComputedStyle(this.container).position === 'static') {
+			this.container.style.position = 'relative';
+		}
+		// Like the product context view: below and left-aligned to the anchor.
+		const anchor = getAnchorRect(delegate.getAnchor());
+		const origin = DOM.getDomNodePagePosition(this.container);
+		const view = DOM.append(this.container, DOM.$('.context-view'));
+		store.add(toDisposable(() => view.remove()));
+		view.style.left = `${anchor.left - origin.left}px`;
+		view.style.top = `${anchor.top + anchor.height - origin.top}px`;
+		view.style.zIndex = '2575';
+		const className = delegate.getMenuClassName?.();
+		if (className) {
+			view.classList.add(...className.split(' '));
+		}
+
+		const actionRunner = delegate.actionRunner ?? store.add(new ActionRunner());
+		const menu = store.add(new Menu(view, actions, {
+			actionViewItemProvider: delegate.getActionViewItem,
+			context: delegate.getActionsContext?.() ?? null,
+			actionRunner,
+			getKeyBinding: delegate.getKeyBinding ?? (action => this.keybindingService.lookupKeybinding(action.id)),
+		}, defaultMenuStyles));
+		store.add(menu.onDidCancel(() => this.shownMenu.clear()));
+		store.add(actionRunner.onDidRun(() => this.shownMenu.clear()));
+		store.add(toDisposable(() => {
+			delegate.onHide?.(false);
+			this.onDidHideContextMenuEmitter.fire();
+		}));
+		this.shownMenu.value = store;
+		this.focus({ focus: () => menu.focus(!!delegate.autoSelectFirstItem) });
+		this.onDidShowContextMenuEmitter.fire();
+	}
+}
+
 /** The wording the shared archive action registrations use; each fixture's menus show its own wording. */
 const REGISTERED_ARCHIVE_WORDING = ChatSessionArchiveActionWording.Archive;
 
@@ -274,29 +351,42 @@ class SessionsListFixtureMenuService extends MenuService {
 
 	/**
 	 * Shows the shared archive action registrations in this fixture's wording.
-	 * Production actions take their title and icon from the wording's
-	 * presentation, so the registered presentation's title identifies them.
+	 * Both wordings define the same command ids, menus, and conditions, so this
+	 * wording's action descriptors replace the registered presentation by id.
 	 */
 	private applyArchiveWording(groups: MenuActionGroups, contextKeyService: IContextKeyService, options: IMenuActionOptions | undefined): MenuActionGroups {
 		const wording = getChatSessionArchiveActionWording(this.configurationService);
 		if (wording === REGISTERED_ARCHIVE_WORDING) {
 			return groups;
 		}
-		const registered = getChatSessionArchiveActionPresentation(REGISTERED_ARCHIVE_WORDING);
-		const presentation = getChatSessionArchiveActionPresentation(wording);
-		const kinds = Object.keys(registered) as (keyof IChatSessionArchiveActionPresentation)[];
+		const commands = getArchiveWordingCommands(wording);
 		return groups.map(([group, actions]) => [group, actions.map(action => {
 			if (!(action instanceof MenuItemAction)) {
 				return action;
 			}
-			const kind = kinds.find(kind => registered[kind].title === action.item.title);
-			if (!kind) {
+			const command = commands.get(action.id);
+			if (!command) {
 				return action;
 			}
-			const { title, icon } = presentation[kind];
-			return new MenuItemAction({ ...action.item, title, icon }, action.alt?.item, options, action.hideActions, action.menuKeybinding, contextKeyService, this.commandService);
+			const { title, shortTitle, icon, tooltip, toggled } = command;
+			return new MenuItemAction({ ...action.item, title, shortTitle, icon, tooltip, toggled }, action.alt?.item, options, action.hideActions, action.menuKeybinding, contextKeyService, this.commandService);
 		})]);
 	}
+}
+
+const archiveWordingCommands = new Map<ChatSessionArchiveActionWording, ReadonlyMap<string, ICommandAction>>();
+
+/** A wording's archive action descriptors by command id, read from the production actions without registering them. */
+function getArchiveWordingCommands(wording: ChatSessionArchiveActionWording): ReadonlyMap<string, ICommandAction> {
+	let commands = archiveWordingCommands.get(wording);
+	if (!commands) {
+		commands = new Map(getSessionsArchiveActionConstructors(wording).map(ctor => {
+			const { desc } = new ctor();
+			return [desc.id, desc];
+		}));
+		archiveWordingCommands.set(wording, commands);
+	}
+	return commands;
 }
 
 /** A live sessions catalog: renames, archiving, and read state update the rendered sessions. */
@@ -351,8 +441,17 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
-		const chats = this.find(session.resource)?.chats.values() ?? [];
-		[...chats].find(chat => isEqual(chat.chat.resource, chatUri))?.title.set(title, undefined);
+		this.findChat(session, chatUri)?.title.set(title, undefined);
+	}
+
+	override async archiveChat(session: ISession, chat: IChat): Promise<void> {
+		this.findChat(session, chat.resource)?.isArchived.set(true, undefined);
+		this.changeEmitter.fire({ added: [], removed: [], changed: [session] });
+	}
+
+	override async unarchiveChat(session: ISession, chat: IChat): Promise<void> {
+		this.findChat(session, chat.resource)?.isArchived.set(false, undefined);
+		this.changeEmitter.fire({ added: [], removed: [], changed: [session] });
 	}
 
 	override async archiveSession(session: ISession): Promise<void> {
@@ -377,6 +476,11 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 
 	private find(resource: URI): ITestSession | undefined {
 		return [...this.sessions.values()].find(session => isEqual(session.session.resource, resource));
+	}
+
+	private findChat(session: ISession, chatUri: URI): ITestChat | undefined {
+		const chats = this.find(session.resource)?.chats.values() ?? [];
+		return [...chats].find(chat => isEqual(chat.chat.resource, chatUri));
 	}
 }
 
@@ -555,6 +659,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	});
 
 	const failingCISessions = state.sessions.filter(spec => spec.hasFailingCI).map(spec => getSession(spec.id).session);
+	instantiationService.stub(IContextMenuService, disposableStore.add(instantiationService.createInstance(FixtureContextMenuService, container, target => context.focus(target))));
 	instantiationService.stubInstance(BlockedSessions, new class extends mock<BlockedSessions>() {
 		override readonly blockedSessionsWithReasons = constObservable(failingCISessions.map(session => ({ session, reason: BlockedSessionReason.FailingCI, occurrenceId: 'failingCI:fixture' })));
 		override dispose = Disposable.None.dispose;
@@ -769,6 +874,22 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 	}
 	if (interaction.renaming) {
 		startRename(list, interaction.renaming, getSession, groupIds);
+	}
+	if (interaction.contextMenu) {
+		openContextMenu(context.container, list, resolve(interaction.contextMenu));
+	}
+}
+
+/** Right-clicks the row, which opens its production context menu in the fixture. */
+function openContextMenu(container: HTMLElement, list: TestSessionsList, item: SessionsListItemReference): void {
+	const row = list.getItemRow(item);
+	if (!row) {
+		throw new Error(`Expected a row to open the context menu of ${JSON.stringify(item)}.`);
+	}
+	const { left, top, width, height } = row.getBoundingClientRect();
+	row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: left + width / 2, clientY: top + height / 2 }));
+	if (!container.querySelector('.context-view .monaco-menu')) {
+		throw new Error(`Expected the context menu of ${JSON.stringify(item)} to open.`);
 	}
 }
 

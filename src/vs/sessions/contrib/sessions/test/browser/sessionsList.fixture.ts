@@ -30,6 +30,16 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-b', title: 'Task B' },
 	],
 };
+const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-archive',
+	title: 'Investigate session persistence',
+	workspace: 'vscode',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'active', title: 'Compare provider state', canArchive: true },
+		{ id: 'archived', title: 'Previous persistence approach', isArchived: true, canArchive: true },
+	],
+};
 const GROUPED_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'a', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, changesSummary: { files: 4, additions: 132, deletions: 18 } },
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64 },
@@ -126,6 +136,8 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 }
 
 const ONBOARDING_FRAME = { width: 760, height: 420 };
+/** Room beside and below the list for an open context menu. */
+const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
 //#endregion
 
@@ -555,6 +567,32 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows, and the pointer is over the Task A chat. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent, through the hovered row, into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
+	}),
+
+	//#endregion
+
+	//#region Archived chats
+
+	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { showArchived: true, width: 400 },
+		interaction: { focused: { session: 'nested-archive', chat: 'archived' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
+	}),
+	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
+		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
+		view: { width: 400 },
+		interaction: { contextMenu: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+		frame: CONTEXT_MENU_FRAME,
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
 	}),
 
 	//#endregion
