@@ -5,6 +5,7 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -22,6 +23,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
@@ -39,7 +41,8 @@ import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/a
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { NewChatInputWidget } from './newChatInput.js';
+import { getLabeledPickerResponsiveItems, NewChatInputWidget } from './newChatInput.js';
+import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -81,6 +84,7 @@ const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
+let sessionOptionsIdPool = 0;
 
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
@@ -116,6 +120,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _activeEmptyState = this._register(disposableObservableValue<NoAgentHostEmptyState | undefined>(this, undefined));
 	private _workspacePickerRow: HTMLElement | undefined;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
+	private _workspaceSessionOptionsHost: HTMLElement | undefined;
+	private readonly _sessionOptionsExpanded = observableValue(this, true);
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -586,6 +592,7 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
+		dom.append(chatWidgetContent, dom.$('h1.new-session-heading', undefined, localize('newSessionHeading', "What should we build?")));
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
@@ -609,7 +616,7 @@ export class NewChatWidget extends Disposable {
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
 			this._newChatInput.placeRepositoryControls(
-				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
+				!isQuickChat || isWorkspacePickerQuickChat
 					? this._workspaceRepositoryControlsHost
 					: undefined
 			);
@@ -663,7 +670,7 @@ export class NewChatWidget extends Disposable {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 				const useHeaderHost = isQuickChat && !isWorkspacePickerQuickChat;
-				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
+				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspaceSessionOptionsHost;
 				if (!target) {
 					return;
 				}
@@ -1206,6 +1213,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		const store = new DisposableStore();
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
@@ -1223,28 +1231,88 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		]);
-		this._renderSessionTypePicker(row, false);
-		const repositoryControlsHost = dom.$('.new-chat-repository-controls-host');
-		const sessionTypePicker = row.lastElementChild;
-		if (sessionTypePicker) {
-			sessionTypePicker.before(repositoryControlsHost);
-		} else {
-			row.append(repositoryControlsHost);
-		}
+		row.classList.add('new-chat-session-options');
+		const sessionOptions = dom.append(row, dom.$('.new-chat-session-options-details'));
+		sessionOptions.id = `new-chat-session-options-${++sessionOptionsIdPool}`;
+		const repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
 		this._workspacePickerRow = row;
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
-		if (this._useExperimentalComposerLayout?.get()) {
-			this._newChatInput.placeRepositoryControls(repositoryControlsHost);
-		}
+		this._workspaceSessionOptionsHost = sessionOptions;
+		this._renderSessionTypePicker(sessionOptions, false);
+		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
+		const toggle = store.add(new Button(row, {
+			...defaultButtonStyles,
+			buttonBackground: undefined,
+			buttonHoverBackground: undefined,
+			buttonForeground: undefined,
+			buttonBorder: undefined,
+		}));
+		toggle.element.classList.add('new-chat-session-options-toggle');
+		toggle.element.setAttribute('aria-controls', sessionOptions.id);
+		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
+		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
+			if (event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+				return;
+			}
+			const controls: HTMLElement[] = [];
+			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
+			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+				if (dom.isHTMLElement(node) && node.role === 'button'
+					&& node.getAttribute('aria-disabled') !== 'true'
+					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
+					&& node.checkVisibility()) {
+					controls.push(node);
+				}
+			}
+			const activeElement = dom.getActiveElement();
+			const index = controls.findIndex(control => control === activeElement);
+			if (index < 0) {
+				return;
+			}
+			const previous = event.key === 'ArrowLeft' || (event.key === 'Tab' && event.shiftKey);
+			const nextIndex = index + (previous ? -1 : 1);
+			if (event.key === 'Tab' && (nextIndex < 0 || nextIndex >= controls.length)) {
+				return;
+			}
+			dom.EventHelper.stop(event, true);
+			controls[(nextIndex + controls.length) % controls.length].focus();
+		}, true));
+		store.add(autorun(reader => {
+			const expanded = this._sessionOptionsExpanded.read(reader);
+			if (!expanded && sessionOptions.contains(dom.getActiveElement())) {
+				toggle.focus();
+			}
+			sessionOptions.inert = !expanded;
+			sessionOptions.hidden = !expanded;
+			toggle.icon = expanded ? Codicon.chevronLeftCompact : Codicon.chevronRightCompact;
+			toggle.element.setAttribute('aria-expanded', String(expanded));
+			const label = expanded
+				? localize('newSessionOptions.collapse', "Hide Session Options")
+				: localize('newSessionOptions.expand', "Show Session Options");
+			toggle.setAriaLabel(label);
+			toggle.setTitle(label);
+		}));
+		const responsiveLayout = store.add(new ChatInputPickerResponsiveLayout('NewChatWidget.sessionOptions', container, {
+			usePreferredWidth: true,
+			getItems: () => getLabeledPickerResponsiveItems(row).map(item =>
+				item.element && sessionOptions.contains(item.element) ? item : {
+					...item,
+					// Include the workspace's full label in the width budget, but never compact it.
+					setCompact: () => { },
+				}),
+		}));
+		responsiveLayout.layout();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
-		return toDisposable(() => {
+		store.add(toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 				this._workspaceRepositoryControlsHost = undefined;
+				this._workspaceSessionOptionsHost = undefined;
 				this._newChatInput.placeRepositoryControls();
 				this._newChatInput.pickerVisibility.setVisible('workspace', false);
 			}
-		});
+		}));
+		return store;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
@@ -1256,7 +1324,7 @@ export class NewChatWidget extends Disposable {
 			container.prepend(sessionTypePicker);
 		} else if (sessionTypePicker) {
 			const workspaceTrigger = container.firstElementChild;
-			const insertionAnchor = container === this._workspacePickerRow
+			const insertionAnchor = container === this._workspaceSessionOptionsHost
 				? this._workspaceRepositoryControlsHost ?? workspaceTrigger
 				: workspaceTrigger;
 			insertionAnchor?.after(sessionTypePicker);
@@ -1268,6 +1336,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusHarnessPicker(): void {
+		this._sessionOptionsExpanded.set(true, undefined);
 		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
