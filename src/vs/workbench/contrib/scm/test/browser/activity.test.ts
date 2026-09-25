@@ -36,6 +36,7 @@ suite('SCMActiveRepositoryController', () => {
 		}();
 		const scmViewService = new class extends mock<ISCMViewService>() {
 			override readonly activeRepository = observableValue(this, { repository, pinned: false });
+			override readonly repositories = [repository];
 			override readonly visibleRepositories = [];
 			override readonly onDidChangeVisibleRepositories = Event.None;
 		}();
