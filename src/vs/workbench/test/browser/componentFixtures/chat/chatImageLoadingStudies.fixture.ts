@@ -8,11 +8,13 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { z } from 'zod';
 import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatImageGenerationProgressPart } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { FixtureMotionAccessibilityService } from './chatFixtureUtils.js';
 import './chatImageLoadingStudies.fixture.css';
 
 const originalStudyIds = ['waves', 'ribbons', 'dot-tide', 'orbits', 'ripples', 'splash', 'liquid', 'islands', 'fireflies', 'constellation', 'ink', 'petals', 'silk', 'mosaic', 'brush', 'caustics'] as const;
@@ -20,15 +22,16 @@ const additionalStudyIds = ['dunes', 'rain', 'bubbles', 'vortex', 'magnet', 'aur
 const imageMakingStudyIds = ['exposure', 'silver-grain', 'focus-pull', 'prism', 'registration', 'proofs', 'daydream', 'wash', 'bristles', 'cyanotype', 'engraving', 'embroidery', 'paper-scene', 'stained-glass', 'porcelain', 'marbling', 'relief', 'tessellation', 'pixel-sort', 'raster', 'wireframe', 'dithering', 'frequencies', 'bezier'] as const;
 const paintingStudyIds = ['graphite', 'pencil-sphere', 'leaf-study', 'dry-brush', 'watercolor-edge', 'wet-on-wet', 'capillary', 'charcoal', 'pastel', 'crosshatch', 'fountain-nib', 'working-brush', 'palette-knife', 'gouache', 'gesture', 'line-wash', 'chalk', 'stippling', 'eraser', 'calligraphy'] as const;
 const pencilStudyIds = ['pencil-fill', 'pencil-loops', 'pencil-layers', 'pencil-tooth'] as const;
-const studyIds = [...originalStudyIds, ...additionalStudyIds, ...imageMakingStudyIds, ...paintingStudyIds, ...pencilStudyIds] as const;
-const studyCollections = { original: originalStudyIds, more: additionalStudyIds, 'image-making': imageMakingStudyIds, painting: paintingStudyIds, pencil: pencilStudyIds, all: studyIds };
+const binaryStudyIds = ['binary-tide'] as const;
+const studyIds = [...originalStudyIds, ...additionalStudyIds, ...imageMakingStudyIds, ...paintingStudyIds, ...pencilStudyIds, ...binaryStudyIds] as const;
+const studyCollections = { original: originalStudyIds, more: additionalStudyIds, 'image-making': imageMakingStudyIds, painting: paintingStudyIds, pencil: pencilStudyIds, comparison: ['waves', 'binary-tide'] as const, all: studyIds };
 type StudyId = typeof studyIds[number];
 type Point = readonly [number, number];
 
 const studies: Record<StudyId, { name: string; description: string }> = {
 	waves: {
 		name: localize('imageStudy.waves', "Flowing waves"),
-		description: localize('imageStudy.waves.description', "The current chat loader. Open contour lines ripple in staggered phases."),
+		description: localize('imageStudy.waves.description', "The previous chat loader. Open contour lines ripple in staggered phases."),
 	},
 	ribbons: {
 		name: localize('imageStudy.ribbons', "Crossing ribbons"),
@@ -362,6 +365,10 @@ const studies: Record<StudyId, { name: string; description: string }> = {
 		name: localize('imageStudy.pencilTooth', "Paper tooth"),
 		description: localize('imageStudy.pencilTooth.description', "A grainier version of the curved shading, leaving flecks of paper in each mark."),
 	},
+	'binary-tide': {
+		name: localize('imageStudy.binaryTide', "Binary tide"),
+		description: localize('imageStudy.binaryTide.description', "The current chat loader. Swells roll through binary digits like water, after the 2025 website hero. Read as ASCII, the digits spell a greeting."),
+	},
 };
 
 function smoothPath(points: readonly Point[], closed = false): string {
@@ -448,7 +455,30 @@ function addDrawingTip(parent: SVGElement, path: string, kind: 'nib' | 'brush'):
 	}
 }
 
-function renderArtwork(svg: SVGSVGElement, study: Exclude<StudyId, 'waves'>): void {
+/**
+ * The previous chat loader: open contour lines that ripple in staggered phases.
+ */
+function renderWaves(stage: HTMLElement): void {
+	const contours = dom.append(stage, dom.$.SVG<SVGSVGElement>('svg', {
+		class: 'image-loading-study-waves',
+		viewBox: '0 0 420 315',
+		preserveAspectRatio: 'none',
+		fill: 'none',
+		focusable: 'false',
+	}));
+	for (let index = 0; index < 19; index++) {
+		const y = 22 + index * 15;
+		const curve = Math.sin(index / 18 * Math.PI) * 72;
+		const contour = contours.appendChild(dom.$.SVG<SVGPathElement>('path', {
+			class: 'image-loading-study-wave',
+			d: `M -40 ${y + 24} C 36 ${y + 24}, 52 ${y - curve}, 128 ${y - curve} S 244 ${y + curve * 0.55}, 300 ${y + curve * 0.55} S 408 ${y - 12}, 460 ${y - 12}`,
+			'vector-effect': 'non-scaling-stroke',
+		}));
+		contour.style.animationDelay = `${-index * 0.18}s`;
+	}
+}
+
+function renderArtwork(svg: SVGSVGElement, study: Exclude<StudyId, 'waves' | 'binary-tide'>): void {
 	switch (study) {
 		case 'ribbons':
 		case 'silk':
@@ -1408,14 +1438,21 @@ function renderStudy(context: ComponentFixtureContext, parent: HTMLElement, id: 
 	const card = dom.append(parent, dom.$('section.image-loading-study', { 'data-study': id }));
 	dom.append(card, dom.$('h3.image-loading-study-title', undefined, localize('imageStudy.numberedTitle', "{0}. {1}", `${studyIds.indexOf(id) + 1}`.padStart(2, '0'), study.name)));
 	const stage = dom.append(card, dom.$('.image-loading-study-stage', { 'aria-hidden': 'true' }));
-	if (id === 'waves') {
+	if (id === 'binary-tide') {
+		stage.classList.add('image-loading-study-chat-stage');
+		const instantiationService = createEditorServices(context.disposableStore, {
+			colorTheme: context.theme,
+			additionalServices: registration => registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(context.container, context.disposableStore, ['image-loading-studies-paused'])),
+		});
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Generating image' },
 			{ id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
 			'image-loading-study', undefined, {},
 		);
-		const placeholder = context.disposableStore.add(new ChatImageGenerationProgressPart(tool, false));
+		const placeholder = context.disposableStore.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool, false));
 		stage.appendChild(placeholder.domNode);
+	} else if (id === 'waves') {
+		renderWaves(stage);
 	} else {
 		const handmade = paintingStudyIds.some(study => study === id);
 		const pencil = pencilStudyIds.some(study => study === id);
@@ -1435,12 +1472,14 @@ function renderStudy(context: ComponentFixtureContext, parent: HTMLElement, id: 
 function renderGallery(context: ComponentFixtureContext, options: { reducedMotion?: boolean; narrow?: boolean; study?: StudyId; collection?: keyof typeof studyCollections } = {}): void {
 	const painting = options.collection === 'painting' || paintingStudyIds.some(study => study === options.study);
 	const pencil = options.collection === 'pencil' || pencilStudyIds.some(study => study === options.study);
+	const comparison = options.collection === 'comparison';
 	const { reducedMotion, palette, enableAnimations } = (painting ? paintingInput : galleryInput).parse(context.input);
 	context.container.classList.add('image-loading-studies', 'monaco-enable-motion');
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion || !!options.reducedMotion);
 	context.container.classList.toggle('image-loading-studies-narrow', !!options.narrow);
 	context.container.classList.toggle('image-loading-studies-single', !!options.study);
 	context.container.classList.toggle('image-loading-studies-pencil', pencil);
+	context.container.classList.toggle('image-loading-studies-comparison', comparison);
 	context.container.classList.toggle('image-loading-studies-prism', palette === 'Prism');
 	const selectedStudies = options.study ? [options.study] : studyCollections[options.collection ?? 'original'];
 	const showControls = selectedStudies.some(id => imageMakingStudyIds.some(study => study === id) || paintingStudyIds.some(study => study === id) || pencilStudyIds.some(study => study === id));
@@ -1454,11 +1493,17 @@ function renderGallery(context: ComponentFixtureContext, options: { reducedMotio
 		title = localize('imageStudy.imageMakingTitle', "Twenty-four ways to make an image");
 	} else if (options.collection === 'more') {
 		title = localize('imageStudy.moreTitle', "Twenty more ways to take shape");
+	} else if (comparison) {
+		title = localize('imageStudy.comparisonTitle', "Flowing waves and binary tide");
 	}
 	dom.append(header, dom.$('h2', undefined, title));
-	dom.append(header, dom.$('p', undefined, options.study
-		? localize('imageStudy.singleDescription', "A closer look at one motion study. This is a visual experiment, not a progress estimate.")
-		: localize('imageStudy.collectionDescription', "{0} motion studies. Flowing waves is used in chat. These are not progress estimates.", selectedStudies.length)));
+	let description = localize('imageStudy.collectionDescription', "{0} motion studies. Binary tide is used in chat. These are not progress estimates.", selectedStudies.length);
+	if (options.study) {
+		description = localize('imageStudy.singleDescription', "A closer look at one motion study. This is a visual experiment, not a progress estimate.");
+	} else if (comparison) {
+		description = localize('imageStudy.comparisonDescription', "The previous chat loader beside the current one, each at the size chat shows it. These are not progress estimates.");
+	}
+	dom.append(header, dom.$('p', undefined, description));
 	if (showControls) {
 		dom.append(header, dom.$('p', undefined, pencil
 			? localize('imageStudy.pencilDescription', "Curved pencil sweeps fill a wide rectangle. In the double pass, each completed layer fades as the next one is drawn.")
@@ -1494,11 +1539,49 @@ function renderGallery(context: ComponentFixtureContext, options: { reducedMotio
 		renderStudy(context, grid, id);
 	}
 	dom.append(context.container, dom.$('p.image-loading-studies-footer', undefined, showControls
-		? localize('imageStudy.controlsFooter', "Chat uses the flowing waves; the other studies remain experiments. Pause to inspect a mark or switch between color and monochrome. Reduced motion keeps a still composition.")
+		? localize('imageStudy.controlsFooter', "Chat uses the binary tide; the other studies remain experiments. Pause to inspect a mark or switch between color and monochrome. Reduced motion keeps a still composition.")
 		: localize('imageStudy.galleryFooter', "Open edges, no background haze, no implied image size. Use Enable Animations in Props to pause; reduced motion shows a still composition.")));
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/imageLoadingStudies/' }, {
+	Comparison: defineComponentFixture({
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'animated' },
+		inputSchema: galleryInput,
+		expectedVisualDescriptions: [
+			'Two studies side by side, each at the size chat shows its loader: 01, Flowing waves, the previous loader, where fine open contour lines ripple in staggered phases across a wide area; and 85, Binary tide, the current loader, where swells of denser accent-colored glyphs roll like water through faint binary digits in an area a little wider than tall.',
+			'Both have open, softly faded edges without a panel fill, border, or glow, and each has a Generating image label and description below it. Reduced motion and high contrast show both as still compositions.',
+		],
+		render: context => renderGallery(context, { collection: 'comparison' }),
+	}),
+	ComparisonReducedMotion: defineComponentFixture({
+		virtualTime: { enabled: false },
+		inputSchema: galleryInput,
+		render: context => renderGallery(context, { collection: 'comparison', reducedMotion: true }),
+	}),
+	BinaryTide: defineComponentFixture({
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'animated' },
+		inputSchema: galleryInput,
+		expectedVisualDescriptions: [
+			'Study 85, Binary tide, fills an area as tall as a generated image and a little wider than tall with small monospace binary digits in the description color. Long swells of denser, accent-colored glyphs roll through the digits like water, bending and crossing, without a panel fill, border, or glow.',
+			'The field fills the area almost to its edges, which fade out unevenly with a slight grain rather than along a ruled line or an oval. It shows no letters: read as 8-bit ASCII, each row of digits spells HAPPY_CODING! over and over. Reduced motion and high contrast hold one still composition in solid theme colors.',
+		],
+		render: context => renderGallery(context, { study: 'binary-tide' }),
+	}),
+	BinaryTideReducedMotion: defineComponentFixture({
+		virtualTime: { enabled: false },
+		inputSchema: galleryInput,
+		render: context => renderGallery(context, { study: 'binary-tide', reducedMotion: true }),
+	}),
+	BinaryTideNarrow: defineComponentFixture({
+		virtualTime: { enabled: false },
+		labels: { kind: 'animated' },
+		inputSchema: galleryInput,
+		render: context => renderGallery(context, { study: 'binary-tide', narrow: true }),
+	}),
 	Pencil: defineComponentFixture({
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -1624,7 +1707,7 @@ export default defineThemedFixtureGroup({ path: 'chat/imageLoadingStudies/' }, {
 		inputSchema: galleryInput,
 		expectedVisualDescriptions: [
 			'Sixteen numbered, labeled image-generation motion studies on the editor background, arranged in a responsive grid. Every artwork has open, softly fading edges without a panel fill or glow.',
-			'The first study uses the actual flowing-wave placeholder. The alternatives include dots, orbital trails, water rings and droplets, liquid contours, scattered particles, a constellation, ink shapes, petals, silk, tiles, brush strokes, and a refracting mesh.',
+			'The first study is the previous flowing-wave placeholder. The alternatives include dots, orbital trails, water rings and droplets, liquid contours, scattered particles, a constellation, ink shapes, petals, silk, tiles, brush strokes, and a refracting mesh.',
 		],
 		render: context => renderGallery(context),
 	}),

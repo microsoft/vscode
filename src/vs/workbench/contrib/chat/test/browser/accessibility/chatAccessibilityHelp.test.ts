@@ -24,9 +24,9 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			standalone: help.includes('Image generation appears separately from thinking and tool-call groups'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
-			waves: help.includes('While generation runs, a decorative waves animation marks where the image will appear, without a tool dropdown'),
+			placeholder: help.includes('While generation runs, a decorative animation of shifting binary digits marks where the image will appear, without a tool dropdown'),
 			overlapping: help.includes('Overlapping image-generation attempts share one placeholder while any attempt is running'),
-			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled'),
+			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
 			dropdown: help.includes('Only when generation finishes does the tool dropdown appear for inspecting its available prompt and output'),
 			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
 			progress: help.includes('progress line says Generating image while generation runs'),
@@ -39,7 +39,7 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Save action beside the image'),
 			mock: help.includes('In development builds, reference #generate_image_mock in local Chat'),
-		}, { standalone: true, position: true, waves: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true, mock: true });
+		}, { standalone: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true, mock: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

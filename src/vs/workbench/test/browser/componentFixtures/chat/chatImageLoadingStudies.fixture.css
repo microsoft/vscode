@@ -55,7 +55,8 @@
 	margin: 0;
 }
 
-.image-loading-study-stage .chat-image-generation-canvas {
+/* In the galleries the chat placeholder fills its stage like the other studies. */
+.image-loading-studies:not(.image-loading-studies-single, .image-loading-studies-comparison) .image-loading-study-stage .chat-image-generation-canvas {
 	width: 100%;
 	height: 100%;
 }
@@ -162,15 +163,36 @@
 	}
 }
 
-.image-loading-studies-narrow {
-	width: min(360px, 100vw);
-}
-
 .image-loading-studies-single {
 	width: min(560px, 100vw);
 
 	.image-loading-study-stage {
 		height: 280px;
+	}
+}
+
+.image-loading-studies-narrow {
+	width: min(360px, 100vw);
+}
+
+/* The previous loader took at most 512px by 280px in chat. */
+.image-loading-studies-comparison {
+	.image-loading-studies-grid {
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+	}
+
+	.image-loading-study-stage {
+		max-width: 512px;
+		height: 280px;
+	}
+}
+
+/* The single and comparison views show the chat placeholder at the size it has in chat. */
+.image-loading-studies-single,
+.image-loading-studies-comparison {
+	.image-loading-study-chat-stage,
+	.image-loading-study-chat-stage .chat-image-generation-placeholder {
+		height: auto;
 	}
 }
 
@@ -273,12 +295,45 @@
 }
 
 .image-loading-studies-paused .image-loading-study-shape,
-.image-loading-studies-paused .chat-image-generation-contour {
+.image-loading-studies-paused .image-loading-study-wave {
 	animation-play-state: paused;
 }
 
-.image-loading-studies:not(.image-loading-studies-prism) .chat-image-generation-contour {
+.image-loading-studies:not(.image-loading-studies-prism) .image-loading-study-waves {
 	stroke: var(--vscode-foreground);
+}
+
+.image-loading-study-waves {
+	display: block;
+	width: 100%;
+	height: 100%;
+	color: color-mix(in srgb, var(--vscode-focusBorder) 70%, var(--vscode-foreground));
+	stroke: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
+	stroke-width: var(--vscode-strokeThickness);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	opacity: 0.9;
+	mask-image: radial-gradient(ellipse at 48% 48%, currentColor 18%, transparent 70%);
+}
+
+.image-loading-study-wave {
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.monaco-enable-motion .image-loading-study-wave {
+	animation: image-study-wave 5s ease-in-out infinite;
+}
+
+@keyframes image-study-wave {
+	0%, 100% {
+		transform: translate(-8px, -8px) scaleY(0.92);
+		opacity: 0.55;
+	}
+	50% {
+		transform: translate(8px, 8px) scaleY(1.08);
+		opacity: 1;
+	}
 }
 
 @keyframes image-study-develop {
@@ -982,8 +1037,19 @@
 .monaco-reduce-motion .image-loading-study-shape,
 .disable-animations .image-loading-study-shape,
 .hc-black .image-loading-study-shape,
-.hc-light .image-loading-study-shape {
+.hc-light .image-loading-study-shape,
+.monaco-reduce-motion .image-loading-study-wave,
+.disable-animations .image-loading-study-wave,
+.hc-black .image-loading-study-wave,
+.hc-light .image-loading-study-wave {
 	animation: none;
+}
+
+.hc-black .image-loading-study-waves,
+.hc-light .image-loading-study-waves {
+	stroke: var(--vscode-descriptionForeground);
+	opacity: 1;
+	mask-image: none;
 }
 
 .hc-black .image-loading-study-artwork,
@@ -1012,7 +1078,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-enable-motion .image-loading-study-shape {
+	.monaco-enable-motion .image-loading-study-shape,
+	.monaco-enable-motion .image-loading-study-wave {
 		animation: none;
 	}
 }

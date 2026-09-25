@@ -17,6 +17,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatProgressAnimation, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
@@ -26,6 +27,7 @@ import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestPars
 import { CopilotToolId } from '../../../../contrib/chat/common/tools/copilotToolIds.js';
 import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { FixtureMotionAccessibilityService } from './chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from './chatWidget.fixture.js';
 
 function createImage(width: number, height: number): string {
@@ -77,6 +79,7 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 		persistentProgress: options.progress ?? ChatProgressAnimation.Off,
 		collapseCompletedResponses: true,
 		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
+		additionalServices: registration => registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(context.container, context.disposableStore)),
 		messages: [{
 			user: 'Generate an abstract mountain landscape',
 			responseComplete: options.responseComplete ?? (!options.running && options.earlierAttempt !== 'running'),
@@ -176,6 +179,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 		collapseCompletedResponses: true,
 		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
 		additionalServices: registration => {
+			registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
 			registration.defineInstance(IFileService, disposableStore.add(new class extends TestFileService {
 				override async readFile(resource: URI) {
 					const file = await super.readFile(resource);
@@ -309,7 +313,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	CopilotGenerating: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['An unframed field of fine, open wave contours fills the normal image-loading area. Individual lines ripple in staggered phases while the overall field stays still, with softly faded edges and no panel background. No unfinished tool header or tool icon is visible; Generating image appears in the persistent footer below. Reduced motion and high contrast show still contours.'],
+		expectedVisualDescriptions: ['An unframed area of small monospace binary digits, as tall as a generated image and a little wider than tall, with swells of denser accent-colored glyphs rolling through it like water and edges that fade out unevenly, without a panel background. No unfinished tool header or tool icon is visible; Generating image appears in the persistent footer below. Reduced motion and high contrast show one still composition.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Weave }),
 	}),
 	CodexGenerating: defineComponentFixture({
@@ -320,7 +324,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: z.object({ enableAnimations: z.boolean().default(true) }),
-		expectedVisualDescriptions: ['Two concurrent image-generation attempts share exactly one unframed wave placeholder and one Generating image footer. There is no second placeholder, empty tool row, or tool header.'],
+		expectedVisualDescriptions: ['Two concurrent image-generation attempts share exactly one unframed binary-digit placeholder and one Generating image footer. There is no second placeholder, empty tool row, or tool header.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Weave }),
 	}),
 	CodexOverlapping: defineComponentFixture({
@@ -345,13 +349,13 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, reducedMotion: true, progress: ChatProgressAnimation.Weave }),
 	}),
 	Failed: defineComponentFixture({
-		expectedVisualDescriptions: ['A Generated image failed tool dropdown with an error indicator remains available to inspect the prompt and failure output. There are no waves or large generated images.'],
+		expectedVisualDescriptions: ['A Generated image failed tool dropdown with an error indicator remains available to inspect the prompt and failure output. There is no generation placeholder or large generated image.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', failed: true, progress: ChatProgressAnimation.Weave }),
 	}),
 	CompletedTool: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['A Generated image tool dropdown appears above the large generated image and its Save action. The image stays visible with the dropdown collapsed, and there is no generation waves placeholder.'],
+		expectedVisualDescriptions: ['A Generated image tool dropdown appears above the large generated image and its Save action. The image stays visible with the dropdown collapsed, and there is no generation placeholder.'],
 		render: context => renderGeneratedImage(context, { responseComplete: false }),
 	}),
 });

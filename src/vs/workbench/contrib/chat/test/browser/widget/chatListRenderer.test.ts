@@ -83,6 +83,12 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { descriptionForeground, focusBorder, foreground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -2345,81 +2351,96 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const width of [280, 760]) {
-		test(`image generation placeholder fits a ${width}px chat and honors reduced motion`, () => {
-			const container = dom.append(mainWindow.document.body, dom.$('.monaco-enable-motion'));
-			store.add(toDisposable(() => container.remove()));
+		test(`image generation placeholder is a little wider than tall, fits a ${width}px chat, fades toward its corners, animates while visible, and holds still with reduced motion or high contrast`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
 			container.style.width = `${width}px`;
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			let motionReduced = false;
+			const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
+				override isMotionReduced() { return motionReduced; }
+			}());
+			const colors = { [foreground]: '#cccccc', [descriptionForeground]: '#9d9d9d', [focusBorder]: '#0078d4' };
+			const themeService = new TestThemeService(new TestColorTheme(colors));
+			instantiationService.stub(IThemeService, themeService);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Generating image' },
 				{ id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
 				'image-placeholder', undefined, {},
 			);
-			const placeholder = store.add(new ChatImageGenerationProgressPart(tool, false));
+			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool, false));
 			container.appendChild(placeholder.domNode);
-			const canvas = placeholder.domNode.querySelector<HTMLElement>('.chat-image-generation-canvas');
-			const contours = placeholder.domNode.querySelector<SVGSVGElement>('.chat-image-generation-contours');
-			const paths = [...placeholder.domNode.querySelectorAll<SVGPathElement>('.chat-image-generation-contour')];
-			assert.ok(canvas && contours && paths.length === 19);
-			const bounds = canvas.getBoundingClientRect();
-			const canvasStyle = mainWindow.getComputedStyle(canvas);
-			const contoursStyle = mainWindow.getComputedStyle(contours);
-			const reducedMotion = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
-			const animationNames = paths.map(path => mainWindow.getComputedStyle(path).animationName);
-			const staggeredDelays = new Set(paths.map(path => mainWindow.getComputedStyle(path).animationDelay)).size === paths.length;
-			let waveMotion = false;
-			let continuousLoop = false;
-			if (!reducedMotion) {
-				const sampleMotion = (time: number) => paths.map(path => {
-					const animation = path.getAnimations()[0];
-					assert.ok(animation);
-					animation.pause();
-					animation.currentTime = time;
-					const style = mainWindow.getComputedStyle(path);
-					return { transform: style.transform, opacity: Number(style.opacity) };
-				});
-				const start = sampleMotion(0);
-				const middle = sampleMotion(2500);
-				const nextCycle = sampleMotion(5000);
-				waveMotion = start.every((path, index) => path.transform !== middle[index].transform)
-					&& start[0].opacity === 0.55 && middle[0].opacity === 1;
-				continuousLoop = start[0].transform === nextCycle[0].transform && start[0].opacity === nextCycle[0].opacity;
-			}
-			container.classList.add('monaco-reduce-motion');
-			const stopsWithReducedMotion = paths.every(path => {
-				const style = mainWindow.getComputedStyle(path);
-				return style.animationName === 'none' && style.opacity === '1' && style.transform === 'none';
-			});
-			container.classList.remove('monaco-reduce-motion');
-			container.classList.add('disable-animations');
-			const stopsWithDisabledAnimations = paths.every(path => mainWindow.getComputedStyle(path).animationName === 'none');
-			container.classList.remove('disable-animations');
-			const highContrastAnimations = ['hc-black', 'hc-light'].map(theme => {
-				container.classList.add(theme);
-				const stopped = contoursStyle.maskImage === 'none' && contoursStyle.opacity === '1' && paths.every(path => {
-					const style = mainWindow.getComputedStyle(path);
-					return style.animationName === 'none' && style.opacity === '1' && style.strokeOpacity === '1';
-				});
-				container.classList.remove(theme);
-				return stopped;
-			});
+			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-generation-field');
+			assert.ok(field);
+
+			const targetWindow = dom.getWindow(field);
+			const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, () => resolve()));
+			const frames = async (count: number) => {
+				for (let index = 0; index < count; index++) {
+					await nextFrame();
+				}
+			};
+			const changesWithin = async (count: number) => {
+				const before = field.toDataURL();
+				for (let index = 0; index < count; index++) {
+					await nextFrame();
+					if (field.toDataURL() !== before) {
+						return true;
+					}
+				}
+				return false;
+			};
+			const paintedPixels = (x = 0, y = 0, regionWidth = field.width, regionHeight = field.height) => {
+				const pixels = field.getContext('2d')?.getImageData(x, y, regionWidth, regionHeight).data ?? [];
+				let count = 0;
+				for (let index = 3; index < pixels.length; index += 4) {
+					count += pixels[index] ? 1 : 0;
+				}
+				return count;
+			};
+
+			await frames(2);
+			const bounds = field.getBoundingClientRect();
+			const painted = paintedPixels() > 0;
+			const corner = Math.round(field.width * 0.04);
+			const emptyCorners = [[0, 0], [field.width - corner, 0], [0, field.height - corner], [field.width - corner, field.height - corner]]
+				.every(([x, y]) => paintedPixels(x, y, corner, corner) === 0);
+			const animates = await changesWithin(120);
+
+			container.style.display = 'none';
+			await frames(2);
+			const pausesWhileHidden = !await changesWithin(10);
+			container.style.display = '';
+			const resumesWhenShown = await changesWithin(120);
+
+			motionReduced = true;
+			onDidChangeReducedMotion.fire();
+			const stillFrame = field.toDataURL();
+			const holdsStillWithReducedMotion = !await changesWithin(10);
+
+			motionReduced = false;
+			themeService.setTheme(new TestColorTheme(colors, ColorScheme.HIGH_CONTRAST_DARK));
+			const highContrastFrame = field.toDataURL();
+			const holdsStillWithHighContrast = !await changesWithin(10);
+
 			assert.deepStrictEqual({
-				fits: bounds.width > 0 && bounds.width <= width && bounds.width <= 512,
-				aspectRatio: canvasStyle.aspectRatio,
-				border: canvasStyle.borderTopWidth,
-				background: canvasStyle.backgroundColor,
-				onlyWaveArtwork: canvas.childElementCount === 1 && canvas.firstElementChild === contours && canvas.getAttribute('aria-hidden') === 'true',
-				openContours: paths.every(path => path.getAttribute('d')?.startsWith('M -40 ') && !path.getAttribute('d')?.endsWith('Z')),
-				stationaryField: contoursStyle.transform === 'none',
-				fadesEdges: contoursStyle.maskImage.startsWith('radial-gradient('),
-				animatesWhenAllowed: reducedMotion || animationNames.every(name => name === 'chat-image-generation-wave'),
-				staggeredDelays,
-				waveMotionWhenAllowed: reducedMotion || waveMotion,
-				continuousLoopWhenAllowed: reducedMotion || continuousLoop,
-				stopsWithReducedMotion,
-				stopsWithDisabledAnimations,
-				highContrastAnimations,
+				fits: bounds.width > 0 && bounds.width <= width && bounds.width <= 500 && bounds.height <= 400,
+				aspectRatio: Math.round(bounds.width / bounds.height * 100) / 100,
+				devicePixels: field.width === Math.round(bounds.width * targetWindow.devicePixelRatio),
+				painted,
+				animates,
+				pausesWhileHidden,
+				resumesWhenShown,
+				holdsStillWithReducedMotion,
+				holdsStillWithHighContrast,
+				highContrastUsesSolidColors: highContrastFrame !== stillFrame,
+				emptyCorners,
+				semantics: [placeholder.domNode.getAttribute('role'), placeholder.domNode.getAttribute('aria-label'), placeholder.domNode.getAttribute('aria-busy'), field.parentElement?.getAttribute('aria-hidden')],
 				focusTargets: placeholder.domNode.querySelectorAll('button, a, [tabindex]').length,
-			}, { fits: true, aspectRatio: 'auto', border: '0px', background: 'rgba(0, 0, 0, 0)', onlyWaveArtwork: true, openContours: true, stationaryField: true, fadesEdges: true, animatesWhenAllowed: true, staggeredDelays: true, waveMotionWhenAllowed: true, continuousLoopWhenAllowed: true, stopsWithReducedMotion: true, stopsWithDisabledAnimations: true, highContrastAnimations: [true, true], focusTargets: 0 });
+			}, { fits: true, aspectRatio: 1.25, devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, emptyCorners: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
 		});
 	}
 
