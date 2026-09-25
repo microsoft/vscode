@@ -210,6 +210,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public disposedChats: URI[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
 
@@ -300,6 +301,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return session;
 	}
 
+	override async disposeChat(chat: URI): Promise<void> { this.disposedChats.push(chat); }
 	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
 	async shutdown(): Promise<void> { }
 
@@ -2782,6 +2784,94 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items[0].resource.path, '/aaa');
 		});
 
+		test('refresh projects visible peer chats as children of the default chat', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'multi-chat');
+			const defaultChat = URI.parse(buildDefaultChatUri(session.toString()));
+			const peerChat = URI.parse(buildChatUri(session.toString(), 'peer-chat'));
+			const hiddenChat = URI.parse(buildChatUri(session.toString(), 'hidden-chat'));
+			const toolChat = URI.parse(buildChatUri(session.toString(), 'tool-chat'));
+			const sideChat = URI.parse(buildChatUri(session.toString(), 'side-chat'));
+			agentHostService.addSession({
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Session title',
+				chats: [
+					{ chat: defaultChat, summary: 'Main chat', kind: 'default' },
+					{ chat: peerChat, summary: 'Peer chat', kind: 'peer' },
+					{ chat: hiddenChat, summary: 'Hidden chat', kind: 'peer', interactivity: ChatInteractivity.Hidden },
+					{ chat: toolChat, summary: 'Tool chat', kind: 'peer', origin: { kind: ChatOriginKind.Tool, chat: defaultChat.toString(), toolCallId: 'tool-call' } },
+					{ chat: sideChat, summary: 'Side chat', kind: 'peer', origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'turn' } },
+				],
+			});
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => ({
+				label: item.label,
+				resource: item.resource.toString(),
+				children: item.children?.map(child => ({
+					label: child.label,
+					resource: child.resource.toString(),
+					status: child.status,
+					isRead: child.isRead,
+				})),
+			})), [{
+				label: 'Main chat',
+				resource: 'agent-host-copilot:/multi-chat',
+				children: [
+					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat', status: undefined, isRead: undefined },
+				],
+			}]);
+		});
+
+		test('summary changes update peer children that are no longer in the catalog', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'changing-chats');
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session.toString(), 'removed-peer');
+			agentHostService.addSession({
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				chats: [
+					{ chat: URI.parse(defaultChat), summary: 'Main chat', kind: 'default' },
+					{ chat: URI.parse(peerChat), summary: 'Peer chat', kind: 'peer' },
+				],
+			});
+			await listController.refresh(CancellationToken.None);
+			const initialItems = listController.items;
+			const deltas: { addedOrUpdated?: string[]; removed?: string[] }[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => deltas.push({
+				addedOrUpdated: delta.addedOrUpdated?.map(item => item.resource.toString()),
+				removed: delta.removed?.map(resource => resource.toString()),
+			})));
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: session.toString(),
+				changes: {
+					chats: [{ resource: defaultChat, title: 'Main chat' }],
+					defaultChat,
+				},
+			});
+
+			assert.deepStrictEqual({
+				initialItems: initialItems[0].children?.map(item => item.resource.toString()),
+				currentItems: listController.items[0].children?.map(item => item.resource.toString()),
+				deltas,
+			}, {
+				initialItems: ['agent-host-copilot:/changing-chats#removed-peer'],
+				currentItems: undefined,
+				deltas: [{
+					addedOrUpdated: ['agent-host-copilot:/changing-chats'],
+					removed: undefined,
+				}],
+			});
+		});
+
 		test('refresh fires onDidChangeChatSessionItems', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
@@ -4004,6 +4094,33 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items.length, 0);
 			assert.deepStrictEqual(removalEvents.map(r => r.toString()), [itemResource.toString()]);
 		}));
+
+		test('deleteChatSessionItem disposes only the selected peer chat', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'peer-to-delete');
+			const defaultChat = URI.parse(buildDefaultChatUri(session.toString()));
+			const peerChat = URI.parse(buildChatUri(session.toString(), 'doomed-peer'));
+			agentHostService.addSession({
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				chats: [
+					{ chat: defaultChat, summary: 'Main chat', kind: 'default' },
+					{ chat: peerChat, summary: 'Peer chat', kind: 'peer' },
+				],
+			});
+			await listController.refresh(CancellationToken.None);
+
+			await listController.deleteChatSessionItem(listController.items[0].children![0].resource, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				disposedChats: agentHostService.disposedChats.map(chat => chat.toString()),
+				disposedSessions: agentHostService.disposedSessions.map(disposed => disposed.toString()),
+			}, {
+				disposedChats: [peerChat.toString()],
+				disposedSessions: [],
+			});
+		});
 
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
