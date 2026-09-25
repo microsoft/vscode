@@ -252,7 +252,7 @@ suite('Sessions - Session management actions', () => {
 			title: constObservable('Grill and Plan'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		});
 		const activeSession = upcastPartial<IActiveSession>({
 			...base,

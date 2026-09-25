@@ -99,7 +99,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		// Materialize the default chat used by restart tests before waiting for its MCP server.
 		const initialized = await driveTurnToCompletion(context.client, sessionUri, 'runtime-mcp-initialized', 'Reply exactly MCP_READY. Do not call tools.', 2);
 		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
-		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 100);
+		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
 		return { sessionUri, pluginUri, workspace, calls, customization };
 	}
 

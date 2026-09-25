@@ -927,7 +927,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				requestActivity.value = isDeferredNewSessionRequestOptions(options)
 					? provider.startNewSessionRequest?.(session.sessionId, options.activity)
 					: provider.startNewSessionRequest?.(session.sessionId);
-				createOptions?.onSessionCreated?.(session);
+				await createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);
 				throw error;
@@ -944,6 +944,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, createOptions));
+		try {
+			await createOptions?.onSessionCreated?.(session);
+		} catch (error) {
+			provider.deleteNewSession(session.sessionId);
+			throw error;
+		}
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
 	}
 
@@ -1268,6 +1274,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async unarchiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 		this._onDidUnarchiveSession.fire(session);
+	}
+
+	async archiveChat(session: ISession, chat: IChat): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.archiveChat) {
+			throw new Error(`Provider does not support archiving chats for session: ${session.sessionId}`);
+		}
+		await provider.archiveChat(session.sessionId, chat.resource);
+	}
+
+	async unarchiveChat(session: ISession, chat: IChat): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.unarchiveChat) {
+			throw new Error(`Provider does not support restoring chats for session: ${session.sessionId}`);
+		}
+		await provider.unarchiveChat(session.sessionId, chat.resource);
 	}
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {

@@ -719,6 +719,7 @@ type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
 export interface IAgentHostToolCallDetailsEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	isSubagentSession: boolean;
 	conversationId: string;
 	requestId: string;
@@ -738,8 +739,9 @@ export interface IAgentHostToolCallDetailsEvent extends IAgentHostEventTelemetry
 export type IAgentHostToolCallDetailsClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed chat identifier, scoped to agentSessionId.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool-call aggregate belongs to a subagent session.' };
-	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current chat conversation.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, retained for compatibility.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current turn request.' };
 	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, was cancelled, or failed.' };
 	toolCounts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times each tool was requested during the turn.' };
@@ -759,6 +761,7 @@ export type IAgentHostToolCallDetailsClassification = IAgentHostEventClassificat
 export interface IAgentHostToolCallDetailsReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	chat: string;
 	turnId: string;
 	clientType: AgentHostClientType;
 	model: string | undefined;
@@ -816,6 +819,7 @@ export type IAgentHostToolApprovalClassification = IAgentHostEventClassification
 
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
+	chat: string;
 	turnId: string;
 	clientType: AgentHostClientType;
 	chosenModel: string;
@@ -1043,6 +1047,7 @@ export class AgentHostTelemetryReporter {
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
+			chatSessionId: getTelemetryChatSessionId(session),
 			turnId,
 			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
 		});
@@ -1082,7 +1087,7 @@ export class AgentHostTelemetryReporter {
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	async assistantMessageReceived(session: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
+	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
@@ -1090,6 +1095,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
 			headerRequestId: clientRequestId,
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
 		}));
@@ -1108,7 +1114,7 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	async userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
+	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -1116,6 +1122,7 @@ export class AgentHostTelemetryReporter {
 		const properties = await multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			messageText: content,
@@ -1136,7 +1143,7 @@ export class AgentHostTelemetryReporter {
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -1144,6 +1151,7 @@ export class AgentHostTelemetryReporter {
 		const properties = await multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
@@ -1163,12 +1171,14 @@ export class AgentHostTelemetryReporter {
 		}
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		const conversationId = AgentSession.id(session);
+		const chatSessionId = getTelemetryChatSessionId(report.chat);
 		const toolCounts = JSON.stringify(report.toolCounts);
 		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
 			...toInitiatorTelemetry(report.clientContext),
 			...report.telemetryContext,
 			provider: report.provider,
 			agentSessionId: conversationId,
+			chatSessionId,
 			isSubagentSession: isSubagentSession(session),
 			conversationId,
 			requestId: report.turnId,
@@ -1191,6 +1201,7 @@ export class AgentHostTelemetryReporter {
 		}
 		const properties = await multiplexProperties({
 			conversationId,
+			chatSessionId,
 			requestId: report.turnId,
 			messageId: report.turnId,
 			initiatorClientType: report.clientType,
@@ -1252,6 +1263,7 @@ export class AgentHostTelemetryReporter {
 		const candidateModels = report.candidateModels ?? [];
 		const properties = {
 			conversationId: AgentSession.id(report.session),
+			chatSessionId: getTelemetryChatSessionId(report.chat),
 			vscodeRequestId: report.turnId,
 			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),

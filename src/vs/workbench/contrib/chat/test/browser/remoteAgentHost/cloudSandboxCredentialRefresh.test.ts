@@ -14,6 +14,7 @@ import {
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxApiService,
+	type IHostEncryptionKey,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import {
@@ -30,6 +31,9 @@ import type {
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 const START_TIME = Date.parse('2026-01-01T00:00:00Z');
+const HOST_KEY: IHostEncryptionKey = { key_id: 'key-1', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: 'AQID' };
+const REPLACEMENT_HOST_KEY: IHostEncryptionKey = { ...HOST_KEY, key_id: 'key-2', public_key: 'BAUG' };
+const SEALED_TOKEN = 'copilot-sealed.v1.key-1.abc';
 
 /** A token expiring `minutes` from `from`. 40 minutes sits comfortably clear of the refresh floor. */
 function tokenExpiringIn(minutes: number, from: number, overrides: Partial<ICloudSandboxClientToken> = {}): ICloudSandboxClientToken {
@@ -244,6 +248,102 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ accessToken: result.creds.token.access_token, sealed: result.creds.token.encrypted_github_token },
 			{ accessToken: 'fresh', sealed: 'copilot-sealed.v1.k.abc' },
 		);
+	}));
+
+	for (const previousKey of [undefined, HOST_KEY]) {
+		test(`retains the sealed token with a matching refreshed key ${previousKey ? 'with' : 'without'} cached key metadata`, () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const refreshed = tokenExpiringIn(80, START_TIME, { access_token: 'fresh', host_encryption_key: { ...HOST_KEY } });
+			const result = await runRefresher(
+				() => ({ kind: 'token', token: refreshed }),
+				40 * 60_000,
+				tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: previousKey }),
+			);
+
+			assert.deepStrictEqual(result, {
+				calls: 1,
+				stops: [],
+				creds: { token: { ...refreshed, encrypted_github_token: SEALED_TOKEN } },
+			});
+		}));
+	}
+
+	test('retains the existing sealed token and key when a refresh omits both', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const refreshed = tokenExpiringIn(80, START_TIME, { access_token: 'fresh' });
+		const result = await runRefresher(
+			() => ({ kind: 'token', token: refreshed }),
+			40 * 60_000,
+			tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
+		);
+
+		assert.deepStrictEqual(result, {
+			calls: 1,
+			stops: [],
+			creds: { token: { ...refreshed, encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY } },
+		});
+	}));
+
+	const inconsistentRefreshes: { readonly name: string; readonly credentials: Partial<ICloudSandboxClientToken> }[] = [
+		{ name: 'a replacement host key without a sealed token', credentials: { host_encryption_key: REPLACEMENT_HOST_KEY } },
+		{ name: 'different key material under the same key ID', credentials: { host_encryption_key: { ...HOST_KEY, public_key: 'BAUG' } } },
+		{ name: 'a different key algorithm', credentials: { host_encryption_key: { ...HOST_KEY, algorithm: 'other' } } },
+		{ name: 'a different key use', credentials: { host_encryption_key: { ...HOST_KEY, use: 'other' } } },
+		{ name: 'a new sealed token for the wrong key', credentials: { host_encryption_key: REPLACEMENT_HOST_KEY, encrypted_github_token: SEALED_TOKEN } },
+	];
+	for (const { name, credentials } of inconsistentRefreshes) {
+		test(`keeps the complete previous credentials on ${name}`, () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const initialToken = tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY });
+			const result = await runRefresher(
+				() => ({ kind: 'token', token: tokenExpiringIn(80, START_TIME, { access_token: 'fresh', ...credentials }) }),
+				39 * 60_000 + 29_999,
+				initialToken,
+			);
+
+			assert.deepStrictEqual(result, { calls: 1, stops: [], creds: { token: initialToken } });
+		}));
+	}
+
+	test('retries an incomplete key replacement and accepts the matching sealed token atomically', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const callTimes: number[] = [];
+		const refreshed = tokenExpiringIn(80, START_TIME, {
+			access_token: 'fresh',
+			host_encryption_key: REPLACEMENT_HOST_KEY,
+			encrypted_github_token: 'copilot-sealed.v1.key-2.def',
+		});
+		const result = await runRefresher(
+			() => {
+				callTimes.push(Date.now() - START_TIME);
+				return { kind: 'token', token: callTimes.length === 1 ? { ...refreshed, encrypted_github_token: undefined } : refreshed };
+			},
+			40 * 60_000,
+			tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
+		);
+
+		assert.deepStrictEqual({ ...result, callTimes }, {
+			calls: 2,
+			stops: [],
+			creds: { token: refreshed },
+			callTimes: [39 * 60_000, 39 * 60_000 + 30_000],
+		});
+	}));
+
+	test('bounds retries for a host key that never receives matching sealed credentials', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const initialToken = tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY });
+		const callTimes: number[] = [];
+		const result = await runRefresher(
+			() => {
+				callTimes.push(Date.now() - START_TIME);
+				return { kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'fresh', host_encryption_key: REPLACEMENT_HOST_KEY }) };
+			},
+			12 * 60 * 60_000,
+			initialToken,
+		);
+
+		assert.deepStrictEqual({ ...result, callTimes }, {
+			calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
+			stops: [{ reason: 'unusableToken', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
+			creds: { token: initialToken },
+			callTimes: Array.from({ length: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES }, (_, index) => 39 * 60_000 + index * 30_000),
+		});
 	}));
 });
 

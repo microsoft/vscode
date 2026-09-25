@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
-import { isExperimentalRunningSessionComposerLayoutEnabled } from '../../browser/chatView.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,40 +25,38 @@ suite('New session composer layout', () => {
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
-			const mainContainer = document.createElement('div');
-			const layoutService = new class extends mock<IWorkbenchLayoutService>() {
-				override readonly mainContainer = mainContainer;
-			}();
 
-			assert.deepStrictEqual({
-				newSession: isExperimentalSessionComposerLayoutEnabled(configurationService),
-				runningSession: isExperimentalRunningSessionComposerLayoutEnabled(configurationService, layoutService),
-			}, {
-				newSession: testCase.expected,
-				runningSession: testCase.expected,
-			});
+			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
 		});
 	}
 
-	test('keeps the experimental running-session layout off on phone', () => {
-		const configurationService = new TestConfigurationService({
-			[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-			[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const mainContainer = document.createElement('div');
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
-			override readonly mainContainer = mainContainer;
-		}();
+	test('welcome phrases are independent from the experimental composer layout', () => {
+		const configurations = [
+			new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+				[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
+			}),
+			new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: false,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: false,
+				[NEW_SESSION_WELCOME_PHRASES_SETTING]: true,
+			}),
+		];
+		for (const configurationService of configurations) {
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+		}
 
-		const desktop = isExperimentalRunningSessionComposerLayoutEnabled(configurationService, layoutService);
-		mainContainer.classList.add('phone-layout');
-		const phone = isExperimentalRunningSessionComposerLayoutEnabled(configurationService, layoutService);
-
-		assert.deepStrictEqual({ desktop, phone }, { desktop: true, phone: false });
+		assert.deepStrictEqual(configurations.map(configurationService => ({
+			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
+			welcomePhrases: areNewSessionWelcomePhrasesEnabled(configurationService),
+		})), [
+			{ experimentalLayout: true, welcomePhrases: false },
+			{ experimentalLayout: false, welcomePhrases: true },
+		]);
 	});
 
-	test('places repository controls after the workspace picker and restores their home', () => {
+	test('places repository controls in the workspace row and restores their home', () => {
 		const repositoryControlsHome = document.createElement('div');
 		const repositoryControls = document.createElement('div');
 		repositoryControls.textContent = 'Repository';
