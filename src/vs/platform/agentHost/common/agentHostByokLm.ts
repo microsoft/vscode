@@ -151,6 +151,10 @@ export interface IByokLmModelInfo {
 	readonly modelIdentifier?: string;
 	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
+	/** Independent maximum input tokens, when known. */
+	readonly maxPromptTokens?: number;
+	/** Independent maximum output tokens, when known. */
+	readonly maxOutputTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
 	/** Reasoning effort values advertised by the renderer model, when known. */
@@ -174,6 +178,15 @@ export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
 /** Returns the provider-qualified model id advertised by the agent host. */
 export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
 	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
+}
+
+/** Resolves BYOK enablement and trace context from synchronized root configuration. */
+export function resolveByokLmEnablement(rootConfigValue: boolean | undefined): { readonly enabled: boolean; readonly trace: string } {
+	const enabled = rootConfigValue === true;
+	return {
+		enabled,
+		trace: `enabled: ${enabled} (root config: ${rootConfigValue ?? 'unset'})`,
+	};
 }
 
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');

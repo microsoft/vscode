@@ -48,11 +48,21 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
+## Change Scope and Code Review
+
+- Before implementing or reviewing a change, establish its intended scope from the request, PR description, linked issue, and maintainer comments.
+- Keep fixes tied to the underlying cause. Do not change unrelated behavior, state management, or architecture merely because doing so makes the reported symptom disappear.
+- During review, account for every changed file and subsystem. Each change should be necessary for the stated goal or be a directly related test, documentation update, generated artifact, or required refactor.
+- Flag changes whose connection to the stated goal is unclear, even when tests pass or the resulting behavior appears correct. Ask for the causal link to be explained; if none exists, request that the change be reverted or moved to a separate PR.
+- Treat prerequisite or tightly coupled changes as in scope only when their necessity is clear from the implementation or PR description. Do not mistake independent cleanup or speculative improvements for required work.
+
 ## Validating TypeScript changes
 
 Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
 
-Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. Useful commands include:
+When running in a VS Code editor window with a workspace folder, use the VS Code task tools for build and watch workflows: inspect the existing task output first, and run an existing task instead of invoking its equivalent shell command. Do not start a duplicate build or watch process when the workspace task already provides current diagnostics. Agents window chats and isolated worktree sessions may not have access to the editor's workspace tasks; use the repository commands directly in those contexts.
+
+Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. When task tools are unavailable or no suitable task exists, useful commands include:
 
 - `npm run typecheck-client` for the main sources under `src/`
 - `npm run gulp compile-extensions` for built-in extensions

@@ -35,7 +35,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
-	get onDidFocusSession(): Event<string> {
+	get onDidFocusSession(): Event<string | undefined> {
 		return this._mainPart.onDidFocusSession;
 	}
 
@@ -52,6 +52,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
 		this._mainPart.updateVisibleSessions(visible, active);
+	}
+
+	setContentVisible(visible: boolean): void {
+		this._mainPart.setContentVisible(visible);
 	}
 
 	toggleMaximizeSession(session: IActiveSession | undefined): void {
@@ -71,6 +75,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._mainPart.getSessionView(sessionId);
+	}
+
+	getFocusedSessionView(): SessionView | undefined {
+		return this._mainPart.getFocusedSessionView();
 	}
 
 	getProgressIndicator(): IProgressIndicator {

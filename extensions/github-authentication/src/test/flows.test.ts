@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtensionHost, GitHubTarget, IFlowQuery, getFlows } from '../flows';
+import { ExtensionHost, GitHubOAuthSignInProvider, GitHubSignInProvider, GitHubTarget, IFlowQuery, getFlows, isSignInProvider } from '../flows';
 import { Config } from '../config';
 import * as vscode from 'vscode';
 
@@ -256,6 +256,33 @@ suite('getFlows', () => {
 			// Based on the original logic, WebWorker + DotCom should return UrlHandlerFlow
 			assert.strictEqual(flows.length, 1, `Expected 1 flow for WebWorker configuration, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
 			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
+		});
+	});
+});
+
+suite('isSignInProvider', () => {
+
+	test('accepts every sign-in provider the product can ask for', () => {
+		// `GitHubOAuthSignInProvider` deliberately excludes Microsoft, so the compiler — not a
+		// runtime check — is what keeps Microsoft out of the URL handler and device code flows.
+		const oauthProviders: GitHubOAuthSignInProvider[] = [GitHubSignInProvider.Google, GitHubSignInProvider.Apple];
+
+		assert.deepStrictEqual({
+			oauthProviders,
+			google: isSignInProvider(GitHubSignInProvider.Google),
+			apple: isSignInProvider(GitHubSignInProvider.Apple),
+			microsoft: isSignInProvider(GitHubSignInProvider.Microsoft),
+			unknown: isSignInProvider('entra'),
+			undefinedProvider: isSignInProvider(undefined),
+			object: isSignInProvider({ provider: 'microsoft' }),
+		}, {
+			oauthProviders: ['google', 'apple'],
+			google: true,
+			apple: true,
+			microsoft: true,
+			unknown: false,
+			undefinedProvider: false,
+			object: false,
 		});
 	});
 });

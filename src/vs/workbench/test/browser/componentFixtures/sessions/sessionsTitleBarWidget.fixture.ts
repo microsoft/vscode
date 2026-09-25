@@ -22,13 +22,17 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -36,15 +40,26 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel: string): IActiveSession {
-	const workspace = new class extends mock<ISessionWorkspace>() {
-		override readonly label = workspaceLabel;
+function createMockActiveSession(title: string, workspaceLabel?: string): IActiveSession {
+	let workspace: ISessionWorkspace | undefined;
+	if (workspaceLabel) {
+		const label = workspaceLabel;
+		workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly label = label;
+			override readonly folders = [];
+			override readonly isVirtualWorkspace = false;
+		}();
+	}
+	// A chat without its own folders shares the session's workspace.
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(false);
+		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
 
@@ -115,18 +130,10 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		?? Array.from({ length: state.blockedCount ?? 0 }, (): IBlockedSpec => ({ reason: BlockedSessionReason.NeedsInput }));
 	const { blocked, approvalModel } = buildBlocked(specs);
 
-	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
-	// needs to report no sessions hidden. Supplying it avoids the real model,
-	// which would depend on services not registered in this fixture.
-	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
-		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
-	}();
-
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
-			reg.defineInstance(IBlockedSessionsCIFixModel, ciFixModel);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
@@ -136,6 +143,11 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
+			}());
+			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+				override readonly onDidChange = Event.None;
+				override readonly selectedHostId = undefined;
+				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;
@@ -176,7 +188,20 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel, ciFixModel));
+	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
+	// needs to report no sessions hidden. Supplying it avoids the real model,
+	// which would depend on services not registered in this fixture.
+	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
+		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
+	}();
+
+	const widget = disposableStore.add(instantiationService.createInstance(
+		SessionsTitleBarWidget,
+		action,
+		undefined,
+		sessionActionFeedback,
+		disposableStore.add(instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessionsModel, ciFixModel)),
+	));
 	widget.render(widgetHost);
 }
 
@@ -186,10 +211,16 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
-	// Default: shows the active session pill (icon + title + workspace).
+	// Default: shows the active session workspace.
 	SessionsTitleBar_ActiveSession: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+		}),
+	}),
+
+	SessionsTitleBar_NoWorkspace: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Quick chat'),
 		}),
 	}),
 

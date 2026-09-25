@@ -4,52 +4,105 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { ConfigurationService } from '../../../configuration/common/configurationService.js';
+import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
-import { registerAgentHostNetworkServices } from '../../node/agentHostBootstrap.js';
-
-class TestEnvironmentService extends NativeEnvironmentService {
-	override get appSettingsHome(): URI {
-		return URI.from({ scheme: Schemas.file, path: '/User' });
-	}
-}
-
-function createFileService(disposables: DisposableStore): FileService {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	const provider = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider(Schemas.file, provider));
-	return fileService;
-}
+import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
+import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
+import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
+import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('loads configuration from appSettingsHome', async () => {
+	test('constructs the renderer BYOK runtime', async () => {
 		const testDisposables = disposables.add(new DisposableStore());
-		const environmentService = new TestEnvironmentService(parseArgs(['--force-disable-user-env'], OPTIONS), { _serviceBrand: undefined, ...product });
-		const fileService = createFileService(testDisposables);
+		const userDataPath = mkdtempSync(join(tmpdir(), 'agent-host-bootstrap-'));
+		mkdirSync(join(userDataPath, 'User', 'globalStorage'), { recursive: true });
+		testDisposables.add(toDisposable(() => rmSync(userDataPath, { recursive: true, force: true })));
+		const productService = { _serviceBrand: undefined, ...product };
+		const environmentService = new NativeEnvironmentService(parseArgs(['--user-data-dir', userDataPath, '--force-disable-user-env'], OPTIONS), productService);
 
-		await fileService.createFolder(environmentService.appSettingsHome);
-		await fileService.writeFile(joinPath(environmentService.appSettingsHome, 'settings.json'), VSBuffer.fromString('{ "http.proxy": "http://proxy.example:8080" }'));
+		const runtime = await createAgentHostRuntime({
+			environmentService,
+			productService,
+			logService: new NullLogService(),
+			loggerService: undefined,
+			disableTelemetry: true,
+			transientProxyConfiguration: true,
+			hostLaunchKind: AgentHostLaunchKind.Unknown,
+			providerConfigurations: [],
+			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
+		});
+		testDisposables.add(runtime);
 
-		const services = new ServiceCollection();
-		await registerAgentHostNetworkServices(services, fileService, environmentService, new NullLogService(), testDisposables);
+		// Whole-graph dependency completeness is checked statically in
+		// agentHostServices.test.ts without forcing every descriptor to construct.
+		assert.ok(runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader)));
+		assert.deepStrictEqual(runtime.instantiationService.invokeFunction(accessor => [
+			accessor.get(IAgentHostCheckpointService) !== undefined,
+			accessor.get(IAgentHostReviewService) !== undefined,
+		]), [true, true]);
+	});
 
-		const configurationService = services.get(IConfigurationService);
-		assert.ok(configurationService instanceof ConfigurationService);
-		assert.strictEqual(configurationService.getValue('http.proxy'), 'http://proxy.example:8080');
+	test('loads standalone proxy configuration before resolver construction', () => {
+		const testDisposables = disposables.add(new DisposableStore());
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-foundation-'));
+		testDisposables.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		writeFileSync(resource.fsPath, JSON.stringify({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080' }));
+		const productService = { _serviceBrand: undefined, ...product };
+
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(),
+			owned: testDisposables,
+			logService: new NullLogService(),
+			productService,
+			rootConfigResource: resource,
+			transientProxyConfiguration: false,
+		});
+
+		assert.strictEqual(foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy), 'http://proxy.example:8080');
+	});
+
+	test('clears local proxy configuration before resolver construction and persistence', async () => {
+		const testDisposables = disposables.add(new DisposableStore());
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-foundation-'));
+		testDisposables.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		writeFileSync(resource.fsPath, JSON.stringify({ [AgentHostProxyConfigKey.Proxy]: 'http://stale-proxy.example:8080' }));
+		const productService = { _serviceBrand: undefined, ...product };
+
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(),
+			owned: testDisposables,
+			logService: new NullLogService(),
+			productService,
+			rootConfigResource: resource,
+			transientProxyConfiguration: true,
+		});
+		foundation.configurationService.persistRootConfig();
+		await foundation.configurationService.whenIdle();
+		const persisted = JSON.parse(readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+
+		assert.deepStrictEqual({
+			resolver: foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy),
+			persisted: persisted[AgentHostProxyConfigKey.Proxy],
+		}, {
+			resolver: undefined,
+			persisted: undefined,
+		});
 	});
 });

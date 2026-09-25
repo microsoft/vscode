@@ -12,8 +12,10 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
+import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
+import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -221,8 +223,6 @@ import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
-import '../workbench/contrib/chat/browser/chatInputWindow/chatInputWindow.contribution.js';
-import './contrib/chat/browser/omniSessionRoutingAdapter.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -457,8 +457,10 @@ import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
+import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
@@ -489,18 +491,23 @@ import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view re
 import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
+import './contrib/extensions/browser/extensions.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
 // Onboarding: the engine + spotlight presentation (from the workbench layer) and
 // the Agents window scenario data.
 import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
+import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';

@@ -8,14 +8,15 @@ import { Platform } from '../../../../../base/common/platform.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
-import { DiscoverySource } from '../mcpConfiguration.js';
+import { getCopilotGlobalMcpConfigurationResource } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
+import { ExternalDiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../mcpTypes.js';
 
 export interface NativeMpcDiscoveryAdapter {
 	readonly remoteAuthority: string | null;
 	readonly id: string;
 	readonly order: number;
-	readonly discoverySource: DiscoverySource;
+	readonly discoverySource: ExternalDiscoverySource;
 
 	getFilePath(details: INativeMcpDiscoveryData): URI | undefined;
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
@@ -69,7 +70,7 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
 	public id: string;
 	public readonly order = McpCollectionSortOrder.Filesystem;
-	public readonly discoverySource: DiscoverySource = DiscoverySource.ClaudeDesktop;
+	public readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.ClaudeDesktop;
 
 	constructor(public readonly remoteAuthority: string | null) {
 		this.id = `claude-desktop.${this.remoteAuthority}`;
@@ -92,8 +93,21 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 }
 
+export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Copilot;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `copilot.${this.remoteAuthority}`;
+	}
+
+	override getFilePath(details: INativeMcpDiscoveryData): URI | undefined {
+		return getCopilotGlobalMcpConfigurationResource(details);
+	}
+}
+
 export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.Windsurf;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Windsurf;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);
@@ -106,7 +120,7 @@ export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscover
 }
 
 export class CursorDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.CursorGlobal;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.CursorGlobal;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);

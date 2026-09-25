@@ -14,7 +14,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -39,6 +39,8 @@ import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mo
 import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ChatUrlFetchingConfirmationContribution } from '../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
+import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -167,6 +169,15 @@ async function waitForPublishedInvocation(capture: { invocation?: any }, tries =
 	return capture.invocation;
 }
 
+class AutoApprovePolicyTestConfigurationService extends TestConfigurationService {
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const result = super.inspect<T>(key, overrides);
+		return key === ChatConfiguration.GlobalAutoApprove
+			? { ...result, policyValue: false as T }
+			: result;
+	}
+}
+
 interface TestToolsServiceSetup {
 	configurationService: TestConfigurationService;
 	chatService: MockChatService;
@@ -181,6 +192,8 @@ interface TestToolsServiceOptions {
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
 	dialogService?: IDialogService;
+	configurationService?: TestConfigurationService;
+	confirmationService?: ILanguageModelToolsConfirmationService;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -190,7 +203,7 @@ interface TestToolsServiceOptions {
  * Reduces boilerplate when tests need custom service configurations.
  */
 function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options?: TestToolsServiceOptions): TestToolsServiceSetup {
-	const configurationService = new TestConfigurationService();
+	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	configurationService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 
 	// Allow tests to configure before service creation
@@ -203,7 +216,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	const contextKeyService = instaService.get(IContextKeyService);
 	const chatService = new MockChatService();
 	instaService.stub(IChatService, chatService);
-	instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+	instaService.stub(ILanguageModelToolsConfirmationService, options?.confirmationService ?? new MockLanguageModelToolsConfirmationService());
 	instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 	const riskAssessmentService = new TestChatToolRiskAssessmentService();
 	instaService.stub(IChatToolRiskAssessmentService, riskAssessmentService);
@@ -559,6 +572,26 @@ suite('LanguageModelToolsService', () => {
 			parameters: {},
 			context: undefined,
 		}, async () => 0, CancellationToken.None), /Tool removedTool was not contributed/);
+	});
+
+	test('passes the invocation request id to prepareToolInvocation', async () => {
+		const preparedRequestIds: (string | undefined)[] = [];
+		const tool = registerToolForTest(service, store, 'invocationRequestTool', {
+			prepareToolInvocation: async context => {
+				preparedRequestIds.push(context.invocationRequestId);
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ok' }] }),
+		});
+		const sessionId = 'invocationRequestSession';
+		stubGetSession(chatService, sessionId);
+
+		const withoutRequestId = tool.makeDto({}, { sessionId }, 'call-without-request-id');
+		const withRequestId = tool.makeDto({}, { sessionId }, 'call-with-request-id');
+		await service.invokeTool(withoutRequestId, async () => 0, CancellationToken.None);
+		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
@@ -1722,6 +1755,72 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
 	});
 
+	test('URL auto-approval does not invoke tools for backslash-disguised destinations', async () => {
+		const config = new TestConfigurationService();
+		config.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+		config.setUserConfiguration(ChatConfiguration.AutoApprovedUrls, {
+			'https://*.github.com': true,
+			'http://*.github.com:*': true,
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => config }, store);
+		const contribution = instantiationService.createInstance(
+			ChatUrlFetchingConfirmationContribution,
+			parameters => (parameters as { urls: string[] }).urls
+		);
+		const confirmationService = new MockLanguageModelToolsConfirmationService();
+		confirmationService.getPreConfirmAction = ref => contribution.getPreConfirmAction(ref);
+		const setup = createTestToolsService(store, { configurationService: config, confirmationService });
+		const destinations: string[] = [];
+		const tool = registerToolForTest(setup.service, store, InternalFetchWebPageToolId, {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: { title: 'Fetch web page?', message: 'Confirm the destination', allowAutoConfirm: true },
+			}),
+			invoke: async invocation => {
+				const { urls } = invocation.parameters as { urls: string[] };
+				destinations.push(new URL(URI.parse(urls[0]).toString(true)).hostname);
+				return { content: [{ kind: 'text', value: 'Fixture content' }] };
+			},
+		});
+		const cases = [
+			{ url: 'https://evil.example/resource', destinations: [] },
+			{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, destinations: [] },
+			{ url: String.raw`https://github.com\.evil.example/resource`, destinations: ['github.com'] },
+			{ url: 'https://api.github.com/resource', destinations: ['api.github.com'] },
+		];
+		const results: { url: string; destinations: string[]; skipped: boolean }[] = [];
+
+		for (const [index, { url }] of cases.entries()) {
+			const sessionId = `backslash-approval-${index}`;
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(setup.chatService, sessionId, { capture });
+			const before = destinations.length;
+			const promise = setup.service.invokeTool(
+				tool.makeDto({ urls: [url] }, { sessionId }, `${index}`),
+				async () => 0,
+				CancellationToken.None
+			);
+			const published = await waitForPublishedInvocation(capture);
+			assert.ok(published, 'Expected the tool invocation to be published');
+			IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+			const result = await promise;
+			results.push({
+				url,
+				destinations: destinations.slice(before),
+				skipped: result.content[0].value === 'The user chose to skip the tool call, they want to proceed without running it',
+			});
+		}
+
+		assert.deepStrictEqual(results, cases.map(({ url, destinations }) => ({
+			url,
+			destinations,
+			skipped: destinations.length === 0,
+		})));
+	});
+
 	test('autopilot permission level bypasses global auto-approve check', async () => {
 		// When autopilot is on, tools should auto-approve without needing global auto-approve enabled
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
@@ -2363,6 +2462,34 @@ suite('LanguageModelToolsService', () => {
 			CancellationToken.None
 		);
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
+	});
+
+	test('auto-approve policy restriction disables reusable actions while allowing approval once', async () => {
+		const configurationService = new AutoApprovePolicyTestConfigurationService();
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, { configurationService });
+		const tool = registerToolForTest(testService, store, 'policyRestrictedTool', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm this action?',
+					message: 'This tool requires confirmation',
+					allowAutoConfirm: true,
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'approved once' }] }),
+		});
+		const capture: { invocation?: any } = {};
+		stubGetSession(testChatService, 'policy-restricted-session', { capture });
+
+		const invocation = testService.invokeTool(
+			tool.makeDto({}, { sessionId: 'policy-restricted-session' }),
+			async () => 0,
+			CancellationToken.None,
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published.confirmationMessages?.allowAutoConfirm, false);
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(await invocation, { content: [{ kind: 'text', value: 'approved once' }] });
 	});
 
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {

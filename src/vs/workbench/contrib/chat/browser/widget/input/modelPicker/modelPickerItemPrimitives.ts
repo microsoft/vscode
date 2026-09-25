@@ -3,25 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
+import Severity from '../../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { withSeverityPrefix } from '../../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getModelHoverContent } from './modelPickerHover.js';
-import { getPriceCategoryLabel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 export function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
 	return !!currentSemver && semver.gte(currentSemver, required);
+}
+
+/** Whether the model's catalogue entry names a minimum VS Code version this build does not meet. */
+export function requiresNewerVSCode(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	controlModels: IStringDictionary<IModelControlEntry>,
+	currentVSCodeVersion: string,
+): boolean {
+	const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
+	return !!entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion);
 }
 
 function getUpdateHoverContent(updateState: StateType): MarkdownString {
@@ -158,10 +173,31 @@ export function createModelAction(
 		section,
 		run: () => onSelect(model),
 	};
-	const ariaDescription = priceCategoryLabel
+	const baseDescription = priceCategoryLabel
 		? (textDescription ? textDescription + ' · ' + priceCategoryLabel : priceCategoryLabel)
 		: undefined;
+	const notices = getNoticeAriaLabels(model);
+	const ariaDescription = notices.length > 0
+		? [baseDescription ?? textDescription, ...notices].filter((part): part is string => !!part).join(', ')
+		: baseDescription;
 	return { action, ariaDescription };
+}
+
+/**
+ * Screen reader users never reach the rich hover, so its warning and info banners
+ * are folded into the row's accessible description, stripped of markdown and
+ * prefixed with their severity.
+ */
+function getNoticeAriaLabels(model: ILanguageModelChatMetadataAndIdentifier): string[] {
+	if (isAutoModel(model)) {
+		return [];
+	}
+	const toLabel = (message: string, severity: Severity): string =>
+		withSeverityPrefix(stripIcons(renderAsPlaintext(new MarkdownString(message))), severity);
+	return [
+		...Object.values(model.metadata.warningText ?? {}).map(message => toLabel(message, Severity.Warning)),
+		...Object.values(model.metadata.infoText ?? {}).map(message => toLabel(message, Severity.Info)),
+	];
 }
 
 export function getUnavailableReason(
@@ -228,7 +264,7 @@ export function createUnavailableModelItem(
 		group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
 		disabled: true,
 		hideIcon: false,
-		className: 'chat-model-picker-unavailable',
+		className: typeof description === 'string' ? 'chat-model-picker-unavailable' : 'chat-model-picker-unavailable has-link',
 		section,
 		hover: { content: hoverContent },
 	};

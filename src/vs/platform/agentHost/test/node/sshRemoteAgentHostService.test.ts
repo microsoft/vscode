@@ -15,7 +15,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
@@ -192,6 +192,8 @@ class MockSSHClient {
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
 	finishResponses: readonly string[] | undefined;
+	connectConfig: ConnectConfig | undefined;
+	readonly authMethods: string[] = [];
 
 	private readonly _errorListeners: Array<(err: Error) => void> = [];
 
@@ -210,15 +212,23 @@ class KeyboardInteractiveMockSSHClient {
 	}
 
 	connect(config: ConnectConfig): void {
+		this.connectConfig = config;
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
-		authHandler?.(null, false, method => {
+		const authenticate = (method: AnyAuthMethod | false) => {
+			if (method) {
+				this.authMethods.push(method.type);
+			}
+			if (method && method.type === 'none') {
+				authHandler?.(['keyboard-interactive'], false, authenticate);
+			}
 			if (method && method.type === 'keyboard-interactive') {
 				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
 					this.finishResponses = responses;
 					this.fireError(new Error('All configured authentication methods failed'));
 				});
 			}
-		});
+		};
+		authHandler?.(null, false, authenticate);
 	}
 
 	end(): void {
@@ -436,6 +446,17 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 
 class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
 	readonly client = new KeyboardInteractiveMockSSHClient();
+	readonly resolvedHosts: string[] = [];
+	proxyCommand: string | undefined;
+	resolveFailure: Error | undefined;
+
+	override async resolveSSHConfig(host: string): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
+		this.resolvedHosts.push(host);
+		if (this.resolveFailure) {
+			throw this.resolveFailure;
+		}
+		return { hostname: '10.0.0.1', user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, proxyCommand: this.proxyCommand, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+	}
 
 	protected override async _createSSHClient() {
 		return this.client as never;
@@ -447,6 +468,10 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 
 	connectSSHForTest(config: ISSHAgentHostConfig) {
 		return this._connectSSH(config, 'ssh:test-host');
+	}
+
+	get proxyCount(): number {
+		return this['_proxies'].size;
 	}
 }
 
@@ -1211,6 +1236,52 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	test('manual hosts resolve SSH configuration and release a failed proxy while authentication is pending', async () => {
+		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		proxyService.proxyCommand = 'exit 42';
+		await assert.rejects(proxyService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx' })), /SSH ProxyCommand exited/);
+		assert.deepStrictEqual({
+			resolvedHosts: proxyService.resolvedHosts,
+			host: proxyService.client.connectConfig?.host,
+			hasProxy: !!proxyService.client.connectConfig?.sock,
+			authMethods: proxyService.client.authMethods,
+			ended: proxyService.client.ended,
+			proxyCount: proxyService.proxyCount,
+		}, {
+			resolvedHosts: ['sandbox.sbx'],
+			host: '10.0.0.1',
+			hasProxy: true,
+			authMethods: ['none', 'keyboard-interactive'],
+			ended: true,
+			proxyCount: 0,
+		});
+	});
+
+	test('manual hosts connect with their own settings when SSH configuration cannot be resolved', async () => {
+		const unresolvedService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		unresolvedService.proxyCommand = 'exit 42';
+		unresolvedService.resolveFailure = new Error('ssh -G failed for sandbox.sbx: spawn ssh ENOENT');
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(unresolvedService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
+
+		const connectPromise = unresolvedService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx', port: 2222 }));
+		const kbiRequest = await request.p;
+		await unresolvedService.respondKeyboardInteractive(kbiRequest.requestId, undefined);
+
+		await assert.rejects(connectPromise, error => isCancellationError(error));
+		assert.deepStrictEqual({
+			host: unresolvedService.client.connectConfig?.host,
+			port: unresolvedService.client.connectConfig?.port,
+			hasProxy: !!unresolvedService.client.connectConfig?.sock,
+			proxyCount: unresolvedService.proxyCount,
+		}, {
+			host: 'sandbox.sbx',
+			port: 2222,
+			hasProxy: false,
+			proxyCount: 0,
+		});
+	});
+
 	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
 		let finished: readonly string[] | undefined;
 		let cancelled = false;
@@ -1625,6 +1696,66 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	}
 }
 
+suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class ResolveConfigTestService extends SSHRemoteAgentHostMainService {
+		readonly resolvedHosts: string[] = [];
+		failNext = false;
+
+		setReuseWindow(ms: number): void {
+			this.resolvedConfigReuseMs = ms;
+		}
+
+		protected override async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+			this.resolvedHosts.push(host);
+			if (this.failNext) {
+				this.failNext = false;
+				throw new Error(`ssh -G failed for ${host}`);
+			}
+			return { hostname: host, user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+		}
+	}
+
+	function createService(): ResolveConfigTestService {
+		return disposables.add(new ResolveConfigTestService(
+			new NullLogService(),
+			{ _serviceBrand: undefined, quality, dataFolderName } as IProductService,
+			NullTelemetryService,
+		));
+	}
+
+	test('reuses a resolved configuration per host, but never a failed or expired one', async () => {
+		const reusing = createService();
+		const first = await reusing.resolveSSHConfig('myhost');
+		const second = await reusing.resolveSSHConfig('myhost');
+		await reusing.resolveSSHConfig('otherhost');
+		reusing.failNext = true;
+		await assert.rejects(reusing.resolveSSHConfig('failing'), /ssh -G failed for failing/);
+		await reusing.resolveSSHConfig('failing');
+
+		const expiring = createService();
+		expiring.setReuseWindow(0);
+		await expiring.resolveSSHConfig('myhost');
+		await expiring.resolveSSHConfig('myhost');
+
+		assert.deepStrictEqual({
+			reusedResult: first === second,
+			reusedHosts: reusing.resolvedHosts,
+			expiredHosts: expiring.resolvedHosts,
+		}, {
+			reusedResult: true,
+			reusedHosts: ['myhost', 'otherhost', 'failing', 'failing'],
+			expiredHosts: ['myhost', 'myhost'],
+		});
+	});
+});
+
 suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 	const disposables = new DisposableStore();
@@ -1894,6 +2025,21 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		{ type: 'agent', username: 'u', agent: '/sock' },
 		{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
 	];
+
+	test('tries none before credentials and continues with the advertised methods when rejected', () => {
+		const handler = makeAuthHandler([{ type: 'none', username: 'u' }, ...attempts], new NullLogService());
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		assert.deepStrictEqual(calls, [
+			{ type: 'none', username: 'u' },
+			{ type: 'agent', username: 'u', agent: '/sock' },
+			{ type: 'publickey', username: 'u', key: KEY },
+			false,
+		]);
+	});
 
 	test('walks attempts in order, then signals exhaustion', () => {
 		const handler = makeAuthHandler(attempts, new NullLogService());

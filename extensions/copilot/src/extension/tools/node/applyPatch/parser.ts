@@ -925,27 +925,6 @@ export async function load_files(
 	return orig;
 }
 
-export function apply_commit(
-	commit: Commit,
-	writeFn: (p: string, c: string) => void,
-	removeFn: (p: string) => void,
-): void {
-	for (const [p, change] of Object.entries(commit.changes)) {
-		if (change.type === ActionType.DELETE) {
-			removeFn(p);
-		} else if (change.type === ActionType.ADD) {
-			writeFn(p, change.newContent ?? '');
-		} else if (change.type === ActionType.UPDATE) {
-			if (change.movePath) {
-				writeFn(change.movePath, change.newContent ?? '');
-				removeFn(p);
-			} else {
-				writeFn(p, change.newContent ?? '');
-			}
-		}
-	}
-}
-
 export async function processPatch(
 	text: string,
 	openFn: (p: string) => Promise<AbstractDocumentWithLanguageId | TextDocument>,

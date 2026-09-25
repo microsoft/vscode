@@ -21,6 +21,7 @@ import {
 	isModelSupportedForMode,
 	isModelValidForSession,
 	isNewConversation,
+	isSessionStarted,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
@@ -321,6 +322,23 @@ suite('ChatInputModelUtils', () => {
 		});
 	});
 
+	suite('isSessionStarted', () => {
+
+		test('only a bound, request-free session counts as unstarted', () => {
+			assert.deepStrictEqual({
+				boundAndEmpty: isSessionStarted(true, false),
+				boundWithRequests: isSessionStarted(true, true),
+				unbound: isSessionStarted(false, false),
+			}, {
+				boundAndEmpty: false,
+				boundWithRequests: true,
+				// A session switch unbinds the model for the duration of an async
+				// load; staying "started" keeps notices out of that window.
+				unbound: true,
+			});
+		});
+	});
+
 	suite('hasModelsTargetingSession', () => {
 
 		test('returns false when session type is undefined', () => {
@@ -440,6 +458,35 @@ suite('ChatInputModelUtils', () => {
 			const prev = createModel('Claude-Sonnet-4.6', 'CLAUDE SONNET 4.6', { family: 'CLAUDE-SONNET-4.6' });
 			const target = createSessionModel('claude-sonnet-4.6', 'claude sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
 			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('never carries a selection across the BYOK billing boundary', () => {
+			// A bridged BYOK copy shares id, family and display name with the first-party model, so
+			// treating it as the same selection would silently change which account is billed.
+			const prev = createSessionModel('claude-opus-5', 'Claude Opus 5', 'agent-host-copilotcli', { family: 'claude-opus-5' });
+			const byokNamesake = createSessionModel('anthropic/Anthropic/claude-opus-5', 'Claude Opus 5', 'agent-host-copilotcli', {
+				family: 'claude-opus-5',
+				byokModelIdentifier: 'anthropic/Anthropic/claude-opus-5',
+			});
+			assert.strictEqual(findBestMatchingModel(prev, [byokNamesake]), undefined);
+			assert.strictEqual(findBestMatchingModel(byokNamesake, [prev]), undefined);
+		});
+
+		test('still carries a BYOK selection onto the agent host copy of the same key', () => {
+			// The renderer original sets `isBYOK`; the agent-host copy carries its identifier as
+			// `byokModelIdentifier`. Same key, so this is the carry-over the function exists for.
+			const original = { ...createModel('claude-opus-5', 'Claude Opus 5', { vendor: 'anthropic', family: 'claude-opus-5', isBYOK: true }), identifier: 'anthropic/Anthropic/claude-opus-5' };
+			const bridged = createSessionModel('anthropic/Anthropic/claude-opus-5', 'Claude Opus 5', 'agent-host-copilotcli', {
+				family: 'claude-opus-5',
+				byokModelIdentifier: 'anthropic/Anthropic/claude-opus-5',
+			});
+			assert.deepStrictEqual({
+				forward: findBestMatchingModel(original, [bridged])?.identifier,
+				back: findBestMatchingModel(bridged, [original])?.identifier,
+			}, {
+				forward: bridged.identifier,
+				back: original.identifier,
+			});
 		});
 	});
 
@@ -602,6 +649,30 @@ suite('ChatInputModelUtils', () => {
 			);
 			assert.strictEqual(result.length, 2);
 			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['gpt', 'other-model']);
+		});
+
+		test('a vendor publishing only bridged BYOK copies keeps its cached own models', () => {
+			// The incident: the host's own models briefly dropped while its bridged BYOK copies stayed,
+			// and counting those as live evicted — then re-persisted over — the real pool.
+			const host = 'agent-host-copilotcli';
+			const bridged = createSessionModel('anthropic/Anthropic/claude-opus-5', 'Claude Opus 5', host, {
+				vendor: host,
+				byokModelIdentifier: 'anthropic/Anthropic/claude-opus-5',
+			});
+			const cachedOwn = createSessionModel('gpt-5.6-terra', 'GPT-5.6 Terra', host, { vendor: host });
+			const result = mergeModelsWithCache([bridged], [cachedOwn], new Set([host]), new Set([host]));
+
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['anthropic/Anthropic/claude-opus-5', 'gpt-5.6-terra']);
+		});
+
+		test('a vendor that has published its own models drops its cache as before', () => {
+			// Once the host's own catalog lands it is authoritative, so stale cache must not linger.
+			const host = 'agent-host-copilotcli';
+			const liveOwn = createSessionModel('gpt-5.6-terra', 'GPT-5.6 Terra', host, { vendor: host });
+			const staleCached = createSessionModel('gpt-5.5-retired', 'GPT-5.5 Retired', host, { vendor: host });
+			const result = mergeModelsWithCache([liveOwn], [staleCached], new Set([host]), new Set([host]));
+
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-5.6-terra']);
 		});
 
 		test('evicts cached models from vendors no longer contributed', () => {

@@ -12,15 +12,18 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -97,12 +100,16 @@ function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0],
 function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): TurnModelLookup {
 	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
 	return {
+		toActualModelId: raw => raw ? `${prefix}${raw}` : undefined,
 		toLanguageModelId: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
 		toModelDisplayName: raw => displayNames[raw],
-		toResponseDetails: (raw) => {
+		toResponseDetails: (raw, usage, responseModelId) => {
+			if (responseModelId) {
+				return formatTurnResponseDetails({ name: displayNames[responseModelId] ?? 'HydraFusion' }, undefined, usage);
+			}
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
 		},
@@ -113,12 +120,18 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 	};
 }
 
-function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options);
+function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4], resourceUris?: Parameters<typeof rawActiveTurnToProgress>[6]) {
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options, undefined, resourceUris);
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
 	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), 'local');
+}
+
+/** The progress message an executing invocation currently shows, if any. */
+function executingProgressMessage(invocation: Parameters<typeof rawUpdateRunningToolSpecificData>[0]): string | IMarkdownString | undefined {
+	const state = invocation.state.get();
+	return state.type === IChatToolInvocation.StateKind.Executing ? state.progress.get().message : undefined;
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
@@ -128,6 +141,95 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 // ---- Tests ------------------------------------------------------------------
 
 suite('stateToProgressAdapter', () => {
+
+	test('Fusion phases use subagent pills without inventing child chats', () => {
+		const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 1000 };
+		const running = createToolCallState({
+			toolCallId: 'fusion:phase-1', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+			_meta: { toolKind: 'fusionPhase', subagentDescription: 'Main pass', fusionPhase: phase, progressMessage: 'Generating output' },
+		});
+		const invocation = toolCallStateToInvocation(running);
+		assert.deepStrictEqual(invocation.toolSpecificData, {
+			kind: 'subagent', presentation: 'phase', phaseStatus: 'running', activityDescription: 'Generating output',
+			hasStarted: true, isActive: true, description: 'Main pass',
+			modelId: 'model-a', modelName: 'model-a', startedAt: 1000, duration: undefined, result: undefined, isChatAvailable: false,
+		});
+		assert.strictEqual(shouldObserveSubagentChat(running), false);
+		const switched = { ...running, _meta: { ...running._meta, fusionPhase: { ...phase, model: 'model-b' } } };
+		rawUpdateRunningToolSpecificData(invocation, switched, URI.file('/'), 'local');
+		assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined, 'model-b');
+
+		const completed = createCompletedToolCall({
+			toolCallId: running.toolCallId, toolName: running.toolName, displayName: running.displayName,
+			_meta: { ...switched._meta, fusionPhase: { ...phase, model: 'model-b', status: 'succeeded', duration: 2000 } },
+			content: [{ type: ToolResultContentType.Text, text: 'Main pass completed' }],
+		});
+		rawFinalizeToolInvocation(invocation, completed, URI.file('/'), 'local');
+		const serialized = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+		assert.deepStrictEqual({
+			live: invocation.toolSpecificData,
+			history: serialized.toolSpecificData,
+		}, {
+			live: { kind: 'subagent', presentation: 'phase', phaseStatus: 'succeeded', activityDescription: undefined, hasStarted: true, isActive: false, description: 'Main pass', modelId: 'model-b', modelName: 'model-b', startedAt: 1000, duration: 2000, result: 'Main pass completed', isChatAvailable: false },
+			history: { kind: 'subagent', presentation: 'phase', phaseStatus: 'succeeded', activityDescription: undefined, hasStarted: true, isActive: false, description: 'Main pass', modelId: 'model-b', modelName: 'model-b', startedAt: 1000, duration: 2000, result: 'Main pass completed', isChatAvailable: false },
+		});
+	});
+
+	test('Fusion milestones render with status-specific icons', () => {
+		assert.deepStrictEqual(['selected', 'completed', 'failed', 'cancelled', 'degraded'].map(fusionStatus => {
+			const part = systemNotificationToChatPart('Fusion milestone', 'local', { kind: AgentSystemNotificationKind.FusionProgress, fusionStatus });
+			return part?.kind === 'systemNotification' ? { icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
+		}), [
+			{ icon: Codicon.layers.id, collapsible: false, presentation: 'workflow' },
+			{ icon: Codicon.check.id, collapsible: true, presentation: undefined },
+			{ icon: Codicon.error.id, collapsible: true, presentation: undefined },
+			{ icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
+			{ icon: Codicon.warning.id, collapsible: true, presentation: undefined },
+		]);
+	});
+
+	test('Fusion activity derives from phase status, with tool cancellation overriding stale metadata', () => {
+		const snapshots = (['running', 'succeeded', 'failed', 'cancelled'] as const).map(status => {
+			const invocation = toolCallStateToInvocation(createToolCallState({
+				_meta: {
+					toolKind: 'fusionPhase', progressMessage: 'Generating output',
+					fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status, startedAt: 1000 },
+				},
+			}));
+			const data = invocation.toolSpecificData;
+			assert.ok(data?.kind === 'subagent');
+			return { status: data.phaseStatus, isActive: data.isActive, activity: data.activityDescription };
+		});
+		const cancelled = completedToolCallToSerialized({
+			toolCallId: 'phase-1', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+			invocationMessage: 'Running main pass',
+			status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied,
+			_meta: { toolKind: 'fusionPhase', fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 1000 } },
+		}, undefined, URI.file('/'), 'local').toolSpecificData;
+		assert.deepStrictEqual({
+			snapshots,
+			cancelled: cancelled?.kind === 'subagent' ? { status: cancelled.phaseStatus, isActive: cancelled.isActive } : undefined,
+		}, {
+			snapshots: [
+				{ status: 'running', isActive: true, activity: 'Generating output' },
+				{ status: 'succeeded', isActive: false, activity: undefined },
+				{ status: 'failed', isActive: false, activity: undefined },
+				{ status: 'cancelled', isActive: false, activity: undefined },
+			],
+			cancelled: { status: 'cancelled', isActive: false },
+		});
+	});
+
+	test('Fusion activity advances past milestones but yields to actual response content', () => {
+		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+		assert.deepStrictEqual([
+			getAgentHostActivityProgressId([]),
+			getAgentHostActivityProgressId([milestone]),
+			getAgentHostActivityProgressId([milestone, milestone]),
+			getAgentHostActivityProgressId([milestone, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
+			getAgentHostActivityProgressId([{ kind: ResponsePartKind.SystemNotification, content: 'Other notification' }]),
+		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -156,6 +258,7 @@ suite('stateToProgressAdapter', () => {
 			fullName: '#42 Improve sessions',
 			icon: Codicon.gitPullRequest,
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 			value: '{"number":42}',
 			uri: URI.parse('https://github.com/owner/repo/pull/42'),
 		};
@@ -176,6 +279,7 @@ suite('stateToProgressAdapter', () => {
 			value: restored.value,
 			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
 			tooltip: restored.kind === 'transcriptContext' ? restored.tooltip : undefined,
+			readyMessage: restored.kind === 'transcriptContext' ? restored.readyMessage : undefined,
 		}, {
 			kind: 'transcriptContext',
 			name: '#42 Improve sessions',
@@ -184,6 +288,7 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 		});
 	});
 
@@ -218,6 +323,24 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
+		for (const authority of ['local', 'my-host']) {
+			test(`preserves preview metadata and resource queries on ${authority}`, () => {
+				const resource = URI.parse('file:///remote/report.md?view=full#section');
+				const link = resource.with({ query: `${resource.query}&vscodeLinkType=markdown-preview` });
+
+				const rewritten = URI.parse(rewriteAgentHostLinkTarget(link.toString(), authority));
+				const params = new URLSearchParams(rewritten.query);
+				const linkType = params.get('vscodeLinkType');
+				params.delete('vscodeLinkType');
+				const target = fromAgentHostUri(rewritten.with({ query: params.toString() }));
+
+				assert.deepStrictEqual({ linkType, resource: target.toString() }, {
+					linkType: 'markdown-preview',
+					resource: resource.toString(),
+				});
+			});
+		}
+
 		test('supports absolute paths and file URIs with validated locations', () => {
 			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
 			assert.deepStrictEqual(
@@ -262,6 +385,8 @@ suite('stateToProgressAdapter', () => {
 					rewriteAgentHostLinkTarget('C:relative', 'my-host'),
 					rewriteAgentHostLinkTarget('git:foo', 'my-host'),
 					rewriteAgentHostLinkTarget('urn:isbn:123', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1?chat=chat-2', 'my-host'),
 				],
 				[
 					'vscode-browser://example.com',
@@ -269,6 +394,8 @@ suite('stateToProgressAdapter', () => {
 					'C:relative',
 					'git:foo',
 					'urn:isbn:123',
+					'agent-host-session://copilotcli/session-1',
+					'agent-host-session://copilotcli/session-1?chat=chat-2',
 				],
 			);
 		});
@@ -309,15 +436,42 @@ suite('stateToProgressAdapter', () => {
 
 		test('system-initiated turn preserves compact request label', () => {
 			const turn = createTurn({
-				message: message('`sleep 6` completed', MessageKind.SystemNotification),
+				message: withMessageSystemInitiatedLabel(
+					message('Continue the original task in the new workspace.', MessageKind.SystemNotification),
+					'Workspace Set',
+				),
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
-			assert.strictEqual(history[0].type, 'request');
-			if (history[0].type !== 'request') { return; }
-			assert.strictEqual(history[0].isSystemInitiated, true);
-			assert.strictEqual(history[0].prompt, '`sleep 6` completed');
-			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Continue the original task in the new workspace.',
+				participant: 'participant-1',
+				modelId: undefined,
+				variableData: undefined,
+				isSystemInitiated: true,
+				systemInitiatedLabel: 'Workspace Set',
+			});
+		});
+
+		test('identifies Agent Merge history by system origin and metadata, not prompt text', () => {
+			const messages: Message[] = [
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: toAgentMergeMessageMeta() },
+				message('Repair the pull request', MessageKind.SystemNotification),
+				{ ...message('Repair the pull request'), _meta: toAgentMergeMessageMeta() },
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: { 'vscode.chat.agentMerge': 'true' } },
+			];
+			const history = turnsToHistory(URI.file('/'), messages.map(message => createTurn({ message })), 'participant-1');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				isSystemInitiated: item.isSystemInitiated,
+				requestSource: item.requestSource,
+			})), [
+				{ isSystemInitiated: true, requestSource: 'agentMerge' },
+				{ isSystemInitiated: true, requestSource: undefined },
+				{ isSystemInitiated: undefined, requestSource: undefined },
+				{ isSystemInitiated: true, requestSource: undefined },
+			]);
 		});
 
 		test('hidden turn remains hidden when restored from protocol history', () => {
@@ -335,6 +489,25 @@ suite('stateToProgressAdapter', () => {
 				modelId: undefined,
 				variableData: undefined,
 				isHidden: true,
+			});
+		});
+
+		test('request-only hidden turn keeps its response visible when restored from protocol history', () => {
+			const markedMessage = withMessageRequestHiddenFromTranscript(message('Carry this response'), true);
+			const turn = createTurn({
+				message: { ...markedMessage, _meta: undefined },
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: '<!-- vscode-request-hidden-from-transcript -->\nCarry this response',
+				participant: 'participant-1',
+				modelId: undefined,
+				variableData: undefined,
+				isRequestHidden: true,
 			});
 		});
 
@@ -363,8 +536,70 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('created session annotates only its first request with the creating turn', () => {
+			const firstTurn = createTurn({
+				id: 'turn-1',
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'copilot:/creator',
+						sourceChat: 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg',
+						sourceTurnId: 'creating-turn',
+					}),
+				},
+			});
+			const history = rawTurnsToHistory(
+				URI.parse('copilot:/created'),
+				[firstTurn, createTurn({ id: 'turn-2' })],
+				'agent-host-copilot',
+				'local',
+			);
+
+			assert.deepStrictEqual([
+				history[0].type === 'request' ? history[0].origin : undefined,
+				history[2].type === 'request' ? history[2].origin : undefined,
+			], [{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				delegationScope: 'session',
+			}, undefined]);
+		});
+
+		test('created session maps an aliased backend source to its logical provider', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'ahp-session:/creator',
+						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+					}),
+				},
+			});
+
+			const history = rawTurnsToHistory(
+				URI.parse('ahp-session:/created'),
+				[turn],
+				'copilot',
+				'remote',
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'copilot',
+			);
+
+			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
+				delegationScope: 'session',
+			});
+		});
+
 		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
+			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
 			const turn = createTurn({
 				responseParts: [{
@@ -374,6 +609,14 @@ suite('stateToProgressAdapter', () => {
 						toolName: 'create_session',
 						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
 						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create-current',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ relationship: 'currentSession', prompt: 'Parallel task' }),
+						content: [{ type: ToolResultContentType.Text, text: createChatLink }],
 					}),
 				}, {
 					kind: ResponsePartKind.ToolCall,
@@ -396,12 +639,18 @@ suite('stateToProgressAdapter', () => {
 				kind: 'sessionCreated',
 				openLink: createLink,
 				label: 'Remember this word: capybara',
-				isChat: false,
+				fullTitle: 'Remember this word: capybara',
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				fullTitle: 'Parallel task',
+				isChat: true,
 			}, {
 				kind: 'sessionCreated',
 				openLink: sendLink,
 				label: 'foo',
-				isChat: false,
+				fullTitle: 'foo',
 			}]);
 		});
 
@@ -418,6 +667,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('workspace continuation restores with a hidden request and visible transition before provider output', () => {
+			const turn = createTurn({
+				message: withMessageRequestHiddenFromTranscript({
+					text: 'Continue in the requested workspace.',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentWorkspaceContinuationMessageMeta(),
+				}, true),
+				responseParts: [
+					{
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Now working in vscode',
+						_meta: toAgentSystemNotificationMeta({
+							kind: AgentSystemNotificationKind.WorkspaceTransition,
+							workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+							workspaceName: 'vscode',
+						}),
+					},
+					{ kind: ResponsePartKind.Markdown, id: 'provider-response', content: 'Provider continued work' },
+				],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const request = history[0];
+			const response = history[1];
+			assert.deepStrictEqual({
+				request: request.type === 'request' ? {
+					prompt: request.prompt,
+					isRequestHidden: request.isRequestHidden,
+					isHidden: request.isHidden,
+				} : undefined,
+				responseParts: response.type === 'response' ? response.parts : undefined,
+			}, {
+				request: {
+					prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.',
+					isRequestHidden: true,
+					isHidden: undefined,
+				},
+				responseParts: [{
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.worktreeCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+				}, {
+					kind: 'markdownContent',
+					content: new MarkdownString('Provider continued work'),
+				}],
+			});
 		});
 
 		test('worktree failure notification restores as warning', () => {
@@ -462,7 +762,10 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{
 					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
 						toolInput: '{"query":"terminal activation"}',
-						content: [{ type: ToolResultContentType.Text, text: 'Use shell integration.' }],
+						content: [
+							{ type: ToolResultContentType.Text, text: ' \n{"matches":1}' },
+							{ type: ToolResultContentType.Text, text: 'Use shell integration.' },
+						],
 					})
 				} as ToolCallResponsePart],
 			});
@@ -477,7 +780,10 @@ suite('stateToProgressAdapter', () => {
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.input, '{"query":"terminal activation"}');
 			assert.strictEqual(details.inputLanguage, 'json');
-			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' }]);
+			assert.deepStrictEqual(details.output, [
+				{ type: 'embed', value: ' \n{"matches":1}', isText: true, mimeType: 'application/json' },
+				{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' },
+			]);
 			assert.strictEqual(details.isError, false);
 		});
 
@@ -554,6 +860,28 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
 		});
 
+		for (const message of [undefined, '', 'Could not read question input']) {
+			test(`preserves question-tool failures without input/output details in live and restored state (message=${message})`, () => {
+				const completed = createCompletedToolCall({
+					toolName: 'ask_user',
+					toolInput: undefined,
+					success: false,
+					error: message !== undefined ? { message } : undefined,
+				});
+				const invocation = toolCallStateToInvocation(createToolCallState({ toolName: 'ask_user', toolInput: undefined }));
+				finalizeToolInvocation(invocation, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+				assert.deepStrictEqual({
+					liveError: IChatToolInvocation.resultError(invocation),
+					restoredError: IChatToolInvocation.resultError(restored),
+					liveDetails: IChatToolInvocation.resultDetails(invocation),
+					restoredDetails: IChatToolInvocation.resultDetails(restored),
+					restoredPresentation: restored.presentation,
+				}, { liveError: message || true, restoredError: message || true, liveDetails: undefined, restoredDetails: undefined, restoredPresentation: undefined });
+			});
+		}
+
 		test('failed MCP App tool call in history remains confirmed', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -589,6 +917,7 @@ suite('stateToProgressAdapter', () => {
 					mcpAppData: {
 						kind: 'agentHost',
 						resourceUri: 'ui://github-mcp-server/pr-write',
+						connectionAuthority: 'local',
 						serverId: 'github-customization',
 						channel: 'mcp://copilot/session/GitHub',
 					},
@@ -657,6 +986,76 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('preserves selected models and configuration independently of routed models in restored requests', () => {
+			const turns = [
+				createTurn({ message: { ...message('Auto'), model: { id: 'auto' } }, usage: { model: 'gpt-5', inputTokens: 100, outputTokens: 20 } }),
+				createTurn({ message: { ...message('Explicit model'), model: { id: 'opus-4.7', config: { reasoningEffort: 'xhigh' } } }, usage: { inputTokens: 100, outputTokens: 20 } }),
+			];
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' }, 'opus-4.7'));
+
+			assert.deepStrictEqual(history.map(item => item.type === 'request'
+				? { type: item.type, modelId: item.modelId, modelConfiguration: item.modelConfiguration }
+				: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+				{ type: 'request', modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+				{ type: 'response', details: 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
+				{ type: 'request', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: { reasoningEffort: 'xhigh' } },
+				{ type: 'response', details: 'Claude Opus 4.7', actualModelId: undefined },
+			]);
+		});
+
+		test('Fusion response details preserve credits while phase pills and usage retain concrete models', () => {
+			const turn = createTurn({
+				message: { ...message('Fusion'), model: { id: 'hydrafusion' } },
+				usage: { model: 'gpt-5', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolName: 'hydrafusion_phase', displayName: 'Main pass',
+						_meta: { toolKind: 'fusionPhase', fusionPhase: { fusionId: 'fusion-1', phaseId: 'main', model: 'gpt-5', status: 'succeeded', startedAt: 1000, duration: 2000 } },
+					}),
+				}],
+			});
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }));
+			const response = history.find(item => item.type === 'response');
+			const phase = response?.parts.find(part => part.kind === 'toolInvocationSerialized')?.toolSpecificData;
+			const usage = response?.parts.find(part => part.kind === 'usage');
+			assert.deepStrictEqual({
+				details: response?.details,
+				phaseModel: phase?.kind === 'subagent' ? phase.modelName : undefined,
+				actualModelId: usage?.actualModelId,
+				credits: usage?.copilotCredits,
+				tokens: [usage?.promptTokens, usage?.completionTokens],
+				billedModel: turn.usage?.model,
+			}, {
+				details: 'HydraFusion • 15.5 credits', phaseModel: 'gpt-5',
+				actualModelId: 'agent-host-copilot:gpt-5', credits: 15.5, tokens: [100, 20], billedModel: 'gpt-5',
+			});
+		});
+
+		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
+			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const turns = [
+				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
+				createTurn({
+					usage, responseParts: [{
+						kind: ResponsePartKind.SystemNotification, content: 'Routing failed',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'degraded' }),
+					}]
+				}),
+				createTurn({
+					usage, responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: createCompletedToolCall({ _meta: { toolKind: 'fusionPhase' } }),
+					}]
+				}),
+				createTurn({ usage }),
+			];
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'hydrafusion'));
+			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.details), [
+				'HydraFusion', 'HydraFusion • 0 credits', 'HydraFusion • 0 credits', 'GPT-5',
+			]);
+		});
+
 		test('restores Auto model routing with the shared chat UI part', () => {
 			const turn = createTurn({
 				usage: {
@@ -677,13 +1076,21 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
-			assert.deepStrictEqual(response.parts, [{
-				kind: 'autoModeResolution',
-				resolvedModel: 'gpt-5.4-mini',
-				resolvedModelName: 'GPT-5.4 mini',
-				predictedLabel: 'no_reasoning',
-				confidence: 0.98,
-			}]);
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			]);
+		});
+
+		test('drops a routing part that never resolved from restored history', () => {
+			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -961,6 +1368,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
 			assert.strictEqual(serialized.resultDetails, undefined);
 			if (serialized.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(serialized.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(serialized.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
@@ -1076,7 +1484,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [createErrorResponsePart({ errorType: 'test', message: 'boom' })],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1087,14 +1495,32 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
 		});
 
+		test('historical resumable errors can restore Try Again without rendering completed errors', () => {
+			const resumableError = createErrorResponsePart({ errorType: 'test', message: 'boom' }, true);
+			const errorTurn = createTurn({ state: TurnState.Error, responseParts: [resumableError] });
+			const completeTurn = createTurn({ state: TurnState.Complete, responseParts: [resumableError] });
+			const errorDetails = {
+				message: 'boom',
+				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
+			};
+
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const responses = history.filter(item => item.type === 'response');
+
+			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
+				errorDetails,
+				undefined,
+			]);
+		});
+
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
+				responseParts: [createErrorResponsePart({
 					errorType: 'quota',
 					message: 'raw',
 					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				})],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1167,6 +1593,61 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('preserves MCP tool titles and server origins in live calls and history', () => {
+			const tc = createToolCallState({
+				toolName: 'io-github-github-github-mcp-server-issue_read',
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const pending = toolCallStateToInvocation({ ...tc, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow tool from GitHub?' });
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' });
+			finalizeToolInvocation(live, completed);
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+			assert.deepStrictEqual([live, pending, restored].map(invocation => ({
+				toolId: invocation.toolId,
+				invocationMessage: invocation.invocationMessage,
+				originMessage: invocation.originMessage,
+			})), [live, pending, restored].map(() => ({
+				toolId: tc.toolName,
+				invocationMessage: 'Read issue',
+				originMessage: 'GitHub (MCP Server)',
+			})));
+		});
+
+		test('does not invent an MCP origin without valid server metadata', () => {
+			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
+				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
+			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('set_workspace confirmation hides implementation input', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-set-workspace',
+				toolName: 'set_workspace',
+				displayName: 'Set Workspace',
+				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Continue in app?',
+				toolInput: '{"workspaceFolder":"/workspace/app","isolation":false}',
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual({
+				confirmationMessages: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined,
+				toolSpecificData: invocation.toolSpecificData,
+			}, {
+				confirmationMessages: {
+					title: 'Continue in app?',
+					message: 'Continue this session in /workspace/app and make changes directly in that folder?',
+					approvalReason: undefined,
+				},
+				toolSpecificData: undefined,
+			});
 		});
 
 		test('renders ask-user tools as waiting progress that hides after completion', () => {
@@ -1434,11 +1915,109 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
 		});
 
+		test('renders the terminal confirmation for a remote host command permission (no _meta.toolKind)', () => {
+			// A remote host describes a pending command approval by echoing the
+			// permission request rather than setting `_meta.toolKind`.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-perm',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Find copilot CLI sandbox builder',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Run command',
+				toolInput: 'rg -n "sandbox" --glob "*.ts"',
+				_meta: {
+					requestId: 'req-1',
+					promptRequest: { kind: 'commands', toolCallId: 'tc-perm' },
+					permissionRequest: { kind: 'shell', toolCallId: 'tc-perm' },
+				},
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual({
+				kind: invocation.toolSpecificData?.kind,
+				command: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.commandLine.original,
+				language: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.language,
+				// Read-only for the same reason as a generic input: the edit is never returned, so
+				// an editable command line would run the one the agent proposed.
+				editable: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.editable,
+			}, {
+				kind: 'terminal',
+				command: 'rg -n "sandbox" --glob "*.ts"',
+				language: 'shellscript',
+				editable: false,
+			});
+		});
+
+		test('falls back to the raw permission request when the projected one is absent', () => {
+			// Older hosts echo only `permissionRequest`, spelling the same
+			// decision `shell` rather than `commands`.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-perm-raw',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Check the build',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: 'npm run compile',
+				_meta: { requestId: 'req-2', permissionRequest: { kind: 'shell' } },
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual({
+				kind: invocation.toolSpecificData?.kind,
+				command: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.commandLine.original,
+			}, {
+				kind: 'terminal',
+				command: 'npm run compile',
+			});
+		});
+
+		test('presents a generic confirmation input read-only, since edits are never sent back', () => {
+			// The confirmation editor writes into `rawInput`, but this adapter never returns it as
+			// `editedToolInput` — an editable field would run the command the agent proposed.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-perm-path',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Access paths',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: '/a/one.ts, /a/two.ts',
+				// A host claiming otherwise does not change that: the round trip is what is missing.
+				editable: true,
+				_meta: { requestId: 'req-3', promptRequest: { kind: 'path', accessKind: 'shell' } },
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual({
+				kind: invocation.toolSpecificData?.kind,
+				editable: (invocation.toolSpecificData as IChatToolInputInvocationData | undefined)?.editable,
+			}, {
+				kind: 'input',
+				editable: false,
+			});
+		});
+
+		test('does not render a path permission as a terminal command', () => {
+			// A path request's subject is a list of paths, not a command line,
+			// even when its `accessKind` is `shell`.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-perm-path',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Access paths',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: '/a/one.ts, /a/two.ts',
+				_meta: { requestId: 'req-3', promptRequest: { kind: 'path', accessKind: 'shell' } },
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'input');
+		});
+
 		test('sets subagent toolSpecificData from _meta for subagent toolKind', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Review code', subagentAgentName: 'code-reviewer' },
 			});
-
 			const invocation = toolCallStateToInvocation(tc);
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'subagent');
@@ -1466,6 +2045,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -1548,6 +2128,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.chatResource, 'ahp-chat://subagent/stamped/tc-1');
 			}
 		});
@@ -1589,6 +2170,15 @@ suite('stateToProgressAdapter', () => {
 					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
 				},
 			);
+		});
+
+		test('maps the reveal command resource through the Agent Host connection', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Remote note') });
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const message = markdown(rawToolCallStateToInvocation(tc, undefined, URI.file('/'), 'local', undefined, undefined, resourceUris).invocationMessage);
+			const mappedResource = resourceUris.fromAgentHost(URI.parse('file:///workspace/a.ts')).toString();
+
+			assert.ok(message.value.includes(encodeURIComponent(JSON.stringify([mappedResource, commentRange]))), message.value);
 		});
 
 		test('does not truncate a short comment', () => {
@@ -1731,6 +2321,18 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('toolCallStateToStreamingInvocation preserves search rendering before ready', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-rg',
+				toolName: 'rg',
+				displayName: 'Search',
+				status: ToolCallStatus.Streaming,
+				_meta: { toolKind: 'search' },
+			}, undefined);
+
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'search' });
+		});
+
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const invocation = toolCallStateToStreamingInvocation({
@@ -1751,6 +2353,8 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+				hasStarted: false,
+				isChatAvailable: false,
 			});
 		});
 
@@ -1812,6 +2416,46 @@ suite('stateToProgressAdapter', () => {
 
 			streaming.transitionFromStreaming(prepared, undefined, undefined);
 			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.Executing);
+		});
+
+		test('keeps the MCP origin when metadata arrives after streaming starts', () => {
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: toolName,
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			const running = createToolCallState({
+				toolCallId: 'tc-mcp',
+				toolName,
+				displayName: 'Read issue',
+				invocationMessage: 'Read issue',
+				_meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+			invocation.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
+			const runningOrigin = invocation.originMessage;
+			invocation.requestConfirmation(toolCallStateToPreparedInvocation({
+				...running,
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow tool from GitHub?',
+			}));
+			const pendingOrigin = invocation.originMessage;
+			finalizeToolInvocation(invocation, createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Read issue' }));
+
+			assert.deepStrictEqual({
+				runningOrigin,
+				pendingOrigin,
+				completedOrigin: invocation.toJSON().originMessage,
+				invocationMessage: invocation.invocationMessage,
+				pastTenseMessage: invocation.pastTenseMessage,
+			}, {
+				runningOrigin: 'GitHub (MCP Server)',
+				pendingOrigin: 'GitHub (MCP Server)',
+				completedOrigin: 'GitHub (MCP Server)',
+				invocationMessage: 'Read issue',
+				pastTenseMessage: 'Read issue',
+			});
 		});
 
 		test('requestConfirmation re-arms confirmation from Executing (Copilot Running → PendingConfirmation)', () => {
@@ -1901,6 +2545,16 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(typeof invocation.pastTenseMessage, 'object');
 			const value = (invocation.pastTenseMessage as { value: string }).value;
 			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)');
+		});
+
+		test('does not promote transient progress to the past-tense message', () => {
+			const withPastTense = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(withPastTense, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			finalizeToolInvocation(withPastTense, createCompletedToolCall({ pastTenseMessage: 'Called test tool' }));
+			const withoutPastTense = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(withoutPastTense, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			finalizeToolInvocation(withoutPastTense, createCompletedToolCall({ pastTenseMessage: undefined }));
+			assert.deepStrictEqual({ withPastTense: withPastTense.pastTenseMessage, withoutPastTense: withoutPastTense.pastTenseMessage }, { withPastTense: 'Called test tool', withoutPastTense: undefined });
 		});
 
 		test('finalizes pty terminal tool with compatibility output and exit code', () => {
@@ -2099,6 +2753,19 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits.length, 0);
 		});
 
+		test('does not turn cancellation without a reason message into a tool failure', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({ status: ToolCallStatus.Running, toolInput: undefined }));
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				reason: ToolCallCancellationReason.Denied,
+			});
+			assert.strictEqual(IChatToolInvocation.resultError(invocation), undefined);
+		});
+
 		test('finalized search tool keeps search rendering without generic details', () => {
 			const tc = createToolCallState({
 				status: ToolCallStatus.Running,
@@ -2230,6 +2897,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.deepStrictEqual({
 					credits: invocation.toolSpecificData.credits,
 					isActive: invocation.toolSpecificData.isActive,
@@ -2279,6 +2947,25 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
 		});
 
+		test('restores an ended response round as a hidden thinking-section boundary', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: 'Assessing final output steps' },
+				{ kind: ResponsePartKind.SystemNotification, content: '', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }) },
+				{ kind: ResponsePartKind.Markdown, id: 'streaming-text', content: '' },
+			]), undefined);
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', value: '' },
+			]);
+		});
+
+		test('drops an empty system notification without boundary metadata', () => {
+			assert.deepStrictEqual(activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content: '' },
+			]), undefined), []);
+		});
+
 		test('produces system notification for system notification response part', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
@@ -2302,6 +2989,85 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result[0], {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
+		test('styles workspace transitions as accessible transcript boundaries', () => {
+			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Now working in vscode',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorkspaceTransition,
+					workspaceKind,
+					workspaceName: 'vscode',
+				}),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				folder: notice(AgentSystemNotificationWorkspaceKind.Folder),
+				worktree: notice(AgentSystemNotificationWorkspaceKind.Worktree),
+			}, {
+				folder: {
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.folderCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+				},
+				worktree: {
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.worktreeCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+				},
+			});
+		});
+
+		test('styles automatic approval review terminal states', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Automatic approval review changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				timedOut: notice(AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut),
+				aborted: notice(AgentSystemNotificationKind.AutomaticApprovalReviewAborted),
+				interrupted: notice(AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted),
+			}, {
+				timedOut: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.clock, collapsible: true },
+				aborted: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.circleSlash, collapsible: true },
+				interrupted: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.warning },
+			});
+		});
+
+		test('gives each Agent Merge notice an icon that matches what it reports', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Agent Merge changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
+				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
+				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
+				// An unrecognized kind must still render, using the default check.
+				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent Merge changed state',
+					_meta: { kind: 'somethingNewer' },
+				}]), undefined)[0],
+			}, {
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true },
+				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
+				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
+				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
 		});
 
@@ -2528,7 +3294,7 @@ suite('stateToProgressAdapter', () => {
 					uri: URI.file('/workspace/package.json'),
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,
@@ -2624,12 +3390,67 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
-		test('uses tool completion text for truncated SDK shell output', () => {
+		for (const authority of ['local', 'remote-host']) {
+			for (const preview of [undefined, '', 'preview only\n']) {
+				test(`preserves retained terminal identity through live and history mapping on ${authority} with ${JSON.stringify(preview)} preview`, () => {
+					const sessionResource = URI.file('/');
+					const terminalResource = 'agenthost-terminal:/terminal';
+					const running = createToolCallState({
+						toolName: 'bash',
+						toolInput: 'npm test',
+						_meta: { toolKind: 'terminal' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
+							{
+								type: ToolResultContentType.Terminal,
+								resource: terminalResource,
+								title: 'Bash',
+								isPty: false,
+								result: { exitCode: 0, preview, truncated: true },
+							},
+						],
+					});
+					const invocation = rawToolCallStateToInvocation(running, undefined, sessionResource, authority);
+					const liveOutput = getSerializedTerminalData(invocation.toJSON()).terminalCommandOutput;
+					const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+					rawFinalizeToolInvocation(invocation, completed, sessionResource, authority);
+					const completedOutput = getSerializedTerminalData(invocation.toJSON()).terminalCommandOutput;
+					const history = rawTurnsToHistory(sessionResource, [createTurn({
+						responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+					})], 'p', authority);
+					const response = history.find(item => item.type === 'response');
+					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
+					assert.ok(serialized?.kind === 'toolInvocationSerialized');
+					const liveExpected = {
+						text: 'Saved to: /tmp/artifact-b.txt',
+						truncated: true,
+					};
+					const completedExpected = {
+						...liveExpected,
+						...(preview === undefined ? {} : { fullOutputPreview: preview.replace(/\r?\n/g, '\r\n') }),
+					};
+					assert.deepStrictEqual({
+						live: liveOutput,
+						completed: completedOutput,
+						history: getSerializedTerminalData(serialized).terminalCommandOutput,
+						liveUri: URI.revive(invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData.terminalCommandUri : undefined)?.toString(),
+						historyUri: URI.revive(getSerializedTerminalData(serialized).terminalCommandUri)?.toString(),
+					}, {
+						live: liveExpected,
+						completed: completedExpected,
+						history: completedExpected,
+						liveUri: terminalResource,
+						historyUri: terminalResource,
+					});
+				});
+			}
+		}
+
+		test('retains completion prose alongside a structured retained-output preview', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'cat large-output.txt',
 				content: [
-					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
 					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
 					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
@@ -2653,6 +3474,7 @@ suite('stateToProgressAdapter', () => {
 				output: {
 					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
 					truncated: true,
+					fullOutputPreview: 'preview only\r\n',
 				},
 				state: { exitCode: 0 },
 			});
@@ -2952,6 +3774,7 @@ suite('stateToProgressAdapter', () => {
 			assert.notStrictEqual(invocation.toolSpecificData, before, 'toolSpecificData should be replaced');
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
@@ -2992,7 +3815,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
-		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+		test('preserves subagent model identity and name when refreshing toolSpecificData from content', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
 			});
@@ -3001,6 +3824,7 @@ suite('stateToProgressAdapter', () => {
 
 			// Simulate the session handler having recorded this subagent's model.
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:claude-sonnet-4';
 				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
 			}
 
@@ -3021,9 +3845,33 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+				assert.deepStrictEqual({
+					modelId: invocation.toolSpecificData.modelId,
+					modelName: invocation.toolSpecificData.modelName,
+				}, { modelId: 'agent-host-copilotcli:claude-sonnet-4', modelName: 'Claude Sonnet 4' });
 			}
 		});
+
+		for (const withDiscovery of [false, true]) {
+			test(`preserves subagent model identity through completion and serialization (discovery=${withDiscovery})`, () => {
+				const invocation = toolCallStateToInvocation(createToolCallState({ toolName: 'task' }));
+				assert.ok(invocation.toolSpecificData?.kind === 'subagent');
+				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1';
+				invocation.toolSpecificData.modelName = 'OpenRouter/Amazon: Nova Micro 1.0';
+				finalizeToolInvocation(invocation, createCompletedToolCall({
+					toolName: 'task',
+					content: withDiscovery ? [{ type: ToolResultContentType.Subagent, resource: 'copilot://session/subagent/tc-1', title: 'Explore' }] : [],
+				}));
+				const serialized = invocation.toJSON();
+				assert.deepStrictEqual(serialized.toolSpecificData?.kind === 'subagent' ? {
+					modelId: serialized.toolSpecificData.modelId,
+					modelName: serialized.toolSpecificData.modelName,
+				} : undefined, {
+					modelId: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
+					modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+				});
+			});
+		}
 
 		test('mounts MCP App toolSpecificData when a confirmed MCP tool starts running', () => {
 			// The MCP App channel is present in `_meta.ui` from the first tool
@@ -3046,8 +3894,9 @@ suite('stateToProgressAdapter', () => {
 				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
 				_meta: meta,
 			});
-			// Confirmation state carries the raw input but does not mount the App.
-			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' } });
+			// Confirmation state carries the raw input but does not mount the App. It is read-only:
+			// this adapter never returns an edited input to the host.
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' }, editable: false });
 
 			let stateChanged = false;
 			const disposable = autorun(r => {
@@ -3069,6 +3918,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -3152,6 +4002,64 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
+
+		test('notifies for terminal preview and truncation changes only', () => {
+			const initialResult = { preview: 'preview', truncated: true };
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'npm test',
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:/terminal', title: 'Bash', isPty: false, result: initialResult }],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			invocation.toolSpecificData = { ...getSerializedTerminalData(invocation.toJSON()), terminalCommandId: 'late-command-id' };
+			const results = [
+				initialResult,
+				{ ...initialResult, preview: 'updated preview' },
+				{ ...initialResult, preview: 'updated preview' },
+				{ ...initialResult, truncated: false },
+				{ ...initialResult, truncated: false },
+			];
+			const changes = results.map(result => {
+				const previousData = invocation.toolSpecificData;
+				const previousState = invocation.state.get();
+				updateRunningToolSpecificData(invocation, {
+					...tc,
+					content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:/terminal', title: 'Bash', isPty: false, result }],
+				});
+				return { changed: previousData !== invocation.toolSpecificData, notified: previousState !== invocation.state.get() };
+			});
+			const terminal = getSerializedTerminalData(invocation.toJSON());
+			assert.deepStrictEqual({ changes, output: terminal.terminalCommandOutput, commandId: terminal.terminalCommandId }, {
+				changes: [false, true, false, true, false].map(changed => ({ changed, notified: changed })),
+				output: { text: 'preview', truncated: false },
+				commandId: 'late-command-id',
+			});
+		});
+
+		test('applies _meta.progressMessage to the executing invocation progress', () => {
+			const updated = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(updated, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			const seeded = toolCallStateToInvocation(createToolCallState({ _meta: { progressMessage: 'Ranking' } }));
+			assert.deepStrictEqual({ updated: executingProgressMessage(updated), seeded: executingProgressMessage(seeded) }, { updated: 'Searching', seeded: 'Ranking' });
+		});
+
+		test('an empty _meta.progressMessage clears the message already shown', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: '' } }));
+			const seeded = toolCallStateToInvocation(createToolCallState({ _meta: { progressMessage: '' } }));
+			assert.deepStrictEqual({ cleared: executingProgressMessage(invocation), seeded: executingProgressMessage(seeded) }, { cleared: '', seeded: '' });
+		});
+
+		test('keeps the current progress when _meta.progressMessage is missing or not a string', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: 42 } }));
+			updateRunningToolSpecificData(invocation, createToolCallState());
+			const untouched = toolCallStateToInvocation(createToolCallState({ _meta: { progressMessage: 42 } }));
+			assert.deepStrictEqual({ kept: executingProgressMessage(invocation), untouched: executingProgressMessage(untouched) }, { kept: 'Searching', untouched: undefined });
+		});
 	});
 
 	suite('usageInfoToQuotas', () => {
@@ -3189,13 +4097,16 @@ suite('stateToProgressAdapter', () => {
 				premiumChat: {
 					percentRemaining: 75,
 					unlimited: false,
+					usageBasedBilling: undefined,
 					entitlement: 300,
 					quotaRemaining: 225,
-					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+					// `resetAt` is epoch seconds, not milliseconds.
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z') / 1000,
 				},
 				chat: {
 					percentRemaining: 100,
 					unlimited: true,
+					usageBasedBilling: undefined,
 					entitlement: undefined,
 					quotaRemaining: undefined,
 					resetAt: undefined,
@@ -3203,6 +4114,70 @@ suite('stateToProgressAdapter', () => {
 				additionalUsageEnabled: true,
 				additionalUsageCount: 1.5,
 				resetDate: '2026-07-01T00:00:00.000Z',
+			});
+		});
+
+		test('prefers the premium_models snapshot key over premium_interactions', () => {
+			// Missing the alias left agent-host premium quota stale, so no banners. #332787
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_models: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 1056,
+							remainingPercentage: 12,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+							tokenBasedBilling: true,
+							overageEntitlement: 5000,
+						},
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 0,
+							remainingPercentage: 100,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				premiumChat: {
+					percentRemaining: 12,
+					unlimited: false,
+					usageBasedBilling: true,
+					entitlement: 1200,
+					quotaRemaining: 144,
+					resetAt: undefined,
+				},
+				additionalUsageEnabled: false,
+				additionalUsageCount: 0,
+				additionalUsageEntitlement: 5000,
+				usageBasedBilling: true,
+			});
+		});
+
+		test('maps the session and weekly rate limits', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						session: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 20,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						weekly: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 45,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				sessionRateLimit: { percentRemaining: 20, unlimited: false, resetDate: '2026-07-01T00:00:00.000Z' },
+				weeklyRateLimit: { percentRemaining: 45, unlimited: false, resetDate: undefined },
 			});
 		});
 
@@ -3244,6 +4219,29 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+
+		test('produces a resetAt the entitlement service resolves back to the reported date', () => {
+			// `getQuotaReset` treats `resetAt` as epoch seconds, so a snapshot mapped from an ISO
+			// date must round-trip to that same instant rather than a far-future one.
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(getQuotaReset(result?.premiumChat, { resetDate: result?.resetDate }), {
+				date: new Date('2026-07-01T00:00:00.000Z'),
+				hasTime: true,
+			});
 		});
 	});
 

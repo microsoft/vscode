@@ -5,13 +5,5 @@
 
 .changes-summary-widget {
 	display: inline-flex;
-	gap: 4px;
-
-	.changes-summary-lines-added {
-		color: var(--vscode-chat-linesAddedForeground);
-	}
-
-	.changes-summary-lines-removed {
-		color: var(--vscode-chat-linesRemovedForeground);
-	}
+	gap: var(--vscode-spacing-size40);
 }

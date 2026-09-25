@@ -17,6 +17,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -90,8 +92,9 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 	switch (toolSpecificData.kind) {
 		case 'subagent': {
 			const parts: string[] = [];
-			if (toolSpecificData.agentName) {
-				parts.push(localize('subagentName', "Agent: {0}", toolSpecificData.agentName));
+			const agentName = toolSpecificData.agentDisplayName ?? toolSpecificData.agentName;
+			if (agentName) {
+				parts.push(localize('subagentName', "Agent: {0}", agentName));
 			}
 			if (toolSpecificData.description) {
 				parts.push(toolSpecificData.description);
@@ -156,6 +159,8 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return toolSpecificData.operation === 'created'
 				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
 				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		case 'sessionCreated':
+			return toolSpecificData.fullTitle ?? toolSpecificData.label;
 		default:
 			return '';
 	}
@@ -203,7 +208,9 @@ export function getToolInvocationA11yDescription(
 	pastTenseMessage: string | undefined,
 	toolSpecificData: ToolSpecificData | undefined,
 	resultDetails: ResultDetails | undefined,
-	isComplete: boolean
+	isComplete: boolean,
+	originMessage?: string,
+	resultError?: string | boolean,
 ): string {
 	const parts: string[] = [];
 
@@ -211,15 +218,22 @@ export function getToolInvocationA11yDescription(
 	if (message) {
 		parts.push(message);
 	}
+	if (originMessage) {
+		parts.push(originMessage);
+	}
 
 	const toolDataDesc = getToolSpecificDataDescription(toolSpecificData);
 	if (toolDataDesc) {
 		parts.push(toolDataDesc);
 	}
 
-	if (isComplete && resultDetails) {
+	if (isComplete) {
 		const details = getResultDetailsDescription(resultDetails);
-		if (details.isError) {
+		const terminalData = toolSpecificData?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(toolSpecificData) : undefined;
+		const error = formatChatToolError(resultError, terminalData?.terminalCommandState?.exitCode);
+		if (error) {
+			parts.unshift(error);
+		} else if (details.isError) {
 			parts.unshift(localize('errored', "Errored"));
 		}
 		if (details.input && !toolDataDesc) {
@@ -380,6 +394,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'systemNotification': {
+				const text = part.accessibilityLabel ?? renderChatMessageAsPlaintext(part.content);
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
@@ -421,6 +442,8 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'toolInvocation': {
 				const state = part.state.get();
+				const invocationMessage = renderChatMessageAsPlaintext(part.invocationMessage);
+				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
 					const title = renderChatMessageAsPlaintext(state.confirmationMessages.title);
 					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message) : '';
@@ -429,28 +452,35 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					if (toolDataDesc) {
 						toolContent += `: ${toolDataDesc}`;
 					}
+					if (originMessage) {
+						toolContent += `\n${originMessage}`;
+					}
 					if (message) {
 						toolContent += `\n${message}`;
 					}
 					contentParts.push({ partIndex, text: toolContent });
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
-					contentParts.push({ partIndex, text: localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId) });
+					const message = localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, invocationMessage);
+					contentParts.push({ partIndex, text: [message, originMessage].filter(Boolean).join('\n') });
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
 						? state.resultDetails.input
 						: isToolResultOutputDetails(state.resultDetails)
 							? undefined
 							: toolContentToA11yString(state.contentForModel);
-					contentParts.push({ partIndex, text: localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", part.toolId) + (postApprovalDetails ?? '') });
+					const message = localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", invocationMessage) + (postApprovalDetails ?? '');
+					contentParts.push({ partIndex, text: [message, originMessage].filter(Boolean).join('\n') });
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(part);
 					const isComplete = IChatToolInvocation.isComplete(part);
 					const description = getToolInvocationA11yDescription(
-						renderChatMessageAsPlaintext(part.invocationMessage),
+						invocationMessage,
 						part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
 						part.toolSpecificData,
 						resultDetails,
-						isComplete
+						isComplete,
+						originMessage,
+						IChatToolInvocation.resultError(part),
 					);
 					if (description) {
 						contentParts.push({ partIndex, text: description });
@@ -464,7 +494,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
 					part.toolSpecificData,
 					part.resultDetails,
-					part.isComplete
+					part.isComplete,
+					part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
+					part.resultError,
 				);
 				if (description) {
 					contentParts.push({ partIndex, text: description });
@@ -472,14 +504,12 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'autoModeResolution': {
-				if (part.predictedLabel === 'fallback') {
-					contentParts.push({ partIndex, text: localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName) });
-				} else {
-					const label = part.predictedLabel === 'needs_reasoning'
-						? localize('autoModeResolutionA11yReasoning', "Reasoning")
-						: localize('autoModeResolutionA11yNonReasoning', "Non-reasoning");
-					contentParts.push({ partIndex, text: localize('autoModeResolutionA11y', "Routed to {0}. {1} - Confidence {2}%", part.resolvedModelName, label, (part.confidence * 100).toFixed(0)) });
+				// Matches the renderer: a row that never resolved is dropped once
+				// the response ends, so it must not linger in the text either.
+				if (!part.resolved && item.isComplete) {
+					break;
 				}
+				contentParts.push({ partIndex, text: autoModeRoutingTitle(part) });
 				break;
 			}
 		}

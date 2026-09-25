@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery, tool } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -75,10 +75,12 @@ export interface IClaudeAgentSdkService {
 	 */
 	canLoadWithoutDownload(): Promise<boolean>;
 	/**
-	 * Ensures the SDK is available for native chat discovery without loading
-	 * the module.
+	 * Downloads the SDK if it isn't local yet, without loading the module. This
+	 * is reserved for user-initiated activation, such as an explicit download
+	 * or restoring chat history. Background callers gate on
+	 * {@link canLoadWithoutDownload} instead.
 	 */
-	ensureAvailableForDiscovery(): Promise<void>;
+	ensureAvailable(): Promise<void>;
 
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
@@ -96,7 +98,8 @@ export interface IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>>;
 }
 
@@ -130,7 +133,8 @@ export interface IClaudeSdkBindings {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): SdkMcpToolDefinition<Schema>;
 }
 
@@ -178,7 +182,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> {
+	async ensureAvailable(): Promise<void> {
 		if (!(await this.canLoadWithoutDownload())) {
 			await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
 		}
@@ -238,10 +242,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Schema,
-		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>
+		handler: (args: InferShape<Schema>, extra: unknown) => Promise<CallToolResult>,
+		options?: Parameters<typeof tool>[4],
 	): Promise<SdkMcpToolDefinition<Schema>> {
 		const sdk = await this._getSdk();
-		return sdk.tool(name, description, inputSchema, handler);
+		return sdk.tool(name, description, inputSchema, handler, options);
 	}
 
 	private async _getSdk(): Promise<IClaudeSdkBindings> {

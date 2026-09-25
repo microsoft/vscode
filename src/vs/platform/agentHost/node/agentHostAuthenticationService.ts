@@ -3,28 +3,92 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
+import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
+
+export interface IAgentHostAuthTokenChangeEvent {
+	readonly resource: string;
+	readonly scopes: readonly string[];
+	readonly token: string | undefined;
+}
+
+export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
+export const IAgentHostAuthenticationController = createDecorator<IAgentHostAuthenticationController>('agentHostAuthenticationController');
+
+export interface IAgentHostAuthenticationService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+}
+
+export interface IAgentHostAuthenticationController {
+	readonly _serviceBrand: undefined;
+	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult>;
+	replay(provider: IAgent): Promise<void>;
+}
 
 interface IStoredAuthToken {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: string;
+	readonly expiresAt: number | undefined;
 }
 
-export class AgentHostAuthenticationService {
+interface IAuthenticationRequest {
+	readonly resource: string;
+	readonly completed: DeferredPromise<void>;
+}
 
+export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
+
+	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
+	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
+	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	constructor(
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+		this._register(toDisposable(() => {
+			this._tokens.clear();
+			for (const request of this._authenticationRequests.values()) {
+				request.completed.complete();
+			}
+			this._authenticationRequests.clear();
+		}));
+	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
+		const scopes = this._normalizeScopes(params.scopes);
+		const key = this._key(params.resource, scopes);
+		const previousRequest = this._authenticationRequests.get(key);
+		const request: IAuthenticationRequest = { resource: params.resource, completed: new DeferredPromise<void>() };
+		this._authenticationRequests.set(key, request);
+		// Wake replayers only after the replacement request is visible.
+		previousRequest?.completed.complete();
+		try {
+			return await this._authenticate(params, providers, scopes, key, request);
+		} finally {
+			if (this._authenticationRequests.get(key) === request) {
+				this._authenticationRequests.delete(key);
+			}
+			request.completed.complete();
+		}
+	}
+
+	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
+		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// both Copilot CLI and Claude consume the Copilot-scoped OAuth credential).
 		// Fan out to every matching provider in parallel; the request is
 		// considered authenticated if at least one accepts. Provider
 		// failures are isolated -- one provider rejecting (e.g. proxy
@@ -34,7 +98,7 @@ export class AgentHostAuthenticationService {
 			p => p.getProtectedResources().some(r => r.resource === params.resource),
 		);
 		const settled = await Promise.allSettled(
-			matching.map(p => p.authenticate(params.resource, params.token)),
+			matching.map(p => p.authenticate(params.resource, params.token, params.expiresIn)),
 		);
 		let authenticated = false;
 		let rejected = false;
@@ -66,8 +130,10 @@ export class AgentHostAuthenticationService {
 				);
 			}
 		}
-		const scopes = this._normalizeScopes(params.scopes);
-		const key = this._key(params.resource, scopes);
+		if (this._authenticationRequests.get(key) !== request) {
+			return { authenticated };
+		}
+		const previousToken = this._tokens.get(key)?.token;
 		if (!authenticated && !rejected) {
 			authenticated = this._tokens.get(key)?.token === params.token;
 		}
@@ -76,18 +142,39 @@ export class AgentHostAuthenticationService {
 			// while clearing its own live state.
 			this._tokens.delete(key);
 		} else if (authenticated) {
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt });
+		}
+		const token = this._tokens.get(key)?.token;
+		if (previousToken !== token) {
+			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		return { authenticated };
 	}
 
 	async replay(provider: IAgent): Promise<void> {
+		while (true) {
+			const pending = [...this._authenticationRequests.values()].filter(request =>
+				provider.handleAuthenticationToken || provider.getProtectedResources().some(resource => resource.resource === request.resource));
+			if (pending.length === 0) {
+				break;
+			}
+			await Promise.all(pending.map(request => request.completed.p));
+		}
 		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
-		for (const stored of this._tokens.values()) {
-			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token };
+		for (const [key, stored] of this._tokens) {
+			if (this._authenticationRequests.has(key) || this._tokens.get(key) !== stored) {
+				continue;
+			}
+			const now = Date.now();
+			if (isExpired(stored.expiresAt, now)) {
+				this._tokens.delete(key);
+				continue;
+			}
+			const expiresIn = getRemainingTimeInSeconds(stored.expiresAt, now);
+			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn };
 			if (protectedResources.has(stored.resource)) {
 				try {
-					await provider.authenticate(stored.resource, stored.token);
+					await provider.authenticate(stored.resource, stored.token, expiresIn);
 				} catch (error) {
 					this._logService.error(error, `[AgentHostAuthenticationService] Provider '${provider.id}' rejected replayed authentication for resource=${stored.resource}`);
 				}
@@ -105,7 +192,7 @@ export class AgentHostAuthenticationService {
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
 		const scopes = this._normalizeScopes(request.scopes);
 		const exact = this._tokens.get(this._key(request.resource, scopes));
-		if (exact) {
+		if (exact && !isExpired(exact.expiresAt)) {
 			return exact.token;
 		}
 		if (scopes.length === 0) {
@@ -115,7 +202,7 @@ export class AgentHostAuthenticationService {
 		const requested = new Set(scopes);
 		let best: IStoredAuthToken | undefined;
 		for (const candidate of this._tokens.values()) {
-			if (candidate.resource !== request.resource || candidate.scopes.length === 0) {
+			if (candidate.resource !== request.resource || candidate.scopes.length === 0 || isExpired(candidate.expiresAt)) {
 				continue;
 			}
 			if (!this._containsAll(candidate.scopes, requested)) {
@@ -131,7 +218,8 @@ export class AgentHostAuthenticationService {
 
 		// Compatibility for clients that resolved the right token before scopes
 		// were forwarded through the authenticate command.
-		return this._tokens.get(this._key(request.resource, []))?.token;
+		const unscoped = this._tokens.get(this._key(request.resource, []));
+		return unscoped && !isExpired(unscoped.expiresAt) ? unscoped.token : undefined;
 	}
 
 	private _containsAll(scopes: readonly string[], requested: ReadonlySet<string>): boolean {
@@ -150,4 +238,5 @@ export class AgentHostAuthenticationService {
 	private _normalizeScopes(scopes: readonly string[] | undefined): readonly string[] {
 		return scopes ? [...new Set(scopes)].sort() : [];
 	}
+
 }

@@ -18,6 +18,10 @@ export interface IPullRequestContentUriParams {
 	readonly status?: IGitHubChangedFile['status'];
 }
 
+export interface IPullRequestContentUriData extends IPullRequestContentUriParams {
+	readonly fileName: string;
+}
+
 export function toPRContentUri(fileName: string, params: IPullRequestContentUriParams): URI {
 	return URI.from({
 		scheme: Schemas.copilotPr,
@@ -26,8 +30,37 @@ export function toPRContentUri(fileName: string, params: IPullRequestContentUriP
 	});
 }
 
+export function parsePRContentUri(resource: URI): IPullRequestContentUriData | undefined {
+	if (resource.scheme !== Schemas.copilotPr) {
+		return undefined;
+	}
+	try {
+		const value = JSON.parse(resource.query) as Partial<IPullRequestContentUriData>;
+		if (
+			typeof value.owner !== 'string'
+			|| typeof value.repo !== 'string'
+			|| !Number.isInteger(value.prNumber)
+			|| typeof value.commitSha !== 'string'
+			|| typeof value.isBase !== 'boolean'
+			|| typeof value.fileName !== 'string'
+		) {
+			return undefined;
+		}
+		return value as IPullRequestContentUriData;
+	} catch {
+		return undefined;
+	}
+}
+
 export function getPullRequestKey(owner: string, repo: string, prNumber: number): string {
 	return `${owner}/${repo}/${prNumber}`;
+}
+
+/** Parses a canonical `github.com` pull request URL into its parts, or `undefined`. */
+export function parseGitHubPullRequestUrl(url: string): { readonly owner: string; readonly repo: string; readonly number: number } | undefined {
+	const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+	const groups = match?.groups;
+	return groups ? { owner: groups['owner'], repo: groups['repo'], number: Number(groups['number']) } : undefined;
 }
 
 export function getGitHubRepositoryFromUri(uri: URI): { readonly owner: string; readonly repo: string } | undefined {

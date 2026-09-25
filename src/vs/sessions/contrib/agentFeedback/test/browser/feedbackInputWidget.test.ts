@@ -143,6 +143,7 @@ suite('FeedbackInputWidget', () => {
 
 	test('renders a split action with both actions and their keybinding descriptions', () => {
 		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		let additionalActionTriggered = false;
 		disposables.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const widget = disposables.add(new FeedbackInputWidget({
 			placeholder: 'Add Feedback',
@@ -163,11 +164,27 @@ suite('FeedbackInputWidget', () => {
 				showContextMenu: delegate => contextMenuDelegate = delegate,
 			},
 		}));
-		widget.inputElement.value = 'Feedback';
-		widget.updateActionEnabled();
-
+		widget.setAdditionalActions([{
+			id: 'addPRComment',
+			label: 'Add PR Comment',
+			run: () => { additionalActionTriggered = true; },
+		}]);
 		const dropdown = widget.domNode.querySelector<HTMLElement>('.monaco-dropdown .dropdown-label');
 		assert.ok(dropdown);
+		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+		Object.defineProperty(enterEvent, 'keyCode', { get: () => 13 });
+		dropdown.dispatchEvent(enterEvent);
+		assert.deepStrictEqual({
+			ariaDisabled: dropdown.querySelector('.action-label')?.getAttribute('aria-disabled'),
+			contextMenuShown: contextMenuDelegate !== undefined,
+		}, {
+			ariaDisabled: 'true',
+			contextMenuShown: false,
+		});
+
+		widget.inputElement.value = 'Feedback';
+		widget.updateActionEnabled();
 		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 		assert.ok(contextMenuDelegate);
 
@@ -177,7 +194,10 @@ suite('FeedbackInputWidget', () => {
 		})), [
 			{ label: 'Add', keybinding: 'Enter' },
 			{ label: 'Add and Submit', keybinding: 'Alt+Enter' },
+			{ label: 'Add PR Comment', keybinding: undefined },
 		]);
+		void contextMenuDelegate.getActions()[2].run();
+		assert.strictEqual(additionalActionTriggered, true);
 
 		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 		try {

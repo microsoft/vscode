@@ -13,13 +13,11 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
 import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
@@ -34,7 +32,7 @@ import { INotebookTextModelLike } from './notebookKernelService.js';
 import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
-import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
@@ -43,8 +41,6 @@ export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiText
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
 export const NOTEBOOK_OUTPUT_EDITOR_ID = 'workbench.editor.notebookOutputEditor';
-
-export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
 export enum CellKind {
 	Markup = 1,
@@ -89,11 +85,6 @@ export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
 export type ContributedNotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
-export enum NotebookRunState {
-	Running = 1,
-	Idle = 2
-}
-
 export type NotebookDocumentMetadata = Record<string, unknown>;
 
 export enum NotebookCellExecutionState {
@@ -105,12 +96,6 @@ export enum NotebookExecutionState {
 	Unconfirmed = 1,
 	Pending = 2,
 	Executing = 3
-}
-
-export interface INotebookCellPreviousExecutionResult {
-	executionOrder?: number;
-	success?: boolean;
-	duration?: number;
 }
 
 export interface NotebookCellMetadata {
@@ -577,13 +562,6 @@ export interface IWorkspaceNotebookCellEdit {
 	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
 }
 
-export interface IWorkspaceNotebookCellEditDto {
-	metadata?: WorkspaceEditMetadata;
-	resource: URI;
-	notebookVersionId: number | undefined;
-	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
-}
-
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -827,10 +805,6 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean, eq
 	return result;
 }
 
-export interface ICellEditorViewState {
-	selections: editorCommon.ICursorState[];
-}
-
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
 export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
@@ -884,12 +858,6 @@ export interface INotebookDiffEditorModel extends IDisposable {
 	modified: { notebook: NotebookTextModel; resource: URI; viewType: string };
 }
 
-export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
-	readonly viewType: string;
-	readonly backupId?: string;
-	readonly mtime?: number;
-}
-
 export enum NotebookEditorPriority {
 	default = 'default',
 	option = 'option',
@@ -941,32 +909,6 @@ export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativ
 
 	return false;
 }
-export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
-	if (Array.isArray(filter.viewType) && filter.viewType.indexOf(viewType) >= 0) {
-		return true;
-	}
-
-	if (filter.viewType === viewType) {
-		return true;
-	}
-
-	if (filter.filenamePattern) {
-		const filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
-		const excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
-
-		if (glob.match(filenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
-			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
-					// should exclude
-					return false;
-				}
-			}
-			return true;
-		}
-	}
-	return false;
-}
-
 export interface INotebookCellStatusBarItemProvider {
 	viewType: string;
 	onDidChangeStatusBarItems?: Event<void>;
@@ -1015,7 +957,6 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
-	openOutputInPreviewEditor: 'notebook.output.openInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
@@ -1039,7 +980,6 @@ export const NotebookSetting = {
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamily: 'notebook.output.fontFamily',
 	findFilters: 'notebook.find.filters',
-	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',

@@ -61,13 +61,17 @@ export interface IAgentHostConfigurationSync {
 	 */
 	readonly transform?: (value: unknown) => unknown;
 
-	/**
-	 * When `true`, the value is only mirrored to a local agent host, and never to
-	 * a remote one. Use for settings that describe the client's own machine —
-	 * filesystem paths, machine identity — which are meaningless on a remote
-	 * host. Defaults to `false`, mirroring to every agent host.
-	 */
-	readonly localOnly?: boolean;
+	/** Which Agent Host targets receive this setting. Defaults to {@link AgentHostConfigurationSyncScope.All}. */
+	readonly scope?: AgentHostConfigurationSyncScope;
+}
+
+export const enum AgentHostConfigurationSyncScope {
+	/** Mirror to every Agent Host connection. */
+	All = 'all',
+	/** Mirror only to the local utility-process Agent Host. */
+	Local = 'local',
+	/** Mirror to the ambient Agent Host, whether local or colocated with a remote extension host. */
+	Ambient = 'ambient',
 }
 
 export interface IConfigurationRegistry {
@@ -277,7 +281,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * When specified, this setting is governed by a policy owned by another setting.
 	 * A setting must not declare both `policy` and `policyReference`.
-	 * The type must match the owning setting (enforced when exporting the policy catalog).
+	 * The non-null types must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
 
