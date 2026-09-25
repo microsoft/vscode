@@ -107,18 +107,19 @@ export function getModelProviderLabel(
 
 /**
  * Splits models into one destination per provider: the built-in one first, then each
- * provider the user added, by name. Auto is left out because it has its own row, and
- * empty providers are dropped so the common case yields no tab bar.
+ * provider the user added, by name. Models with their own row, Auto by default, are left
+ * out, and empty providers are dropped so the common case yields no tab bar.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
+	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	for (const model of models) {
-		if (isAutoModel(model)) {
+		if (hasOwnRow(model)) {
 			continue;
 		}
 		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
@@ -133,9 +134,9 @@ export function buildModelPickerDestinations(
 	// The built-in destination stands even with nothing to list: a plan that only grants
 	// Auto still needs somewhere to show it, and its curated models still need to name
 	// the upgrade that would unlock them.
-	const hasAutoModel = models.some(isAutoModel);
+	const hasOwnRowModel = models.some(hasOwnRow);
 	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasAutoModel) {
+	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,
@@ -185,6 +186,7 @@ export interface IModelPickerSectionsOptions {
 	/** The full destination catalogue, before collapsing speed variants. */
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
+	readonly organizationDefaultModelId?: string;
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
@@ -199,7 +201,7 @@ export interface IModelPickerSectionsOptions {
 
 /**
  * Splits a destination's models into favourites, the shortlist to lead with, and the
- * rest. Each model appears once, and the selected model is never folded into the rest.
+ * rest. Each model appears once; the selected and organization-default models stay visible.
  */
 export function buildModelPickerSections(options: IModelPickerSectionsOptions): IModelPickerSections {
 	// A model this build is too old to run is kept out of every selectable section and
@@ -262,6 +264,10 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 		const selected = take(options.selectedModelId);
 		if (selected) {
 			suggested.push(selected);
+		}
+		const organizationDefault = take(options.organizationDefaultModelId);
+		if (organizationDefault) {
+			suggested.push(organizationDefault);
 		}
 	}
 

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -18,6 +19,9 @@ import { withAgentCustomizationSettings } from '../../common/agentCustomizationS
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { readAgentHostResources } from '../../common/meta/agentHostResources.js';
+import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta.js';
+import { collectAgentHostResources } from '../../node/agentHostResources.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -75,6 +79,18 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(fired, [sessionUri, sessionUri, sessionUri]);
 	});
 
+	test('onDidChangeSessionWorkingDirectories identifies chat-owned changes', () => {
+		manager.createSession(makeSessionSummary());
+		const fired: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///chat' });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///chat' });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///chat' });
+
+		assert.deepStrictEqual(fired, [sessionChatUri, sessionChatUri]);
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
@@ -100,6 +116,24 @@ suite('AgentHostStateManager', () => {
 
 	test('omits host build info from root state _meta when not provided', () => {
 		assert.strictEqual(readHostBuildInfo(manager.rootState), undefined);
+	});
+
+	test('seeds execution resources alongside host build metadata', () => {
+		const buildInfo = { version: '1.0.0' };
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
+		assert.deepStrictEqual({
+			resources: readAgentHostResources(localManager.rootState),
+			buildInfo: readHostBuildInfo(localManager.rootState),
+			snapshotState: localManager.getSnapshot(ROOT_STATE_URI)?.state,
+		}, {
+			resources: collectAgentHostResources(),
+			buildInfo,
+			snapshotState: localManager.rootState,
+		});
+	});
+
+	test('advertises remote session origin support independently of resource metadata', () => {
+		assert.strictEqual(supportsRemoteSessions(manager.rootState), true);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {
@@ -943,6 +977,66 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getChangesetState(changeset), undefined, 'state should be deleted');
 	});
 
+	test('setChangesets publishes chat-owned catalogues on the chat channel', () => {
+		manager.createSession(makeSessionSummary());
+		const changesets = [{
+			label: 'Chat Changes',
+			changeKind: 'session',
+			uriTemplate: buildSessionChangesetUri(sessionChatUri),
+		}];
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+		manager.setChangesets(sessionChatUri, changesets);
+
+		assert.deepStrictEqual({
+			changesets: manager.getChatState(sessionChatUri)?.changesets,
+			envelopes: envelopes.map(envelope => ({ channel: envelope.channel, type: envelope.action.type })),
+		}, {
+			changesets,
+			envelopes: [{ channel: sessionChatUri, type: ActionType.ChatChangesetsChanged }],
+		});
+	});
+
+	test('tracks completed empty changesets across errors without treating placeholders as cached', () => {
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+		const completed: boolean[] = [manager.hasCompletedChangesetResult(changeset)];
+		manager.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message: 'Initial compute failed' },
+		});
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.dispatchServerAction(changeset, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Computing });
+		manager.dispatchServerAction(changeset, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message: 'Refresh failed' },
+		});
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.disposeChangeset(changeset);
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.registerChangeset(changeset);
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+
+		assert.deepStrictEqual(completed, [false, false, true, true, false, false]);
+	});
+
+	test('evicting a completed changeset also evicts its completion marker', () => {
+		const limited = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1 } }));
+		const first = limited.registerChangeset(buildSessionChangesetUri(sessionUri));
+		limited.dispatchServerAction(first, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		limited.registerChangeset(buildChangesetUri(sessionUri, 'second'));
+
+		assert.deepStrictEqual({
+			first: limited.getChangesetState(first),
+			completed: limited.hasCompletedChangesetResult(first),
+		}, { first: undefined, completed: false });
+	});
+
 	test('producer-emitted ChangesetCleared keeps the state alive (recompute path)', () => {
 		manager.createSession(makeSessionSummary());
 		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
@@ -1077,12 +1171,19 @@ suite('AgentHostStateManager', () => {
 				{
 					addedTitle: summary?.title,
 					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					summaryChats: manager.getSessionSummary(sessionUri)?.chats,
+					defaultChat: manager.getSessionSummary(sessionUri)?.defaultChat,
 					peerTurns: manager.getChatState(peerChat)?.turns.length,
 					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
 				},
 				{
 					addedTitle: 'Peer',
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					summaryChats: [
+						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User } },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User } },
+					],
+					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
 					chatAddedEvents: 1,
 				},
@@ -1174,6 +1275,38 @@ suite('AgentHostStateManager', () => {
 			}, {
 				beforeRestore: '',
 				afterRestore: 'Test',
+			});
+		});
+
+		test('restore preserves a listed peer catalog in the first live summary', () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const summary: SessionSummary = {
+				...makeSessionSummary(),
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+				],
+				defaultChat,
+			};
+			manager.prepareSessionSummariesForListing([summary]);
+			const publishedChatCatalogs: string[][] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged && notification.changes.chats) {
+					publishedChatCatalogs.push(notification.changes.chats.map(chat => chat.resource));
+				}
+			}));
+
+			manager.restoreSession(summary, []);
+			const listed = manager.prepareSessionSummariesForListing([summary])[0];
+
+			assert.deepStrictEqual({
+				state: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+				listed: listed.chats?.map(chat => chat.resource),
+				publishedChatCatalogs,
+			}, {
+				state: [defaultChat, peerChat],
+				listed: [defaultChat, peerChat],
+				publishedChatCatalogs: [[defaultChat, peerChat]],
 			});
 		});
 
@@ -1990,6 +2123,40 @@ suite('AgentHostStateManager', () => {
 						notifiedSession: sessionUri,
 					},
 				);
+			});
+		});
+
+		test('session summaries preserve chat interactivity', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, {
+				title: 'Hidden peer',
+				interactivity: ChatInteractivity.Hidden,
+			});
+
+			assert.deepStrictEqual(manager.getSessionSummary(sessionUri)?.chats?.map(chat => ({
+				resource: chat.resource,
+				title: chat.title,
+				interactivity: chat.interactivity,
+			})), [
+				{ resource: sessionChatUri, title: 'Test', interactivity: undefined },
+				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden },
+			]);
+		});
+
+		test('SessionSummaryNotifier provides the previous summary to internal observers', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+				const initial = manager.getSessionSummary(sessionUri)!;
+				const previous: SessionSummary[] = [];
+				disposables.add(manager.onDidChangeSessionSummary(event => previous.push(event.previous)));
+
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+				await timeout(150);
+				const read = manager.getSessionSummary(sessionUri)!;
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionActivityChanged, activity: 'Running tool' });
+				await timeout(150);
+
+				assert.deepStrictEqual(previous, [initial, read]);
 			});
 		});
 

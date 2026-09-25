@@ -101,8 +101,8 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
-	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true), additionalThemes: ['darkHighContrast'] }),
-	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', false, 'compact'), additionalThemes: ['darkHighContrast'] }),
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', true), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', true, 'compact'), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),

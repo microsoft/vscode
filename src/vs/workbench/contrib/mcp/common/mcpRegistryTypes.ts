@@ -95,6 +95,6 @@ export interface IMcpRegistry {
 	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
 	/** Gets saved inputs from storage. */
 	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
-	/** Creates a connection for the collection and definition. */
+	/** Creates a connection, or returns undefined if startup is cancelled or the collection or definition is no longer registered. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

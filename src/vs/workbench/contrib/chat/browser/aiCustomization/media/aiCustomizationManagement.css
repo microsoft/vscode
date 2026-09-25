@@ -171,7 +171,7 @@
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 16px;
-	text-align: right;
+	text-align: center;
 }
 
 /* Section list items */
@@ -248,7 +248,7 @@
 .ai-customization-management-editor .content-inner .welcome-page-host {
 	flex: 1 1 auto;
 	min-height: 0;
-	padding: 40px 40px 16px;
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
@@ -258,9 +258,16 @@
 .plugin-list-widget > .section-title-header,
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
+.plugin-list-widget > .customization-tree-tabs,
 .plugin-list-widget > .mcp-list-container,
+.ai-customization-list-widget > .section-title-header,
+.ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-list-widget > .customization-tree-tabs,
+.ai-customization-list-widget > .list-container,
 .tools-list-widget > .section-title-header,
-.tools-list-widget > .tools-list-search-and-button-container {
+.tools-list-widget > .tools-list-search-and-button-container,
+.tools-list-widget > .tools-tree-tabs,
+.tools-list-widget > .tools-list-tree {
 	width: min(100%, 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
@@ -375,7 +382,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	padding: var(--vscode-spacing-size160) 0 0;
+	padding: var(--vscode-spacing-size80) 0 0;
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
@@ -442,6 +449,155 @@
 
 .ai-customization-list-widget .list-add-button .monaco-button-dropdown .monaco-button:first-child {
 	flex: 1;
+}
+
+.customization-tree-tabs {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--vscode-spacing-size320);
+	margin-bottom: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	flex-shrink: 0;
+}
+
+.customization-tree-tabs.actions-only {
+	justify-content: flex-end;
+}
+
+.customization-tree-tabs.actions-only .customization-tree-tabs-list {
+	display: none;
+}
+
+.customization-tree-tabs-list {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.customization-tree-tabs-list .monaco-action-bar {
+	overflow: hidden;
+}
+
+.customization-tree-tabs-list .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
+.customization-tree-tabs-list .action-item {
+	padding: 0;
+}
+
+.customization-tree-tabs-list .action-label.customization-tree-tab {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	opacity: 0.8;
+	white-space: nowrap;
+	box-sizing: border-box;
+}
+
+.customization-tree-tabs-list .action-label.customization-tree-tab:hover {
+	background-color: var(--vscode-modernTab-hoverBackground, var(--vscode-toolbar-hoverBackground));
+	opacity: 1;
+}
+
+.customization-tree-tabs-list .action-label.customization-tree-tab.checked {
+	background-color: var(--vscode-modernTab-activeBackground, var(--vscode-toolbar-hoverBackground));
+	color: var(--vscode-modernTab-activeForeground, var(--vscode-foreground));
+	opacity: 1;
+}
+
+.hc-black .customization-tree-tabs-list .action-label.customization-tree-tab.checked,
+.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+
+.hc-light .customization-tree-tabs-list .action-label.customization-tree-tab.checked {
+	background-color: transparent;
+}
+
+.customization-tree-tabs-list .action-label.customization-tree-tab:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.customization-tree-tab .customization-tab-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	min-height: var(--vscode-spacing-size160);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.hc-black .customization-tree-tab .customization-tab-count,
+.hc-light .customization-tree-tab .customization-tab-count {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.customization-tree-tab-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	height: 100%;
+}
+
+.customization-tree-tab-actions .plugin-card-section-actions,
+.customization-tree-tab-actions .list-button-group {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.customization-tree-container .monaco-list-row,
+.ai-customization-list-widget .list-container .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-tree-container .monaco-list-row .group-chevron,
+.ai-customization-list-widget .list-container .monaco-list-row .group-chevron,
+.tree-layout .group-chevron {
+	display: none;
+}
+
+.tabs-layout .monaco-tl-twistie {
+	width: 0;
+	padding: 0;
+	transform: none;
+}
+
+.customization-tree-container .monaco-list-row .plugin-list-item:hover,
+.customization-tree-container .monaco-list-row .mcp-server-item:hover,
+.customization-tree-container .monaco-list-row .ai-customization-group-header:hover,
+.ai-customization-list-widget .list-container .monaco-list-row .ai-customization-list-item:hover,
+.ai-customization-list-widget .list-container .monaco-list-row .ai-customization-group-header:hover {
+	background-color: transparent;
+}
+
+.plugin-list-widget .mcp-list-container .monaco-list-row .plugin-list-item:hover {
+	background-color: transparent;
+}
+
+.ai-customization-list-widget .list-container .ai-customization-list-item {
+	padding-inline: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.ai-customization-list-widget.tabs-layout .list-container .ai-customization-list-item,
+.plugin-list-widget.tabs-layout .mcp-list-container .plugin-list-item,
+.mcp-list-widget.tabs-layout .mcp-list-container .mcp-server-item {
+	padding-left: var(--vscode-spacing-size40);
 }
 
 .ai-customization-list-widget .list-container {
@@ -563,9 +719,22 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 0;
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	min-width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-descriptionForeground);
 	text-align: right;
 	margin-top: 2px;
+	line-height: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.hc-black .ai-customization-group-header .group-count,
+.hc-light .ai-customization-group-header .group-count {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
 }
 
 .ai-customization-group-header .group-info {
@@ -601,6 +770,117 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-list-widget .list-container .ai-customization-list-item {
+	min-height: 0;
+}
+
+.ai-customization-group-header .group-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.ai-customization-group-header .group-actions:empty {
+	display: none;
+}
+
+.ai-customization-group-header .group-actions .plugin-card-section-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.customization-toggle {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
+	transform: translateX(var(--vscode-spacing-size60));
+}
+
+.customization-toggle .monaco-switch.mixed {
+	background: var(--vscode-button-background);
+	border-color: var(--vscode-button-background);
+}
+
+.hc-black .customization-toggle .monaco-switch.mixed,
+.hc-light .customization-toggle .monaco-switch.mixed {
+	border-color: var(--vscode-contrastActiveBorder);
+}
+
+.hc-light .customization-toggle .monaco-switch {
+	background: transparent;
+}
+
+.hc-light .customization-toggle .monaco-switch.checked,
+.hc-light .customization-toggle .monaco-switch.mixed {
+	border-color: var(--vscode-contrastActiveBorder);
+}
+
+.hc-light .customization-toggle .monaco-switch .monaco-switch-thumb {
+	background: var(--vscode-foreground);
+}
+
+.hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
+	background: var(--vscode-editor-background);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb::after {
+	background: var(--vscode-contrastActiveBorder);
+}
+
+.customization-toggle .monaco-switch.mixed .monaco-switch-thumb::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size20);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-button-background);
+	transform: translateY(-50%);
+}
+
+.ai-customization-management-editor .tools-list-setrow .customization-toggle.switch {
+	order: 10;
+	margin-left: auto;
+}
+
+.ai-customization-management-editor .tools-list-setrow .tools-list-chevron {
+	order: -1;
+	margin-left: 0;
+}
+
+.ai-customization-management-editor .tools-list-toolrow .customization-toggle.switch {
+	order: 10;
+	margin-left: auto;
+}
+
+.plugin-list-widget .plugin-installed-item .plugin-list-item-action,
+.plugin-list-widget .mcp-server-item .mcp-server-actions {
+	display: contents;
+}
+
+.plugin-list-widget .plugin-installed-item .customization-toggle.checkbox,
+.plugin-list-widget .mcp-server-item .customization-toggle.checkbox {
+	order: -1;
+}
+
+.plugin-list-widget .plugin-installed-item .customization-toggle.switch,
+.plugin-list-widget .mcp-server-item .customization-toggle.switch {
+	order: 10;
+	margin-left: auto;
+}
+
+.plugin-list-widget .plugin-installed-item .plugin-card-icon-button,
+.plugin-list-widget .mcp-server-item .plugin-card-icon-button {
+	order: 11;
 }
 
 .ai-customization-list-item.disabled {
@@ -708,6 +988,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item .item-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -948,14 +1229,24 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .prompt-migration-content-container,
+.ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .tools-content-container {
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
 
 /* The scroll hosts reach the pane edge while their content retains the panel inset. */
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .section-title-header,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .section-title-header,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-marketplace-back-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .mcp-list-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget .plugin-card-scroll,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
 .ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
 .ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer,
@@ -973,7 +1264,9 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable {
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
 	max-width: none;
 }
 
@@ -998,6 +1291,11 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size80);
 	padding-top: var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.ai-customization-management-editor .prompt-migration-footer-inline {
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-selected-count {
@@ -1167,7 +1465,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--vscode-spacing-size120);
-	margin-bottom: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
 	padding: 0;
 	background: transparent;
 }
@@ -1289,6 +1587,78 @@ per-word capitalization does not survive translation. */
 	color: inherit;
 }
 
+.ai-customization-management-editor .prompt-migration-unsupported-item {
+	align-items: center;
+	min-height: 64px;
+	gap: var(--vscode-spacing-size160);
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item:not(:first-child) {
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-items {
+	border-color: var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-group {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item .item-text {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item .item-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .prompt-migration-source-link {
+	align-self: flex-start;
+	max-width: 100%;
+	color: var(--vscode-descriptionForeground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .prompt-migration-source-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .prompt-migration-source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-actions {
+	display: flex;
+	margin-left: 0;
+	opacity: 1;
+}
+
+.ai-customization-management-editor .prompt-migration-details-button.monaco-button {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .prompt-migration-details-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
+	color: var(--vscode-foreground);
+}
+
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
 }
@@ -1354,7 +1724,6 @@ per-word capitalization does not survive translation. */
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
 	overflow: hidden;
 }
 
@@ -1363,6 +1732,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: 8px;
 	flex: none;
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
 }
 
 .ai-customization-management-editor .tools-list-search-container {
@@ -1450,35 +1820,17 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
-/* DomScrollableElement wrapper around the tool tree; takes remaining height for the overlay scrollbar. */
-.ai-customization-management-editor .tools-list-tree-scrollable {
-	position: relative;
+.ai-customization-management-editor .tools-list-tree {
 	flex: 1;
 	min-height: 0;
-	width: 100%;
-}
-
-.ai-customization-management-editor .tools-list-tree-scrollable > .tools-list-scroll-container {
-	position: absolute;
-	inset: 0;
 	overflow: hidden;
-}
-
-.ai-customization-management-editor .tools-list-tree {
-	height: 100%;
-	min-height: 0;
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size100);
-	padding: 0 0 var(--vscode-spacing-size200);
 	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .tools-inventory-section {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size100);
+	gap: var(--vscode-spacing-size120);
 }
 
 .ai-customization-management-editor .tools-inventory-section-header {
@@ -1550,7 +1902,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .tools-list-widget.narrow-layout .tools-list-toolrow {
-	padding-inline-start: var(--vscode-spacing-size240);
+	padding-inline-start: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
 }
 
 .ai-customization-management-editor .tools-inventory-list {
@@ -1578,14 +1930,19 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	border-radius: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) var(--vscode-spacing-size80) 0;
+	border-radius: var(--vscode-cornerRadius-small);
 	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .tools-list-setrow:hover,
 .ai-customization-management-editor .tools-list-toolrow:hover {
 	background: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .tools-list-tree .monaco-list-row .tools-list-setrow:hover,
+.ai-customization-management-editor .tools-list-tree .monaco-list-row .tools-list-toolrow:hover {
+	background: transparent;
 }
 
 /* A row-to-row divider between every adjacent row (set-to-set, set-to-tool, tool-to-tool, tool-to-set). */
@@ -1612,10 +1969,18 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size400);
-	border-radius: 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .tools-tree-empty-row {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding-inline: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
 }
 
 .ai-customization-management-editor .tools-list-more-action {
@@ -1671,14 +2036,11 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .tools-list-row-label {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.ai-customization-management-editor .tools-list-setrow .tools-list-row-label {
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /* Search match highlighting in tool set / tool names */
@@ -1698,11 +2060,12 @@ per-word capitalization does not survive translation. */
 
 /* Enabled/total tool count shown at the right of a tool-set row */
 .ai-customization-management-editor .tools-list-row-count {
-	flex: none;
+	flex: 0 0 var(--vscode-spacing-size400);
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
+	text-align: right;
 	cursor: pointer;
 }
 
@@ -1721,6 +2084,145 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	overflow: hidden;
 	min-height: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	min-height: 0;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+	overflow: auto;
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .mcp-detail-definition-section {
+	flex: 1 0 240px;
+	display: flex;
+	flex-direction: column;
+	min-height: 180px;
+}
+
+.ai-customization-management-editor .mcp-detail-section-title {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .mcp-detail-definition-editor,
+.ai-customization-management-editor .mcp-detail-definition-empty {
+	flex: 1;
+	margin-top: 0;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostics {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-section {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostics-empty {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card {
+	min-height: 72px;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-agentsPanel-background));
+	color: var(--vscode-foreground);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning {
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 45%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.error {
+	background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground) 45%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-errorBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.migration {
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
+.vscode-high-contrast .ai-customization-management-editor .mcp-detail-diagnostic-card {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-icon {
+	flex: none;
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-icon-foreground);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-diagnostic-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-card.error .mcp-detail-diagnostic-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-summary {
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-details {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.45;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-message,
+.ai-customization-management-editor .mcp-detail-diagnostic-list {
+	margin: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .mcp-detail-diagnostic-list {
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link {
+	display: inline-block;
+	margin-top: var(--vscode-spacing-size100);
+	color: var(--vscode-textLink-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-description {
+	margin: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link:hover,
+.ai-customization-management-editor .mcp-detail-migration-link:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* Embedded plugin detail view */
@@ -1760,7 +2262,24 @@ per-word capitalization does not survive translation. */
 	margin-inline-end: var(--vscode-spacing-size200);
 }
 
-.ai-customization-management-editor .plugin-detail-editor-container,
+.ai-customization-management-editor .plugin-detail-editor-scrollable {
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
+	height: 100%;
+	min-height: 0;
+	display: flex;
+	justify-content: center;
+	overflow: hidden;
+}
+
 .ai-customization-management-editor .tools-detail-editor-container {
 	flex: 1;
 	overflow: auto;
@@ -1804,7 +2323,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
+	margin: 0;
 	padding-inline: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -1821,10 +2340,6 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-container .editor-back-button {
 	width: var(--vscode-spacing-size280);
 	height: var(--vscode-spacing-size280);
-}
-
-.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
-	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2460,7 +2975,7 @@ per-word capitalization does not survive translation. */
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 30px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
@@ -2481,10 +2996,6 @@ per-word capitalization does not survive translation. */
 	opacity: 0.85;
 }
 
-.mcp-server-item .mcp-server-icon {
-	display: none;
-}
-
 .mcp-server-item .mcp-server-details {
 	flex: 1;
 	display: flex;
@@ -2495,6 +3006,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-name {
 	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -2510,44 +3022,29 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
-.mcp-server-item.has-error {
-	align-items: flex-start;
-	padding-top: var(--vscode-spacing-size120);
-	padding-bottom: var(--vscode-spacing-size120);
-}
-
-.mcp-server-item .mcp-server-description.error {
-	color: var(--vscode-errorForeground);
-	margin-top: var(--vscode-spacing-size80);
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
-	overflow: visible;
-	text-overflow: clip;
-}
-
-.mcp-server-item .mcp-server-description.error:not(.expanded) {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
-	max-height: 3lh;
-	overflow: hidden;
-}
-
-.mcp-server-item .mcp-server-error-toggle.monaco-button {
-	align-self: flex-start;
-	width: auto;
-	min-width: 0;
-	padding: 0;
-	margin-top: var(--vscode-spacing-size40);
-	color: var(--vscode-textLink-foreground);
+.mcp-server-item .mcp-server-source-path {
 	font-size: var(--vscode-fontSize-body2);
-	border: 0;
-	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
 }
 
-.mcp-server-item .mcp-server-error-toggle.monaco-button:hover {
+.mcp-server-item .mcp-server-source-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
+}
+
+.mcp-server-item .mcp-server-source-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mcp-server-item .mcp-server-actions {
@@ -2559,6 +3056,8 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-sign-in.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button {
+	width: auto;
+	flex: 0 0 auto;
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
@@ -2632,6 +3131,15 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
+.plugin-list-widget .mcp-list-container .plugin-list-item {
+	padding-block: var(--vscode-spacing-size40);
+}
+
+.plugin-list-widget .mcp-list-container .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+}
+
 .plugin-list-widget .plugin-installed-item:not(.plugin-home-row),
 .plugin-list-widget .plugin-marketplace-item {
 	cursor: pointer;
@@ -2650,12 +3158,18 @@ per-word capitalization does not survive translation. */
 	display: block;
 }
 
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .plugin-list-item,
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .ai-customization-list-item,
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .mcp-server-item {
+	border-radius: 0;
+}
+
 .plugin-list-widget .virtualized-section-list .monaco-list-row {
 	box-sizing: border-box;
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
-	background-color: var(--vscode-editorWidget-background);
+	background-color: transparent;
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
@@ -2830,6 +3344,19 @@ per-word capitalization does not survive translation. */
 	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
 }
 
+.plugin-list-widget .mcp-compatibility-status-badge {
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.partially-supported,
+.plugin-list-widget .mcp-compatibility-status-badge.support-unknown {
+	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.unsupported {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
+}
+
 .plugin-list-widget .plugin-list-item-action {
 	display: flex;
 	align-items: center;
@@ -2934,7 +3461,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .distributed-section-layout .plugin-card-section-header {
-	margin-bottom: var(--vscode-spacing-size20);
+	margin-bottom: var(--vscode-spacing-size120);
 }
 
 .plugin-list-widget .plugin-card-scroll-content {
@@ -3451,6 +3978,35 @@ per-word capitalization does not survive translation. */
 	white-space: pre;
 }
 
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar {
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb {
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-scrollbarSlider-background);
+	background-clip: padding-box;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-track {
+	background-color: var(--vscode-scrollbar-background);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-button,
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-corner {
+	display: none;
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown .monaco-tokenized-source {
 	white-space: pre;
 }
@@ -3493,6 +4049,22 @@ per-word capitalization does not survive translation. */
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-family: var(--monaco-monospace-font);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 .ai-customization-management-editor .editor-save-indicator {
@@ -3738,5 +4310,4 @@ pane is first mounted. View switches inside the modal are not animated. */
 	inset: 0;
 	overflow: hidden;
 	box-sizing: border-box;
-	padding: 0 var(--vscode-spacing-size160) 0 0;
 }

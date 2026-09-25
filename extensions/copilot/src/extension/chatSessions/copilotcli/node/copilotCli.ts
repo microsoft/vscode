@@ -225,7 +225,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
-		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
@@ -236,6 +235,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
+				maxContextWindowTokens: model.maxContextWindowTokens,
 				pricing: multiplier,
 				priceCategory: model.priceCategory,
 				inputCost: model.inputCost,
@@ -248,7 +248,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled),
+				...buildConfigurationSchema(model),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -279,6 +279,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
 		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		maxContextWindowTokens: defaultModel?.maxContextWindowTokens,
 		isUserSelectable: true,
 		capabilities: {
 			imageInput: defaultModel?.supportsVision,
@@ -291,26 +292,24 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
-	if (isReasoningEffortEnabled) {
-		const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
-		if (effortLevels.length > 0) {
-			const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
-				? modelInfo.defaultReasoningEffort
-				: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
-			properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
-				type: 'string',
-				title: l10n.t('Thinking Effort'),
-				enum: effortLevels,
-				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-				default: defaultEffort,
-				group: 'navigation',
-			};
-		}
+	const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
+	if (effortLevels.length > 0) {
+		const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
+			? modelInfo.defaultReasoningEffort
+			: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
+		properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
+			type: 'string',
+			title: l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(getReasoningEffortDescription),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
 	// Context size config — only when CAPI provides a default context max,

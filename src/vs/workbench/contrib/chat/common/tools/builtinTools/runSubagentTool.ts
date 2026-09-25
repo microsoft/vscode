@@ -26,7 +26,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../consta
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import type { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { getChatSessionType } from '../../model/chatUri.js';
-import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
 import { HookType } from '../../promptSyntax/hookTypes.js';
@@ -75,6 +75,15 @@ interface IResolvedSubagentModel {
 	readonly selectionSource: SubagentModelSelectionSource;
 }
 
+/** A subagent started by this tool that has not finished yet. A copy of it is made when it runs this tool without `agentName`. */
+interface IRunningSubagent {
+	readonly modeInstructions: IChatRequestModeInstructions | undefined;
+	readonly model: IResolvedSubagentModel;
+	readonly tools: UserSelectedTools;
+	/** The hooks from the subagent's frontmatter, remapped for running as a subagent. */
+	readonly hooks: ChatRequestHooks | undefined;
+}
+
 type SubagentModelSelectionEvent = {
 	selectionSource: SubagentModelSelectionSource;
 };
@@ -97,6 +106,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
 	private readonly _sessionDepth = new Map<string, number>();
+
+	/** Running subagents keyed by the id of the request they run in, which their tool calls carry in the tool invocation context. */
+	private readonly _runningSubagents = new Map<string, IRunningSubagent>();
 
 	private _autoModelResolution: Promise<string | undefined> | undefined;
 
@@ -190,7 +202,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let subagent: ICustomAgent | undefined;
 			let resolvedModelName: string | undefined;
 			let modelSelectionSource: SubagentModelSelectionSource = 'mainModel';
-			const currentModeInstructions = request.modeInfo?.modeInstructions;
+			const callingSubagent = this.getRunningSubagent(invocation.context.requestId);
+			const currentModeInstructions = callingSubagent ? callingSubagent.modeInstructions : request.modeInfo?.modeInstructions;
 
 			const subAgentName = this.normalizeRequestedAgentName(args.agentName);
 			const effectiveSubAgentName = subAgentName ?? currentModeInstructions?.name;
@@ -243,6 +256,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			} else {
 				modeInstructions = currentModeInstructions;
+				if (callingSubagent) {
+					modeTools = { ...callingSubagent.tools };
+				}
 
 				// No subagent name - clean up any cached entry and resolve model from explicit parameter or main model
 				const cached = this._resolvedModels.get(invocation.callId);
@@ -252,7 +268,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					resolvedModelName = cached.resolvedModelName;
 					modelSelectionSource = cached.selectionSource;
 				} else {
-					const resolved = await this.resolveSubagentModel(undefined, invocation.modelId, args.model, currentModeInstructions);
+					const resolved = await this.resolveSubagentModel(undefined, invocation.modelId, args.model, currentModeInstructions, callingSubagent?.model);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
 					modelSelectionSource = resolved.selectionSource;
@@ -345,8 +361,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
 
-			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks.
+			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks. A copy of a running subagent keeps its hooks.
 			// Remap Stop hooks to SubagentStop since the agent is running as a subagent.
+			let agentHooks = subagent ? undefined : callingSubagent?.hooks;
 			if (subagent?.hooks) {
 				const remapped: ChatRequestHooks = { ...subagent.hooks };
 				if (remapped[HookType.Stop]) {
@@ -356,7 +373,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						: stopHooks;
 					(remapped as Record<string, unknown>)[HookType.Stop] = undefined;
 				}
-				collectedHooks = mergeHooks(collectedHooks, remapped);
+				agentHooks = remapped;
+			}
+			if (agentHooks) {
+				collectedHooks = mergeHooks(collectedHooks, agentHooks);
 			}
 
 			// Build the agent request
@@ -390,6 +410,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				selectionSource: modelSelectionSource,
 			});
 			this._sessionDepth.set(sessionKey, currentDepth + 1);
+			this._runningSubagents.set(agentRequest.requestId, {
+				modeInstructions,
+				model: { modeModelId, resolvedModelName, selectionSource: modelSelectionSource },
+				tools: modeTools,
+				hooks: agentHooks,
+			});
 			let result: IChatAgentResult | undefined;
 			try {
 				result = await this.chatAgentService.invokeAgent(
@@ -400,6 +426,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					token
 				);
 			} finally {
+				this._runningSubagents.delete(agentRequest.requestId);
 				const newDepth = (this._sessionDepth.get(sessionKey) ?? 1) - 1;
 				if (newDepth <= 0) {
 					this._sessionDepth.delete(sessionKey);
@@ -526,9 +553,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	 *        If provided and not found or not allowed, throws an error with available models.
 	 * @param currentModeInstructions The current agent inherited when no subagent is requested.
 	 *        Its configured model keeps precedence over the Auto default.
+	 * @param inheritedModel The model of the running subagent that is copied when no subagent is requested.
+	 *        It is used as-is unless an explicit model is requested.
 	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
 	 */
-	private async resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string, currentModeInstructions?: IChatRequestModeInstructions): Promise<IResolvedSubagentModel> {
+	private async resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string, currentModeInstructions?: IChatRequestModeInstructions, inheritedModel?: IResolvedSubagentModel): Promise<IResolvedSubagentModel> {
+		if (inheritedModel && !explicitModelQualifiedName) {
+			return inheritedModel;
+		}
+
 		let modeModelId = mainModelId;
 		let explicitModelResolved = false;
 		let usesAutoDefault = false;
@@ -646,7 +679,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunSubagentToolInputParams;
 		const requestedAgentName = this.normalizeRequestedAgentName(args.agentName);
-		const currentModeInstructions = context.chatSessionResource ? this.getCurrentModeInstructions(context.chatSessionResource) : undefined;
+		const callingSubagent = this.getRunningSubagent(context.invocationRequestId);
+		const currentModeInstructions = callingSubagent ? callingSubagent.modeInstructions : context.chatSessionResource ? this.getCurrentModeInstructions(context.chatSessionResource) : undefined;
 
 		if (requestedAgentName) {
 			this.validateSubagentAllowed(requestedAgentName, currentModeInstructions);
@@ -654,7 +688,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = await this.resolveSubagentModel(subagent, context.modelId, args.model, currentModeInstructions);
+		const resolved = await this.resolveSubagentModel(subagent, context.modelId, args.model, currentModeInstructions, requestedAgentName ? undefined : callingSubagent?.model);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {
@@ -681,6 +715,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 		const model = this.chatService.getSession(sessionResource) as ChatModel | undefined;
 		return model?.getRequests().at(-1)?.modeInfo?.modeInstructions;
+	}
+
+	/** Returns the running subagent that made a call, if the call was made in a subagent request. */
+	private getRunningSubagent(requestId: string | undefined): IRunningSubagent | undefined {
+		return requestId !== undefined ? this._runningSubagents.get(requestId) : undefined;
 	}
 
 	private validateSubagentAllowed(subAgentName: string, currentModeInstructions: IChatRequestModeInstructions | undefined): void {

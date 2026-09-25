@@ -1093,7 +1093,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
 			parent,
 			{
-				focusChat: () => this._widget.focusInput()
+				focusChat: () => this._widget.focusInput(),
+				getInputUri: () => this._widget?.inputPart?.inputUri,
 			},
 			undefined
 		));
@@ -1227,6 +1228,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	//#region Model Management
+
+	/** Waits for the initial Chat session to finish restoring. */
+	async whenSessionRestored(): Promise<void> {
+		await this.restoringSession;
+	}
 
 	private applyModel(): void {
 		// Make the initial session resolution cancelable so an explicit request
@@ -1835,6 +1841,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
 		return this._widget?.viewModel ? {
 			sessionResource: this._widget.viewModel.sessionResource,
+			inputUri: this._widget.inputPart.inputUri,
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}

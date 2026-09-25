@@ -34,7 +34,10 @@ export function codexAccountStateFromResponse(response: GetAccountResponse): ICo
 export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimitsResponse): readonly ICodexAccountRateLimitInfo[] {
 	const codexSnapshot = response.rateLimitsByLimitId?.codex;
 	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
-	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window && Number.isFinite(window.usedPercent));
+	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window
+		&& Number.isFinite(window.usedPercent) && window.usedPercent >= 0 && window.usedPercent <= 100
+		&& (window.windowDurationMins === null || (Number.isFinite(window.windowDurationMins) && window.windowDurationMins > 0))
+		&& (window.resetsAt === null || (Number.isFinite(window.resetsAt) && window.resetsAt > 0)));
 	const weeklyWindowMins = 7 * 24 * 60;
 	// Keep the weekly window first for the account summary and older clients.
 	windows.sort((a, b) => {
@@ -43,8 +46,8 @@ export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimit
 		return aDistance - bDistance;
 	});
 	return windows.map(window => ({
-		usedPercent: Math.min(100, Math.max(0, window.usedPercent)),
-		windowDurationMins: window.windowDurationMins !== null && window.windowDurationMins > 0 ? window.windowDurationMins : undefined,
-		resetsAt: window.resetsAt !== null && window.resetsAt > 0 ? window.resetsAt : undefined,
+		usedPercent: window.usedPercent,
+		windowDurationMins: window.windowDurationMins ?? undefined,
+		resetsAt: window.resetsAt ?? undefined,
 	}));
 }

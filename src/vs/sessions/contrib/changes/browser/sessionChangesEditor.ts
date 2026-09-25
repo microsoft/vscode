@@ -6,6 +6,7 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -54,6 +55,8 @@ import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaul
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -62,7 +65,6 @@ const HEADER_HEIGHT = 35;
  * preserving the multi-diff editor's expandable unchanged-region widgets.
  */
 const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
-	hideOriginalLineNumbers: true,
 	folding: false,
 	lineNumbersMinChars: 3,
 };
@@ -201,6 +203,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
+	private readonly _pendingReveal = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -219,6 +222,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 		@ILogService logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -242,8 +246,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -267,15 +269,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// inline-view toggle actions.
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			{
-				variant: 'noCards',
+				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
@@ -423,19 +427,42 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
+		this._pendingReveal.clear();
 		const revealData = options?.viewState?.revealData;
 		if (!revealData) {
 			return;
 		}
-		this.widget?.reveal(revealData.resource, {
-			range: revealData.range ? Range.lift(revealData.range) : undefined,
-			highlight: true,
-		});
+
+		const reveal = (): boolean => {
+			const hasResource = this.viewModel?.items.get().some(item =>
+				isEqual(item.originalUri, revealData.resource.original) &&
+				isEqual(item.modifiedUri, revealData.resource.modified));
+			if (!hasResource) {
+				return false;
+			}
+			this.widget?.reveal(revealData.resource, {
+				range: revealData.range ? Range.lift(revealData.range) : undefined,
+				highlight: true,
+			});
+			return true;
+		};
+
+		if (!reveal()) {
+			const viewModel = this.viewModel;
+			if (viewModel) {
+				this._pendingReveal.value = Event.fromObservableLight(viewModel.items)(() => {
+					if (reveal()) {
+						this._pendingReveal.clear();
+					}
+				});
+			}
+		}
 	}
 
 	override clearInput(): void {
 		const input = this.input;
 		this._pendingFocus.clear();
+		this._pendingReveal.clear();
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
