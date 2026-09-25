@@ -124,11 +124,34 @@ RawEventsVW
           Properties, Measures
 ```
 
-To follow one item/session across the trajectory, add `| where Sid == "<hash>"`. The client sends
-every event (restricted or not) through the same pipeline; the `EndUserPseudonymizedInformation`
-classification on the `agents/inboxContentClassification` labels is a GDPR declaration that governs
-**downstream** storage/access (the restricted, pseudonymized store), not a client‑side route. Join
-those labels back to the rest of the trajectory on `agentSessionId`.
+To follow one item/session across the trajectory, add `| where Sid == "<hash>"`.
+
+### Which pipeline the restricted classification uses (and why not the Copilot enhanced table)
+
+`agents/inboxContentClassification` is emitted with core `ITelemetryService.publicLog2`, and its
+content‑derived label fields are declared `EndUserPseudonymizedInformation`. Two things follow from
+how the core pipeline actually works:
+
+- **No client‑side table routing.** `_log` in
+  [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
+  event to *all* appenders, and [1dsAppender.ts](../../src/vs/platform/telemetry/common/1dsAppender.ts)
+  sends to a single instrumentation key. The `EndUserPseudonymizedInformation` classification is a
+  compile‑time/GDPR **annotation** (for privacy review and downstream governance) — it does **not**
+  redirect the event to a different iKey/table in the VS Code pipeline.
+- **This is deliberately different from NES / Copilot restricted telemetry.** NES and inline
+  suggestions ship *raw prompts and model outputs*, so they use Copilot's separate **enhanced**
+  telemetry sender (a distinct instrumentation key → the dedicated `copilot_v0_restricted_copilot_event`
+  hydro table; see [agentHostRestrictedTelemetry.ts](../../src/vs/platform/agentHost/node/agentHostRestrictedTelemetry.ts)
+  and the Copilot extension's `ghTelemetrySender`). That path also does **not** mirror its payloads
+  into the local Telemetry channel — it only writes status traces.
+
+The inbox classification intentionally does **not** use that Copilot path: it emits **bounded enum
+labels, never raw content**, so the `EndUserPseudonymizedInformation` annotation on `publicLog2` is
+the appropriate, conservative treatment, and it keeps the event **locally inspectable** in the
+standard Telemetry channel (see above) — which the Copilot enhanced path would sacrifice. If a
+dedicated restricted table is ever required for this data, it would need the Copilot enhanced sender
+plus an explicit local‑log mirror; that is out of scope here. Join the labels back to the rest of the
+trajectory on `agentSessionId`.
 
 ## Restricted content‑classification ontology
 

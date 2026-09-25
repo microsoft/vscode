@@ -223,7 +223,7 @@ type InboxContentClassificationEvent = {
 
 type InboxContentClassificationClassification = {
 	owner: 'meganrogge';
-	comment: 'Bounded, content-derived classification of an inbox item (work type, domain, the kind and subject of any pending request, and inferred risk/reversibility/environment) produced locally by the utility model from otherwise-PII content. Only these bounded labels are emitted (to a restricted table); the raw title/transcript never leave the client. Generated on demand when the user views an item, so volume is user-paced.';
+	comment: 'Bounded, content-derived classification of an inbox item (work type, domain, the kind and subject of any pending request, and inferred risk/reversibility/environment) produced locally by the utility model from otherwise-PII content. Only these bounded labels are emitted, declared EndUserPseudonymizedInformation (a restricted/pseudonymized classification); the raw title/transcript never leave the client. Generated on demand when the user views an item, so volume is user-paced.';
 	workType: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded primary work-type category inferred from the task content (e.g. bugfix, feature, refactor, migration, diagnosis), or unknown.' };
 	domain: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded work-domain/subsystem category inferred from the task content (e.g. frontend, backend, api, database, security), or unknown.' };
 	requestKind: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'Bounded kind of pending request the user is being asked for (e.g. approve, choose, clarify, provideInput, review), none when nothing is pending, or unknown.' };
@@ -426,9 +426,10 @@ const CLASSIFICATION_CONFIDENCE = ['low', 'med', 'high', 'unknown'] as const;
 /**
  * Bounded, content-derived classification of an inbox item, produced by the utility model from
  * otherwise-PII content (title, transcript, and any pending request). Only these bounded labels are
- * emitted, to a restricted telemetry table; the raw content never leaves the client. The axes are
- * split (request kind vs. decision subject; risk vs. reversibility vs. environment) so a meta-router
- * can reason about who should handle an item and whether an agent may act autonomously.
+ * emitted, under a restricted EndUserPseudonymizedInformation classification; the raw content never
+ * leaves the client. The axes are split (request kind vs. decision subject; risk vs. reversibility
+ * vs. environment) so a meta-router can reason about who should handle an item and whether an agent
+ * may act autonomously.
  */
 export interface IInboxContentClassification {
 	readonly workType: string;
@@ -1282,9 +1283,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	/**
-	 * Generates a bounded content classification for an item (once per session) and emits it to the
-	 * restricted telemetry table. Bounded by the utility limiter and by the on-demand detail path
-	 * that calls it, and cached per key so it runs at most once per item.
+	 * Generates a bounded content classification for an item (once per session) and emits it under a
+	 * restricted EndUserPseudonymizedInformation classification. Bounded by the utility limiter and by
+	 * the on-demand detail path that calls it, and cached per key so it runs at most once per item.
 	 */
 	private async classifyContent(key: string, item: IInboxNotificationItem, transcript: string): Promise<void> {
 		if (this._classifiedKeys.has(key)) {
