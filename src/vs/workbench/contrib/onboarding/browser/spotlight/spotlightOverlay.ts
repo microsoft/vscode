@@ -206,9 +206,15 @@ export class SpotlightOverlay extends Disposable {
 				if (advanceOnly) {
 					event.preventDefault();
 					event.stopImmediatePropagation();
+					this._onDidClickNext.fire('target');
+					return;
 				}
-				this._onDidClickNext.fire('target');
-			}, advanceOnly));
+				const handle = targetWindow.setTimeout(() => {
+					this._previousFocus = undefined;
+					this._onDidClickNext.fire('target');
+				});
+				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+			}, true));
 		}
 		if (advanceOnly) {
 			const onTargetKey = (event: KeyboardEvent) => {

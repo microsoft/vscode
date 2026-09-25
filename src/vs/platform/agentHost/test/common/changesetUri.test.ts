@@ -292,6 +292,37 @@ suite('changesetUri', () => {
 		);
 	});
 
+	test('uses the advertised default chat when projecting a session-owned catalogue', () => {
+		const defaultChat = 'ahp-chat:/primary';
+		const catalogue = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'ahp-changeset:/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'ahp-changeset:/session' },
+			{ label: 'This Turn', changeKind: ChangesetKind.Turn, uriTemplate: 'ahp-changeset:/turn/{turnId}' },
+		];
+		const project = (chat: string) => resolveChatChangesetCatalogue(chat, undefined, catalogue, defaultChat)
+			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, uri: changeset.uriTemplate, owner }));
+
+		assert.deepStrictEqual({
+			defaultChat: project(defaultChat),
+			peerChat: project('ahp-chat:/peer'),
+			formerDefault: project(buildDefaultChatUri(sessionUri)),
+		}, {
+			defaultChat: [
+				{ kind: ChangesetKind.Branch, uri: 'ahp-changeset:/branch', owner: 'session' },
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+			peerChat: [
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+			formerDefault: [
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+		});
+	});
+
 	test('advertises Agent Merge changes only on the owning chat when chats share the folder', () => {
 		const owner = buildChatUri(sessionUri, 'owner');
 		const other = buildChatUri(sessionUri, 'other');

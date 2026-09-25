@@ -22,6 +22,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+	disposeChat(chat: URI): Promise<void>;
 	disposeSession(session: URI): Promise<void>;
 	dispatch(channel: string, action: SessionAction): void;
 }
@@ -181,6 +182,10 @@ export class AgentHostSessionListStore extends Disposable {
 
 	async disposeSession(provider: string, rawId: string): Promise<void> {
 		await this._connection.disposeSession(this._sessionUri(provider, rawId));
+	}
+
+	async disposeChat(chat: URI): Promise<void> {
+		await this._connection.disposeChat(chat);
 	}
 
 	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
@@ -402,6 +407,13 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				chats: session.chats?.map(chat => ({
+					resource: chat.chat.toString(),
+					title: chat.summary ?? '',
+					origin: chat.origin,
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				})),
+				defaultChat: session.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 				// The repository root a worktree-isolated session belongs to; the
 				// workspace filter matches on it because the worktree itself lives
 				// outside the repository folder.

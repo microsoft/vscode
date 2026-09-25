@@ -37,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -45,6 +45,7 @@ import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../co
 import { toAgentMergeMessageMeta } from '../common/meta/agentMergeMessageMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
@@ -101,7 +102,6 @@ import { AgentMergeController, type IAgentMergeControllerOptions } from './agent
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, isAnyAgentMergeEnabled, mergeClientAgentMergeFolders } from '../common/agentMerge.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
@@ -761,7 +761,6 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
-		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAdditionalWorktreeLifecycleService private readonly _additionalWorktreeLifecycleService: IAdditionalWorktreeLifecycleService,
 	) {
@@ -1557,6 +1556,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return artifacts;
 	}
 
+	private _readPersistedRemoteSessionOrigin(value: string | undefined, session: string): IRemoteSessionOrigin | undefined {
+		if (value === undefined) {
+			return undefined;
+		}
+		try {
+			return parseRemoteSessionOrigin(value);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read remote session origin for ${session}`, error);
+			return undefined;
+		}
+	}
+
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
@@ -1944,6 +1955,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const metadataKeys: Record<string, true> = changesetKeys
 					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
 					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+				metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
 				const persisted = await ref.object.getMetadataObject(metadataKeys);
 				if (persisted[CHAT_BACKING_METADATA_KEY]) {
 					return undefined;
@@ -1964,6 +1976,10 @@ export class AgentService extends Disposable implements IAgentService {
 				const creationReference = parseSessionCreationReference(persisted[AH_META_CREATED_BY_SESSION_DB_KEY]);
 				if (creationReference) {
 					updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
+				}
+				const remoteOrigin = this._readPersistedRemoteSessionOrigin(persisted[REMOTE_SESSION_ORIGIN_METADATA_KEY], session);
+				if (remoteOrigin) {
+					updated = { ...updated, _meta: withRemoteSessionOrigin(updated._meta, remoteOrigin) };
 				}
 				if (persisted[META_GIT_STATE]) {
 					try {
@@ -2342,7 +2358,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _catalogChatsFromState(state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): ICatalogChat[] {
 		return state.chats
-			.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool)
+			.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && !isSubagentChatUri(chat.resource))
 			.map(chat => ({
 				uri: chat.resource,
 				kind: state.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
@@ -4184,7 +4200,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (config?.session) {
 			this._cancelPendingSessionGc(config.session);
 			this._sessionResidency.touch(config.session);
-			this._otelService.setSessionComparisonMetadata(config.session.toString(), readSessionComparisonMetadata(config._meta));
 		}
 
 		// Capability gate: only a provider that advertises
@@ -4230,7 +4245,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 		const creationReference = readSessionCreationReference(config?._meta);
 		const devContainerWorktree = readAgentDevContainerWorktreeMetadata(config?._meta);
-		if ((creationReference || devContainerWorktree) && !isEphemeral) {
+		const remoteOrigin = readRemoteSessionOrigin(config);
+		if ((creationReference || devContainerWorktree || remoteOrigin) && !isEphemeral) {
 			try {
 				const metadata: Record<string, string> = {};
 				if (creationReference) {
@@ -4238,6 +4254,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (devContainerWorktree) {
 					metadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY] = JSON.stringify(devContainerWorktree);
+				}
+				if (remoteOrigin) {
+					metadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
 				}
 				await persistSessionMetadataValues(this._sessionDataService, session.toString(), metadata);
 			} catch (err) {
@@ -5306,6 +5325,8 @@ export class AgentService extends Disposable implements IAgentService {
 		_meta = creationReference ? withSessionCreationReference(_meta, creationReference) : _meta;
 		const devContainerWorktree = readAgentDevContainerWorktreeMetadata(config?._meta);
 		_meta = devContainerWorktree ? withAgentDevContainerWorktreeMetadata(_meta, devContainerWorktree.handle) : _meta;
+		const remoteOrigin = readRemoteSessionOrigin(config);
+		_meta = remoteOrigin ? withRemoteSessionOrigin(_meta, remoteOrigin) : _meta;
 		_meta = !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
@@ -5659,7 +5680,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
 		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {
-			return this._worktree.branchCompletions(params.workingDirectory, params.query);
+			return this._worktree.branchCompletions(params.workingDirectory);
 		}
 		const provider = this._providerService.resolveProvider(params.provider);
 		if (!provider) {
@@ -7761,6 +7782,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
 							[AH_META_EHCLI_LAST_TURN_DB_KEY]: true,
 							[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
+							[REMOTE_SESSION_ORIGIN_METADATA_KEY]: true,
 							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_ARTIFACTS_KEY]: true,
@@ -7840,6 +7862,10 @@ export class AgentService extends Disposable implements IAgentService {
 						const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
 						if (creationReference) {
 							sessionMetadata = withSessionCreationReference(sessionMetadata, creationReference);
+						}
+						const remoteOrigin = this._readPersistedRemoteSessionOrigin(m[REMOTE_SESSION_ORIGIN_METADATA_KEY], sessionStr);
+						if (remoteOrigin) {
+							sessionMetadata = withRemoteSessionOrigin(sessionMetadata, remoteOrigin);
 						}
 						if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
 							try {
@@ -8080,16 +8106,22 @@ export class AgentService extends Disposable implements IAgentService {
 		const enrichedEntries = entries.map(entry => entry.workingDirectories === undefined && cachedWorkingDirectories.get(entry.uri) !== undefined
 			? { ...entry, workingDirectories: cachedWorkingDirectories.get(entry.uri) }
 			: entry);
-		if (enrichedEntries.some((entry, index) => entry !== entries[index])) {
-			await this._peerChatStore.replace(session, enrichedEntries);
+		const toolChatUris = new Set([
+			...enrichedEntries.filter(entry => entry.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(entry.uri)).map(entry => entry.uri),
+			...cached?.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.uri) ?? [],
+			...this._stateManager.getSessionState(session.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource) ?? [],
+		]);
+		const restoredEntries = enrichedEntries.filter(entry => !toolChatUris.has(entry.uri));
+		if (restoredEntries.length !== entries.length || restoredEntries.some((entry, index) => entry !== entries[index])) {
+			await this._peerChatStore.replace(session, restoredEntries);
 		}
-		const restoredPeerUris = new Set(enrichedEntries.map(entry => entry.uri));
+		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			if (!isDefaultChatUri(chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, enrichedEntries, cached);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
@@ -8104,7 +8136,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(defaultChatWorkingDirectories !== undefined ? { workingDirectories: defaultChatWorkingDirectories } : {}),
 					kind: 'default',
 				},
-				...peers.map(peer => ({
+				...peers.filter(peer => !isSubagentChatUri(peer.uri) && peer.origin?.kind !== ChatOriginKind.Tool).map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
@@ -8316,11 +8348,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const session = this._stateManager.getSessionState(sessionStr);
-		if (this._disposingPeerChats.has(e.chat.toString()) || !session?.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
+		const chat = session?.chats.find(chat => chat.resource.toString() === e.chat.toString());
+		if (this._disposingPeerChats.has(e.chat.toString()) || isSubagentChatUri(e.chat) || !chat || chat.origin?.kind === ChatOriginKind.Tool) {
 			return;
 		}
 		this._stateManager.updateChatProviderData(e.chat.toString(), e.providerData);
-		void this._peerChatStore.upsert(URI.parse(sessionStr), e.chat, e.providerData)
+		void this._peerChatStore.upsert(URI.parse(sessionStr), e.chat, e.providerData, chat.origin)
 			.catch(err => this._logService.error(err, `[AgentService] Failed to persist peer-chat backing for ${e.chat.toString()}`));
 	}
 

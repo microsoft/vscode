@@ -24,19 +24,29 @@ import { EntraTokenExchange, IEntraExchangedToken, IEntraLoginOptions, IEntraRen
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
+export interface IGitHubToken {
+	readonly token: string;
+	readonly authorizationServer: vscode.Uri;
+}
+
 export interface IGitHubServer {
-	login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
+	/**
+	 * Only use to fill missing session provenance before returning a session to a client.
+	 * Codespaces-provided sessions omit `authorizationServer`.
+	 */
+	getFallbackBaseUri(): vscode.Uri;
+	login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<IGitHubToken>;
 	/**
 	 * Signs in with Microsoft and exchanges the resulting Entra identity for a GitHub token on this
 	 * host. Fails when the host does not accept an exchange, which is every self-hosted GitHub
 	 * Enterprise Server: the Entra to GitHub identity mapping is a service GitHub runs.
 	 */
-	loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken>;
+	loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken & IGitHubToken>;
 	/**
 	 * Mints a fresh token for a session that was brokered through Microsoft, without showing the
 	 * user anything. Fails rather than prompting when it cannot be done silently.
 	 */
-	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
+	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<IGitHubUserInfo>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -83,19 +93,25 @@ export class GitHubServer implements IGitHubServer {
 			new ModalConfirmationDialog());
 	}
 
-	get baseUri() {
+	private get baseUri() {
 		if (this._type === AuthProviderType.github) {
 			return vscode.Uri.parse('https://github.com/');
 		}
 		return this._ghesUri!;
 	}
 
-	async loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken> {
-		return await this._entraTokenExchange.login(scopes, options);
+	getFallbackBaseUri(): vscode.Uri {
+		return this.baseUri;
 	}
 
-	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken> {
-		return await this._entraTokenExchange.renew(renewal);
+	async loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken & IGitHubToken> {
+		const authorizationServer = vscode.Uri.joinPath(this.baseUri, '/login/oauth');
+		return { ...await this._entraTokenExchange.login(scopes, options), authorizationServer };
+	}
+
+	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken> {
+		const authorizationServer = vscode.Uri.joinPath(this.baseUri, '/login/oauth');
+		return { ...await this._entraTokenExchange.renew(renewal), authorizationServer };
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {
@@ -133,8 +149,9 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<IGitHubToken> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
+		const baseUri = this.baseUri;
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -177,19 +194,20 @@ export class GitHubServer implements IGitHubServer {
 				if (flow !== flows[0]) {
 					await promptToContinue(flow.label);
 				}
-				return await flow.trigger({
+				const token = await flow.trigger({
 					scopes,
 					callbackUri,
 					nonce,
 					signInProvider,
 					extraAuthorizeParameters,
-					baseUri: this.baseUri,
+					baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
 					enterpriseUri: this._ghesUri,
 					redirectUri: vscode.Uri.parse(await this.getRedirectEndpoint()),
 					existingLogin
 				});
+				return { token, authorizationServer: vscode.Uri.joinPath(baseUri, '/login/oauth') };
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
 			}

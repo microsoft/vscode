@@ -969,7 +969,7 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
-	readonly blocksCi?: true;
+	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
 

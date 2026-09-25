@@ -49,6 +49,33 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('groups multiple providers behind one contributed source', async () => {
+		const calls: string[] = [];
+		const providers: ICustomizationMarketplaceProvider[] = ['custom', 'default'].map(kind => ({
+			id: `gallery.${kind}`,
+			sourceId: 'gallery',
+			query: async () => {
+				calls.push(kind);
+				return { items: [{ ...entry, identifier: `${kind}:${entry.identifier}` }], total: 1 };
+			},
+		}));
+		const service = new CustomizationMarketplaceService(providers);
+		const page = await service.query({ sourceIds: ['gallery'], pageSize: 2 }, CancellationToken.None);
+		await assert.rejects(service.query({ sourceIds: ['gallery.custom'] }, CancellationToken.None), /invalid/);
+		assert.deepStrictEqual({
+			calls,
+			items: page.items.map(item => ({ identifier: item.identifier, sourceId: item.sourceId })),
+			total: page.total,
+		}, {
+			calls: ['custom', 'default'],
+			items: [
+				{ identifier: `custom:${entry.identifier}`, sourceId: 'gallery' },
+				{ identifier: `default:${entry.identifier}`, sourceId: 'gallery' },
+			],
+			total: 2,
+		});
+	});
+
 	test('continues each source with its own opaque cursor and retains exhausted source totals', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
 		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceProvider => ({
@@ -181,7 +208,7 @@ suite('CustomizationMarketplaceService', () => {
 		assert.deepStrictEqual({ pages, calls }, {
 			pages: [
 				{ scores: [100, 98, 95], ids: ['public-0', 'connectors-0', 'public-1'], total: 8 },
-				{ scores: [90, 90, 85], ids: ['public-2', 'connectors-1', 'connectors-2'], total: 8 },
+				{ scores: [90, 90, 85], ids: ['connectors-1', 'public-2', 'connectors-2'], total: 8 },
 				{ scores: [80, 60], ids: ['public-3', 'public-4'], total: 8 },
 			],
 			calls: [
@@ -240,7 +267,7 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
-	test('search ranks unscored results last and breaks score ties by source order', async () => {
+	test('search ranks unscored results last and rotates equal-score sources', async () => {
 		const sources = [
 			{ id: 'first', query: async () => ({ items: [{ ...entry, score: 90 }, entry] }) },
 			{ id: 'second', query: async () => ({ items: [{ ...entry, score: 90 }, { ...entry, score: 0 }] }) },
@@ -253,6 +280,54 @@ suite('CustomizationMarketplaceService', () => {
 			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
 			[['first', 90], ['second', 90], ['first', undefined], ['second', 0]],
 		]);
+	});
+
+	test('browse prioritizes custom entries and round-robins equal tiers across pages', async () => {
+		const source = (id: string, priorities: readonly number[]): ICustomizationMarketplaceProvider => ({
+			id,
+			query: async options => {
+				const offset = Number(options.cursor ?? 0);
+				const items = priorities.slice(offset, offset + options.pageSize!).map((priority, index) => ({
+					...entry, identifier: `${id}-${offset + index}`, priority,
+				}));
+				return { items, total: priorities.length, nextCursor: offset + items.length < priorities.length ? String(offset + items.length) : undefined };
+			},
+		});
+		const service = new CustomizationMarketplaceService([
+			source('public', [0, 0]),
+			source('plugin', [1, 1, 0]),
+			source('mcp', [1, 1]),
+		]);
+		const options = { sourceIds: ['public', 'plugin', 'mcp'], pageSize: 3 };
+		const pages: ICustomizationMarketplacePage[] = [];
+		let cursor: ICustomizationMarketplaceCursor | undefined;
+		do {
+			const page = await service.query({ ...options, cursor }, CancellationToken.None);
+			pages.push(page);
+			cursor = page.nextCursor;
+		} while (cursor);
+		assert.deepStrictEqual({
+			pages: pages.map(page => page.items.map(item => item.identifier)),
+			prioritiesAreInternal: pages.flatMap(page => page.items).every(item => !Object.hasOwn(item, 'priority')),
+			totals: pages.map(page => page.total),
+		}, {
+			pages: [
+				['plugin-0', 'mcp-0', 'plugin-1'],
+				['mcp-1', 'public-0', 'plugin-2'],
+				['public-1'],
+			],
+			prioritiesAreInternal: true,
+			totals: [7, 7, 7],
+		});
+	});
+
+	test('search retains relevance above feed priority and uses priority to break equal scores', async () => {
+		const service = new CustomizationMarketplaceService([
+			{ id: 'public', query: async () => ({ items: [{ ...entry, identifier: 'public-95', score: 95 }, { ...entry, identifier: 'public-90', score: 90 }] }) },
+			{ id: 'custom', query: async () => ({ items: [{ ...entry, identifier: 'custom-90', score: 90, priority: 1 }] }) },
+		]);
+		const page = await service.query({ sourceIds: ['public', 'custom'], query: 'review', pageSize: 3 }, CancellationToken.None);
+		assert.deepStrictEqual(page.items.map(item => item.identifier), ['public-95', 'custom-90', 'public-90']);
 	});
 
 	test('browsing interleaves feeds across page boundaries and backfills after one exhausts', async () => {
@@ -281,12 +356,18 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
-	test('rejects invalid scores, out-of-order pages, and non-progressing continuations', async () => {
+	test('rejects invalid scores or priorities, out-of-order pages, and non-progressing continuations', async () => {
 		for (const items of [[-1], [101], [NaN], [Infinity], [80, 90]]) {
 			const service = new CustomizationMarketplaceService([{
 				id: 'source', query: async () => ({ items: items.map(score => ({ ...entry, score })) }),
 			}]);
 			await assert.rejects(service.query({ sourceIds: ['source'], query: 'mail' }, CancellationToken.None), /invalid relevance ordering/);
+		}
+		for (const priorities of [[-1], [11], [NaN], [0.5], [0, 1]]) {
+			const service = new CustomizationMarketplaceService([{
+				id: 'source', query: async () => ({ items: priorities.map(priority => ({ ...entry, priority })) }),
+			}]);
+			await assert.rejects(service.query({ sourceIds: ['source'] }, CancellationToken.None), /invalid priority ordering/);
 		}
 		for (const page of [
 			{ items: [], nextCursor: 'next' },

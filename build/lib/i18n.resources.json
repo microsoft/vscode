@@ -435,6 +435,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -761,11 +765,11 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/sessions",
+			"name": "vs/sessions/contrib/remoteSessions",
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/sessionComparison",
+			"name": "vs/sessions/contrib/sessions",
 			"project": "vscode-sessions"
 		},
 		{

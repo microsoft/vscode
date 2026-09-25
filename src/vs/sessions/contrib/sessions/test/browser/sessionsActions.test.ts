@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
@@ -22,15 +24,17 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
@@ -46,6 +50,10 @@ import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.
 import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 
 suite('Sessions - Actions', () => {
 
@@ -269,7 +277,6 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
-			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -410,28 +417,6 @@ suite('Sessions - Actions', () => {
 		}]);
 	});
 
-	test('shows Close in every multi-pane desktop session header', () => {
-		const closeItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.chatCompositeBar.close')
-			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
-			.map(item => ({
-				group: item.group,
-				order: item.order,
-				when: item.when?.serialize(),
-			}));
-
-		assert.deepStrictEqual(closeItems, [{
-			group: 'navigation',
-			order: 20,
-			when: 'multipleSessionsVisible && !sessionHeaderShowsChat && !sessionsIsPhoneLayout',
-		}, {
-			group: 'secondary/4_pin',
-			order: 30,
-			when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
-		}]);
-	});
-
 	test('keeps the Command Palette delete action explicit', () => {
 		const deleteChat = MenuRegistry.getCommand('sessions.chatCompositeBar.deleteChat');
 
@@ -521,11 +506,26 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
-			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
+	});
+
+	test('uses the same small close icon for chat and side-panel tabs', () => {
+		const chatClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
+
+		assert.deepStrictEqual({
+			chatIcon: chatClose?.command.icon,
+			editorClass: editorClose.class,
+		}, {
+			chatIcon: Codicon.closeSmall,
+			editorClass: 'codicon codicon-close-small',
+		});
 	});
 
 	test('uses mutually exclusive close actions for session and chat group headers', () => {
@@ -992,6 +992,9 @@ suite('Sessions - Actions', () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(): T | undefined { return undefined; }
+				});
 				const { session } = createTestSession('active');
 				const activeSession = upcastPartial<IActiveSession>({
 					...session,
@@ -1027,8 +1030,110 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
-		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {
+	for (const toSide of [undefined, true]) {
+		for (const pending of [false, true]) {
+			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const composerService = disposables.add(new NewSessionComposerService());
+				instantiationService.stub(INewSessionComposerService, composerService);
+				const sourceAddress = 'wsl:Ubuntu';
+				const sourceFolder = toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority(sourceAddress));
+				const containerAddress = 'devcontainer:project';
+				const containerFolder = URI.from({
+					scheme: AGENT_HOST_SCHEME,
+					authority: agentHostAuthority(containerAddress),
+					path: '/workspaces/project',
+				});
+				const containerProvider = new class extends mock<IAgentHostSessionsProvider>() {
+					override readonly id = `agenthost-${agentHostAuthority(containerAddress)}`;
+					override readonly devContainerSourceWorkspace = sourceFolder;
+				}();
+				const { session } = createTestSession('active');
+				const workspace: ISessionWorkspace = {
+					uri: containerFolder,
+					label: 'project',
+					icon: Codicon.remote,
+					folders: [{ root: containerFolder, workingDirectory: containerFolder, name: 'project', description: undefined }],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+				const activeSession = observableValue('activeSession', upcastPartial<IActiveSession>({
+					...session,
+					providerId: `agenthost-${agentHostAuthority(containerAddress)}`,
+					sessionType: 'copilotcli',
+					workspace: constObservable(workspace),
+					isQuickChat: constObservable(false),
+				}));
+				const sourceProviderId = `agenthost-${agentHostAuthority(sourceAddress)}`;
+				const requested = new Set<string>();
+				const sourceProvider = new class extends mock<IAgentHostSessionsProvider>() {
+					override readonly id = sourceProviderId;
+					override isDevContainerEnabled(sessionId: string): boolean { return !pending && requested.has(sessionId); }
+					override isDevContainerRequested(sessionId: string): boolean { return requested.has(sessionId); }
+				}();
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+						const provider: ISessionsProvider | undefined = providerId === sourceProviderId ? sourceProvider : containerProvider;
+						return provider as T | undefined;
+					}
+				});
+				const requests: (IOpenNewSessionOptions | undefined)[] = [];
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = activeSession;
+					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+						requests.push(options);
+						requested.delete(activeSession.get().sessionId);
+						const draft = upcastPartial<IActiveSession>({
+							...session,
+							sessionId: `draft-${requests.length}`,
+							providerId: sourceProviderId,
+							sessionType: 'copilotcli',
+							workspace: constObservable({
+								...workspace,
+								uri: sourceFolder,
+								folders: [{ root: sourceFolder, workingDirectory: sourceFolder, name: 'project', description: undefined }],
+							}),
+							isQuickChat: constObservable(false),
+						});
+						if (options?.requireDevContainer) {
+							requested.add(draft.sessionId);
+						}
+						activeSession.set(draft, undefined);
+						return { session: draft, trustDeclined: false };
+					}
+				});
+				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
+						return isEqual(folderUri, sourceFolder)
+							&& options?.providerId === `agenthost-${agentHostAuthority(sourceAddress)}`
+							&& options.sessionTypeId === activeSession.get().sessionType;
+					}
+				});
+
+				const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+				assert.ok(command);
+				await command.handler(instantiationService, { toSide });
+				await command.handler(instantiationService, { toSide });
+				requested.clear();
+				await command.handler(instantiationService, { toSide });
+
+				const target = {
+					folderUri: sourceFolder,
+					toSide,
+					providerId: `agenthost-${agentHostAuthority(sourceAddress)}`,
+					sessionTypeId: activeSession.get().sessionType,
+				};
+				assert.deepStrictEqual(requests, [
+					{ ...target, requireDevContainer: true },
+					{ ...target, requireDevContainer: true },
+					target,
+				]);
+			});
+		}
+	}
+
+	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
+		const run = async (unifiedWorkspacePicker: boolean, toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
@@ -1036,49 +1141,64 @@ suite('Sessions - Actions', () => {
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 			}));
 			const { session } = createTestSession('quick-chat-draft');
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 				...session,
 				isCreated: constObservable(false),
 				isQuickChat: constObservable(true),
-			});
-			let unsetNewSessionCalls = 0;
+			}));
+			const events: string[] = [];
 			const requests: (IOpenNewSessionOptions | undefined)[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
+				override readonly activeSession = activeSession;
 				override unsetNewSession(): void {
-					unsetNewSessionCalls++;
+					events.push('unset');
+					activeSession.set(undefined, undefined);
 				}
 				override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+					events.push('open');
 					requests.push(options);
 					return { session: undefined, trustDeclined: false };
 				}
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+			instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
+				isNoWorkspaceChecked: () => noWorkspaceChecked,
+				clearCheckedWorkspace: () => { events.push('clearNoWorkspace'); },
+			}));
+			instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+				getSessionView: sessionId => {
+					events.push(`view:${sessionId ?? 'empty'}`);
+					return upcastPartial<SessionView>({
+						focusWorkspacePicker: () => { events.push('focusPicker'); },
+					});
+				},
+			}));
 
 			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 			assert.ok(command);
 			await command.handler(instantiationService, toSide ? { toSide } : undefined);
-			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, requests };
+			return { navigationVersion: composerService.userNavigationVersion.get(), events, requests };
 		};
 
+		const primary = {
+			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'view:empty', 'focusPicker'], requests: [] },
+			unchecked: { navigationVersion: 1, events: ['unset', 'view:empty', 'focusPicker'], requests: [] },
+		};
+		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
 			disabled: {
-				primary: await run(false),
-				toSide: await run(false, true),
+				primaryChecked: await run(false, undefined, true),
+				primaryUnchecked: await run(false, undefined, false),
+				toSide: await run(false, true, true),
 			},
 			enabled: {
-				primary: await run(true),
-				toSide: await run(true, true),
+				primaryChecked: await run(true, undefined, true),
+				primaryUnchecked: await run(true, undefined, false),
+				toSide: await run(true, true, true),
 			},
 		}, {
-			disabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 1, requests: [] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
-			enabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: undefined }] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
+			disabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
+			enabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
 		});
 	});
 

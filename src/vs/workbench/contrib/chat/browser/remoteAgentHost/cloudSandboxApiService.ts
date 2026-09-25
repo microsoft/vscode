@@ -246,10 +246,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
-		return this._connectRequest('reconnect', request.environmentId, token, {
+		const result = await this._connectRequest('reconnect', request.environmentId, token, {
 			client_id: clientId,
 			...(request.sessionId && { session_id: request.sessionId }),
 		});
+		if (result.kind === 'token' && result.token.client_id !== clientId) {
+			throw new Error('Cloud sandbox reconnect returned credentials for a different client');
+		}
+		return result;
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {

@@ -352,7 +352,7 @@ suite('ResponseSelectionSideChatController', () => {
 			inputVisible: false,
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
-			actions: ['Ask with /btw', 'Quote', 'Copy'],
+			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
 		});
 	});
 
@@ -532,11 +532,11 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 	});
 
-	test('opens the anchored question input from Ask with /btw and attributes telemetry to the action menu', () => {
+	test('opens the anchored question input from Ask in a Side Chat and attributes telemetry to the action menu', () => {
 		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true });
 		setSelection('hello world');
 
-		triggerMenuAction(controller, 'Ask with /btw');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
 		submitViaClick(controller, 'what does this mean?');
 
 		assert.deepStrictEqual({
