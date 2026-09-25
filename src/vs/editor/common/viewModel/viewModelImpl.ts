@@ -1002,7 +1002,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean, isBlock: boolean = false): { sourceRanges: Range[]; sourceText: string | string[] } {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] } {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		modelRanges = modelRanges.slice(0);
@@ -1030,8 +1030,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
 		};
 
-		// Not sure?
-		if (hasEmptyRange && emptySelectionClipboard && !isBlock) {
+		if (hasEmptyRange && emptySelectionClipboard) {
 			// some (maybe all) empty selections
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
@@ -1047,7 +1046,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		} else {
 			for (const modelRange of modelRanges) {
-				if (isBlock || !modelRange.isEmpty()) {
+				if (!modelRange.isEmpty()) {
 					pushRange(modelRange);
 				}
 			}
@@ -1223,12 +1222,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
-	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined, isBlock: boolean = false): boolean {
-		let didPasteBlock = false;
-		this._executeCursorEdit(eventsCollector => {
-			didPasteBlock = this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source, isBlock);
-		});
-		return didPasteBlock;
+	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined, isBlock: boolean = false): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source, isBlock));
 	}
 	public cut(source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.cut(eventsCollector, source));

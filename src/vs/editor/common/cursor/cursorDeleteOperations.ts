@@ -232,7 +232,7 @@ export class DeleteOperations {
 		}
 	}
 
-	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], isBlock: boolean = false): EditOperationResult {
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
 		const commands: Array<ICommand | null> = [];
 		let lastCutRange: Range | null = null;
 		selections.sort((a, b) => Position.compare(a.getStartPosition(), b.getEndPosition()));
@@ -240,8 +240,7 @@ export class DeleteOperations {
 			const selection = selections[i];
 
 			if (selection.isEmpty()) {
-				// Why?
-				if (config.emptySelectionClipboard && !isBlock) {
+				if (config.emptySelectionClipboard) {
 					// This is a full line cut
 
 					const position = selection.getPosition();
