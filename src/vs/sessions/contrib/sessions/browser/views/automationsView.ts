@@ -29,6 +29,7 @@ import { type AutomationDialogCreateInitialValues, IAutomationDialogService } fr
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -175,15 +176,23 @@ export class AutomationsCardsWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 	) {
 		super();
 
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
+		const surfaceInstanceId = generateUuid();
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(this.element));
-		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
-		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
+		this._register(focusTracker.onDidFocus(() => {
+			focusContext.set(true);
+			this.agentsActivityService.reportActiveSurface('automations', { surfaceInstanceId });
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			focusContext.set(false);
+			this.agentsActivityService.reportSurfaceBlurred('automations');
+		}));
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
 
