@@ -53,7 +53,7 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID, type ISessionAgentRef } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -2641,6 +2641,162 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	});
+
+	/** Sends a new session's first request; `commit` lets the host announce the session. */
+	async function sendFirstRequestWithoutCommitting(options?: { readonly template?: ISessionsProviderCreateSessionOptions; readonly modelIds?: readonly string[]; readonly agent?: ISessionAgentRef }) {
+		const modelIds = options?.modelIds ?? [];
+		const sent: IChatSendRequestOptions[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			languageModelIds: [...modelIds],
+			lookupLanguageModel: modelId => modelIds.includes(modelId) ? {
+				...createTestLanguageModel(modelId.substring(modelId.indexOf(':') + 1)),
+				targetChatSessionType: 'agent-host-copilotcli',
+				configurationSchema: {
+					type: 'object',
+					properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'high' } },
+				},
+			} : undefined,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+				if (options) {
+					sent.push(options);
+				}
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, options?.template);
+		if (options?.agent) {
+			provider.setAgent?.(session.sessionId, options.agent);
+		}
+		const chat = await provider.createNewChat(session.sessionId);
+		const pending = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				pending.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await pending.p;
+		const rawId = AgentSession.id(session.resource);
+		const commit = () => {
+			agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+			fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+			return request;
+		};
+		return { provider, session, chat, rawId, sent, commit };
+	}
+
+	test('forwards a permission level picked while a new session commits to the committed session', async () => {
+		const schema: SessionConfigState['schema'] = {
+			type: 'object',
+			properties: {
+				autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true },
+				isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+			},
+		};
+		agentHost.resolveSessionConfigResult = { schema, values: { autoApprove: 'default', isolation: 'worktree' } };
+		const { provider, session, rawId, sent, commit } = await sendFirstRequestWithoutCommitting();
+
+		// The re-resolve also changes the non-mutable isolation, which must not be forwarded.
+		agentHost.resolveSessionConfigResult = { schema, values: { autoApprove: 'autoApprove', isolation: 'folder' } };
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autoApprove');
+		const committed = await commit();
+		const sessionChannel = AgentSession.uri('copilotcli', rawId).toString();
+		const configDispatches = agentHost.dispatchedActions
+			.filter(dispatch => dispatch.channel === sessionChannel && dispatch.action.type === ActionType.SessionConfigChanged)
+			.map(dispatch => dispatch.action);
+
+		provider.getSessionConfig(committed.sessionId);
+		const hostValues = Object.assign({}, sent[0].agentHostSessionConfig, ...configDispatches.map(action => action.type === ActionType.SessionConfigChanged ? action.config : {}));
+		agentHost.setSessionState(rawId, 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Committed Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: { schema, values: hostValues },
+		});
+
+		assert.deepStrictEqual({
+			sentWithFirstRequest: sent[0].agentHostSessionConfig,
+			configDispatches,
+			afterHostState: provider.getSessionConfig(committed.sessionId)?.values,
+		}, {
+			sentWithFirstRequest: { autoApprove: 'default', isolation: 'worktree' },
+			configDispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }],
+			afterHostState: { autoApprove: 'autoApprove', isolation: 'worktree' },
+		});
+	});
+
+	test('carries a model picked while a new session commits onto the committed session', async () => {
+		const modelA = 'agent-host-copilotcli:model-a';
+		const modelB = 'agent-host-copilotcli:model-b';
+		const { provider, session, chat, sent, commit } = await sendFirstRequestWithoutCommitting({
+			template: { modelId: modelA, modelConfiguration: { thinkingLevel: 'medium' } },
+			modelIds: [modelA, modelB],
+		});
+
+		provider.setModel(session.sessionId, chat.resource, modelB, ChatModelSource.Chosen);
+		await provider.getAutomationModelConfiguration(session.sessionId)?.setModelConfiguration(modelB, { thinkingLevel: 'low' });
+		const committed = await commit();
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'follow up' });
+
+		assert.deepStrictEqual({
+			modelId: committed.modelId.get(),
+			modelSource: committed.mainChat.get().modelSource.get(),
+			modelConfiguration: provider.getAutomationModelConfiguration(committed.sessionId)?.getModelConfiguration(modelB),
+			sent: sent.map(options => ({ modelId: options.userSelectedModelId, modelConfiguration: options.userSelectedModelConfiguration })),
+		}, {
+			modelId: modelB,
+			modelSource: ChatModelSource.Chosen,
+			modelConfiguration: { thinkingLevel: 'low' },
+			sent: [
+				{ modelId: modelA, modelConfiguration: { thinkingLevel: 'medium' } },
+				{ modelId: modelB, modelConfiguration: { thinkingLevel: 'low' } },
+			],
+		});
+	});
+
+	test('carries a custom agent picked while a new session commits onto the committed session', async () => {
+		const { provider, session, sent, commit } = await sendFirstRequestWithoutCommitting({ agent: { uri: 'agent://first', name: 'first' } });
+
+		provider.setAgent?.(session.sessionId, { uri: 'agent://second', name: 'second' });
+		const committed = await commit();
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'follow up' });
+
+		assert.deepStrictEqual({
+			mode: committed.mode.get(),
+			sentAgents: sent.map(options => options.modeInfo?.modeInstructions?.uri?.toString()),
+		}, {
+			mode: { id: 'agent://second', kind: 'agent' },
+			sentAgents: ['agent://first', 'agent://second'],
+		});
+	});
+
+	test('keeps the default agent picked while a new session commits instead of restoring the sent custom agent', async () => {
+		const { provider, session, sent, commit } = await sendFirstRequestWithoutCommitting({ agent: { uri: 'agent://first', name: 'first' } });
+
+		provider.setAgent?.(session.sessionId, undefined);
+		const committed = await commit();
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'follow up' });
+
+		assert.deepStrictEqual({
+			mode: committed.mode.get(),
+			sentAgents: sent.map(options => options.modeInfo?.modeInstructions?.uri?.toString()),
+		}, {
+			mode: undefined,
+			sentAgents: ['agent://first', undefined],
+		});
+	});
+
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
 
 	test('getCustomAgents collects agents from session customizations, coalesced by URI and sorted by name', async () => {
