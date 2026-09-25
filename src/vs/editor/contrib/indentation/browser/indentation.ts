@@ -465,10 +465,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 							// then no-op.
 							return;
 						}
-						// The paste started after indentation that belongs to the document,
-						// which the following lines did not get. Indent them to match, but
-						// never outdent: the good indent of the second line does not account
-						// for continuation lines, so outdenting would break them (#38833).
+						// the good indent of the second line ignores continuation lines, so never outdent here (#38833)
 						canDecreaseIndentation = false;
 					}
 				}
