@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -57,6 +57,54 @@ suite('CapiReplayProxy', () => {
 				}
 				replay.assertNoReplayMismatches();
 				assert.deepStrictEqual(responses, ['child response', 'parent response']);
+			} finally {
+				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('preserves whitespace-only content without whitespace-only fixture lines', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-whitespace-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const text = 'first\n  \nsecond';
+		const request = JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: 'request' }],
+		});
+		const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+		try {
+			const url = await recorder.start();
+			recorder.setRecordingModelResponse({
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({ content: [{ type: 'text', text }], stopReason: 'end_turn' }),
+			});
+			await (await fetch(`${url}/v1/messages`, {
+				method: 'POST',
+				body: request,
+			})).text();
+			await recorder.stop();
+
+			const whitespaceOnlyLines = readFileSync(fixturePath, 'utf8').split('\n').filter(line => /^[\t ]+$/.test(line));
+			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+			try {
+				const replayUrl = await replay.start();
+				const replayed = aggregateAnthropicSse(await (await fetch(`${replayUrl}/v1/messages`, {
+					method: 'POST',
+					body: request,
+				})).text());
+				replay.assertNoReplayMismatches();
+				assert.deepStrictEqual({
+					whitespaceOnlyLines,
+					content: replayed?.content,
+				}, {
+					whitespaceOnlyLines: [],
+					content: [{ type: 'text', text }],
+				});
 			} finally {
 				await replay.stop();
 			}

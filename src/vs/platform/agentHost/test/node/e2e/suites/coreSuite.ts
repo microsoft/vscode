@@ -336,8 +336,13 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			10,
 		);
 
+		// Model-validation probes and retries can repeat requests for the same model.
+		const models = context.observedModelRequestBodies
+			.map(body => observedModelRequest(body).model)
+			.filter((model, index, allModels) => index === 0 || model !== allModels[index - 1])
+			.slice(-2);
 		assert.deepStrictEqual({
-			models: context.observedModelRequestBodies.slice(-2).map(body => observedModelRequest(body).model),
+			models,
 			first: first.responseText.trim(),
 			secondRemembersCodeWord: /MARIGOLD/i.test(second.responseText),
 		}, {

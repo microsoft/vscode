@@ -6,98 +6,80 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. Do not read the file yourself — delegate to the subagent.
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: task
           input:
-            name: list-directory-files
+            name: read-file-a
             agent_type: explore
             model: claude-sonnet-5
-            description: List files in current directory
-            prompt: |-
-              List the files and directories in the current working directory: ${workdir}
-
-              Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
+            description: Read file-a.txt contents
+            prompt: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: |-
-            List the files and directories in the current working directory: ${workdir}
-
-            Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
+          content: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
     response:
       content:
         - type: tool_use
           id: toolcall_1
           name: view
           input:
-            path: ${workdir}
+            path: ${workdir}/file-a.txt
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: |-
-            List the files and directories in the current working directory: ${workdir}
-
-            Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
+          content: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
         - role: assistant
           content:
             - type: tool_use
               name: view
               input:
-                path: ${workdir}
+                path: ${workdir}/file-a.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
-              content: |-
-                file-a.txt
-                file-b.txt
+              content: alpha
     response:
-      content: |-
-        Contents of the directory:
-        - file-a.txt
-        - file-b.txt
+      content: 'The file `file-a.txt` contains exactly: `alpha`'
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. Do not read the file yourself — delegate to the subagent.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: task
               input:
-                name: list-directory-files
+                name: read-file-a
                 agent_type: explore
                 model: claude-sonnet-5
-                description: List files in current directory
-                prompt: |-
-                  List the files and directories in the current working directory: ${workdir}
-
-                  Use a single read-only file-listing tool call (e.g. `view` on that directory path, or `glob` with pattern "*") to enumerate its contents. Do not run any shell command. Report back the list of files/directories found.
+                description: Read file-a.txt contents
+                prompt: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                Contents of the directory:
-                - file-a.txt
-                - file-b.txt
+              content: 'The file `file-a.txt` contains exactly: `alpha`'
     response:
       content: |-
-        The subagent (running on `claude-sonnet-5`) listed the current directory using a single read-only tool call and found:
+        The subagent (running on `claude-sonnet-5`) read [file-a.txt](${workdir}/file-a.txt) using a single read-only file tool call and reported its contents as:
 
-        - [file-a.txt](${workdir}/file-a.txt)
-        - [file-b.txt](${workdir}/file-b.txt)
+        ```
+        alpha
+        ```
       stopReason: end_turn
