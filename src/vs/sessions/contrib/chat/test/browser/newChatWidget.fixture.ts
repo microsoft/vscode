@@ -550,9 +550,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
 		&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
 		'The tray must round its outer top corners and keep its joined bottom edge square.');
-	assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1
-		&& trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
-		'The tray must remain centered and inset from the prompt.');
+	assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
+		'The tray must remain inset from the prompt.');
+	if (phoneLayout) {
+		assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
+			'The phone workspace picker must retain its centered layout.');
+	} else {
+		const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
+		assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
+			&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
+			'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
+	}
 	const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
 	assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
 		'The disclosure chevron must be centered within its button.');
