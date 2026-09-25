@@ -12,6 +12,8 @@ export interface IResolvedResponseSelection {
 	readonly text: string;
 	/** Snapshot of the selected range, used to position and re-paint the affordance after the native selection is gone. */
 	readonly range: Range;
+	/** Direction from the selection anchor to its active focus endpoint. */
+	readonly direction: 'forward' | 'backward';
 }
 
 /** Ancestor of a valid selection endpoint: rendered assistant markdown. */
@@ -122,5 +124,6 @@ export function resolveResponseSelection(widget: IChatWidget): IResolvedResponse
 	// Browsers extend a line selection past the block it belongs to, leaving a
 	// trailing newline that adds nothing to the quoted snippet. Only the end is
 	// trimmed: leading whitespace is part of what the user actually selected.
-	return { response: firstItem, text: nativeSelection.toString().trimEnd(), range: range.cloneRange() };
+	const direction = nativeSelection.focusNode === range.startContainer && nativeSelection.focusOffset === range.startOffset ? 'backward' : 'forward';
+	return { response: firstItem, text: nativeSelection.toString().trimEnd(), range: range.cloneRange(), direction };
 }

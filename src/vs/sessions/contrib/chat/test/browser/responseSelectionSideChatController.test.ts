@@ -76,8 +76,20 @@ suite('ResponseSelectionSideChatController', () => {
 		markdown.style.position = 'absolute';
 		markdown.style.top = '0px';
 		markdown.style.left = '0px';
+		const firstEndpoint = doc.createElement('span');
+		firstEndpoint.style.position = 'absolute';
+		firstEndpoint.style.top = '0px';
+		firstEndpoint.style.left = '40px';
 		const textNode = doc.createTextNode('hello world');
-		markdown.appendChild(textNode);
+		firstEndpoint.appendChild(textNode);
+		markdown.appendChild(firstEndpoint);
+		const lastEndpoint = doc.createElement('span');
+		lastEndpoint.style.position = 'absolute';
+		lastEndpoint.style.top = '160px';
+		lastEndpoint.style.left = '240px';
+		const lastTextNode = doc.createTextNode('selection endpoint');
+		lastEndpoint.appendChild(lastTextNode);
+		markdown.appendChild(lastEndpoint);
 		transcriptDomNode.appendChild(markdown);
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
@@ -117,6 +129,9 @@ suite('ResponseSelectionSideChatController', () => {
 		const range = doc.createRange();
 		range.setStart(textNode, 0);
 		range.setEnd(textNode, textNode.data.length);
+		const directionalRange = doc.createRange();
+		directionalRange.setStart(textNode, 0);
+		directionalRange.setEnd(lastTextNode, lastTextNode.data.length);
 		// A selection in chat-view chrome outside the scrollable transcript.
 		const outsideNode = doc.createTextNode('unrelated text');
 		const outside = doc.createElement('div');
@@ -126,11 +141,14 @@ suite('ResponseSelectionSideChatController', () => {
 		outsideRange.setStart(outsideNode, 0);
 		outsideRange.setEnd(outsideNode, outsideNode.data.length);
 		let activeRange = range;
+		let selectionDirection: 'forward' | 'backward' = 'forward';
 		mutableWindow.getSelection = () => upcastPartial<Selection>({
 			toString: () => selectionText,
 			isCollapsed: selectionText.length === 0,
-			anchorNode: activeRange.startContainer,
-			focusNode: activeRange.endContainer,
+			anchorNode: selectionDirection === 'forward' ? activeRange.startContainer : activeRange.endContainer,
+			anchorOffset: selectionDirection === 'forward' ? activeRange.startOffset : activeRange.endOffset,
+			focusNode: selectionDirection === 'forward' ? activeRange.endContainer : activeRange.startContainer,
+			focusOffset: selectionDirection === 'forward' ? activeRange.endOffset : activeRange.startOffset,
 			rangeCount: 1,
 			getRangeAt: () => activeRange,
 		});
@@ -138,6 +156,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const setSelectionWithoutEvent = (text: string, selectionTop?: number) => {
 			activeRange = range;
+			selectionDirection = 'forward';
 			selectionText = text;
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
@@ -149,7 +168,15 @@ suite('ResponseSelectionSideChatController', () => {
 		};
 		const setSelectionOutsideTranscript = (text: string) => {
 			activeRange = outsideRange;
+			selectionDirection = 'forward';
 			selectionText = text;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setDirectionalSelection = (direction: 'forward' | 'backward', selectionTop: number) => {
+			activeRange = directionalRange;
+			selectionDirection = direction;
+			selectionText = 'hello world selection endpoint';
+			markdown.style.top = `${selectionTop}px`;
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const beginPointerSelection = (target: HTMLElement = markdown, pointerId = 1) => {
@@ -245,6 +272,14 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			setSelectionWithoutEvent,
 			setSelectionOutsideTranscript,
+			setDirectionalSelection,
+			selectionEndpointRects: () => {
+				const rects = Array.from(directionalRange.getClientRects()).filter(rect => rect.width > 0 && rect.height > 0);
+				const first = rects.at(0);
+				const last = rects.at(-1);
+				assert.ok(first && last);
+				return { first, last };
+			},
 			beginPointerSelection,
 			releasePointerSelection,
 			cancelPointerSelection,
@@ -280,6 +315,13 @@ suite('ResponseSelectionSideChatController', () => {
 
 	function menuDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
 		return (controller as unknown as { _menuDomNode: HTMLElement })._menuDomNode;
+	}
+
+	function position(top: number, left: number): { top: number; left: number } {
+		return {
+			top: Math.round(top * 100) / 100,
+			left: Math.round(left * 100) / 100,
+		};
 	}
 
 	function menuActionLabels(controller: ResponseSelectionSideChatController): string[] {
@@ -585,6 +627,81 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: false,
 			telemetryEvents: [],
 		});
+	});
+
+	test('anchors the action menu to the pointer selection focus endpoint in either direction', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setDirectionalSelection,
+			selectionEndpointRects,
+			setTranscriptRect,
+		} = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		beginPointerSelection();
+		setDirectionalSelection('forward', 120);
+		await finishPointerSelection();
+		const menu = menuDomNode(controller);
+		const forward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { last } = selectionEndpointRects();
+
+		beginPointerSelection();
+		setDirectionalSelection('backward', 120);
+		await finishPointerSelection();
+		const backward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { first } = selectionEndpointRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.right),
+			backward: position(first.top - menu.offsetHeight - 4, first.left),
+		});
+	});
+
+	test('anchors the ask-question input to the keyboard selection focus endpoint in either direction', () => {
+		const {
+			controller,
+			setDirectionalSelection,
+			selectionEndpointRects,
+			setTranscriptRect,
+			inputHeight,
+		} = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const forward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { last } = selectionEndpointRects();
+
+		setDirectionalSelection('backward', 120);
+		const backward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { first } = selectionEndpointRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.right),
+			backward: position(first.top - inputHeight() - 4, first.left),
+		});
+	});
+
+	test('flips a forward selection above its focus endpoint when constrained below', () => {
+		const { controller, setDirectionalSelection, selectionEndpointRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 350 });
+
+		setDirectionalSelection('forward', 160);
+
+		const menu = menuDomNode(controller);
+		const { last } = selectionEndpointRects();
+		assert.strictEqual(parseFloat(menu.style.top), last.top - menu.offsetHeight - 4);
+	});
+
+	test('flips a backward selection below its focus endpoint when constrained above', () => {
+		const { controller, setDirectionalSelection, selectionEndpointRects } = setup();
+
+		setDirectionalSelection('backward', 0);
+
+		const { first } = selectionEndpointRects();
+		assert.strictEqual(parseFloat(inputDomNode(controller).style.top), first.bottom + 4);
 	});
 
 	test('Escape dismisses the focused enhanced menu and restores transcript focus', () => {

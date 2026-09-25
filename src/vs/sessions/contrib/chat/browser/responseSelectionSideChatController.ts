@@ -76,27 +76,31 @@ function getSelectionHighlight(targetWindow: Window & typeof globalThis): Highli
 }
 
 /**
- * Bounding box of the range's *visible* line boxes. `Range.getBoundingClientRect`
- * includes the empty box a line selection leaves at the start of the following
- * block, which would push the affordance a line too far down.
+ * Visible line box containing the selection's focus endpoint. Empty boxes are
+ * ignored because line selections can include one at the next block's start.
  */
-function getVisibleBoundingRect(range: Range): { top: number; bottom: number; left: number } | undefined {
-	let top = Number.POSITIVE_INFINITY;
-	let bottom = Number.NEGATIVE_INFINITY;
-	let left = Number.POSITIVE_INFINITY;
+function getVisibleFocusRect(range: Range, direction: IResolvedResponseSelection['direction']): { top: number; bottom: number; left: number } | undefined {
+	let first: DOMRect | undefined;
+	let last: DOMRect | undefined;
 	for (const rect of range.getClientRects()) {
 		if (rect.width === 0 || rect.height === 0) {
 			continue;
 		}
-		top = Math.min(top, rect.top);
-		bottom = Math.max(bottom, rect.bottom);
-		left = Math.min(left, rect.left);
+		first ??= rect;
+		last = rect;
 	}
-	if (bottom === Number.NEGATIVE_INFINITY) {
+	const focusRect = direction === 'forward' ? last : first;
+	if (!focusRect) {
 		const fallback = range.getBoundingClientRect();
-		return fallback.width || fallback.height ? fallback : undefined;
+		return fallback.width || fallback.height
+			? { top: fallback.top, bottom: fallback.bottom, left: direction === 'forward' ? fallback.right : fallback.left }
+			: undefined;
 	}
-	return { top, bottom, left };
+	return {
+		top: focusRect.top,
+		bottom: focusRect.bottom,
+		left: direction === 'forward' ? focusRect.right : focusRect.left,
+	};
 }
 
 /**
@@ -455,8 +459,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!resolved || !surface) {
 			return;
 		}
-		const selectionRect = getVisibleBoundingRect(resolved.range);
-		if (!selectionRect) {
+		const focusRect = getVisibleFocusRect(resolved.range, resolved.direction);
+		if (!focusRect) {
 			// The transcript is virtualized, so scrolling far enough removes the
 			// selected row. Removing a node re-homes any live range onto the
 			// surviving parent, collapsing it, so the range still looks attached
@@ -481,23 +485,16 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const minLeft = bounds.left - originRect.left;
 		const maxLeft = Math.max(minLeft, minLeft + bounds.width - overlayWidth);
-		const left = clamp(selectionRect.left - originRect.left, minLeft, maxLeft);
+		const left = clamp(focusRect.left - originRect.left, minLeft, maxLeft);
 
 		const minTop = bounds.top - originRect.top;
 		const maxTop = Math.max(minTop, minTop + bounds.height - overlayHeight);
-		let top: number;
-		if (surface === 'menu') {
-			top = selectionRect.top - originRect.top - overlayHeight - gap;
-			if (top < minTop) {
-				top = selectionRect.bottom - originRect.top + gap;
-			}
-		} else {
-			top = selectionRect.bottom - originRect.top + gap;
-			if (top > maxTop) {
-				// Not enough room below the selection: prefer placing it above instead.
-				const aboveTop = selectionRect.top - originRect.top - overlayHeight - gap;
-				top = aboveTop >= minTop ? aboveTop : maxTop;
-			}
+		const aboveTop = focusRect.top - originRect.top - overlayHeight - gap;
+		const belowTop = focusRect.bottom - originRect.top + gap;
+		const preferBelow = resolved.direction === 'forward';
+		let top = preferBelow ? belowTop : aboveTop;
+		if ((preferBelow && top > maxTop) || (!preferBelow && top < minTop)) {
+			top = preferBelow ? aboveTop : belowTop;
 		}
 		top = clamp(top, minTop, maxTop);
 
