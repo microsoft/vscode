@@ -107,6 +107,10 @@ export function shouldShowLegacyPluginMarketplace(configurationService: IConfigu
 	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
 }
 
+export function shouldShowPluginTree(searchQuery: string, itemCount: number): boolean {
+	return itemCount > 0 || searchQuery.trim().length === 0;
+}
+
 export function isCurrentPluginMarketplaceRequest(
 	requestQuery: string,
 	currentQuery: string,
@@ -1510,14 +1514,12 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
-		const empty = itemCount === 0;
-		this.listContainer.style.display = empty ? 'none' : '';
-		this.emptyContainer.style.display = empty ? 'flex' : 'none';
-		if (empty) {
-			this.emptyText.textContent = this.searchQuery.trim()
-				? localize('noMatchingPlugins', "No plugins match '{0}'", this.searchQuery)
-				: localize('noPluginsInGroup', "No plugins in this group");
-			this.emptySubtext.textContent = this.searchQuery.trim() ? localize('tryDifferentSearch', "Try a different search term") : '';
+		const showTree = shouldShowPluginTree(this.searchQuery, itemCount);
+		this.listContainer.style.display = showTree ? '' : 'none';
+		this.emptyContainer.style.display = showTree ? 'none' : 'flex';
+		if (!showTree) {
+			this.emptyText.textContent = localize('noMatchingPlugins', "No plugins match '{0}'", this.searchQuery);
+			this.emptySubtext.textContent = localize('tryDifferentSearch', "Try a different search term");
 		}
 	}
 

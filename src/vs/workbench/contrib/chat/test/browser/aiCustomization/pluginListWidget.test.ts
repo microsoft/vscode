@@ -12,7 +12,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -124,6 +124,15 @@ suite('pluginListWidget', () => {
 			shouldShowLegacyPluginMarketplace(new TestConfigurationService({
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
 			}))), cases.map(({ available }) => available));
+	});
+
+	test('keeps empty group headers visible until search filtering starts', () => {
+		assert.deepStrictEqual([
+			shouldShowPluginTree('', 0),
+			shouldShowPluginTree('  ', 0),
+			shouldShowPluginTree('agent', 0),
+			shouldShowPluginTree('agent', 1),
+		], [true, true, false, true]);
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {
