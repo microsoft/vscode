@@ -10,7 +10,7 @@ import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentS
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerSource, toMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -38,7 +38,7 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('validates MCP configuration sources', () => {
+	test('validates MCP configuration sources and merges them into open metadata', () => {
 		const read = (meta: Record<string, unknown> | undefined) => readMcpServerSource({
 			type: CustomizationType.McpServer,
 			id: 'server',
@@ -47,12 +47,21 @@ suite('Agent host _meta readers', () => {
 			state: { kind: McpServerStatus.Ready },
 			_meta: meta,
 		} satisfies McpServerCustomization);
+		const opaque = { 'test.opaque': 'kept' };
 
-		assert.deepStrictEqual([
-			...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => read(toMcpServerSourceMeta(source))),
-			...[undefined, 'unknown', 1, {}, ['user']].map(source => read({ 'agentHost.mcpServerSource': source })),
-			read(undefined),
-		], ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined]);
+		assert.deepStrictEqual({
+			sources: [
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => read(withMcpServerSourceMeta(undefined, source))),
+				...[undefined, 'unknown', 1, {}, ['user']].map(source => read({ 'agentHost.mcpServerSource': source })),
+				read(undefined),
+			],
+			replaced: withMcpServerSourceMeta(withMcpServerSourceMeta(opaque, 'user'), 'workspace'),
+			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+		}, {
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			unchanged: true,
+		});
 	});
 
 	suite('readToolCallMeta', () => {

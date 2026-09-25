@@ -24,6 +24,10 @@ export function readMcpServerSource(customization: McpServerCustomization | unde
 	}
 }
 
-export function toMcpServerSourceMeta(source: McpServerSource): Record<string, unknown> {
-	return { [sourceKey]: source };
+/** Records the configuration source in an open metadata bag, preserving every other entry. */
+export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefined, source: McpServerSource | undefined): Record<string, unknown> | undefined {
+	if (source === undefined) {
+		return meta;
+	}
+	return { ...(meta ?? {}), [sourceKey]: source };
 }
