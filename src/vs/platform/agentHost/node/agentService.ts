@@ -3023,7 +3023,7 @@ export class AgentService extends Disposable implements IAgentService {
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: await this._migrateLegacyChangesetAggregate(metadata.session, metadata, database),
-			meta: withSessionMultiRootMetadata(meta, undefined),
+			meta: withSessionExternal(withSessionMultiRootMetadata(meta, undefined), external),
 			chats: [
 				{
 					uri: buildDefaultChatUri(metadata.session),
