@@ -378,6 +378,10 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		tabsContainer.scrollLeft = activeTab.offsetLeft + activeTab.offsetWidth / 2;
 		tabsContainer.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		activeTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_ENTER));
+		const clippedHover = overflowEdge.classList.contains('connected-tab-hovered');
+		activeTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_LEAVE));
+		const clippedHoverReset = overflowEdge.classList.contains('connected-tab-hovered');
 		const leftClipped = {
 			tab: activeTab.classList.contains('connected-tab-left-clipped'),
 			cap: overflowEdge.classList.contains('connected-tab-left-clipped'),
@@ -397,12 +401,16 @@ suite('Sessions - ChatCompositeBar', () => {
 		const remaining = tabsContainer.getBoundingClientRect().right - lastTab.getBoundingClientRect().right;
 
 		assert.deepStrictEqual({
+			clippedHover,
+			clippedHoverReset,
 			leftClipped,
 			rightClipped,
 			terminalShoulderVisible: remaining >= 5,
 			decorativeOutline: overflowEdge.getAttribute('aria-hidden'),
 			previousTabClippingCleared: activeTab.classList.contains('connected-tab-right-clipped'),
 		}, {
+			clippedHover: true,
+			clippedHoverReset: false,
 			leftClipped: { tab: true, cap: true, shoulder: 'none' },
 			rightClipped: { visible: true, maskRight: '0px', maskWidth: '10px' },
 			terminalShoulderVisible: true,

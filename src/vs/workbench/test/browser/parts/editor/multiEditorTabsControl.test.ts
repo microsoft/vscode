@@ -1217,7 +1217,7 @@ suite('MultiEditorTabsControl', () => {
 
 	test('keeps the connected outline inside the visible scroll area', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
-		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333;';
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333; --modern-ui-editor-tab-custom-active-background: #333333; --modern-ui-editor-tab-custom-active-hover-background: #654321;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor');
@@ -1249,6 +1249,16 @@ suite('MultiEditorTabsControl', () => {
 		const overflowEdge = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
 		await layout(240);
 		scroll(40);
+		firstTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_ENTER));
+		const clippedHover = {
+			hovered: overflowEdge.classList.contains('connected-tab-hovered'),
+			background: mainWindow.getComputedStyle(overflowEdge, '::before').backgroundColor,
+		};
+		firstTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_LEAVE));
+		const clippedHoverReset = {
+			hovered: overflowEdge.classList.contains('connected-tab-hovered'),
+			background: mainWindow.getComputedStyle(overflowEdge, '::before').backgroundColor,
+		};
 		const clippedLeft = {
 			edge: firstTab.classList.contains('connected-tab-left-edge'),
 			clipped: firstTab.classList.contains('connected-tab-left-clipped'),
@@ -1353,6 +1363,19 @@ suite('MultiEditorTabsControl', () => {
 				inset: tabs.getBoundingClientRect().right - overflowEdge.getBoundingClientRect().right,
 			});
 		}
+		secondTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_ENTER));
+		const overflowRight = overflowEdge.querySelector<HTMLElement>('.tab-connected-overflow-right')!;
+		const clippedRightHover = {
+			hovered: overflowEdge.classList.contains('connected-tab-hovered'),
+			cap: mainWindow.getComputedStyle(overflowRight, '::before').backgroundColor,
+			shoulder: mainWindow.getComputedStyle(overflowRight, '::after').boxShadow.includes('rgb(101, 67, 33)'),
+		};
+		secondTab.dispatchEvent(new mainWindow.MouseEvent(EventType.MOUSE_LEAVE));
+		const clippedRightHoverReset = {
+			hovered: overflowEdge.classList.contains('connected-tab-hovered'),
+			cap: mainWindow.getComputedStyle(overflowRight, '::before').backgroundColor,
+			shoulder: mainWindow.getComputedStyle(overflowRight, '::after').boxShadow.includes('rgb(51, 51, 51)'),
+		};
 		const clippedRight = {
 			edge: secondTab.classList.contains('connected-tab-right-edge'),
 			clipped: secondTab.classList.contains('connected-tab-right-clipped'),
@@ -1413,9 +1436,11 @@ suite('MultiEditorTabsControl', () => {
 		root.classList.remove('modern-ui-connected-editor-tabs');
 		await layout(100);
 		assert.deepStrictEqual({
-			clippedLeft, multiSelected, singleSelected, terminalOutline, normalOutline, rightShoulderAtViewport, rightShoulderRevealed, leftShoulderAtViewport, leftShoulderRevealed, clippedRight, hiddenAtFillEdge, highContrast, highContrastRight,
+			clippedHover, clippedHoverReset, clippedLeft, multiSelected, singleSelected, terminalOutline, normalOutline, rightShoulderAtViewport, rightShoulderRevealed, leftShoulderAtViewport, leftShoulderRevealed, clippedRightHover, clippedRightHoverReset, clippedRight, hiddenAtFillEdge, highContrast, highContrastRight,
 			reset: overflowEdge.style.left,
 		}, {
+			clippedHover: { hovered: true, background: 'rgb(101, 67, 33)' },
+			clippedHoverReset: { hovered: false, background: 'rgb(51, 51, 51)' },
 			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
@@ -1425,6 +1450,8 @@ suite('MultiEditorTabsControl', () => {
 			rightShoulderRevealed: { edge: false, clipped: false, rightShoulder: '""', rightMask: '""' },
 			leftShoulderAtViewport: { edge: true, clipped: false, left: '1px', leftShoulder: 'none', leftMask: 'none', overflowEdge: 'none' },
 			leftShoulderRevealed: { edge: false, clipped: false, leftShoulder: '""', leftMask: '""' },
+			clippedRightHover: { hovered: true, cap: 'rgb(101, 67, 33)', shoulder: true },
+			clippedRightHoverReset: { hovered: false, cap: 'rgb(51, 51, 51)', shoulder: true },
 			clippedRight: {
 				edge: true,
 				clipped: true,
