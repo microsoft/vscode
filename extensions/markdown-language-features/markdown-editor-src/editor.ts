@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
-import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorHostTransport, type IframeEmbeddedEditorProvider, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
+import type { IframeEmbeddedEditorHostTransport, IframeEmbeddedEditorProvider, ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue, transaction } from '@vscode/observables';
 import { HubRpcConnection } from '@vscode/hubrpc';
 import 'katex/dist/katex.min.css';
@@ -17,6 +17,7 @@ import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
+import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -118,7 +119,7 @@ class Editor extends Disposable {
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
 	#view: EditorView | undefined;
-	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
+	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
 	#editEpoch: number;
 
@@ -269,7 +270,7 @@ class Editor extends Disposable {
 		const iframeBootstrapUrl = new URL(location.href);
 		// Nested frames must use the empty webview bootstrap, not the restricted index.html entrypoint.
 		iframeBootstrapUrl.pathname = '/fake.html';
-		const embeddedCodeEditorFactory = this._register(new VirtualizedIframeEmbeddedEditorFactory({
+		const embeddedCodeEditorFactory = this._register(new LazyCodeBlockEditorFactory({
 			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
 			scriptNonce,
 			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
@@ -278,6 +279,14 @@ class Editor extends Disposable {
 				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,
 			})),
 			onDidChange: () => this.#view?.refreshEmbeddedCodeEditors(),
+		}, async () => {
+			const { VirtualizedIframeEmbeddedEditorFactory } = await import('@vscode/markdown-editor/web-editors');
+			return options => new VirtualizedIframeEmbeddedEditorFactory(options);
+		}, error => {
+			console.error('Markdown editor loading embedded editors failed', error);
+			this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
+				message: `Failed to load embedded editors: ${error instanceof Error ? error.message : String(error)}. Reopen the editor to retry.`,
+			}));
 		}));
 		this.#embeddedCodeEditorFactory = embeddedCodeEditorFactory;
 		// The scroll + cursor position last persisted for this document, captured

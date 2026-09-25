@@ -19,6 +19,13 @@ without bundling Zod's full API and locale tables. HubRPC and Zod are developmen
 dependencies: the desktop extension, browser extension, and rich-editor builds
 bundle the runtime code they use.
 
+Embedded web-editor support is loaded on demand when a fenced block is rendered
+and code-block providers are registered. Until loading completes, blocks use
+their normal rendering. Provider updates and completed loading refresh the
+blocks; the adapter still owns provider selection. Load failures are reported
+through the existing code-block diagnostics and can be retried by reopening the
+editor.
+
 The `TextDocument` remains authoritative: local edits use the existing epoch
 queue and `WorkspaceEdit`, external changes replace the renderer mirror, and
 history commands drain accepted edits before invoking host undo/redo. Each
