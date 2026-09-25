@@ -52,6 +52,7 @@ import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSea
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
+import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -4560,14 +4561,12 @@ export class CopilotAgentSession extends Disposable {
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
-	/**
-	 * Grants the generated directory once a script has been materialized for
-	 * this instance and keeps it for the instance lifetime, so a command that
-	 * already holds the path can still read it after a clear. Sessions that
-	 * never configure a script see no policy change.
-	 */
+	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
 	private _sandboxExtraReadonlyPaths(): readonly string[] {
-		return this._shellInitScriptMaterialized ? [this._shellInitScriptDirectory().fsPath] : [];
+		return getVSCodeSandboxReadRoots({
+			sessionDataDirectory: this._sessionDataService.getSessionDataDir(this._ownerSessionUri),
+			shellInitDirectory: this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
+		}).map(root => root.fsPath);
 	}
 
 	/**

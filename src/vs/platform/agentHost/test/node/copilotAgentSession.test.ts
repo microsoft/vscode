@@ -1311,6 +1311,11 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
  */
 const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
 const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
+const TEST_SESSION_ATTACHMENTS_DIR = URI.file('/session-data/test-session-1/attachments').fsPath;
+
+function expectedSessionSandboxConfig(platform: NodeJS.Platform, sandbox: Parameters<typeof buildSandboxConfigForSdk>[1]): SandboxConfig | undefined {
+	return buildSandboxConfigForSdk(platform, sandbox, [TEST_SESSION_ATTACHMENTS_DIR]);
+}
 
 function defaultNonPtyShellTerminalUri(toolCallId: string): string {
 	const session = AgentSession.uri('copilot', 'test-session-1');
@@ -7326,7 +7331,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual']);
 		});
 
@@ -7339,7 +7344,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
 		});
 
@@ -7793,9 +7798,9 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['manual', 'allow-all', 'manual'],
 				sandboxConfigs: [
-					buildSandboxConfigForSdk('linux', sandbox),
-					buildSandboxConfigForSdk('linux', sandbox),
-					buildSandboxConfigForSdk('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
 				],
 			});
 		});
@@ -7843,8 +7848,8 @@ suite('CopilotAgentSession', () => {
 
 					assert.deepStrictEqual(results, [
 						{ enabled: false },
-						buildSandboxConfigForSdk(platform, sandbox),
-						buildSandboxConfigForSdk(platform, sandbox),
+						expectedSessionSandboxConfig(platform, sandbox),
+						expectedSessionSandboxConfig(platform, sandbox),
 					].map(sandboxConfig => ({
 						beforePrompt: [sandboxConfig],
 						afterPrompt: [sandboxConfig, sandboxConfig],
@@ -7874,8 +7879,8 @@ suite('CopilotAgentSession', () => {
 				beforePrompt,
 				afterPrompt: mockSession.sandboxConfigUpdates,
 			}, {
-				beforePrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }],
-				afterPrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
+				beforePrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }],
+				afterPrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
 			});
 		});
 
@@ -8002,7 +8007,7 @@ suite('CopilotAgentSession', () => {
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox),
+				sandbox: expectedSessionSandboxConfig('linux', sandbox),
 			});
 		});
 
@@ -8017,7 +8022,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
@@ -8029,7 +8034,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('win32', sandbox));
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
@@ -8051,7 +8056,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [buildSandboxConfigForSdk('linux', sandbox)]);
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [expectedSessionSandboxConfig('linux', sandbox)]);
 		});
 
 		test('sandbox config changes apply while idle and active with the custom terminal tool enabled', async () => {
@@ -8068,7 +8073,7 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
-				buildSandboxConfigForSdk('linux', {
+				expectedSessionSandboxConfig('linux', {
 					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 				}),
@@ -8278,7 +8283,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox),
+				sandbox: expectedSessionSandboxConfig('linux', sandbox),
 			});
 		});
 
@@ -18978,7 +18983,10 @@ Use the attached image as context.
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
+				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR],
+				clearPolicyOnExit: true,
+			});
 		});
 
 		test('grants the shell init directory read access while a script is configured', async () => {
@@ -18991,10 +18999,10 @@ Use the attached image as context.
 			// The SDK fails silently when an init script is outside the sandbox
 			// read policy, so the per-turn policy must include this directory.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.ok(
-				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
-				JSON.stringify(sandboxConfig?.userPolicy?.filesystem),
-			);
+			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
+				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, TEST_SHELL_INIT_DIR],
+				clearPolicyOnExit: true,
+			});
 		});
 
 		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {

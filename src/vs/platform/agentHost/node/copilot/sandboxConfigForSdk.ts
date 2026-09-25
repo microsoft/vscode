@@ -118,11 +118,8 @@ export interface SandboxSeatbeltPolicy {
  * does not fall back to the shared enablement setting so Windows rollout is
  * controlled independently.
  *
- * `extraReadonlyPaths` grants read access to host-generated files the shell
- * tool needs, such as the session's shell init scripts. The SDK treats init
- * script readability as a caller obligation and fails silently when a script
- * cannot be read. `CopilotAgentSession` therefore includes the directory when
- * it applies the effective sandbox immediately before each turn.
+ * `extraReadonlyPaths` grants read access to session attachments and generated
+ * shell init scripts when the effective sandbox is applied before each turn.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
