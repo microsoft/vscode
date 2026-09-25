@@ -3611,6 +3611,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: 'force-no-twistie',
 			}
 		));
+		this.tree.setFocusNavigationFilter(node => !this.findOpen.get()
+			|| !node.element
+			|| !isSessionSection(node.element)
+			|| node.element.id !== SESSIONS_HEADER_SECTION_ID);
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 		if (this.options.onDidScroll) {

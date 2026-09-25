@@ -61,7 +61,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -671,6 +671,21 @@ suite('Sessions - SessionsList', () => {
 			const scrollTopAfterFind = tree.scrollTop;
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
 			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
+			const navigationTree = Reflect.get(list, 'tree') as {
+				focusFirst(): void;
+				focusNext(): void;
+				getFocus(): SessionListItem[];
+			};
+			navigationTree.focusFirst();
+			const focusedHeaderWhileFindOpen: boolean[] = [];
+			for (let index = 0; index < 50; index++) {
+				const focusedElement = navigationTree.getFocus()[0];
+				if (!focusedElement) {
+					break;
+				}
+				focusedHeaderWhileFindOpen.push((focusedElement as ISessionSection).id === 'sessionsHeader');
+				navigationTree.focusNext();
+			}
 			const hiddenTreeHeader = container.querySelector<HTMLElement>('.sessions-list-header');
 			const treeHeaderHiddenForFind = hiddenTreeHeader?.style.visibility === 'hidden'
 				&& hiddenTreeHeader.closest('.monaco-list-row')?.getAttribute('aria-hidden') === 'true';
@@ -686,6 +701,7 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: sessionsHeader.parentElement === sessionsHeaderContainer && findWidgetContainer.parentElement === sessionsHeader,
 				treeHeaderHiddenForFind,
 				findFocusedAfterOffscreenOpen,
+				focusedHeaderWhileFindOpen: focusedHeaderWhileFindOpen.some(Boolean),
 				scrollTopAfterFind,
 				scrollTopBeforeFind,
 				distinctHeaderInstances: new Set(allHeaders).size === allHeaders.length,
@@ -701,6 +717,7 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				treeHeaderHiddenForFind: true,
 				findFocusedAfterOffscreenOpen: true,
+				focusedHeaderWhileFindOpen: false,
 				scrollTopAfterFind: scrollTopBeforeFind,
 				scrollTopBeforeFind: 400,
 				distinctHeaderInstances: true,

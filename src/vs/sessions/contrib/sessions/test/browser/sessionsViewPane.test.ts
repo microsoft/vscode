@@ -329,11 +329,13 @@ suite('Sessions - SessionsViewPane', () => {
 		const sessionsContent = mainWindow.document.createElement('div');
 		const sessionsHeaderContainer = mainWindow.document.createElement('div');
 		const sessionsControlContainer = mainWindow.document.createElement('div');
+		const stableHeaderRow = mainWindow.document.createElement('div');
 		const sourceHeader = mainWindow.document.createElement('div');
 		const stickyRow = mainWindow.document.createElement('div');
 		const stickyHeader = mainWindow.document.createElement('div');
 		stickyRow.classList.add('monaco-tree-sticky-row');
 		stickyRow.appendChild(stickyHeader);
+		sessionsHeaderContainer.appendChild(stableHeaderRow);
 
 		const setVerticalBounds = (element: HTMLElement, top: number, bottom: number) => {
 			Object.defineProperty(element, 'getBoundingClientRect', {
@@ -342,6 +344,8 @@ suite('Sessions - SessionsViewPane', () => {
 			});
 		};
 		setVerticalBounds(sessionsContent, 100, 600);
+		setVerticalBounds(sessionsHeaderContainer, 100, 140);
+		setVerticalBounds(stableHeaderRow, 101, 133);
 		setVerticalBounds(sessionsControlContainer, 110, 500);
 		setVerticalBounds(sourceHeader, 180, 212);
 		setVerticalBounds(stickyHeader, 120, 152);
@@ -351,6 +355,7 @@ suite('Sessions - SessionsViewPane', () => {
 			sessionsHeaderContainer,
 			sessionsControlContainer,
 			sessionsHeaders: new Set([
+				{ row: stableHeaderRow, treeHeader: false },
 				{ row: sourceHeader, treeHeader: true },
 				{ row: stickyHeader, treeHeader: true },
 			]),
@@ -371,9 +376,9 @@ suite('Sessions - SessionsViewPane', () => {
 			sourcePosition,
 			retainedPositionWithoutVisibleHeader: sessionsHeaderContainer.style.top,
 		}, {
-			stickyPosition: '20px',
-			sourcePosition: '80px',
-			retainedPositionWithoutVisibleHeader: '80px',
+			stickyPosition: '19px',
+			sourcePosition: '79px',
+			retainedPositionWithoutVisibleHeader: '79px',
 		});
 	});
 

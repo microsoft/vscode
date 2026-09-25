@@ -858,6 +858,11 @@ export class SessionsView extends ViewPane {
 		}
 
 		const controlRect = sessionsControlContainer.getBoundingClientRect();
+		const contentRect = sessionsContent.getBoundingClientRect();
+		const stableHeader = [...this.sessionsHeaders].find(header => !header.treeHeader);
+		const stableHeaderOffset = stableHeader
+			? stableHeader.row.getBoundingClientRect().top - sessionsHeaderContainer.getBoundingClientRect().top
+			: 0;
 		const candidates = [...this.sessionsHeaders]
 			.filter(header => header.treeHeader)
 			.map(header => ({
@@ -867,7 +872,7 @@ export class SessionsView extends ViewPane {
 			.filter(candidate => candidate.rect.height > 0 && candidate.rect.bottom > controlRect.top && candidate.rect.top < controlRect.bottom);
 		const anchor = candidates.find(candidate => candidate.isSticky) ?? candidates[0];
 		if (anchor) {
-			sessionsHeaderContainer.style.top = `${anchor.rect.top - sessionsContent.getBoundingClientRect().top}px`;
+			sessionsHeaderContainer.style.top = `${anchor.rect.top - contentRect.top - stableHeaderOffset}px`;
 		}
 	}
 
