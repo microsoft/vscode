@@ -7,7 +7,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { runOnChange } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -52,12 +52,19 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
 		}
 		const store = new DisposableStore();
-		store.add(this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
+		const scheduler = store.add(new MutableDisposable<AccessibilityProgressSignalScheduler>());
+		const startProgress = () => {
+			if (!scheduler.value) {
+				scheduler.value = this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined);
+			}
+		};
+		startProgress();
 		const model = this._chatService.getSession(uri);
 		if (model) {
-			// Not every caller reports the response, so stop once the request settles.
-			store.add(runOnChange(model.requestInProgress, inProgress => {
-				if (!inProgress) {
+			// Pause while the request waits for user input; not every caller reports the response, so stop once the request settles.
+			store.add(runOnChange(model.requestInProgress, inProgress => inProgress ? startProgress() : scheduler.clear()));
+			store.add(runOnChange(model.hasActiveRequest, active => {
+				if (!active) {
 					this._disposeRequestIfCurrent(uri, store);
 				}
 			}));
