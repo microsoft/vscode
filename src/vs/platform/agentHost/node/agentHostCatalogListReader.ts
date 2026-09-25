@@ -30,6 +30,7 @@ export type AgentHostCatalogListManyResult = {
 	readonly results: readonly AgentHostCatalogListResult[];
 	readonly bulkReadError: Error;
 	readonly fallbackReadCount: number;
+	readonly fallbackRecoveredRowCount: number;
 	readonly fallbackReadFailureCount: number;
 	readonly fallbackDurationMs: number;
 };
@@ -52,8 +53,12 @@ export class AgentHostCatalogListReader {
 	}
 
 	async readMany(registeredSessions: readonly IRegisteredSession[]): Promise<AgentHostCatalogListManyResult> {
+		if (registeredSessions.length === 0) {
+			return { results: [] };
+		}
 		try {
-			const catalogBySession = new Map((await this._catalogDatabase.listSessionsV2()).map(catalog => [catalog.session, catalog]));
+			const sessions = registeredSessions.map(registered => registered.session.toString());
+			const catalogBySession = new Map((await this._catalogDatabase.listSessionsV2(sessions)).map(catalog => [catalog.session, catalog]));
 			return { results: registeredSessions.map(registered => this._read(registered, catalogBySession.get(registered.session.toString()))) };
 		} catch (error) {
 			const bulkReadError = toError(error);
@@ -64,6 +69,7 @@ export class AgentHostCatalogListReader {
 				results,
 				bulkReadError,
 				fallbackReadCount: registeredSessions.length,
+				fallbackRecoveredRowCount: results.filter(result => result.eligible || result.chatBacking).length,
 				fallbackReadFailureCount: results.filter(result => !result.eligible && !result.chatBacking && result.error !== undefined).length,
 				fallbackDurationMs: Date.now() - fallbackStartedAt,
 			};

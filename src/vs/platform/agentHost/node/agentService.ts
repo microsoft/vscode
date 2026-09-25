@@ -3682,12 +3682,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _reportCatalogBulkReadFailure(result: Extract<AgentHostCatalogListManyResult, { bulkReadError: Error }>): void {
-		const recoveredRowCount = result.fallbackReadCount - result.fallbackReadFailureCount;
-		this._logService.warn(`[AgentService] Bulk session catalog read failed; bounded row recovery read ${recoveredRowCount} of ${result.fallbackReadCount} row(s) in ${result.fallbackDurationMs}ms (${result.fallbackReadFailureCount} failed)`, result.bulkReadError);
+		this._logService.warn(`[AgentService] Bulk session catalog read failed; bounded row recovery read ${result.fallbackRecoveredRowCount} of ${result.fallbackReadCount} row(s) in ${result.fallbackDurationMs}ms (${result.fallbackReadFailureCount} failed)`, result.bulkReadError);
 		this._telemetryService.publicLogError2<AgentHostCatalogBulkReadFailureEvent, AgentHostCatalogBulkReadFailureClassification>('agentHost.catalogBulkReadFailure', {
 			errorMessage: result.bulkReadError.message,
 			requestedRowCount: result.fallbackReadCount,
-			recoveredRowCount,
+			recoveredRowCount: result.fallbackRecoveredRowCount,
 			failedRowCount: result.fallbackReadFailureCount,
 			fallbackDurationMs: result.fallbackDurationMs,
 		});

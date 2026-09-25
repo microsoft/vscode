@@ -21,6 +21,7 @@ class TestCatalogDatabase extends AgentHostDatabase {
 	readonly singleReadErrors = new Map<string, Error>();
 	singleReads = 0;
 	batchReads = 0;
+	batchSessions: readonly string[] | undefined;
 
 	constructor() {
 		super(':memory:');
@@ -35,13 +36,14 @@ class TestCatalogDatabase extends AgentHostDatabase {
 		return this.catalog?.session === session ? this.catalog : undefined;
 	}
 
-	override async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+	override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 		this.batchReads++;
+		this.batchSessions = sessions;
 		const error = this.readError ?? this.batchReadError;
 		if (error) {
 			throw error;
 		}
-		return this.catalog ? [this.catalog] : [];
+		return this.catalog && (!sessions || sessions.includes(this.catalog.session)) ? [this.catalog] : [];
 	}
 }
 
@@ -205,10 +207,28 @@ suite('AgentHostCatalogListReader', () => {
 			eligible: results.map(result => result.eligible),
 			singleReads: database.singleReads,
 			batchReads: database.batchReads,
+			batchSessions: database.batchSessions,
 		}, {
 			eligible: [true, false],
 			singleReads: 0,
 			batchReads: 1,
+			batchSessions: [registered.session.toString(), missing.session.toString()],
+		});
+	});
+
+	test('skips the catalog query for an empty candidate list', async () => {
+		const database = createDatabase();
+
+		const result = await new AgentHostCatalogListReader(database).readMany([]);
+
+		assert.deepStrictEqual({
+			result,
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+		}, {
+			result: { results: [] },
+			singleReads: 0,
+			batchReads: 0,
 		});
 	});
 
@@ -232,6 +252,7 @@ suite('AgentHostCatalogListReader', () => {
 			errors: result.results.map(entry => entry.eligible || entry.chatBacking ? undefined : entry.error?.message),
 			bulkReadError: result.bulkReadError?.message,
 			fallbackReadCount: result.bulkReadError ? result.fallbackReadCount : undefined,
+			fallbackRecoveredRowCount: result.bulkReadError ? result.fallbackRecoveredRowCount : undefined,
 			fallbackReadFailureCount: result.bulkReadError ? result.fallbackReadFailureCount : undefined,
 			singleReads: database.singleReads,
 			batchReads: database.batchReads,
@@ -240,6 +261,7 @@ suite('AgentHostCatalogListReader', () => {
 			errors: [undefined, undefined, 'row failed'],
 			bulkReadError: 'bulk failed',
 			fallbackReadCount: 3,
+			fallbackRecoveredRowCount: 1,
 			fallbackReadFailureCount: 1,
 			singleReads: 3,
 			batchReads: 1,

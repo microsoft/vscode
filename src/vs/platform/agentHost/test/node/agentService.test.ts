@@ -826,6 +826,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	private _backfilled = false;
 	catalogListCalls = 0;
+	readonly catalogListRequests: Array<readonly string[] | undefined> = [];
 	/** Test spies for the batched recency-write path. */
 	updateSessionModifiedTimesCalls = 0;
 	lastModifiedTimesBatchSize = 0;
@@ -1084,9 +1085,11 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this.catalogListCalls++;
 		return this._sessionsV2.get(session);
 	}
-	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+	async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 		this.catalogListCalls++;
-		return [...this._sessionsV2.values()];
+		this.catalogListRequests.push(sessions);
+		const rows = [...this._sessionsV2.values()];
+		return sessions ? rows.filter(row => sessions.includes(row.session)) : rows;
 	}
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		this.catalogListCalls++;
@@ -6310,8 +6313,9 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			}
 
-			override async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
-				const rows = await Promise.all([...this._catalogs.keys()].map(session => this.getSessionV2(session)));
+			override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+				const catalogSessions = sessions ?? [...this._catalogs.keys()];
+				const rows = await Promise.all(catalogSessions.map(session => this.getSessionV2(session)));
 				return rows.filter((row): row is IAgentHostDatabaseSessionV2 => row !== undefined);
 			}
 		}
@@ -7754,7 +7758,7 @@ suite('AgentService (node dispatcher)', () => {
 				activeCatalogReads = 0;
 				deferActiveCatalogReads = false;
 
-				override async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+				override async listSessionsV2(_sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 					if (this.deferActiveCatalogReads) {
 						this.activeCatalogReads++;
 						if (this.activeCatalogReads === 1) {
@@ -7794,7 +7798,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('central list reports a bulk read failure after recovering rows individually', async () => {
 			class BulkFailureCatalogDatabase extends CentralCatalogDatabase {
-				override async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+				override async listSessionsV2(_sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
 					throw new Error('bulk read failed');
 				}
 			}
@@ -8539,13 +8543,15 @@ suite('AgentService (node dispatcher)', () => {
 		testWithExternalSessionClock('clean catalog rows avoid session DB opens in every visibility mode', async () => {
 			const now = Date.now();
 			const perSession = createPerSessionDataService();
-			const svc = createExternalSessionService(perSession.service);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = createExternalSessionService(perSession.service, orchestratorDatabase);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('external-one', now);
 			agent.addSession('external-two', now);
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
 			await svc.whenCatalogReconciliationIdle();
+			orchestratorDatabase.catalogListRequests.length = 0;
 
 			const opened: string[] = [];
 			const dataService = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
@@ -8557,14 +8563,25 @@ suite('AgentService (node dispatcher)', () => {
 			try {
 				const hidden = (await svc.listSessions(AgentHostExternalSessionsMode.None)).map(session => AgentSession.id(session.session));
 				const openedWhileHidden = [...new Set(opened)].sort();
+				const catalogRequestsWhileHidden = [...orchestratorDatabase.catalogListRequests];
+				orchestratorDatabase.catalogListRequests.length = 0;
 				opened.length = 0;
 				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.Last30Days)).map(session => AgentSession.id(session.session)).sort();
 
-				assert.deepStrictEqual({ hidden, openedWhileHidden, visible, openedWhileVisible: [...new Set(opened)].sort() }, {
+				assert.deepStrictEqual({
+					hidden,
+					openedWhileHidden,
+					catalogRequestsWhileHidden,
+					visible,
+					openedWhileVisible: [...new Set(opened)].sort(),
+					catalogRequestsWhileVisible: orchestratorDatabase.catalogListRequests.map(request => request?.map(session => AgentSession.id(URI.parse(session))).sort()),
+				}, {
 					hidden: [],
 					openedWhileHidden: [],
+					catalogRequestsWhileHidden: [],
 					visible: ['external-one', 'external-two'],
 					openedWhileVisible: [],
+					catalogRequestsWhileVisible: [['external-one', 'external-two']],
 				});
 			} finally {
 				dataService.tryOpenDatabase = originalTryOpen;
@@ -13207,8 +13224,8 @@ suite('AgentService (node dispatcher)', () => {
 				readonly releaseList = new DeferredPromise<void>();
 				deferReads = false;
 
-				override async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
-					const rows = await super.listSessionsV2();
+				override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+					const rows = await super.listSessionsV2(sessions);
 					if (this.deferReads) {
 						this.listStarted.complete();
 						await this.releaseList.p;
