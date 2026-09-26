@@ -5,6 +5,7 @@
 
 import { Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { EndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -12,6 +13,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -84,9 +86,11 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
-		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
-		super(id, name, undefined, byokStorageService, fetcherService, logService, instantiationService, configurationService, expService);
+		super(id, name, undefined, byokStorageService, fetcherService, logService, instantiationService, configurationService, expService, requestMiddlewareRegistry, envService);
 	}
 
 	protected async migrateConfig(configKey: Config<IStringDictionary<_CustomOAIModelConfig>>, providerName: string, providerGroupName: string): Promise<void> {
@@ -182,9 +186,11 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService expService: IExperimentationService,
-		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
+		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
-		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext);
+		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext, requestMiddlewareRegistry, envService);
 		this.migrateExistingConfigs();
 	}
 

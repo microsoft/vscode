@@ -184,7 +184,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
-		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, configuration: options.configuration }, token) ?? [];
+		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, group: options.group, configuration: options.configuration }, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -346,7 +346,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 				// todo@connor4312: move `core` -> `undefined` after 1.111 Insiders is out
-				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto, includeEncryptedThinking: options.includeEncryptedThinking },
+				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto, includeEncryptedThinking: options.includeEncryptedThinking, sessionId: options.sessionId },
 				progress,
 				providerToken
 			);

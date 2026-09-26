@@ -135,6 +135,9 @@ const shim: typeof vscodeTypes = {
 	authentication: {
 		getSession: async () => { throw new Error('authentication.getSession not mocked in test'); }
 	},
+	extensions: {
+		getExtension: () => { throw new Error('extensions.getExtension not mocked in test'); }
+	},
 	McpHttpServerDefinition,
 	McpStdioServerDefinition,
 	ThemeIcon

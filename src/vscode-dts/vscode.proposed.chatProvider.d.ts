@@ -29,6 +29,13 @@ declare module 'vscode' {
 		 * Whether encrypted thinking state should be included in the response.
 		 */
 		readonly includeEncryptedThinking?: boolean;
+
+		/**
+		 * The chat session the request belongs to. All requests made on behalf of
+		 * the same session carry the same id, and different sessions carry
+		 * different ids. `undefined` when the request is not made from a chat session.
+		 */
+		readonly sessionId?: string;
 	}
 
 	/**
@@ -182,6 +189,11 @@ declare module 'vscode' {
 	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
 	 */
 	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * The name of the user-configured provider group the models are requested for, as shown in the model picker.
+		 * `undefined` when the models are requested without a group, e.g. for a provider that needs no configuration.
+		 */
+		readonly group?: string;
 		/**
 		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
 		 * The object adheres to the schema that the extension provided during declaration.

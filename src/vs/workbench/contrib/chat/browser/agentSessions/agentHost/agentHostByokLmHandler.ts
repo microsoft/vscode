@@ -99,6 +99,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		const options: ILanguageModelChatRequestOptions = {
 			modelOptions: request.modelOptions,
 			includeEncryptedThinking: true,
+			sessionId: request.sessionId,
 			...(request.reasoningEffort ? { configuration: { reasoningEffort: request.reasoningEffort } } : {}),
 			...(tools ? { tools } : {}),
 		};

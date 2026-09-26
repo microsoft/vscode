@@ -6,6 +6,7 @@
 import type * as http from 'http';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IByokLmChatRequest } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -152,7 +153,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 		const vendor = this._parseVendorFromResponsesPath(pathname);
 		if (method === 'POST' && vendor !== undefined) {
-			await this._handleResponses(req, res, runtime, vendor);
+			await this._handleResponses(req, res, runtime, vendor, auth.sessionId);
 			return;
 		}
 
@@ -185,7 +186,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		return vendor;
 	}
 
-	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
+	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string, sessionId: string): Promise<void> {
 		let body: IResponsesRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
@@ -195,9 +196,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
-		let bridgeRequest;
+		let bridgeRequest: IByokLmChatRequest;
 		try {
-			bridgeRequest = responsesRequestToBridge(vendor, body);
+			bridgeRequest = { ...responsesRequestToBridge(vendor, body), sessionId };
 		} catch (err) {
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');

@@ -547,6 +547,8 @@ export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
 	readonly configuration?: IStringDictionary<unknown>;
 	readonly includeEncryptedThinking?: boolean;
+	/** The chat session the request belongs to, when it is made from one. */
+	readonly sessionId?: string;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }

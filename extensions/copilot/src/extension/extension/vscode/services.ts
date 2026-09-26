@@ -88,6 +88,7 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { ExtensionTextDocumentManager } from '../../../platform/workspace/vscode/workspaceServiceImpl';
 import { IInstantiationServiceBuilder } from '../../../util/common/services';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
+import { ILanguageModelRequestMiddlewareRegistry, LanguageModelRequestMiddlewareRegistry } from '../../byok/common/languageModelRequestMiddleware';
 import { IMergeConflictService } from '../../git/common/mergeConflictService';
 import { MergeConflictServiceImpl } from '../../git/vscode/mergeConflictServiceImpl';
 import { ILaunchConfigService } from '../../onboardDebug/common/launchConfigService';
@@ -116,6 +117,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IEnvService, new EnvServiceImpl());
 	builder.define(IFileSystemService, new VSCodeFileSystemService());
 	builder.define(IHeaderContributors, new HeaderContributors());
+	builder.define(ILanguageModelRequestMiddlewareRegistry, new SyncDescriptor(LanguageModelRequestMiddlewareRegistry));
 	builder.define(INotebookService, new SyncDescriptor(NotebookService));
 	builder.define(INotebookSummaryTracker, new SyncDescriptor(NotebookSummaryTrackerImpl));
 	builder.define(IAlternativeNotebookContentService, new SyncDescriptor(AlternativeNotebookContentService));

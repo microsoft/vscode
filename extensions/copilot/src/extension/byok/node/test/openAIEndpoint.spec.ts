@@ -149,6 +149,25 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 		});
 	});
 
+	describe('applyRequestHeaders', () => {
+		it('keeps the configured credential and drops a credential supplied by request middleware', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			endpoint.applyRequestHeaders({ Authorization: 'Bearer middleware-token', 'api-key': 'middleware-key', 'x-session-id': 'session' });
+
+			expect(endpoint.getExtraHeaders()).toEqual({
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer test-api-key',
+				'x-session-id': 'session',
+			});
+		});
+	});
+
 	describe('CAPI mode (useResponsesApi = false)', () => {
 		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
