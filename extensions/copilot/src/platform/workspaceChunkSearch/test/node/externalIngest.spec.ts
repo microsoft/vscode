@@ -24,7 +24,9 @@ import { GithubRequestOptions, IGithubApiFetcherService } from '../../../github/
 import { ISearchService } from '../../../search/common/searchService';
 import { createPlatformServices, TestingServiceCollection } from '../../../test/node/services';
 import { IWorkspaceService, NullWorkspaceService } from '../../../workspace/common/workspaceService';
-import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
+import { FileChunkAndScore } from '../../../chunking/common/chunk';
+import { StrategySearchSizing, WorkspaceChunkQueryWithEmbeddings } from '../../common/workspaceChunkSearch';
+import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestRequestError, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
 import { ExternalIngestIndex } from '../../node/codeSearch/externalIngestIndex';
 
 const emptyProgressCb: (message: string) => void = () => { };
@@ -33,6 +35,7 @@ const testTelemetryInfo = new TelemetryCorrelationId('externalIngest.spec.ts');
 function createMockExternalIngestClient(options?: {
 	canIngestPathAndSize?: (filePath: string, size: number) => boolean;
 	canIngestDocument?: (filePath: string, data: Uint8Array) => boolean;
+	searchFilesets?: (filesetName: string, prompt: string, limit: number) => Promise<Awaited<ReturnType<IExternalIngestClient['searchFilesets']>>>;
 }): IExternalIngestClient & {
 	get ingestedFiles(): readonly ExternalIngestFile[];
 	get searchCalls(): Array<{ filesetName: string; prompt: string }>;
@@ -57,8 +60,11 @@ function createMockExternalIngestClient(options?: {
 		async deleteFileset(_filesetName: string, _callTracker: CallTracker, _token: CancellationToken): Promise<void> {
 			// no-op
 		},
-		async searchFilesets(filesetName: string, prompt: string, _limit: number, _callTracker: CallTracker, _token: CancellationToken): Promise<undefined> {
+		async searchFilesets(filesetName: string, prompt: string, limit: number, _callTracker: CallTracker, _token: CancellationToken): Promise<Awaited<ReturnType<IExternalIngestClient['searchFilesets']>>> {
 			searchCalls.push({ filesetName, prompt });
+			if (options?.searchFilesets) {
+				return options.searchFilesets(filesetName, prompt, limit);
+			}
 			return undefined;
 		},
 		canIngestPathAndSize(filePath: string, size: number): boolean {
@@ -569,6 +575,73 @@ suite('ExternalIngestIndex', () => {
 		assert.strictEqual(mockFs.countReadFileCalls(file2), 2, 'Changed file should be re-read');
 		assert.strictEqual(mockFs.countReadFileCalls(file1), 1, 'Unchanged file1 should not be re-read');
 		assert.strictEqual(mockFs.countReadFileCalls(file3), 1, 'Unchanged file3 should not be re-read');
+	});
+});
+
+suite('ExternalIngestIndex search retry on 404', () => {
+	const disposables = new DisposableStore();
+	let testingServiceCollection: TestingServiceCollection;
+
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		testingServiceCollection = disposables.add(createPlatformServices());
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		disposables.clear();
+	});
+
+	const sizing = { maxResultCountHint: 10 } as StrategySearchSizing;
+	const query = { queryText: 'find the thing' } as WorkspaceChunkQueryWithEmbeddings;
+
+	function notReadyError(): ExternalIngestRequestError {
+		return new ExternalIngestRequestError('POST external-embeddings-code-search failed with status 404', new Response(null, { status: 404 }));
+	}
+
+	function createIndex(searchFilesets: (filesetName: string, prompt: string, limit: number) => Promise<Awaited<ReturnType<IExternalIngestClient['searchFilesets']>>>): ExternalIngestIndex {
+		const mockClient = createMockExternalIngestClient({ searchFilesets });
+		testingServiceCollection.set(IWorkspaceService, new MockWorkspaceService([URI.file('/workspace')]));
+		testingServiceCollection.set(IFileSystemService, new MockFileSystem(new ResourceMap<MockFileEntry>()));
+		testingServiceCollection.set(ISearchService, new MockFileSystem(new ResourceMap<MockFileEntry>()));
+		const accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		const instantiationService = accessor.get(IInstantiationService);
+		return disposables.add(instantiationService.createInstance(ExternalIngestIndex, mockClient, []));
+	}
+
+	async function runSearch(index: ExternalIngestIndex): Promise<readonly FileChunkAndScore[] | undefined> {
+		// Attach a no-op catch before flushing timers so a rejection during the retry
+		// backoff is never surfaced as an unhandled rejection; callers await `promise`.
+		const promise = index.search(sizing, query, testTelemetryInfo, CancellationToken.None);
+		const settled = promise.catch(() => { });
+		// Flush the 2s retry backoff timer so the retried request runs without real waiting.
+		await vi.runAllTimersAsync();
+		await settled;
+		return promise;
+	}
+
+	test('returns empty result when both search attempts fail with 404', async () => {
+		let calls = 0;
+		const index = createIndex(async () => {
+			calls++;
+			throw notReadyError();
+		});
+
+		const result = await runSearch(index);
+
+		assert.deepStrictEqual({ result, calls }, { result: [], calls: 2 });
+	});
+
+	test('rethrows when the retried search fails with a non-404 error', async () => {
+		let calls = 0;
+		const serverError = new ExternalIngestRequestError('POST external-embeddings-code-search failed with status 500', new Response(null, { status: 500 }));
+		const index = createIndex(async () => {
+			calls++;
+			throw calls === 1 ? notReadyError() : serverError;
+		});
+
+		await assert.rejects(runSearch(index), (err: unknown) => err === serverError);
+		assert.strictEqual(calls, 2, 'Search should be attempted exactly twice');
 	});
 });
 
