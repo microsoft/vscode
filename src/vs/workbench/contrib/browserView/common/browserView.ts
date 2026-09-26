@@ -511,6 +511,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private readonly _onWillNavigate = this._register(new Emitter<string>());
 	readonly onWillNavigate: Event<string> = this._onWillNavigate.event;
 
+	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
+	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
+
+	private readonly _onDidChangeLoadingState = this._register(new Emitter<IBrowserViewLoadingEvent>());
+	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent> = this._onDidChangeLoadingState.event;
+
+	private readonly _onDidChangeTitle = this._register(new Emitter<IBrowserViewTitleChangeEvent>());
+	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent> = this._onDidChangeTitle.event;
+
+	private readonly _onDidChangeFavicon = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
+	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicon.event;
+
 	constructor(
 		readonly id: string,
 		readonly host: IBrowserViewHost,
@@ -582,6 +594,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		// Set up state synchronization
 
+		this._register(this.browserViewService.onDynamicDidNavigate(this.id)(e => this._updateNavigation(e)));
+		this._register(this.browserViewService.onDynamicDidChangeLoadingState(this.id)(e => this._updateLoadingState(e)));
+		this._register(this.browserViewService.onDynamicDidChangeTitle(this.id)(e => this._updateTitle(e)));
+		this._register(this.browserViewService.onDynamicDidChangeFavicon(this.id)(e => this._updateFavicon(e)));
+
 		this._register(this.zoomService.onDidChangeZoom(({ host, isInMemoryChange }) => {
 			if (isInMemoryChange && !this._isInMemory) {
 				return;
@@ -593,43 +610,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 		}));
 
-		this._register(this.onDidNavigate(e => {
-			// Clear favicon on navigation to a different host
-			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
-				this._favicon = undefined;
-			}
-
-			this._zoomHost = parseZoomHost(e.url);
-			this._url = e.url;
-			this._title = e.title;
-			this._canGoBack = e.canGoBack;
-			this._canGoForward = e.canGoForward;
-			this._certificateError = e.certificateError;
-			this._updateSharingState();
-
-			// Always forceApply because Chromium resets zoom on cross-origin navigation,
-			// and an origin change may not correspond to a host change (e.g. http→https).
-			void this.setBrowserZoomIndex(
-				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory),
-				true
-			);
-		}));
-
-		this._register(this.onDidChangeLoadingState(e => {
-			this._loading = e.loading;
-			this._error = e.error;
-		}));
-
 		this._register(this.onDidChangeDevToolsState(e => {
 			this._isDevToolsOpen = e.isDevToolsOpen;
-		}));
-
-		this._register(this.onDidChangeTitle(e => {
-			this._title = e.title;
-		}));
-
-		this._register(this.onDidChangeFavicon(e => {
-			this._favicon = e.favicon;
 		}));
 
 		this._register(this.onDidChangeOwner(owner => {
@@ -676,6 +658,76 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.onDidChangeRemoteStatus(isRemoteSession => {
 			this._isRemoteSession = isRemoteSession;
 		}));
+
+		// Subscribe before reading back state: a popup can finish loading before its model exists.
+		void this._reconcileNavigationState().catch(error => {
+			this.logService.trace(`[BrowserViewModel] Failed to reconcile navigation state of ${this.id}:`, error);
+		});
+	}
+
+	/**
+	 * Applies navigation, loading, title, and favicon changes that main fired before this model subscribed.
+	 */
+	private async _reconcileNavigationState(): Promise<void> {
+		// Main replies after sending every event fired before it read this state, so it is never older than the model.
+		const state = await this.browserViewService.getNavigationState(this.id);
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		// Keep the URL, title, and favicon seeded from a requested URL or restored editor until a navigation commits.
+		if (state.url) {
+			if (state.url !== this._url || state.canGoBack !== this._canGoBack || state.canGoForward !== this._canGoForward || !structuralEquals(state.certificateError, this._certificateError)) {
+				this._updateNavigation({ url: state.url, title: state.title, canGoBack: state.canGoBack, canGoForward: state.canGoForward, certificateError: state.certificateError });
+			}
+			if (state.title !== this._title) {
+				this._updateTitle({ title: state.title });
+			}
+			if (state.lastFavicon !== this._favicon) {
+				this._updateFavicon({ favicon: state.lastFavicon });
+			}
+		}
+		if (state.loading !== this._loading || !structuralEquals(state.lastError, this._error)) {
+			this._updateLoadingState({ loading: state.loading, error: state.lastError });
+		}
+	}
+
+	private _updateNavigation(e: IBrowserViewNavigationEvent): void {
+		// Clear favicon on navigation to a different host
+		if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
+			this._favicon = undefined;
+		}
+
+		this._zoomHost = parseZoomHost(e.url);
+		this._url = e.url;
+		this._title = e.title;
+		this._canGoBack = e.canGoBack;
+		this._canGoForward = e.canGoForward;
+		this._certificateError = e.certificateError;
+		this._updateSharingState();
+
+		// Chromium resets zoom on cross-origin navigation, even when the host is unchanged.
+		void this.setBrowserZoomIndex(
+			this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory),
+			true
+		);
+		this._onDidNavigate.fire(e);
+	}
+
+	private _updateLoadingState(e: IBrowserViewLoadingEvent): void {
+		this._loading = e.loading;
+		this._error = e.error;
+		this._onDidChangeLoadingState.fire(e);
+	}
+
+	private _updateTitle(e: IBrowserViewTitleChangeEvent): void {
+		this._title = e.title;
+		this._onDidChangeTitle.fire(e);
+	}
+
+	private _updateFavicon(e: IBrowserViewFaviconChangeEvent): void {
+		this._favicon = e.favicon;
+		this._onDidChangeFavicon.fire(e);
 	}
 
 	get url(): string { return this._url; }
@@ -715,14 +767,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
-	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
-		return this.browserViewService.onDynamicDidNavigate(this.id);
-	}
-
-	get onDidChangeLoadingState(): Event<IBrowserViewLoadingEvent> {
-		return this.browserViewService.onDynamicDidChangeLoadingState(this.id);
-	}
-
 	get onDidChangeFocus(): Event<IBrowserViewFocusEvent> {
 		return this.browserViewService.onDynamicDidChangeFocus(this.id);
 	}
@@ -733,14 +777,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidKeyCommand(): Event<IBrowserViewKeyDownEvent> {
 		return this.browserViewService.onDynamicDidKeyCommand(this.id);
-	}
-
-	get onDidChangeTitle(): Event<IBrowserViewTitleChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeTitle(this.id);
-	}
-
-	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
 	}
 
 	get onDidChangeOwner(): Event<IBrowserViewOwner> {

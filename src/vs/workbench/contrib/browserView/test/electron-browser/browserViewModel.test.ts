@@ -28,6 +28,7 @@ suite('BrowserViewModel', () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const browserViewService = upcastPartial<IBrowserViewService>({
+			getNavigationState: async () => initialState,
 			onDynamicDidChangePermissions: () => Event.None,
 			onDynamicDidChangeDeviceEmulation: () => Event.None,
 			onDynamicDidNavigate: () => Event.None,
