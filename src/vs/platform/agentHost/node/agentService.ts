@@ -489,6 +489,17 @@ function reconcileWorkingDirectories(requested: readonly URI[] | undefined, reso
 	return [...resolved, ...tail].map(d => d.toString());
 }
 
+interface IProcessRootReplacement {
+	readonly directory: string;
+	readonly replacement: string;
+}
+
+function processRootReplacement(current: readonly string[] | undefined, resolved: readonly string[] | undefined): IProcessRootReplacement | undefined {
+	const directory = current?.[0];
+	const replacement = resolved?.[0];
+	return directory && replacement && directory !== replacement ? { directory, replacement } : undefined;
+}
+
 export interface IAgentServiceOptions {
 	readonly rootConfigResource?: URI;
 	readonly copilotApiService?: ICopilotApiService;
@@ -508,6 +519,7 @@ export interface IAgentServiceCallbacks {
 	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
+	readonly announceUnsentProvisionalSession: NonNullable<IAgentSideEffectsOptions['announceUnsentProvisionalSession']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
@@ -871,6 +883,7 @@ export class AgentService extends Disposable implements IAgentService {
 			cancelAgentMergeTurn: (chat, turnId) => this._cancelAgentMergePrompt(chat, turnId),
 			postAgentMergeNotice: (chat, kind, content) => this._postAgentMergeNotice(chat, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
+			announceUnsentProvisionalSession: params => this._announceUnsentProvisionalSession(params.session, params.workingDirectories),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
@@ -5441,37 +5454,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			void write.then(clearWrite, clearWrite);
 		}
-		// The agent no longer knows about worktrees; the host's worktree project
-		// (created in the first-send hook) wins for worktree-isolated sessions, and
-		// falls back to whatever the agent reported for folder sessions.
-		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(session));
-		const project = worktreeInfo?.project ?? e.project;
-		const materializedMeta = worktreeInfo
-			? this._gitStateService.getMaterializedWorktreeMeta(sessionKey, worktreeInfo.branchName)
-			: currentSummary._meta;
-		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
-		// The materialize receipt is authoritative for the roots it reports
-		// (index 0 = the resolved process root, e.g. a worktree). A send-path
-		// receipt carries the full resolved set; a resume-path receipt reports
-		// only the process root, so the rest of the current set is preserved.
-		const workingDirectories = reconcileWorkingDirectories(currentSet, e.workingDirectories);
-		const previousWorkingDirectory = currentSummary.workingDirectories?.[0];
-		const materializedWorkingDirectory = workingDirectories?.[0];
-		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
-			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
-			: undefined;
-		// The session folder's GitHub state moves with its checkout.
-		let summaryMeta = workingDirectoryReplacement
-			? withReplacedFolderGitHubState(materializedMeta, workingDirectoryReplacement.directory, workingDirectoryReplacement.replacement)
-			: materializedMeta;
-		summaryMeta = withPublishedWorkingDirectoryIdentities(summaryMeta, workingDirectories, state.chats);
-		const summary: SessionSummary = {
-			...currentSummary,
-			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
-			workingDirectories,
-			modifiedAt: new Date().toISOString(),
-			...(summaryMeta !== undefined ? { _meta: summaryMeta } : {}),
-		};
+		const { summary, workingDirectoryReplacement } = this._withResolvedWorkingDirectories(sessionKey, currentSummary, e.workingDirectories, e.project);
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
 			this._persistConfigValues(session, configValues);
@@ -5500,7 +5483,7 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		this._publishWorkingDirectoryIdentities(sessionKey);
-		const gitHubState = readSessionGitHubState(summary._meta, materializedWorkingDirectory);
+		const gitHubState = readSessionGitHubState(summary._meta, summary.workingDirectories?.[0]);
 		if (gitHubState) {
 			void this._gitStateService.setSessionGitHubState(sessionKey, gitHubState);
 		}
@@ -5512,6 +5495,50 @@ export class AgentService extends Disposable implements IAgentService {
 		// before the working directory was known, recompute the current
 		// subscriptions now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
+	}
+
+	private _withResolvedWorkingDirectories(sessionKey: string, currentSummary: SessionSummary, workingDirectories: readonly URI[] | undefined, reportedProject: IAgentMaterializeChatEvent['project']): { readonly summary: SessionSummary; readonly workingDirectoryReplacement: IProcessRootReplacement | undefined } {
+		// Agents don't know about worktrees, so the host's worktree decides the project and branch.
+		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(sessionKey));
+		const project = worktreeInfo?.project ?? reportedProject;
+		const materializedMeta = worktreeInfo
+			? this._gitStateService.getMaterializedWorktreeMeta(sessionKey, worktreeInfo.branchName)
+			: currentSummary._meta;
+		const resolvedWorkingDirectories = reconcileWorkingDirectories(currentSummary.workingDirectories?.map(d => URI.parse(d)), workingDirectories);
+		const workingDirectoryReplacement = processRootReplacement(currentSummary.workingDirectories, resolvedWorkingDirectories);
+		// The session folder's GitHub state moves with its checkout.
+		let meta = workingDirectoryReplacement
+			? withReplacedFolderGitHubState(materializedMeta, workingDirectoryReplacement.directory, workingDirectoryReplacement.replacement)
+			: materializedMeta;
+		meta = withPublishedWorkingDirectoryIdentities(meta, resolvedWorkingDirectories, this._stateManager.getSessionState(sessionKey)?.chats);
+		return {
+			summary: {
+				...currentSummary,
+				...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
+				workingDirectories: resolvedWorkingDirectories,
+				modifiedAt: new Date().toISOString(),
+				...(meta !== undefined ? { _meta: meta } : {}),
+			},
+			workingDirectoryReplacement,
+		};
+	}
+
+	/** Also publishes the resolved worktree, so the next send runs in it rather than in the picked folder. */
+	private _announceUnsentProvisionalSession(session: string, workingDirectories: readonly URI[] | undefined): void {
+		const currentSummary = this._stateManager.getSessionSummary(session);
+		if (!currentSummary) {
+			return;
+		}
+		const { summary, workingDirectoryReplacement } = this._withResolvedWorkingDirectories(session, currentSummary, workingDirectories, undefined);
+		this._stateManager.markSessionPersisted(session, summary);
+		if (workingDirectoryReplacement) {
+			this._stateManager.dispatchServerAction(session, {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				...workingDirectoryReplacement,
+			});
+			void this._gitStateService.refreshSessionGitState(session, URI.parse(workingDirectoryReplacement.replacement));
+		}
+		this._publishWorkingDirectoryIdentities(session);
 	}
 
 	/** Drop a session's download-progress opt-in, if any. */

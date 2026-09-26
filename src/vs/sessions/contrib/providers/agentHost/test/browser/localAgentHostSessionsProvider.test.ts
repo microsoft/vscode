@@ -9112,6 +9112,83 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('archiving a new session before its first request commits archives the draft and then the committed session', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		const archiveDispatches = () => agentHost.dispatchedActions
+			.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+			.map(dispatched => ({ session: AgentSession.id(dispatched.channel), action: dispatched.action }));
+
+		await provider.archiveSession(session.sessionId);
+		const beforeCommit = { draftArchived: session.isArchived.get(), dispatched: archiveDispatches() };
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			beforeCommit,
+			committedArchived: committed.isArchived.get(),
+			dispatched: archiveDispatches(),
+		}, {
+			beforeCommit: { draftArchived: true, dispatched: [] },
+			committedArchived: true,
+			dispatched: [{ session: rawId, action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	});
+
+	test('unarchiving a new session after the host announces it but before commit is not undone at commit', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+
+		await provider.archiveSession(session.sessionId);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		await provider.unarchiveSession(session.sessionId);
+		const draftArchived = session.isArchived.get();
+		agentHost.listSessionsBarrier.complete();
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			draftArchived,
+			committedArchived: committed.isArchived.get(),
+			dispatched: agentHost.dispatchedActions
+				.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+				.map(dispatched => dispatched.action),
+		}, {
+			draftArchived: false,
+			committedArchived: false,
+			dispatched: [{ type: ActionType.SessionIsArchivedChanged, isArchived: false }],
+		});
+	});
+
 	test('sendRequest rejects when the provisional session is abandoned before commit', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,

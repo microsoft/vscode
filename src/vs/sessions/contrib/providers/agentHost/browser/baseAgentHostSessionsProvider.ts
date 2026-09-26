@@ -2533,6 +2533,7 @@ class NewSession extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _isArchived = observableValue<boolean>(this, false);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
@@ -2679,7 +2680,7 @@ class NewSession extends Disposable {
 		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, this._selectedAgent ? { id: this._selectedAgent.uri, kind: AGENT_MODE_KIND } : undefined);
 		this._mode = mode;
-		const isArchived = observableValue(this, false);
+		const isArchived = this._isArchived;
 		const isRead = observableValue(this, true);
 		this._description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
@@ -2787,6 +2788,7 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setArchived(isArchived: boolean): void { this._isArchived.set(isArchived, undefined); }
 	startRequest(activity: string | undefined): IDisposable {
 		const requestId = this._newSessionRequestId++;
 		this._newSessionRequestActivities.set(requestId, activity);
@@ -5469,6 +5471,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, true)) {
+			return;
+		}
 		this._setSessionArchived(sessionId, true);
 	}
 
@@ -5485,7 +5490,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, false)) {
+			return;
+		}
 		this._setSessionArchived(sessionId, false);
+	}
+
+	/** Mirrors the change on a sent new session's draft. Returns `true` while the host hasn't announced the session, so the commit applies it. */
+	protected _setPendingNewSessionArchived(sessionId: string, isArchived: boolean): boolean {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession || newSession.session.status.get() === SessionStatus.Untitled) {
+			return false;
+		}
+		newSession.setArchived(isArchived);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession.session] });
+		return !this._hasSession(sessionId);
 	}
 
 	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
@@ -6089,6 +6108,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
+				}
+				if (newSession.session.isArchived.get() && !committedSession.isArchived.get()) {
+					await this.archiveSession(committedSession.sessionId).catch(error => this._logService.error(`[${this.id}] Failed to archive session '${committedSession.sessionId}' after it was created.`, error));
 				}
 				const committedRawIdForSelections = this._rawIdFromChatId(committedSession.sessionId);
 				const committedAdapter = committedRawIdForSelections ? this._sessionCache.get(committedRawIdForSelections) : undefined;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -159,6 +160,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
+	/** Keeps an overlapping archive and unarchive of a session in order, since both await the Dev Container worktree. */
+	private readonly _archiveSequencer = new SequencerByKey<string>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -332,22 +335,24 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
-		if (!this._hasSession(sessionId) || !this.connection) {
-			return;
-		}
-		await this._setDetachedWorktreeArchived(sessionId, true);
-		if (!this._setSessionArchived(sessionId, true)) {
-			await this._setDetachedWorktreeArchived(sessionId, false);
+		if (!this._setPendingNewSessionArchived(sessionId, true)) {
+			await this._archiveSequencer.queue(sessionId, () => this._setArchivedWithDetachedWorktree(sessionId, true));
 		}
 	}
 
 	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, false)) {
+			await this._archiveSequencer.queue(sessionId, () => this._setArchivedWithDetachedWorktree(sessionId, false));
+		}
+	}
+
+	private async _setArchivedWithDetachedWorktree(sessionId: string, isArchived: boolean): Promise<void> {
 		if (!this._hasSession(sessionId) || !this.connection) {
 			return;
 		}
-		await this._setDetachedWorktreeArchived(sessionId, false);
-		if (!this._setSessionArchived(sessionId, false)) {
-			await this._setDetachedWorktreeArchived(sessionId, true);
+		await this._setDetachedWorktreeArchived(sessionId, isArchived);
+		if (!this._setSessionArchived(sessionId, isArchived)) {
+			await this._setDetachedWorktreeArchived(sessionId, !isArchived);
 		}
 	}
 
