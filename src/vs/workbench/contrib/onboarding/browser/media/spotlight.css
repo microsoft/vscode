@@ -94,11 +94,6 @@
 	pointer-events: auto;
 }
 
-.spotlight-callout:focus,
-.spotlight-callout:focus-visible {
-	outline: none;
-}
-
 .spotlight-callout-title {
 	margin: 0 0 var(--vscode-spacing-size80) 0;
 	font-size: var(--vscode-bodyFontSize);
