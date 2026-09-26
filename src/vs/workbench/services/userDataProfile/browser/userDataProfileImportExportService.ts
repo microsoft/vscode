@@ -40,6 +40,9 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Mutable, isUndefined } from '../../../../base/common/types.js';
 import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -85,6 +88,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		@IRequestService private readonly requestService: IRequestService,
 		@IProductService private readonly productService: IProductService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.registerProfileContentHandler(Schemas.file, this.fileUserDataProfileContentHandler = instantiationService.createInstance(FileUserDataProfileContentHandler));
@@ -133,6 +138,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					await this.instantiationService.createInstance(ExtensionsResource).copy(from, profile, false);
 				}
 			} catch (error) {
+				this.reportProfileCreationError(error);
 				if (profile) {
 					await this.userDataProfilesService.removeProfile(profile);
 					profile = undefined;
@@ -168,6 +174,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			try {
 				await creationPromise;
 			} catch (error) {
+				this.reportProfileCreationError(error);
 				if (profile) {
 					await this.userDataProfilesService.removeProfile(profile);
 					profile = undefined;
@@ -175,6 +182,15 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			return profile;
 		}, () => creationPromise.cancel()).finally(() => disposables.dispose());
+	}
+
+	private reportProfileCreationError(error: unknown): void {
+		if (isCancellationError(error)) {
+			return;
+		}
+		const message = getErrorMessage(error);
+		this.logService.error('Error while creating profile.', message);
+		this.notificationService.error(localize('errorCreatingProfile', "An error occurred while creating the profile: {0}", message));
 	}
 
 	private async applyProfileTemplate(profileTemplate: IUserDataProfileTemplate, profile: IUserDataProfile, options: IUserDataProfileCreateOptions, reportProgress: (message: string) => void, token: CancellationToken): Promise<void> {
