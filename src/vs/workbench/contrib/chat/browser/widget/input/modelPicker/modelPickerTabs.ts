@@ -7,7 +7,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -67,33 +67,6 @@ export interface IModelPickerSections {
 	readonly unavailable: readonly IModelPickerUnavailableEntry[];
 	/** Selectable speed pairs, shared with the model cards. */
 	readonly speedVariants: ReadonlyMap<string, IModelSpeedVariants>;
-}
-
-/**
- * Vendor ids that are the built-in provider under another name. Its models reach the
- * picker from the extension, from the CLI harness, and as agent-host copies, and each
- * of those names a different vendor.
- */
-const BUILT_IN_GROUP_IDS: ReadonlySet<string> = new Set([COPILOT_VENDOR_ID, 'copilotcli']);
-
-/**
- * Whether the user brought this model themselves rather than getting it from the
- * built-in provider.
- *
- * This follows the provider group, the same thing the picker names a model's source by,
- * rather than the BYOK flags: a host that forwards the built-in provider's models sets
- * those flags on every model it relays, which would file the whole catalogue under the
- * user's own models.
- */
-export function isUserProvidedModel(
-	model: ILanguageModelChatMetadataAndIdentifier,
-	languageModelsService: ILanguageModelsService,
-): boolean {
-	const groupId = model.metadata.modelGroup?.id ?? model.metadata.vendor;
-	if (BUILT_IN_GROUP_IDS.has(groupId)) {
-		return false;
-	}
-	return groupId !== languageModelsService.getVendors().find(vendor => vendor.isDefault)?.vendor;
 }
 
 /** The provider a model came from, as shown in group headings. */
