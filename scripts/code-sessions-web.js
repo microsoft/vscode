@@ -31,8 +31,8 @@ async function main() {
 		return;
 	}
 
-	const HOST = args['host'] ?? 'localhost';
-	const PORT = parseInt(args['port'] ?? '8081', 10);
+	const HOST = args.host ?? 'localhost';
+	const PORT = parseInt(args.port ?? '8081', 10);
 
 	// Collect CSS module paths from the compiled output (same as @vscode/test-web does).
 	// These are turned into an import map so the browser can load `import './foo.css'`
@@ -52,7 +52,7 @@ async function main() {
 		// Serve the sessions workbench HTML at the root
 		if (url.pathname === '/' || url.pathname === '/index.html') {
 			res.writeHead(200, { 'Content-Type': 'text/html' });
-			res.end(getSessionsHTML(HOST, PORT, cssModules, args['mock']));
+			res.end(getSessionsHTML(HOST, PORT, cssModules, args.mock));
 			return;
 		}
 
