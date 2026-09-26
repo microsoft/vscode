@@ -118,7 +118,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
@@ -238,7 +238,6 @@ interface IObserveTurnOptions {
 	readonly requireActiveTurn?: boolean;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onResponseText?: (text: string) => void;
-	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 	/**
 	 * When set, a failed turn does NOT emit its error as a markdown progress
 	 * part. The caller surfaces it instead as the agent result's
@@ -3239,12 +3238,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
 				},
-				onFileEdits: (tc) => {
-					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
-					if (editParts.length > 0) {
-						progress(editParts);
-					}
-				},
 			}));
 		});
 	}
@@ -3325,12 +3318,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._clientDispatchedTurnIds.delete(turnId);
 					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
-				},
-				onFileEdits: toolCall => {
-					const editParts = this._hydrateFileEdits(request.sessionResource, turnId, toolCall);
-					if (editParts.length > 0) {
-						progress(editParts);
-					}
 				},
 			}));
 			if (shouldDispatchResume) {
@@ -4146,10 +4133,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const toolCall = part$.read(reader).toolCall;
 			this._trackSubagentToolCall(toolCall, invocation, opts, subagentContext);
 			if ((toolCall.status === ToolCallStatus.Completed || toolCall.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
-				const fileEdits = finalizeToolInvocation(invocation, toolCall, opts.backendSession, this._config.connectionAuthority, this._config.connection.resourceUris);
-				if (fileEdits.length > 0) {
-					opts.onFileEdits?.(toolCall, fileEdits);
-				}
+				this._finalizeToolInvocation(invocation, toolCall, opts);
 			}
 		}));
 
@@ -4313,10 +4297,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._ensureLeftStreaming(invocation, tc, opts);
 				}
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, opts.chatURI, outputTerminalAttachment);
-				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority, this._config.connection.resourceUris);
-				if (fileEdits.length > 0) {
-					opts.onFileEdits?.(tc, fileEdits);
-				}
+				this._finalizeToolInvocation(invocation, tc, opts);
 			}
 		}));
 
@@ -4629,10 +4610,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)
 				&& !IChatToolInvocation.isComplete(invocation, reader)) {
-				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority, this._config.connection.resourceUris);
-				if (fileEdits.length > 0) {
-					opts.onFileEdits?.(tc, fileEdits);
-				}
+				this._finalizeToolInvocation(invocation, tc, opts);
 			}
 		}));
 	}
@@ -5255,7 +5233,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const tc = rp.toolCall;
 					if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 						const completedTc = tc as ICompletedToolCall;
-						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
+						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority, toolCallId);
 						const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority, this._config.connection.resourceUris);
 						if (fileEditParts.length > 0) {
 							serialized.presentation = ToolInvocationPresentation.Hidden;
@@ -5565,11 +5543,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return editingSession;
 	}
 
-	/**
-	 * Records snapshot data for a completed tool call (so restore-snapshot
-	 * works) and returns the {@link IChatExternalEdit} progress parts to
-	 * render the per-file edit pills.
-	 */
+	/** Completes a live invocation and publishes its edit results on every observation path. */
+	private _finalizeToolInvocation(invocation: ChatToolInvocation, toolCall: ICompletedToolCall, opts: IObserveTurnOptions): void {
+		const edits = finalizeToolInvocation(invocation, toolCall, opts.backendSession, this._config.connectionAuthority, this._config.connection.resourceUris);
+		if (edits.length === 0) {
+			return;
+		}
+		// Child traces share the parent's model; only the owning chat hydrates its edit checkpoints.
+		const editParts = opts.subAgentInvocationId !== undefined
+			? completedToolCallToEditParts(toolCall, this._config.connectionAuthority, opts.subAgentInvocationId)
+			: this._hydrateFileEdits(opts.sessionResource, opts.turnId, toolCall);
+		opts.sink(editParts);
+	}
+
+	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */
 	private _hydrateFileEdits(
 		sessionResource: URI,
 		requestId: string,

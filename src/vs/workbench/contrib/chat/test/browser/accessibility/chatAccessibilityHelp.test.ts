@@ -75,6 +75,16 @@ suite('Chat Accessibility Help', () => {
 		}, { finished: true, subagentTail: true, parentTail: true });
 	});
 
+	test('documents keyboard access to subagent chats and inline details', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			focus: help.includes('Use Tab to focus a subagent pill'),
+			open: help.includes('Enter or Space to open its chat'),
+			inline: help.includes('Enter or Space expands or collapses its inline details'),
+			status: help.includes('announces its running state and any pending confirmations'),
+		}, { focus: true, open: true, inline: true, status: true });
+	});
+
 	test('documents the Copilot tab switch and independent provider navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

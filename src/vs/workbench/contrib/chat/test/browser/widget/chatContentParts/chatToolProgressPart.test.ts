@@ -470,7 +470,7 @@ suite('ChatToolProgressSubPart', () => {
 			mockConfigurationService,
 			new MockChatWidgetService(),
 		));
-		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
+		const sessionIdBeforeUpdate = part.domNode.querySelector('[data-terminal-tool-session-id]')?.getAttribute('data-terminal-tool-session-id');
 
 		terminalData = { ...terminalData, terminalToolSessionId: 'terminal-session' };
 		state.set({ ...state.get() }, undefined);
@@ -478,7 +478,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			renderCount: createInstanceStub.callCount,
 			sessionIdBeforeUpdate,
-			sessionIdAfterUpdate: part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id'),
+			sessionIdAfterUpdate: part.domNode.querySelector('[data-terminal-tool-session-id]')?.getAttribute('data-terminal-tool-session-id'),
 		}, {
 			renderCount: 2,
 			sessionIdBeforeUpdate: '',
