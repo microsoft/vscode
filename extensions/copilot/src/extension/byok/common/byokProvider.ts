@@ -70,6 +70,7 @@ export interface BYOKModelCapabilities {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
+	extraBody?: Record<string, Object>,
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
@@ -176,6 +177,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
 		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
 		modelOptions: knownModelInfo?.modelOptions,
+		extraBody: knownModelInfo?.extraBody,
 		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
