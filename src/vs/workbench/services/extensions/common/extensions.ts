@@ -458,6 +458,9 @@ export interface IExtensionService {
 	 */
 	readonly onWillStop: Event<WillStopExtensionHostsEvent>;
 
+	/** Fired after extension hosts have stopped. */
+	readonly onDidStop: Event<void>;
+
 	/**
 	 * Send an activation event and activate interested extensions.
 	 *
@@ -600,6 +603,7 @@ export class NullExtensionService implements IExtensionService {
 	readonly onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
 	readonly onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
+	readonly onDidStop: Event<void> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(undefined); }
