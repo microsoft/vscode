@@ -226,6 +226,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			context.extension.extensionKind,
 			this._microsoft,
 			this._accountLinks,
+			context.isCustomUserDataDir,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.
