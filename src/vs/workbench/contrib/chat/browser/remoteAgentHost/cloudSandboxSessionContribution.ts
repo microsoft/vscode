@@ -423,17 +423,25 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	/**
-	 * Remove the connection (and its credential refresher) for an environment while keeping the
-	 * provider and its cached sessions visible in a disconnected state. Disposing the protocol
-	 * client stops its soft-reconnect loop and disposes the credential refresher owned by its
-	 * connection factory.
+	 * Cancel pending work and remove the connection while retaining the provider and its cached sessions.
 	 */
-	private async _disconnectEnvironment(address: string): Promise<void> {
+	protected async _disconnectEnvironment(address: string): Promise<void> {
+		this._cancelPendingConnect(address);
 		try {
 			await this._cloudSandboxService.disconnect(address);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Failed to disconnect ${address}: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			if (!this._pendingConnects.has(address)) {
+				this._settleFailedConnect(address);
+			}
 		}
+	}
+
+	private _cancelPendingConnect(address: string): void {
+		const pending = this._pendingConnects.get(address);
+		this._pendingConnects.delete(address);
+		pending?.source.dispose(true);
 	}
 
 	/**
@@ -443,8 +451,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 */
 	private _teardownEnvironment(address: string): void {
 		this._environments.delete(address);
-		this._pendingConnects.get(address)?.source.dispose(true);
-		this._pendingConnects.delete(address);
+		this._cancelPendingConnect(address);
 		this._providerStores.deleteAndDispose(address);
 		// Drop the read-only stand-in too, or disabling the feature would leave a content provider
 		// registered for a session type this contribution no longer serves.

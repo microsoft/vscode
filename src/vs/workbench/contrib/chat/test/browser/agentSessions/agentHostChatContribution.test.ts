@@ -210,9 +210,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public defaultChatUri: string | undefined;
 	public disposedChats: URI[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
+	public readonly pendingSubscriptions = new Set<string>();
 
 	/** Error to fail a subscription with, when the default generic error is not what is under test. */
 	public failNextSubscriptionError = new Map<string, Error>();
@@ -319,6 +321,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	hasLiveSubscription(resource: string): boolean {
 		return this._liveSubscriptions.has(resource);
+	}
+
+	hydrateSubscription(resource: string): void {
+		const entry = this._liveSubscriptions.get(resource);
+		if (!entry) {
+			throw new Error(`No live subscription for ${resource}`);
+		}
+		this.pendingSubscriptions.delete(resource);
+		entry.emitter.fire(entry.state);
 	}
 
 	fireSubscriptionError(resource: string, error: Error): void {
@@ -430,7 +441,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// Hydrate synchronously with a default state. For a default-chat channel
 		// serve a ChatState carrying the conversation fields the test seeded on
 		// the owning session; otherwise serve the SessionState.
-		const sessionForChat = parseDefaultChatUri(resourceStr);
+		const sessionForChat = parseDefaultChatUri(resourceStr)
+			?? [...this._liveSubscriptions].find(([, entry]) => hasKey(entry.state, { chats: true }) && entry.state.defaultChat === resourceStr)?.[0];
 		let initialState: SessionState | ChatState;
 		if (sessionForChat !== undefined) {
 			initialState = this._buildDefaultChatState(sessionForChat, resourceStr);
@@ -457,8 +469,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 		const self = this;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._liveSubscriptions.get(resourceStr)?.error ?? self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
-			get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
+			get value() { return self._liveSubscriptions.get(resourceStr)?.error ?? (self.pendingSubscriptions.has(resourceStr) ? undefined : self._liveSubscriptions.get(resourceStr)?.state as unknown as T); },
+			get verifiedValue() { return self.pendingSubscriptions.has(resourceStr) ? undefined : self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			onDidChange: emitter.event,
 			onDidError: onDidError.event,
 			onWillApplyAction: entry.onWillApply.event,
@@ -486,8 +498,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		return {
-			get value() { return self._liveSubscriptions.get(resource.toString())?.error ?? self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
-			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			get value() { return self._liveSubscriptions.get(resource.toString())?.error ?? (self.pendingSubscriptions.has(resource.toString()) ? undefined : self._liveSubscriptions.get(resource.toString())?.state as unknown as T); },
+			get verifiedValue() { return self.pendingSubscriptions.has(resource.toString()) ? undefined : self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			onDidChange: entry.emitter.event as unknown as Event<T>,
 			onDidError: entry.onDidError.event,
 			onWillApplyAction: entry.onWillApply.event,
@@ -609,7 +621,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			workingDirectories: state.workingDirectories,
 			project: state.project,
 		};
-		const chatUri = buildDefaultChatUri(resource);
+		const chatUri = this.defaultChatUri ?? buildDefaultChatUri(resource);
 		const additionalChats = [...this.sessionStates.keys()]
 			.filter(uri => uri !== chatUri && parseDefaultChatUri(uri) === resource)
 			.map(uri => createDefaultChatSummary(summary, uri));
@@ -2054,6 +2066,280 @@ suite('AgentHostChatContribution', () => {
 				serverSeq: 1,
 				origin: undefined,
 			});
+		}
+
+		for (const creation of ['deferred', 'not-found', 'eager']) {
+			for (const opaqueChatUri of [false, true]) {
+				test(`synchronizes drafts after ${creation} creation with ${opaqueChatUri ? 'opaque' : 'default'} chat URI`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+					const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'shared-model', name: 'Shared Model' });
+					const selectedModel = { identifier: 'agent-host-copilot:shared-model', metadata: modelMetadata };
+					const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
+						languageModels: new Map([[selectedModel.identifier, modelMetadata]]),
+					});
+					const sessionId = creation === 'not-found' ? 'draft-sync-not-found' : `new-draft-sync-${creation}`;
+					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/${sessionId}` });
+					const backendSession = AgentSession.uri('copilot', sessionId);
+					agentHostService.defaultChatUri = opaqueChatUri ? 'ahp-chat:/host-selected-chat' : undefined;
+					const chatUri = agentHostService.defaultChatUri ?? buildDefaultChatUri(backendSession.toString());
+					if (creation === 'not-found') {
+						agentHostService.failNextSubscriptionFor.add(backendSession.toString());
+						agentHostService.failNextSubscriptionError.set(backendSession.toString(), new ProtocolError(AHP_NOT_FOUND, 'Session not created yet'));
+					} else if (creation === 'eager') {
+						seedDraftSession(agentHostService, backendSession, 'Eager Draft');
+						disposables.add(agentHostService.getSubscription(StateComponents.Session, backendSession));
+					}
+
+					const { inputModel, inputState } = createDraftInputModel({
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined,
+						inputText: '',
+						selections: [],
+						contrib: {},
+					});
+					const requests = [upcastPartial<IChatRequestModel>({ id: 'req-1' })];
+					chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource,
+						inputModel,
+						getRequests: () => requests,
+						startEditingSession: () => { },
+						onDidChangePendingRequests: Event.None,
+						getPendingRequests: () => [],
+					}));
+
+					const { turnPromise, turnId, fire, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+					fire({ type: ActionType.ChatTurnComplete, turnId: turnId!, duration: 1000 });
+					await turnPromise;
+
+					requests.push(upcastPartial<IChatRequestModel>({ id: 'req-2' }));
+					const nextTurn = chatAgentService.registeredAgents.get('agent-host-copilot')!.impl.invoke(
+						makeRequest({ sessionResource, requestId: 'req-2' }), () => { }, [], CancellationToken.None,
+					);
+					await timeout(10);
+					const dispatch = agentHostService.turnActions.at(-1);
+					if (dispatch?.action.type !== ActionType.ChatTurnStarted) {
+						assert.fail('Expected the second turn to start');
+					}
+					fire(dispatch.action);
+					fire({ type: ActionType.ChatTurnComplete, turnId: dispatch.action.turnId, duration: 1000 });
+					await nextTurn;
+
+					fire({
+						type: ActionType.ChatDraftChanged,
+						draft: { text: 'from another client', origin: { kind: MessageKind.User }, model: { id: 'shared-model' } },
+					});
+					const received = { text: inputState.get()?.inputText, model: inputState.get()?.selectedModel?.identifier };
+					fire({ type: ActionType.ChatDraftChanged, draft: undefined });
+					const cleared = { text: inputState.get()?.inputText, model: inputState.get()?.selectedModel?.identifier };
+
+					inputModel.setState({ inputText: 'unsent local edit', selectedModel, selectedModelReason: ModelSelectionReason.UserSelection });
+					fire({
+						type: ActionType.ChatDraftChanged,
+						draft: { text: 'concurrent remote edit', origin: { kind: MessageKind.User } },
+					});
+					const pendingLocalText = inputState.get()?.inputText;
+					await timeout(500);
+					inputModel.setState({ inputText: 'flush before closing' });
+					chatSession.dispose();
+					inputModel.setState({ inputText: 'do not publish after disposal' });
+					await timeout(500);
+
+					assert.deepStrictEqual({
+						created: agentHostService.createSessionCalls.length,
+						received,
+						cleared,
+						pendingLocalText,
+						drafts: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged
+							? [{ channel: entry.channel, draft: entry.action.draft }] : []),
+					}, {
+						created: creation === 'eager' ? 0 : 1,
+						received: { text: 'from another client', model: selectedModel.identifier },
+						cleared: { text: '', model: selectedModel.identifier },
+						pendingLocalText: 'unsent local edit',
+						drafts: ['unsent local edit', 'flush before closing'].map(text => ({
+							channel: chatUri,
+							draft: { text, origin: { kind: MessageKind.User }, model: { id: 'shared-model' } },
+						})),
+					});
+				}));
+			}
+		}
+
+		for (const creation of ['deferred', 'eager']) {
+			for (const scenario of [
+				{ input: 'empty', pending: false },
+				{ input: 'fallback', pending: false },
+				{ input: 'empty', pending: true },
+				{ input: 'fallback', pending: true },
+				{ input: 'text', pending: true },
+				{ input: 'attachment', pending: true },
+				{ input: 'agent', pending: true },
+				{ input: 'model', pending: true },
+			]) {
+				test(`reconciles an initial draft after ${creation} creation with ${scenario.input} input and ${scenario.pending ? 'pending' : 'hydrated'} chat state`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+					const sharedMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'shared-model', name: 'Shared Model' });
+					const fallbackMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'fallback-model', name: 'Fallback Model' });
+					const sharedModel = { identifier: 'agent-host-copilot:shared-model', metadata: sharedMetadata };
+					const fallbackModel = { identifier: 'agent-host-copilot:fallback-model', metadata: fallbackMetadata };
+					const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
+						languageModels: new Map([[sharedModel.identifier, sharedMetadata], [fallbackModel.identifier, fallbackMetadata]]),
+					});
+					const sessionId = `new-initial-draft-${creation}`;
+					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/${sessionId}` });
+					const backendSession = AgentSession.uri('copilot', sessionId);
+					const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/initial-shared-draft';
+					const localFile = URI.file('/workspace/local.txt');
+					seedDraftSession(agentHostService, backendSession, 'Initial Shared Draft', {
+						text: 'shared draft',
+						origin: { kind: MessageKind.User },
+						model: { id: 'shared-model', config: { thinkingLevel: 'high' } },
+						agent: { uri: 'agent://reviewer' },
+						attachments: [{ type: MessageAttachmentKind.Simple, label: 'Shared context', modelRepresentation: 'shared context' }],
+					});
+					// Keep the chat snapshot when createSession replaces the session-level state.
+					agentHostService.sessionStates.set(chatUri, agentHostService.sessionStates.get(backendSession.toString())!);
+					if (creation === 'eager') {
+						disposables.add(agentHostService.getSubscription(StateComponents.Session, backendSession));
+					}
+					if (scenario.pending) {
+						agentHostService.pendingSubscriptions.add(chatUri);
+					}
+					const { inputModel, inputState } = createDraftInputModel({
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: scenario.input === 'empty' ? undefined : fallbackModel,
+						selectedModelReason: ModelSelectionReason.FirstAvailable,
+						inputText: '',
+						selections: [],
+						contrib: {},
+					});
+					chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource,
+						inputModel,
+						getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'req-1' })],
+						startEditingSession: () => { },
+						onDidChangePendingRequests: Event.None,
+						getPendingRequests: () => [],
+					}));
+
+					const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+					const locallyEdited = scenario.input !== 'empty' && scenario.input !== 'fallback';
+					if (locallyEdited) {
+						inputModel.setState({
+							inputText: scenario.input === 'text' ? 'local draft' : '',
+							attachments: scenario.input === 'attachment' ? [{ kind: 'file', id: 'local-file', name: 'local.txt', value: localFile }] : [],
+							mode: { id: scenario.input === 'agent' ? 'agent://local' : 'agent', kind: ChatModeKind.Agent },
+							selectedModelReason: scenario.input === 'model' ? ModelSelectionReason.UserSelection : ModelSelectionReason.FirstAvailable,
+							modelConfiguration: scenario.input === 'model' ? { thinkingLevel: 'low' } : undefined,
+						});
+					}
+					await timeout(500);
+					const draftsBeforeHydration = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged);
+					if (scenario.pending) {
+						agentHostService.hydrateSubscription(chatUri);
+						await timeout(0);
+					}
+					fire({ type: ActionType.ChatTurnComplete, turnId: turnId!, duration: 1000 });
+					await turnPromise;
+					await timeout(500);
+
+					const state = inputState.get();
+					assert.deepStrictEqual({
+						draftsBeforeHydration,
+						input: {
+							text: state?.inputText,
+							model: state?.selectedModel?.identifier,
+							modelConfiguration: state?.modelConfiguration,
+							agent: state?.mode.id,
+							attachments: state?.attachments.map(attachment => ({ kind: attachment.kind, name: attachment.name, value: attachment.value })),
+						},
+						drafts: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged
+							? [{ channel: entry.channel, draft: entry.action.draft }] : []),
+					}, {
+						draftsBeforeHydration: [],
+						input: locallyEdited ? {
+							text: scenario.input === 'text' ? 'local draft' : '',
+							model: fallbackModel.identifier,
+							modelConfiguration: scenario.input === 'model' ? { thinkingLevel: 'low' } : undefined,
+							agent: scenario.input === 'agent' ? 'agent://local' : 'agent',
+							attachments: scenario.input === 'attachment' ? [{ kind: 'file', name: 'local.txt', value: localFile }] : [],
+						} : {
+							text: 'shared draft',
+							model: sharedModel.identifier,
+							modelConfiguration: { thinkingLevel: 'high' },
+							agent: 'agent://reviewer',
+							attachments: [{ kind: 'generic', name: 'Shared context', value: 'shared context' }],
+						},
+						drafts: locallyEdited ? [{
+							channel: chatUri,
+							draft: {
+								text: scenario.input === 'text' ? 'local draft' : '',
+								origin: { kind: MessageKind.User },
+								model: scenario.input === 'model'
+									? { id: 'fallback-model', config: { thinkingLevel: 'low' } }
+									: { id: 'shared-model', config: { thinkingLevel: 'high' } },
+								...(scenario.input === 'agent' ? { agent: { uri: 'agent://local' } } : {}),
+								...(scenario.input === 'attachment' ? { attachments: [{ type: MessageAttachmentKind.Resource, uri: localFile.toString(), label: 'local.txt', displayKind: 'document' }] } : {}),
+							},
+						}] : [],
+					});
+				}));
+			}
+		}
+
+		for (const outcome of ['disposed', 'failed']) {
+			test(`does not publish drafts when initial hydration is ${outcome}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, chatService, instantiationService } = createContribution(disposables);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-interrupted-draft' });
+				const backendSession = AgentSession.uri('copilot', 'new-interrupted-draft');
+				const chatUri = buildDefaultChatUri(backendSession.toString());
+				agentHostService.pendingSubscriptions.add(chatUri);
+				const initializationErrors: string[] = [];
+				instantiationService.get(ILogService).error = (message, error) => {
+					if (typeof message === 'string' && message.includes('Failed to initialize draft sync')) {
+						initializationErrors.push(error instanceof Error ? error.message : String(error));
+					}
+				};
+				const { inputModel, inputState } = createDraftInputModel({
+					attachments: [],
+					mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined,
+					inputText: '',
+					selections: [],
+					contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					inputModel,
+					getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'req-1' })],
+					startEditingSession: () => { },
+					onDidChangePendingRequests: Event.None,
+					getPendingRequests: () => [],
+				}));
+				const cts = disposables.add(new CancellationTokenSource());
+				const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource, cancellationToken: cts.token });
+				cts.cancel();
+				await turnPromise;
+
+				if (outcome === 'disposed') {
+					chatSession.dispose();
+				} else {
+					agentHostService.fireSubscriptionError(chatUri, new Error('Initial chat snapshot failed'));
+				}
+				await timeout(0);
+				inputModel.setState({ inputText: 'after interrupted setup' });
+				await timeout(500);
+
+				assert.deepStrictEqual({
+					text: inputState.get()?.inputText,
+					drafts: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged),
+					initializationErrors,
+				}, {
+					text: 'after interrupted setup',
+					drafts: [],
+					initializationErrors: outcome === 'failed' ? ['Initial chat snapshot failed'] : [],
+				});
+			}));
 		}
 
 		test('hydrates chat input state from AHP draft', async () => {
