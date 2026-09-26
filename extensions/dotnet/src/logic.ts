@@ -54,6 +54,17 @@ export function parseSlnProjects(slnText: string): string[] {
 	return out;
 }
 
+/** Extract the project paths (forward-slashed, relative) listed in a .slnx file. */
+export function parseSlnxProjects(slnxText: string): string[] {
+	const out: string[] = [];
+	const re = /<Project\s+[^>]*Path\s*=\s*"([^"]+\.csproj)"/gi;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(slnxText))) {
+		out.push(m[1].replace(/\\/g, '/'));
+	}
+	return out;
+}
+
 /** Extract <TargetFramework> from a .csproj, if present. */
 export function targetFrameworkOf(csprojXml: string): string | undefined {
 	return /<TargetFramework>\s*([^<\s]+)\s*<\/TargetFramework>/i.exec(csprojXml)?.[1];

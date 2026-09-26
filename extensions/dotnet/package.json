@@ -36,6 +36,12 @@
 				"category": ".NET"
 			},
 			{
+				"command": "dotnet.selectSolution",
+				"title": "Select Active Solution",
+				"category": ".NET",
+				"icon": "$(folder-active)"
+			},
+			{
 				"command": "dotnet.run",
 				"title": "Run Startup Project",
 				"category": ".NET",
@@ -67,6 +73,11 @@
 				}
 			],
 			"explorer/context": [
+				{
+					"command": "dotnet.selectSolution",
+					"when": "resourceExtname == .sln || resourceExtname == .slnx",
+					"group": "9_dotnet@0"
+				},
 				{
 					"command": "dotnet.selectStartupProject",
 					"when": "resourceExtname == .csproj",

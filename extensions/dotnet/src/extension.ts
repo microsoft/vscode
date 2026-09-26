@@ -14,6 +14,7 @@ import {
 	firstHttpUrl,
 	isRunnableKind,
 	parseSlnProjects,
+	parseSlnxProjects,
 	resolveProfiles,
 	targetFrameworkOf,
 	assemblyNameOf,
@@ -22,14 +23,11 @@ import {
 } from './logic.js';
 
 const NETCOREDBG_VERSION = '3.2.0-1092';
-/** Asset names as published on Samsung/netcoredbg releases (no osx-x64 asset exists upstream). */
-const NETCOREDBG_ASSETS: Record<string, string> = {
-	'win-x64': 'netcoredbg-win64.zip',
-	'linux-x64': 'netcoredbg-linux-amd64.tar.gz',
-	'linux-arm64': 'netcoredbg-linux-arm64.tar.gz',
-	'osx-arm64': 'netcoredbg-osx-arm64.zip',
-};
 const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', '.vs']);
+
+const STARTUP_KEY = 'dotnet.startupProject';
+const PROFILE_KEY_PREFIX = 'dotnet.lastProfile.';
+const SOLUTION_KEY = 'dotnet.activeSolution';
 
 interface DotnetProject {
 	name: string;
@@ -40,6 +38,9 @@ interface DotnetProject {
 }
 
 let context: vscode.ExtensionContext;
+let statusBarItem: vscode.StatusBarItem;
+/** .sln/.slnx paths we already prompted about this session (avoids nagging on every editor switch). */
+const promptedSolutions = new Set<string>();
 
 export function activate(ctx: vscode.ExtensionContext): void {
 	context = ctx;
@@ -47,6 +48,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('dotnet.selectStartupProject', () => selectStartupProjectCommand()),
 		vscode.commands.registerCommand('dotnet.selectLaunchProfile', () => selectLaunchProfileCommand()),
+		vscode.commands.registerCommand('dotnet.selectSolution', () => selectSolutionCommand()),
 		vscode.commands.registerCommand('dotnet.run', (arg?: { fsPath?: string }) => runOrDebug('run', arg)),
 		vscode.commands.registerCommand('dotnet.debug', (arg?: { fsPath?: string }) => runOrDebug('debug', arg)),
 		vscode.commands.registerCommand('dotnet.fetchNetcoredbg', () => fetchNetcoredbgCommand()),
@@ -68,46 +70,47 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			},
 		}),
 	);
+
+	// Rider-style solution switcher in the status bar.
+	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+	statusBarItem.command = 'dotnet.statusMenu';
+	context.subscriptions.push(statusBarItem);
+	context.subscriptions.push(vscode.commands.registerCommand('dotnet.statusMenu', () => statusMenu()));
+	refreshStatusBar();
+
+	// Opening a .sln/.slnx file in an editor offers to make it the active solution.
+	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
+		void maybeOfferActiveSolution(editor);
+	}));
+	setTimeout(() => {
+		void maybeOfferActiveSolution(vscode.window.activeTextEditor);
+	}, 3000);
 }
 
 // ---------- Detection ----------
 
-async function scanProjects(): Promise<DotnetProject[]> {
+interface WorkspaceScan {
+	projects: DotnetProject[];
+	solutions: string[];
+}
+
+async function scanWorkspace(): Promise<WorkspaceScan> {
 	const projects = new Map<string, DotnetProject>();
 	const solutions: string[] = [];
 
 	for (const folder of vscode.workspace.workspaceFolders ?? []) {
 		const root = folder.uri.fsPath;
-		await walk(root, root, async file => {
+		await walk(root, root, file => {
 			const ext = path.extname(file).toLowerCase();
 			if (ext === '.csproj') {
 				projects.set(file, makeProject(file, folder));
-			} else if (ext === '.sln') {
+			} else if (ext === '.sln' || ext === '.slnx') {
 				solutions.push(file);
 			}
 		});
 	}
 
-	// Projects referenced by solutions but living outside the scanned tree still count.
-	for (const sln of solutions) {
-		const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(sln));
-		if (!folder) {
-			continue;
-		}
-		try {
-			const slnDir = path.dirname(sln);
-			for (const rel of parseSlnProjects(fs.readFileSync(sln, 'utf8'))) {
-				const abs = path.normalize(path.join(slnDir, rel));
-				if (!projects.has(abs) && fs.existsSync(abs)) {
-					projects.set(abs, makeProject(abs, folder));
-				}
-			}
-		} catch {
-			// Unreadable solution: the direct csproj scan still holds.
-		}
-	}
-
-	return [...projects.values()].sort((a, b) => a.name.localeCompare(b.name));
+	return { projects: [...projects.values()].sort((a, b) => a.name.localeCompare(b.name)), solutions };
 }
 
 function makeProject(csproj: string, folder: vscode.WorkspaceFolder): DotnetProject {
@@ -120,7 +123,7 @@ function makeProject(csproj: string, folder: vscode.WorkspaceFolder): DotnetProj
 	return { name: path.basename(csproj, '.csproj'), csproj, dir: path.dirname(csproj), folder, kind };
 }
 
-async function walk(root: string, dir: string, onFile: (file: string) => Promise<void>): Promise<void> {
+async function walk(_root: string, dir: string, onFile: (file: string) => void | Promise<void>): Promise<void> {
 	let entries: fs.Dirent[];
 	try {
 		entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -133,25 +136,129 @@ async function walk(root: string, dir: string, onFile: (file: string) => Promise
 			if (SKIP_DIRS.has(entry.name)) {
 				continue;
 			}
-			await walk(root, full, onFile);
-		} else if (entry.isFile() && /\.csproj$/i.test(entry.name)) {
+			await walk(_root, full, onFile);
+		} else if (entry.isFile() && (/\.csproj$/i.test(entry.name) || /\.slnx?$/i.test(entry.name))) {
 			await onFile(full);
 		}
 	}
 }
 
+/** The project list is solution-centric: when an Active Solution is set, its projects are the workspace. */
+async function getProjects(): Promise<{ projects: DotnetProject[]; solution: string | undefined }> {
+	const scan = await scanWorkspace();
+	const solution = await getActiveSolution(scan.solutions);
+
+	if (!solution) {
+		return { projects: scan.projects, solution: undefined };
+	}
+
+	const solutionDir = path.dirname(solution);
+	const slnText = fs.readFileSync(solution, 'utf8');
+	const relProjects = solution.toLowerCase().endsWith('.slnx')
+		? parseSlnxProjects(slnText)
+		: parseSlnProjects(slnText);
+
+	const projects: DotnetProject[] = [];
+	const fallbackFolder = vscode.workspace.workspaceFolders?.[0];
+	for (const rel of relProjects) {
+		const abs = path.normalize(path.join(solutionDir, rel));
+		if (!fs.existsSync(abs)) {
+			continue;
+		}
+		const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(abs)) ?? fallbackFolder;
+		if (folder) {
+			projects.push(makeProject(abs, folder));
+		}
+	}
+	projects.sort((a, b) => a.name.localeCompare(b.name));
+	return { projects, solution };
+}
+
+// ---------- Active solution ----------
+
+async function getActiveSolution(found: string[]): Promise<string | undefined> {
+	const stored = context.workspaceState.get<string>(SOLUTION_KEY);
+	if (stored) {
+		if (fs.existsSync(stored)) {
+			return stored;
+		}
+		context.workspaceState.update(SOLUTION_KEY, undefined);
+	}
+	if (found.length === 1) {
+		context.workspaceState.update(SOLUTION_KEY, found[0]);
+		return found[0];
+	}
+	return undefined;
+}
+
+async function setActiveSolution(solutionPath: string | undefined): Promise<void> {
+	await context.workspaceState.update(SOLUTION_KEY, solutionPath);
+	// The Startup Project may not belong to the newly chosen solution.
+	const startup = context.workspaceState.get<string>(STARTUP_KEY);
+	if (startup && solutionPath) {
+		const solutionDir = path.dirname(solutionPath);
+		const inSolution = (solutionPath.toLowerCase().endsWith('.slnx')
+			? parseSlnxProjects(fs.readFileSync(solutionPath, 'utf8'))
+			: parseSlnProjects(fs.readFileSync(solutionPath, 'utf8'))
+		).some(rel => path.normalize(path.join(solutionDir, rel)) === startup);
+		if (!inSolution) {
+			context.workspaceState.update(STARTUP_KEY, undefined);
+		}
+	}
+	refreshStatusBar();
+}
+
+async function maybeOfferActiveSolution(editor: vscode.TextEditor | undefined): Promise<void> {
+	const file = editor?.document.uri.fsPath;
+	if (!file || !/\.(sln|slnx)$/i.test(file) || promptedSolutions.has(file)) {
+		return;
+	}
+	promptedSolutions.add(file);
+	const current = context.workspaceState.get<string>(SOLUTION_KEY);
+	if (current === file) {
+		return;
+	}
+	const choice = await vscode.window.showInformationMessage(
+		`Use ${path.basename(file)} as the active solution?`,
+		'Yes',
+		'No',
+	);
+	if (choice === 'Yes') {
+		await setActiveSolution(file);
+		vscode.window.showInformationMessage(`Active solution: ${path.basename(file)}.`);
+	}
+}
+
+async function selectSolutionCommand(): Promise<void> {
+	const scan = await scanWorkspace();
+	if (scan.solutions.length === 0) {
+		vscode.window.showErrorMessage('No .sln or .slnx file found in this workspace.');
+		return;
+	}
+	const current = context.workspaceState.get<string>(SOLUTION_KEY);
+	const pick = await vscode.window.showQuickPick(
+		scan.solutions.map(s => ({
+			label: path.basename(s),
+			description: s,
+			active: s === current,
+			path: s,
+		})),
+		{ placeHolder: 'Select the active solution' },
+	);
+	if (pick) {
+		await setActiveSolution(pick.path);
+		vscode.window.showInformationMessage(`Active solution: ${pick.label}.`);
+	}
+}
+
 // ---------- Startup project + launch profile selection ----------
 
-async function getProjects(): Promise<DotnetProject[]> {
-	const projects = await scanProjects();
+async function getProjectsForSelection(): Promise<DotnetProject[]> {
+	const { projects } = await getProjects();
 	if (projects.length === 0) {
 		vscode.window.showErrorMessage('No .NET projects found in this workspace.');
 	}
 	return projects;
-}
-
-function storedStartupPath(): string | undefined {
-	return context.workspaceState.get<string>(STARTUP_KEY);
 }
 
 async function ensureStartupProject(projects: DotnetProject[], options?: { silent?: boolean }): Promise<DotnetProject | undefined> {
@@ -163,12 +270,17 @@ async function ensureStartupProject(projects: DotnetProject[], options?: { silen
 	const runnable = projects.filter(p => isRunnableKind(p.kind));
 	if (runnable.length === 1) {
 		context.workspaceState.update(STARTUP_KEY, runnable[0].csproj);
+		refreshStatusBar();
 		return runnable[0];
 	}
 	if (runnable.length === 0 || options?.silent) {
 		return undefined;
 	}
 	return pickStartupProject(runnable);
+}
+
+function storedStartupPath(): string | undefined {
+	return context.workspaceState.get<string>(STARTUP_KEY);
 }
 
 async function pickStartupProject(runnable: DotnetProject[]): Promise<DotnetProject | undefined> {
@@ -183,13 +295,14 @@ async function pickStartupProject(runnable: DotnetProject[]): Promise<DotnetProj
 	);
 	if (pick) {
 		context.workspaceState.update(STARTUP_KEY, pick.project.csproj);
+		refreshStatusBar();
 		return pick.project;
 	}
 	return undefined;
 }
 
 async function selectStartupProjectCommand(): Promise<void> {
-	const projects = await getProjects();
+	const projects = await getProjectsForSelection();
 	const runnable = projects.filter(p => isRunnableKind(p.kind));
 	if (runnable.length === 0) {
 		vscode.window.showErrorMessage('No runnable .NET projects found (Library Projects cannot be started).');
@@ -232,7 +345,7 @@ async function getProfile(project: DotnetProject): Promise<LaunchProfile | undef
 }
 
 async function selectLaunchProfileCommand(): Promise<void> {
-	const projects = await getProjects();
+	const projects = await getProjectsForSelection();
 	const project = await ensureStartupProject(projects);
 	if (!project) {
 		return;
@@ -241,6 +354,45 @@ async function selectLaunchProfileCommand(): Promise<void> {
 	const profile = await getProfile(project);
 	if (profile) {
 		vscode.window.showInformationMessage(`Launch Profile for ${project.name}: ${profile.name}.`);
+	}
+}
+
+// ---------- Status bar ----------
+
+function refreshStatusBar(): void {
+	if (!statusBarItem) {
+		return;
+	}
+	const startup = storedStartupPath();
+	const solution = context.workspaceState.get<string>(SOLUTION_KEY);
+	if (startup) {
+		const parts = [`$(play) ${path.basename(startup, '.csproj')}`];
+		if (solution) {
+			parts.push(`$(file-directory) ${path.basename(solution)}`);
+		}
+		statusBarItem.text = parts.join('  ');
+		statusBarItem.tooltip = new vscode.MarkdownString(
+			`**Startup Project:** ${path.basename(startup, '.csproj')}` +
+			(solution ? `\n\n**Active Solution:** ${path.basename(solution)}` : '') +
+			'\n\nClick for .NET actions.',
+		);
+	} else {
+		statusBarItem.text = '$(circle-slash) .NET: no startup project';
+		statusBarItem.tooltip = 'Click to select a startup project / solution.';
+	}
+	statusBarItem.show();
+}
+
+async function statusMenu(): Promise<void> {
+	const pick = await vscode.window.showQuickPick([
+		{ label: '$(play) Run Startup Project', action: 'dotnet.run' },
+		{ label: '$(debug-alt) Debug Startup Project', action: 'dotnet.debug' },
+		{ label: '$(file-submodule) Select Startup Project', action: 'dotnet.selectStartupProject' },
+		{ label: '$(list-ordered) Select Launch Profile', action: 'dotnet.selectLaunchProfile' },
+		{ label: '$(folder-active) Select Solution', action: 'dotnet.selectSolution' },
+	], { placeHolder: '.NET' });
+	if (pick) {
+		await vscode.commands.executeCommand(pick.action);
 	}
 }
 
@@ -293,7 +445,7 @@ async function buildProject(project: DotnetProject): Promise<boolean> {
 // ---------- Run / Debug ----------
 
 async function runOrDebug(mode: 'run' | 'debug', arg?: { fsPath?: string }): Promise<void> {
-	const projects = await scanProjects();
+	const { projects } = await getProjects();
 	if (projects.length === 0) {
 		vscode.window.showErrorMessage('No .NET projects found in this workspace.');
 		return;
@@ -309,6 +461,7 @@ async function runOrDebug(mode: 'run' | 'debug', arg?: { fsPath?: string }): Pro
 		}
 		if (project) {
 			context.workspaceState.update(STARTUP_KEY, project.csproj);
+			refreshStatusBar();
 		}
 	}
 	if (!project) {
@@ -428,7 +581,7 @@ async function resolveDebugConfiguration(
 		return config; // Fully specified by the caller (our dotnet.debug command path).
 	}
 
-	const projects = await scanProjects();
+	const { projects } = await getProjects();
 	const project = await ensureStartupProject(projects, { silent: true });
 	if (!project) {
 		vscode.window.showErrorMessage('No runnable .NET project found. Open a folder with a .csproj or .sln.');
@@ -463,11 +616,15 @@ function netcoredbgPath(): string | undefined {
 	if (configured) {
 		return configured;
 	}
-	const platform = process.platform === 'win32' ? 'win-x64'
-		: process.platform === 'darwin' ? (process.arch === 'arm64' ? 'osx-arm64' : 'osx-x64')
-		: (process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64');
+	const platform = netcoredbgPlatform();
 	const exe = path.join(context.extensionPath, 'netcoredbg', platform, process.platform === 'win32' ? 'netcoredbg.exe' : 'netcoredbg');
 	return fs.existsSync(exe) ? exe : undefined;
+}
+
+function netcoredbgPlatform(): string {
+	return process.platform === 'win32' ? 'win-x64'
+		: process.platform === 'darwin' ? (process.arch === 'arm64' ? 'osx-arm64' : 'osx-x64')
+		: (process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64');
 }
 
 async function fetchNetcoredbgCommand(): Promise<void> {
@@ -479,18 +636,22 @@ async function fetchNetcoredbgCommand(): Promise<void> {
 	}
 }
 
-function netcoredbgPlatform(): string {
-	return process.platform === 'win32' ? 'win-x64'
-		: process.platform === 'darwin' ? (process.arch === 'arm64' ? 'osx-arm64' : 'osx-x64')
-		: (process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64');
+function netcoredbgAsset(platform: string): string {
+	const asset = ({
+		'win-x64': 'netcoredbg-win64.zip',
+		'linux-x64': 'netcoredbg-linux-amd64.tar.gz',
+		'linux-arm64': 'netcoredbg-linux-arm64.tar.gz',
+		'osx-arm64': 'netcoredbg-osx-arm64.zip',
+	} as Record<string, string>)[platform];
+	if (!asset) {
+		throw new Error(`No netcoredbg asset exists for platform ${platform}. Use the dotnet.netcoredbgPath setting to point at a self-built binary.`);
+	}
+	return asset;
 }
 
 async function fetchNetcoredbg(): Promise<string> {
 	const platform = netcoredbgPlatform();
-	const asset = NETCOREDBG_ASSETS[platform];
-	if (!asset) {
-		throw new Error(`No netcoredbg asset known for platform ${platform}.`);
-	}
+	const asset = netcoredbgAsset(platform);
 	const url = `https://github.com/Samsung/netcoredbg/releases/download/${NETCOREDBG_VERSION}/${asset}`;
 	const outDir = path.join(context.extensionPath, 'netcoredbg', platform);
 	fs.mkdirSync(outDir, { recursive: true });
@@ -504,7 +665,6 @@ async function fetchNetcoredbg(): Promise<string> {
 			: 'tar';
 		cp.exec(`"${tarBin}" -xf "${archive}" -C "${outDir}"`, { timeout: 120_000 }, err => err ? reject(err) : resolve());
 	});
-	fs.rmSync(archive, { force: true });
 
 	// Some archives nest everything inside a netcoredbg/ root folder — flatten it.
 	const nested = path.join(outDir, 'netcoredbg');
@@ -514,6 +674,7 @@ async function fetchNetcoredbg(): Promise<string> {
 		}
 		fs.rmdirSync(nested);
 	}
+	fs.rmSync(archive, { force: true });
 
 	const exe = path.join(outDir, process.platform === 'win32' ? 'netcoredbg.exe' : 'netcoredbg');
 	if (!fs.existsSync(exe)) {
@@ -549,6 +710,3 @@ function download(url: string, dest: string): Promise<void> {
 		request(url, 0);
 	});
 }
-
-const STARTUP_KEY = 'dotnet.startupProject';
-const PROFILE_KEY_PREFIX = 'dotnet.lastProfile.';

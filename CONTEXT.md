@@ -22,6 +22,10 @@ _Avoid_: exe project
 A `.sln` or `.slnx` file listing one or more projects; the solution-centric view is how multi-project workspaces are navigated.
 _Avoid_: workspace (that's a JustRide concept)
 
+**Active Solution**:
+The one Solution whose projects make up the project list for the current workspace, chosen explicitly when several solutions exist and remembered per workspace.
+_Avoid_: current solution, open solution
+
 **Startup Project**:
 The single project the user chose to run in the current workspace; remembered per workspace. Every workspace has at most one.
 _Avoid_: main project, active project
