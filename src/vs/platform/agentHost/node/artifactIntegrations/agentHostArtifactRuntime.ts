@@ -85,7 +85,7 @@ export class AgentHostArtifactRuntime extends Disposable {
 						archived: isSessionStatusArchived(state?.status),
 						artifacts: readSessionArtifacts(state?._meta).flatMap(artifact => {
 							const resource = artifact.link ?? artifact.uri;
-							return resource ? [{ id: artifact.id, label: artifact.label, resource, origin: artifact.origin }] : [];
+							return resource ? [{ id: artifact.id, label: artifact.label, resource, isArtifact: artifact.isArtifact, origin: artifact.origin }] : [];
 						}),
 					};
 				});

@@ -19,13 +19,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactActionView, ArtifactAutomationOption, ArtifactContributionSnapshot, ArtifactDetails, ArtifactIcon, ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactDetailsModel, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactAutomationOption, ArtifactContributionSnapshot, ArtifactDetails, ArtifactIcon, ArtifactRun, ArtifactRunState, ArtifactSnapshot, getArtifactActionAvailability, IArtifactDetailsModel, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { artifactBindingId } from '../../../../platform/artifactIntegrations/common/artifactIntegrationStore.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -492,14 +492,27 @@ export class ArtifactIntegrationPresentation extends Disposable {
 	};
 	private entry: IChatPillEntry | undefined;
 	private readonly action: Action;
+	readonly snapshot: IObservable<ArtifactSnapshot>;
 
 	constructor(
 		readonly model: IArtifactModel,
-		private readonly invokingChat: () => string,
+		private readonly invokingChat: (reader?: IReader) => string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notifications: INotificationService,
 	) {
 		super();
+		this.snapshot = derived(this, reader => {
+			const snapshot = model.snapshot.read(reader);
+			const chat = invokingChat(reader);
+			const contextualize = (action: ArtifactActionView): ArtifactActionView => ({ ...action, ...getArtifactActionAvailability(action, chat) });
+			return {
+				...snapshot,
+				contributions: snapshot.contributions.map(contribution => ({
+					...contribution,
+					view: { ...contribution.view, stateActions: contribution.view.stateActions.map(contextualize), generalActions: contribution.view.generalActions.map(contextualize) },
+				})),
+			};
+		});
 		this.action = this._register(new Action(`artifactIntegration.${model.snapshot.get().artifact.id}`, model.snapshot.get().artifact.label, undefined, true, async () => this.entry?.open()));
 		this.inlinePill = {
 			action: this.action,
@@ -509,7 +522,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 
 	decorate(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
 		this.entry = entry;
-		const snapshot = this.model.snapshot.read(reader);
+		const snapshot = this.snapshot.read(reader);
 		if (snapshot.contributions.length === 0) {
 			return entry;
 		}
@@ -529,6 +542,9 @@ export class ArtifactIntegrationPresentation extends Disposable {
 
 	async invoke(integrationId: string, actionId: string): Promise<ArtifactRun> {
 		const chat = this.invokingChat();
+		if (!chat) {
+			throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
+		}
 		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid());
 		status(localize('artifactActionRequested', "Artifact action requested: {0}", run.reason));
 		return run;
@@ -561,7 +577,7 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill'));
 		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => this.details()));
 		this._register(autorun(reader => {
-			const snapshot = this.presentation.model.snapshot.read(reader);
+			const snapshot = this.presentation.snapshot.read(reader);
 			this.updateLabel();
 			this.updateAriaLabel();
 			const sections = snapshot.contributions.flatMap(contribution => contribution.view.sections.map(section => ({
@@ -577,20 +593,20 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	}
 
 	protected override getLabelText(): string {
-		const snapshot = this.presentation.model.snapshot.get();
+		const snapshot = this.presentation.snapshot.get();
 		return snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main?.label
 			?? this.presentation.baseEntry?.label ?? snapshot.artifact.label;
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const snapshot = this.presentation.model.snapshot.get();
+		const snapshot = this.presentation.snapshot.get();
 		const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main;
 		const themeIcon = main ? icon(main.icon) : this.presentation.baseEntry?.icon ?? Codicon.link;
 		return renderArtifactIcon(themeIcon, true);
 	}
 
 	protected override getAriaLabel(): string {
-		const snapshot = this.presentation.model.snapshot.get();
+		const snapshot = this.presentation.snapshot.get();
 		const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main;
 		return localize('artifactOpenResource', "Open {0}", main?.description ?? this.getLabelText());
 	}
@@ -721,7 +737,7 @@ class ArtifactIntegrationPanel extends Disposable {
 			if (!this.started.read(reader)) {
 				return undefined;
 			}
-			const snapshot = this.presentation.model.snapshot.read(reader);
+			const snapshot = this.presentation.snapshot.read(reader);
 			const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
 			return this.selection ?? (main?.view.main ? [main.integrationId, main.view.main.detailsId] : undefined);
 		});
@@ -743,14 +759,14 @@ class ArtifactIntegrationPanel extends Disposable {
 				this.detailsListener.value = autorun(reader => this.detailsView.set(details.details.read(reader), undefined));
 			}).catch(error => {
 				if (!lifetime.isDisposed) {
-					this.detailsView.set({ title: this.presentation.model.snapshot.read(undefined).artifact.label, availability: { kind: 'error', reason: toErrorMessage(error) }, links: [], items: [], completeness: 'complete' }, undefined);
+					this.detailsView.set({ title: this.presentation.snapshot.read(undefined).artifact.label, availability: { kind: 'error', reason: toErrorMessage(error) }, links: [], items: [], completeness: 'complete' }, undefined);
 				}
 			});
 		}));
 		this._register(autorun(reader => {
 			const details = this.detailsView.read(reader);
 			const selection = detailsSelection.read(reader);
-			const snapshot = this.presentation.model.snapshot.read(reader);
+			const snapshot = this.presentation.snapshot.read(reader);
 			this.requestsChanged.read(reader);
 			const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
 			const contribution = snapshot.contributions.find(contribution => contribution.integrationId === selection?.[0]);
@@ -991,7 +1007,7 @@ class ArtifactIntegrationPanel extends Disposable {
 
 	/** Runs an action once. Repeated requests are ignored until the previous run of the same action settles. */
 	private invoke(integrationId: string, actionId: string): void {
-		const snapshot = this.presentation.model.snapshot.get();
+		const snapshot = this.presentation.snapshot.get();
 		const contribution = snapshot.contributions.find(contribution => contribution.integrationId === integrationId);
 		const view = contribution && [...contribution.view.stateActions, ...contribution.view.generalActions].find(view => view.id === actionId);
 		if (!view?.enabled || isArtifactActionBusy(this.activity(snapshot, integrationId, actionId))) {

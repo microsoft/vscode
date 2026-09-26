@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlConten
 import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { URI as ProtocolURI } from './state/sessionState.js';
@@ -236,9 +237,6 @@ const maximumFailedChecks = 20;
 const maximumFeedbackBodyLength = 1_000;
 const maximumFeedbackBudget = 20_000;
 
-const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-const copilotPullRequestReviewerId = '175728472';
-const copilotPullRequestReviewerLogins = new Set(['copilot', 'copilot-pull-request-reviewer[bot]']);
 const successfulCheckConclusions = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const mergeableStates = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 
@@ -829,12 +827,7 @@ function toAgentMergeFolderControllerState(state: AgentMergeFolderControllerStat
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {
-	if (!actor) {
-		return false;
-	}
-	return maintainerAssociations.has(actor.association?.toUpperCase() ?? '')
-		|| actor.id === copilotPullRequestReviewerId
-		|| copilotPullRequestReviewerLogins.has(actor.login.toLowerCase());
+	return isPullRequestFeedbackAuthor(actor);
 }
 
 function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {

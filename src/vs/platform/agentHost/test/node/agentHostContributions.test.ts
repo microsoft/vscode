@@ -6,16 +6,22 @@
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { IGitHubService } from '../../../github/common/githubService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IAgentHostChangesetOperationService, IChangesetOperationContribution } from '../../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
@@ -71,12 +77,22 @@ suite('AgentHostContributions', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const artifacts = disposables.add(new ArtifactIntegrationRegistry());
+		const github = new class extends mock<IGitHubService>() {
+			override readonly credentials = new class extends mock<IGitHubCredentials>() {
+				override readonly onDidInvalidate = Event.None;
+			}();
+		}();
 		const services = new ServiceCollection(
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChangesetOperationService, changesetOperationService],
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[IArtifactIntegrationRegistry, artifacts],
+			[IGitHubService, github],
+			[IAgentHostGitService, new class extends mock<IAgentHostGitService>() { }()],
+			[IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[ILogService, logService],
 		);
@@ -86,6 +102,7 @@ suite('AgentHostContributions', () => {
 			() => instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)),
 			/Contribution registration failed/,
 		);
-		assert.strictEqual(changesetOperationService.disposedRegistrationCount, 1);
+		assert.deepStrictEqual({ disposedChangesets: changesetOperationService.disposedRegistrationCount, remainingArtifactIntegrations: artifacts.integrations.get().length },
+			{ disposedChangesets: 1, remainingArtifactIntegrations: 0 });
 	});
 });

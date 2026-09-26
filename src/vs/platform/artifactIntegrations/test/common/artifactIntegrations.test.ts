@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -250,6 +251,57 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual({ revision: ledger.state.get().revision, stored: storage.value }, { revision: 0, stored: undefined });
 	});
 
+	test('a provider can revoke but not broaden automation consent, with revision fencing', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		const automation = f.bindings[0].automation!;
+		await assert.rejects(automation.disableAutomation('automatic', 0, 'Checkout changed'), ArtifactConfigurationConflictError);
+		await assert.rejects(automation.disableAutomation('missing', 1, 'Checkout changed'), /registered option/);
+		await automation.disableAutomation('automatic', 1, 'Checkout changed');
+		assert.deepStrictEqual(reference.object.snapshot.get().contributions[0].configuration, {
+			revision: 2, values: { automatic: false }, generations: { automatic: 1 },
+			disablements: { automatic: { reason: 'Checkout changed', attempts: 0 } },
+		});
+	}));
+
+	test('integration changes retry failed matching and preserve registration lifetime', () => run(async store => {
+		const f = fixture(store);
+		const changed = store.add(new Emitter<void>());
+		let ready = false;
+		const registration = store.add(f.registry.register({
+			...f.integration, id: 'refreshable', onDidChange: changed.event,
+			match: resource => {
+				if (!ready) {
+					throw new Error('Authentication required');
+				}
+				return { resource, key: resource.toString(), credentialScope: 'account' };
+			},
+		}, 'refreshable'));
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const before = reference.object.snapshot.get().contributions.find(contribution => contribution.integrationId === 'refreshable')?.view.availability.kind;
+		ready = true;
+		changed.fire();
+		await waitForState(reference.object.snapshot, snapshot => snapshot.contributions.some(contribution => contribution.integrationId === 'refreshable' && contribution.view.availability.kind === 'available'));
+		registration.dispose();
+		assert.deepStrictEqual({ before, registered: f.registry.integrations.get().map(integration => integration.id) }, { before: 'error', registered: ['test'] });
+	}));
+
+	test('promoting a reference rematches integrations without changing its recorded identity', () => run(async store => {
+		const record = { ...artifact, isArtifact: false };
+		const f = fixture(store, codeAction, undefined, record);
+		store.add(f.registry.register({
+			...f.integration, id: 'artifacts-only',
+			match: (resource, _token, record) => record.isArtifact ? { resource, key: resource.toString(), credentialScope: 'account' } : undefined,
+		}, 'artifacts-only'));
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const before = reference.object.snapshot.get().contributions.map(contribution => contribution.integrationId);
+		f.session.set({ ...f.session.get(), artifacts: [{ ...record, isArtifact: true }] }, undefined);
+		await waitForState(reference.object.snapshot, snapshot => snapshot.contributions.length === 2 && snapshot.contributions.every(contribution => contribution.view.availability.kind === 'available'));
+		assert.deepStrictEqual({ before, after: reference.object.snapshot.get().contributions.map(contribution => contribution.integrationId), id: reference.object.snapshot.get().artifact.id },
+			{ before: ['test'], after: ['artifacts-only', 'test'], id: artifact.id });
+	}));
+
 	test('deduplicates occurrences, requires explicit retries, and disables only at N+1', () => run(async store => {
 		const f = fixture(store);
 		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
@@ -333,6 +385,22 @@ suite('Artifact Integrations', () => {
 		await finish.complete();
 		await f.service.whenIdle();
 		assert.deepStrictEqual({ effects, state: f.service.ledger.state.get().runs.find(candidate => candidate.id === run.id)?.state }, { effects: 0, state: 'blocked' });
+	}));
+
+	test('manual availability is scoped to the invoking chat, not the artifact origin', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		binding.view.set({
+			...binding.view.get(), stateActions: [{
+				id: 'act', enabled: true, chatAvailability: { 'invoking-chat': { enabled: true }, 'origin-chat': { enabled: false, disabledReason: 'Wrong checkout' } },
+			}]
+		}, undefined);
+		await assert.rejects(reference.object.invoke('test', 'act', 'origin-chat', 'rejected'), /Wrong checkout/);
+		await assert.rejects(reference.object.invoke('test', 'act', 'unknown-chat', 'unknown'), /not available in the invoking chat/);
+		await reference.object.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'completed'));
+		assert.deepStrictEqual(f.service.ledger.state.get().runs.map(run => [run.chat, run.state]), [['invoking-chat', 'completed']]);
 	}));
 
 	test('changing one automation control does not revoke another control in the same binding', () => run(async store => {

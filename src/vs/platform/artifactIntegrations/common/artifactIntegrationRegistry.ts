@@ -82,7 +82,7 @@ export class ArtifactIntegrationRegistry extends Disposable {
 		validateArtifactOptions(integration.automationOptions);
 		const store = new DisposableStore();
 		const pool = store.add(new ArtifactResourcePool(integration));
-		const registration: IRegisteredArtifactIntegration = {
+		let registration: IRegisteredArtifactIntegration = {
 			id: integration.id,
 			label: integration.label,
 			runtimeId,
@@ -93,7 +93,7 @@ export class ArtifactIntegrationRegistry extends Disposable {
 				if (store.isDisposed) {
 					throw new CancellationError();
 				}
-				const match = await integration.match(URI.parse(context.artifact.resource, true), token);
+				const match = await integration.match(URI.parse(context.artifact.resource, true), token, context.artifact);
 				if (!match) {
 					return undefined;
 				}
@@ -117,6 +117,13 @@ export class ArtifactIntegrationRegistry extends Disposable {
 		});
 		this.registrations.set(integration.id, result);
 		this.integrationsValue.set([...this.integrationsValue.get(), registration].sort((a, b) => b.presentationPriority - a.presentationPriority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)), undefined);
+		if (integration.onDidChange) {
+			store.add(integration.onDidChange(() => {
+				const previous = registration;
+				registration = { ...previous };
+				this.integrationsValue.set(this.integrationsValue.get().map(candidate => candidate === previous ? registration : candidate), undefined);
+			}));
+		}
 		return result;
 	}
 

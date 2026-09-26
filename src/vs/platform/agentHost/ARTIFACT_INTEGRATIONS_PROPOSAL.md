@@ -5,7 +5,7 @@ Licensed under the MIT License. See License.txt in the project root for license 
 
 # Artifact integrations
 
-**Status: Initial generic implementation added; validation is pending.** Production registries remain empty. This change does not adopt a GitHub or experiment integration, replace Agent Merge, implement a public extension API, or change scheduled Automations.
+**Status: Internal framework with a built-in, host-owned GitHub pull-request integration.** Experiment integrations and a public extension API remain future work. Artifact integrations do not use Agent Merge's controller, configuration, or permission mode and do not change scheduled Automations.
 
 ### Implementation map
 
@@ -22,12 +22,15 @@ The sketches below explain the design; the current internal API is defined by th
 | One client owner per installation/profile and target host | [LocalArtifactIntegrationHost](../artifactIntegrations/browser/localArtifactIntegrationHost.ts), using Web Locks, IndexedDB, and cross-window messaging |
 | Client environment adapters and authority selection | [client runtime](../../sessions/services/artifactIntegrations/browser/clientArtifactRuntime.ts) and [Agent Host projection](../../sessions/contrib/providers/agentHost/browser/agentHostArtifactIntegrations.ts) |
 | Main resource part, independent sections, structured details, actions, automation controls, and activity | [generic Sessions presentation](../../sessions/contrib/chat/browser/artifactIntegrationPresentation.ts) |
+| Explicitly recorded GitHub pull requests | [host integration](node/artifactIntegrations/githubPullRequestArtifactIntegration.ts) and [shared rules](common/githubPullRequestArtifact.ts), using the platform GitHub service |
 
 Both environments instantiate the same platform-common service and executor. A registration pairs its resource factory with its typed binding factory; only the presentation projection crosses the transport. Providers request work through the binding's automation context rather than implementing a second dispatch loop.
 
 Implementation details worth preserving:
 
 - Recording captures the trusted originating chat and, when available, turn. Agent-supplied inputs cannot set provenance. Promotion and later metadata updates do not replace the origin already captured by the coordinator. Missing legacy provenance blocks automatic prompts, not manual actions.
+- Matching receives the artifact/reference distinction. Promotion rematches without replacing the record or its origin. A registration can invalidate matching after account changes; a different account still cannot inherit saved consent.
+- Manual action availability can be restricted per invoking chat without changing a binding's shared state or automation destination. The client maps chat identities and renders that restriction; the executor rechecks it before dispatch.
 - New boolean controls are off; enum controls use their declared inactive value. Consent includes the allowed actions, action kind/execution scope, attempt budget, enum values, and explicit action/control `consentVersion`. Contributors must change those versions when semantics or schedules broaden.
 - A configuration revision detects competing writes. Accepted work is fenced by its own control's generation and consent, so changing one control does not accidentally revoke another.
 - A prepared native action cannot have performed its effect yet. Preparation is repeated after waiting. Ambiguous effects block conflicting work on the resource, including canonical aliases, until reconciliation.
@@ -46,7 +49,21 @@ The following are not silently emulated:
 - A change from client-owned to host-owned coordination, or the reverse, does not migrate saved consent/history automatically. Existing authority selection pauses rather than creating two executors.
 - Host file storage depends on the existing single primary Agent Host owner for its data directory. It is not a distributed lock for independently started processes sharing that directory. Client fallback explicitly coordinates windows sharing its profile-local store.
 
-Focused synthetic tests have been added for the [shared runtime and transport](../artifactIntegrations/test/common), [chat adapter](test/common/artifactIntegrationChat.test.ts), and [presentation](../../sessions/contrib/chat/test/browser/artifactIntegrationPresentation.test.ts), alongside recording and reconnect regression coverage. They have **not been executed**. Dependency restoration, compilation, lint/layer checks, cross-window takeover checks, and real-window accessibility/UI validation are deferred at the user's request after dependency installation was blocked by the sandbox's Playwright cache policy. The acceptance tables below remain the validation checklist, not a claim that all scenarios have passed.
+Regression coverage lives beside the [shared runtime and transport](../artifactIntegrations/test/common), [chat adapter](test/common/artifactIntegrationChat.test.ts), [presentation](../../sessions/contrib/chat/test/browser/artifactIntegrationPresentation.test.ts), and [GitHub integration](test/node/githubPullRequestArtifactIntegration.test.ts). The acceptance tables below describe the required behavior; they are not a claim that every scenario has been verified in every environment.
+
+### Built-in GitHub pull requests
+
+The host registers the GitHub integration only for explicitly recorded PR artifacts. Branch-discovered PRs and ordinary reference links keep their existing behavior. The recorded artifact decorates the existing dedicated PR pill in place rather than appearing a second time in the generic artifact pill. Observation, credentials, polling, and GitHub mutations come from the shared platform GitHub service.
+
+- The checks section remains present for open and draft PRs, even while checks are loading or absent. Closed and merged PRs omit it. All checks, including optional checks, remain visible and repairable.
+- The comments section counts unresolved review threads with feedback from repository owners, members, collaborators, or the Copilot reviewer. It excludes standalone discussion comments and changes-requested summaries.
+- Address Reviews, Fix CI, and Resolve Conflicts / Update Branch send ordinary repair prompts through the shared executor. They request validation, relevant commits, and a push to the target PR, without changing normal permissions or switching checkouts. Manual repairs require the invoking chat's repository and checked-out head branch; automatic repairs require the original recording chat's checkout.
+- Mark Ready and Merge are resource-scoped native actions. Automatic Mark Ready requires complete, current checks and no qualifying unresolved threads. Automatic merging also requires every check to pass and GitHub's merge eligibility, including merge-queue requirements. Manual Mark Ready does not impose the automatic check gate.
+- Automation starts off. The unchanged-only merge mode retains a local repair baseline, blocks dirty or unverifiable checkouts, and persistently turns itself off when a repair changes that baseline. Re-enabling starts a new consent generation. Repairs retry only from a settled, unambiguous attempt after a fresh GitHub read and a backoff; exhaustion turns off the responsible control. Native effects with unknown outcomes are reconciled, never replayed.
+
+`chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks` contains case-sensitive check names or `*` patterns. It relaxes only automatic Mark Ready: excluded checks stay visible, stay eligible for Fix CI, and still block automatic merging.
+
+Global user exclusions follow the host-global configuration mirror. Workspace/folder overrides are captured for the artifact's trusted origin chat and directory and persisted in artifact-scoped session configuration. An explicit `null` selects the global value; a missing scoped entry pauses automatic Mark Ready until synchronization rather than applying potentially broader global exclusions. The client resynchronizes after reconnect or configuration replacement. The host rejects malformed or mismatched origin/directory data, and restored headless automation uses the last persisted scoped value. Workspace values never enter host-global configuration.
 
 ## 1. Recommendation
 
@@ -85,17 +102,17 @@ The reusable implementation lives in `vs/platform/artifactIntegrations/common`, 
 | Retries | Providers may explicitly request another attempt even after a completed turn if the objective remains unmet. Enforce a finite limit; exhaustion disables the associated control until the user enables it again. |
 | Presentation | A main resource part, optional sections with live details, state-dependent actions, and state-independent general actions. Details are surface-neutral; the initial chat UI shows them in rich hovers. No provider-owned DOM, CSS, webviews, or client-side renderers. |
 | Archiving | Pause automation, retain configuration, and revalidate on unarchive. |
-| This deliverable | Generic framework, host/client adapters, presentation, and synthetic tests. No production provider adoption. Validation remains pending. |
+| Built-in adoption | Host-owned GitHub PR integration for explicitly recorded artifacts, with shared-runtime and provider-specific regression tests. No public extension bridge. |
 
-References and artifacts can both receive integrations. Their existing `isArtifact` distinction remains unchanged; recording either does not authorize automation.
+References and artifacts can both receive integrations. Matching can use their existing `isArtifact` distinction; the GitHub PR integration requires it to be true. Recording either does not authorize automation.
 
 ## 3. Existing seams and constraints
 
 The proposal builds on these existing boundaries:
 
-- [Artifact records](common/sessionArtifacts.ts) are session-owned metadata with stable IDs, labels, and locations. They currently have no originating-chat field or live capability model.
-- [Artifact recording](node/shared/artifactServerTools.ts) already receives `context.chatUri`, but stores the record against its owning session. The host can capture provenance here without trusting an agent-supplied chat ID.
-- [Collection mutations](common/sessionArtifactCollection.ts) deduplicate records and can promote a reference into an artifact while preserving its ID. Promotion must also preserve provenance when provenance is introduced.
+- [Artifact records](common/sessionArtifacts.ts) are session-owned metadata with stable IDs, labels, locations, and host-captured provenance. Live capabilities belong to integration bindings rather than the record.
+- [Artifact recording](node/shared/artifactServerTools.ts) receives `context.chatUri` and captures provenance while storing the record against its owning session, without trusting an agent-supplied chat ID.
+- [Collection mutations](common/sessionArtifactCollection.ts) deduplicate records and can promote a reference into an artifact while preserving its ID and provenance.
 - [Artifact persistence and publication](node/shared/sessionArtifacts.ts) already serialize mutations and persist before publishing. Keep that ordering.
 - [The Sessions projection](../../sessions/contrib/providers/agentHost/browser/agentHostSessionArtifacts.ts) and [artifact presentation](../../sessions/contrib/chat/browser/sessionArtifacts.ts) currently contain special handling for GitHub references. Do not remove it until a later, separately validated migration.
 - [Chat pills](../../workbench/browser/chatPills.ts) already support labels, icons, actions, hovers, and accessible descriptions. Extend the shared presentation primitives for separately interactive sections; they do not already expose the proposed segmented/live-detail contract.
@@ -208,10 +225,12 @@ interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly id: string;
 	readonly label: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
+	readonly onDidChange?: Event<void>;
 
 	match(
 		resource: URI,
-		token: CancellationToken
+		token: CancellationToken,
+		artifact: ArtifactRecord
 	): ArtifactResourceMatch | undefined | Promise<ArtifactResourceMatch | undefined>;
 	createResource(
 		match: ArtifactResourceMatch,
@@ -342,6 +361,7 @@ interface ArtifactPrompt {
 
 interface IArtifactAutomationContext {
 	runAutomation(request: ArtifactAutomationRequest): Promise<ArtifactRunHandle>;
+	disableAutomation(optionId: string, expectedRevision: number, reason: string): Promise<void>;
 }
 
 interface ArtifactAutomationRequest {
@@ -366,6 +386,8 @@ The supporting execution types have these responsibilities:
 | `ArtifactRunHandle` | The accepted run ID, scoped cancellation, and a separately observable completion outcome. Acceptance or queueing is not success. |
 
 All integration-owned callable actions are registered on the binding; the view advertises the subset suitable for manual invocation, grouped as state-dependent or general. Each has an icon and label. An automation may use an internal action that has no menu item, but it still has a stable ID, label, execution kind, and declared association with its automation control.
+
+An action view's optional `chatAvailability` further restricts manual invocation to explicitly enabled chats; missing entries are unavailable. This does not grant execution authority or retarget automation. A provider can also disable one of its own automation controls with a revision-fenced reason, but cannot grant or broaden consent through that API.
 
 Client-owned general utilities such as Copy Link use the existing client services, not a provider callback or an automatic run. This is a bounded set of built-in presentation actions, not a provider-supplied command-execution escape hatch. Provider-contributed general actions still use the shared tracked executor.
 
@@ -984,13 +1006,14 @@ Truly headless third-party integrations would require a separately designed agen
 
 ## 12. Delivery sequence and acceptance criteria
 
-The initial implementation follows this sequence without a real provider; validation of these stages remains pending:
+The reusable runtime and provider behavior have separate validation boundaries:
 
 1. Add platform-common contracts and implementations for registry/resource pooling, configuration, details, and execution state.
 2. Add durable binding provenance, run claims, recovery, and native/prompt execution against typed environment APIs.
 3. Compose agent-host and client-fallback adapters; negotiate capabilities, preserve authority identity, and coordinate local windows.
 4. Add the host protocol projection and provider-neutral client facade, with the same structured presentation for either source.
-5. Run shared behavior tests through both environments and targeted adapter tests, using synthetic integrations only. Production provider registration remains empty; the public extension bridge is later work.
+5. Run shared behavior tests through both environments and targeted adapter tests using synthetic integrations.
+6. Exercise built-in GitHub rules and actions through the real coordinator with fake GitHub and checkout services, alongside recorded-pill and scoped-configuration regressions. The public extension bridge remains later work.
 
 The focused tests should prove the following:
 
@@ -1034,7 +1057,7 @@ The focused tests should prove the following:
 | Headless runs and later reconnect | Consistent history shows queued, blocked, code, prompt, and terminal outcomes. |
 | Lifetimes and accessibility | No leaked observers/timers; keyboard and accessible text expose the same capabilities. |
 
-Prove shared-runtime compatibility before adding production providers:
+Shared-runtime compatibility requires:
 
 | Scenario | Required observation |
 | --- | --- |

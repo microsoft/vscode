@@ -463,6 +463,7 @@ class SessionGitHubCommitResolver extends Disposable {
 
 /** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
+	private readonly presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
 
 	/** Sections for the artifacts pill: what the session produced. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
@@ -503,7 +504,7 @@ export class SessionArtifacts extends Disposable {
 		}));
 
 		const lifetimes = this._register(new DisposableMap<string, DisposableStore>());
-		const presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
+		const presentations = this.presentations;
 		const sessionChanges = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
 		let owner: IActiveSession | undefined;
 		this._register(autorun(reader => {
@@ -544,12 +545,9 @@ export class SessionArtifacts extends Disposable {
 					if (lifetime.isDisposed) {
 						return;
 					}
-					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, () => {
-						const invokingChat = chat.read(undefined);
-						if (!invokingChat || session.read(undefined) !== current) {
-							throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
-						}
-						return invokingChat.resource.toString();
+					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, reader => {
+						const invokingChat = chat.read(reader);
+						return session.read(reader) === current ? invokingChat?.resource.toString() : undefined;
 					}));
 					presentations.set(new Map(presentations.read(undefined)).set(artifact.id, presentation), undefined);
 				}).catch(error => {
@@ -596,6 +594,10 @@ export class SessionArtifacts extends Disposable {
 
 		this.sections = sectionsFor(true);
 		this.referenceSections = sectionsFor(false);
+	}
+
+	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
+		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
 	}
 
 	private _actions(session: IActiveSession, reader: IReader): ISessionArtifactActions {

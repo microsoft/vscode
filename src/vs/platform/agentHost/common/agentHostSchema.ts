@@ -557,6 +557,7 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
@@ -896,6 +897,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
+	}),
+	[AgentHostGitHubArtifactIgnoredChecksConfigKey]: schemaProperty<readonly string[]>({
+		type: 'array',
+		title: localize('agentHost.config.githubArtifactIgnoredChecks.title', "Checks Excluded from Automatic Mark Ready"),
+		description: localize('agentHost.config.githubArtifactIgnoredChecks.description', "Check-name patterns that do not need to pass before a pull request artifact is automatically marked ready."),
+		items: { type: 'string', title: localize('agentHost.config.githubArtifactIgnoredChecks.item', "Check Name Pattern") },
+		default: [],
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

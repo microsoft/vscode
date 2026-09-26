@@ -202,7 +202,7 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 
 	constructor(
 		private readonly session: string,
-		private readonly artifact: ArtifactRecord,
+		private artifact: ArtifactRecord,
 		private readonly sessionReference: IReference<IObservable<ArtifactSessionState>>,
 		private readonly runtime: IArtifactRuntime,
 		private readonly registry: ArtifactIntegrationRegistry,
@@ -217,7 +217,7 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 			const state = this.ledger.state.read(reader);
 			const ids = new Set(state.bindings.filter(binding => binding.session === session && binding.artifact.id === artifact.id).map(binding => binding.id));
 			return {
-				authority: runtime.authority, session, artifact, contributions,
+				authority: runtime.authority, session, artifact: this.artifact, contributions,
 				mainIntegrationId: contributions.find(contribution => contribution.view.main)?.integrationId,
 				runs: state.runs.filter(run => ids.has(run.bindingId)).slice(-50),
 			};
@@ -229,7 +229,12 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 		let initial = true;
 		this._register(autorun(reader => {
 			const registrations = this.registry.integrations.read(reader);
+			const currentArtifact = this.sessionReference.object.read(reader).artifacts.find(artifact => artifact.id === this.artifact.id);
 			if (!initial) {
+				if (currentArtifact && currentArtifact.isArtifact !== this.artifact.isArtifact) {
+					this.artifact = { ...this.artifact, isArtifact: currentArtifact.isArtifact };
+					this.bindings.clearAndDisposeAll();
+				}
 				for (const [id, binding] of this.bindings) {
 					if (!registrations.includes(binding.registration)) {
 						this.bindings.deleteAndDispose(id);
@@ -546,6 +551,7 @@ class ArtifactBinding extends Disposable {
 				this.automation.value = binding.activateAutomation({
 					runAutomation: request => this.executor.runAutomation(this.id, request),
 					reconcileRun: runId => this.executor.reconcile(this.id, runId),
+					disableAutomation: (optionId, expectedRevision, reason) => this.disableAutomation(optionId, expectedRevision, reason),
 					runs: derived(this, reader => this.ledger.state.read(reader).runs.filter(run => run.bindingId === this.id)),
 				});
 			} else if (!enabled) {
@@ -553,6 +559,30 @@ class ArtifactBinding extends Disposable {
 			}
 		}));
 		return true;
+	}
+
+	private async disableAutomation(optionId: string, expectedRevision: number, reason: string): Promise<void> {
+		const option = this.registration.options.find(option => option.id === optionId);
+		if (!option || !reason.trim()) {
+			throw new Error('An automation disablement requires a registered option and a reason');
+		}
+		await this.ledger.transact(state => {
+			const stored = state.bindings.find(binding => binding.id === this.id);
+			if (!stored || stored.configuration.revision !== expectedRevision) {
+				throw new ArtifactConfigurationConflictError();
+			}
+			state.bindings = state.bindings.map(binding => binding.id === this.id ? {
+				...stored,
+				configuration: {
+					...stored.configuration,
+					revision: expectedRevision + 1,
+					values: { ...stored.configuration.values, [optionId]: artifactOptionDisabledValue(option) },
+					disablements: { ...stored.configuration.disablements, [optionId]: { reason, attempts: 0 } },
+				},
+			} : binding);
+		});
+		await this.executor.revokeDisabled(this.id);
+		this.executor.wake();
 	}
 
 	canEnable(optionId: string): boolean {

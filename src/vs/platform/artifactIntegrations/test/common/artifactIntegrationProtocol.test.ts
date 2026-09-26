@@ -121,6 +121,28 @@ suite('Artifact Integration Protocol', () => {
 		], [false, false, false, false, true, true, false, true]);
 	});
 
+	test('validates and transports chat-specific manual action availability', async () => {
+		const f = model();
+		const action = { id: 'repair', enabled: true, chatAvailability: { 'chat:one': { enabled: false, disabledReason: 'Wrong checkout' }, 'chat:two': { enabled: true } } };
+		f.snapshot.set({
+			...f.snapshot.get(), contributions: [{
+				integrationId: 'test', label: 'Test', actions: [{ id: 'repair', label: 'Repair', iconId: 'tools', kind: 'prompt' }], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: { availability: { kind: 'available' }, sections: [], stateActions: [action], generalActions: [], automationAvailability: [] },
+			}]
+		}, undefined);
+		const server = store.add(new ArtifactIntegrationServer(f.access));
+		const client = store.add(new ArtifactIntegrationClient({ onDidUpdate: server.onDidUpdate, request: request => server.request(request) }, new NullLogService()));
+		const reference = store.add(await client.acquireArtifact('session', 'artifact'));
+		const contribution = f.snapshot.get().contributions[0];
+		const malformed = {
+			kind: 'artifact', subscription: 'subscription', revision: 0,
+			snapshot: { ...f.snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, stateActions: [{ ...action, chatAvailability: { 'chat:one': { enabled: 'yes' } } }] } }] },
+		};
+		assert.deepStrictEqual({ actions: reference.object.snapshot.get().contributions[0].view.stateActions, malformedAccepted: isArtifactIntegrationResponse(malformed) },
+			{ actions: [action], malformedAccepted: false });
+	});
+
 	test('compact part descriptions are optional plain text across the transport', () => {
 		const part = { label: '3/6', description: '3 of 6 checks passed', icon: { id: 'pass' }, detailsId: 'checks' };
 		const contribution = {
