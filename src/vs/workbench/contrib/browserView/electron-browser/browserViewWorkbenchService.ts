@@ -45,6 +45,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -385,9 +386,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						openSource: createOptions?.openSource
 					}
 				);
+				// The creation event can resolve the model before this reply. Closing it
+				// in the meantime must not recreate the input and its subscriptions.
+				if (input.isDisposed()) {
+					await this._browserViewService.destroyBrowserView(id);
+					throw new CancellationError();
+				}
 				return this._createModel(info);
 			});
-			input.onWillDispose(() => {
+			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
 			});
