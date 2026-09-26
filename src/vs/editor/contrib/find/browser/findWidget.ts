@@ -14,7 +14,7 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
-import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -130,6 +130,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
+	private _selectionScopeUpdateScheduler: RunOnceScheduler;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
@@ -227,9 +228,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 		this.updateAccessibilitySupport();
+		this._selectionScopeUpdateScheduler = this._register(new RunOnceScheduler(() => this._updateSearchScope(false), 100));
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
+				// Distinguish user selection changes from find-result
+				// navigation: _updateSearchScope filters out the current
+				// match, so a navigation selection (which is the current
+				// match) cannot shrink the scope, while a genuinely new
+				// user selection updates it without requiring a Find focus.
+				// Debounced like the content-change path: dragging a
+				// selection must not re-run the search on every frame.
+				this._selectionScopeUpdateScheduler.schedule();
 			}
 		}));
 		this._register(this._codeEditor.onDidFocusEditorWidget(async () => {
@@ -246,7 +256,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._findFocusTracker.onDidFocus(() => {
 			this._findInputFocused.set(true);
 			this._lastFocusedInputWasReplace = false;
-			this._updateSearchScope();
+			this._updateSearchScope(true);
 		}));
 		this._register(this._findFocusTracker.onDidBlur(() => {
 			this._findInputFocused.set(false);
@@ -257,7 +267,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._replaceFocusTracker.onDidFocus(() => {
 			this._replaceInputFocused.set(true);
 			this._lastFocusedInputWasReplace = true;
-			this._updateSearchScope();
+			this._updateSearchScope(true);
 		}));
 		this._register(this._replaceFocusTracker.onDidBlur(() => {
 			this._replaceInputFocused.set(false);
@@ -853,15 +863,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput.highlightFindOptions();
 	}
 
-	private _updateSearchScope(): void {
+	private _updateSearchScope(moveCursor: boolean): void {
 		if (!this._codeEditor.hasModel()) {
 			return;
 		}
 
 		if (this._toggleSelectionFind.checked) {
-			const selections = this._codeEditor.getSelections();
-
-			selections.map(selection => {
+			const selections = this._codeEditor.getSelections().map(selection => {
 				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 					selection = selection.setEndPosition(
 						selection.endLineNumber - 1,
@@ -875,10 +883,20 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					}
 				}
 				return null;
-			}).filter(element => !!element);
+			}).filter((element): element is Selection => !!element);
 
+			// An empty result means every selection was filtered out: it is the
+			// current match (navigation replaced the selection), or a single
+			// line/word selection. Either way the active scope must survive:
+			// collapsing onto the match would drop the count to 1. Note this
+			// deliberately diverges from the toggle-on path, which accepts
+			// single-line selections: navigation selections are
+			// indistinguishable from single-line user selections on this
+			// event surface, and never collapsing is the safe default
+			// (tracked for upstream discussion). state.change deduplicates
+			// equal scopes internally.
 			if (selections.length) {
-				this._state.change({ searchScope: selections as Range[] }, true);
+				this._state.change({ searchScope: selections as Range[] }, moveCursor);
 			}
 		}
 	}
