@@ -49,6 +49,50 @@ export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, Reado
 
 export interface ICustomizationMigrationOptions {
 	readonly deleteOriginalFiles?: boolean;
+	/**
+	 * Resolves the target folder for a single customization. Used to keep workspace
+	 * customizations of a multi-root workspace inside their own workspace folder.
+	 * Falls back to the target folder of the customization type and storage.
+	 */
+	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
+}
+
+/**
+ * Picks the target folder that is closest to the customization that is being migrated.
+ * In a multi-root workspace every workspace folder contributes its own source folders,
+ * so a workspace customization must not be moved into a different workspace folder.
+ */
+export function resolveClosestMigrationTargetFolder(
+	customizationUri: URI,
+	targetFolder: ICustomizationSourceFolder,
+	availableFolders: readonly ICustomizationSourceFolder[],
+): ICustomizationSourceFolder {
+	const targetProximity = getSharedPathSegmentCount(customizationUri, targetFolder.uri);
+	const closerFolders = availableFolders.filter(folder => getSharedPathSegmentCount(customizationUri, folder.uri) > targetProximity);
+	if (closerFolders.length === 0) {
+		return targetFolder;
+	}
+
+	// Prefer a folder that mirrors the selected destination (e.g. `.github/skills`)
+	// so that the destination the user picked is preserved across workspace folders.
+	return closerFolders.find(folder => hasSameFolderLayout(folder.uri, targetFolder.uri)) ?? closerFolders[0];
+}
+
+function hasSameFolderLayout(folder: URI, other: URI): boolean {
+	return basename(folder) === basename(other) && basename(dirname(folder)) === basename(dirname(other));
+}
+
+function getSharedPathSegmentCount(one: URI, other: URI): number {
+	if (one.scheme !== other.scheme || one.authority !== other.authority) {
+		return 0;
+	}
+	const oneSegments = one.path.split('/');
+	const otherSegments = other.path.split('/');
+	let count = 0;
+	while (count < oneSegments.length && count < otherSegments.length && oneSegments[count] === otherSegments[count]) {
+		count++;
+	}
+	return count;
 }
 
 const retainedPromptHeaderKeys = new Set([
@@ -144,7 +188,7 @@ export async function migrateCustomizations(
 			for (const customization of sourceCustomizations) {
 				failureReason = FileCustomizationMigrationFailureReason.TargetResolutionFailed;
 				const targetType = getCustomizationMigrationTargetType(customization);
-				const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
+				const targetFolder = options?.resolveTargetFolder?.(customization, targetType) ?? targetFolders.get(targetType)?.get(customization.storage);
 				if (!targetFolder) {
 					throw new Error(`No ${targetType} target folder is configured for ${customization.storage} customizations.`);
 				}

@@ -113,7 +113,7 @@ import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js'
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
-import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations } from './customizationMigration.js';
+import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveClosestMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -1917,7 +1917,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const confirmation = category.getConfirmation(files, this.getActiveHarnessLabel(), this.getCustomizationMigrationDestinationLabel(
-				[...targetFolders.values()].flatMap(folders => [...folders.values()]),
+				files.flatMap(file => {
+					const folder = this.getEffectiveCustomizationMigrationTargetFolder(file, targetFolders);
+					return folder ? [folder] : [];
+				}),
 			));
 			const confirmed = await this.dialogService.confirm({
 				type: 'question',
@@ -2099,6 +2102,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Returns the folder a single customization is migrated into. Workspace customizations
+	 * of a multi-root workspace are kept inside the workspace folder they come from, instead
+	 * of being moved into the target folder of the first workspace folder.
+	 */
+	private getEffectiveCustomizationMigrationTargetFolder(
+		customization: MigratableConfiguration,
+		targetFolders: CustomizationMigrationTargetFolders,
+	): ICustomizationSourceFolder | undefined {
+		const targetType = getCustomizationMigrationTargetType(customization);
+		const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
+		if (!targetFolder || customization.storage !== PromptsStorage.local) {
+			return targetFolder;
+		}
+		const availableFolders = this.getCustomizationMigrationFolders(targetType, customization.storage);
+		if (!availableFolders.some(folder => isEqual(folder.uri, targetFolder.uri))) {
+			// A folder picked through the file dialog is used as is.
+			return targetFolder;
+		}
+		return resolveClosestMigrationTargetFolder(customization.uri, targetFolder, availableFolders);
+	}
+
 	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsWithFailureReasonsResult> {
 		this.customizationMigrationWritesInProgress = true;
 		try {
@@ -2111,7 +2136,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 					failureReasons.push(...reasons);
 					onUnexpectedError(error);
 				},
-				{ deleteOriginalFiles },
+				{
+					deleteOriginalFiles,
+					resolveTargetFolder: customization => this.getEffectiveCustomizationMigrationTargetFolder(customization, targetFolders),
+				},
 			);
 			return { ...result, failureReasons };
 		} finally {
