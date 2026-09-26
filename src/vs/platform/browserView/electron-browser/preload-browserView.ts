@@ -258,7 +258,20 @@ function init() {
 	const mainWorldHelpers = {
 		getElement,
 		/** Opaque token exposed for CDP-side frame matching. */
-		getFrameToken(): string { return frameToken; }
+		getFrameToken(): string { return frameToken; },
+		getFaviconUrls(): string[] | undefined {
+			if (document.readyState === 'loading') {
+				return undefined;
+			}
+			const links = document.head
+				? [...document.head.children]
+				: document.documentElement instanceof SVGSVGElement ? [...document.querySelectorAll('link')] : [];
+			const urls = links
+				.filter((link): link is HTMLLinkElement => link instanceof HTMLLinkElement && link.matches('[rel~="icon" i]'))
+				.filter(link => link.href && URL.canParse(link.href) && (!link.media || window.matchMedia(link.media).matches))
+				.map(link => link.href);
+			return [...new Set(urls)].sort();
+		}
 	};
 
 	try {
