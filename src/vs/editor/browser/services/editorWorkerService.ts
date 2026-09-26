@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { MicrotaskDelay } from '../../../base/common/symbols.js';
 import { URI } from '../../../base/common/uri.js';
 import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
 import { WebWorkerDescriptor } from '../../../platform/webWorker/browser/webWorkerDescriptor.js';
@@ -343,6 +345,7 @@ class WorkerManager extends Disposable {
 	private readonly _webWorkerService: IWebWorkerService;
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
+	private _workerUseCount = 0;
 
 	constructor(
 		private readonly _workerDescriptor: WebWorkerDescriptor,
@@ -358,7 +361,13 @@ class WorkerManager extends Disposable {
 		const stopWorkerInterval = this._register(new WindowIntervalTimer());
 		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2), mainWindow);
 
-		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
+		// Skip the check if the worker was requested after the last removal.
+		const onModelRemoved = Event.debounce<ITextModel, number>(this._modelService.onModelRemoved, () => this._workerUseCount, MicrotaskDelay, false, false, undefined, this._store);
+		this._register(onModelRemoved(useCount => {
+			if (useCount === this._workerUseCount) {
+				this._checkStopEmptyWorker();
+			}
+		}));
 	}
 
 	public override dispose(): void {
@@ -401,6 +410,7 @@ class WorkerManager extends Disposable {
 	}
 
 	public withWorker(): Promise<EditorWorkerClient> {
+		this._workerUseCount++;
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
 			this._editorWorkerClient = new EditorWorkerClient(this._workerDescriptor, false, this._modelService, this._webWorkerService);

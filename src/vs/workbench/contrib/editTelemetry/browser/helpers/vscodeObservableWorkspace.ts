@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IObservableWithChange, mapObservableArrayCached, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
@@ -26,7 +28,10 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 		super();
 
 		const onModelAdded = observableSignalFromEvent(this, this._textModelService.onModelAdded);
-		const onModelRemoved = observableSignalFromEvent(this, this._textModelService.onModelRemoved);
+		// Closing a multi-diff releases many models in the same microtask checkpoint.
+		const onModelRemoved = observableSignalFromEvent(this, Event.debounce(
+			this._textModelService.onModelRemoved, () => undefined, MicrotaskDelay, false, false, undefined, this._store
+		));
 
 		const models = derived(this, reader => {
 			onModelAdded.read(reader);
@@ -51,7 +56,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 }
 
 export class VSCodeDocument extends Disposable implements IObservableDocument {
-	get uri(): URI { return this.textModel.uri; }
+	get uri(): URI { return this._textModel.uri; }
 	private readonly _value;
 	private readonly _version;
 	private readonly _languageId;
@@ -60,15 +65,15 @@ export class VSCodeDocument extends Disposable implements IObservableDocument {
 	get languageId(): IObservable<string> { return this._languageId; }
 
 	constructor(
-		public readonly textModel: ITextModel,
+		private readonly _textModel: ITextModel,
 	) {
 		super();
 
-		this._value = observableValue<StringText, StringEditWithReason>(this, new StringText(this.textModel.getValue()));
-		this._version = observableValue(this, this.textModel.getVersionId());
-		this._languageId = observableValue(this, this.textModel.getLanguageId());
+		this._value = observableValue<StringText, StringEditWithReason>(this, new StringText(this._textModel.getValue()));
+		this._version = observableValue(this, this._textModel.getVersionId());
+		this._languageId = observableValue(this, this._textModel.getLanguageId());
 
-		this._register(this.textModel.onDidChangeContent((e) => {
+		this._register(this._textModel.onDidChangeContent((e) => {
 			transaction(tx => {
 				const edit = offsetEditFromContentChanges(e.changes);
 				if (e.detailedReasons.length !== 1) {
@@ -77,14 +82,14 @@ export class VSCodeDocument extends Disposable implements IObservableDocument {
 
 				const change = new StringEditWithReason(edit.replacements, e.detailedReasons[0]);
 
-				this._value.set(new StringText(this.textModel.getValue()), tx, change);
-				this._version.set(this.textModel.getVersionId(), tx);
+				this._value.set(new StringText(this._textModel.getValue()), tx, change);
+				this._version.set(this._textModel.getVersionId(), tx);
 			});
 		}));
 
-		this._register(this.textModel.onDidChangeLanguage(e => {
+		this._register(this._textModel.onDidChangeLanguage(e => {
 			transaction(tx => {
-				this._languageId.set(this.textModel.getLanguageId(), tx);
+				this._languageId.set(this._textModel.getLanguageId(), tx);
 			});
 		}));
 	}
