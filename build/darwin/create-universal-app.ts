@@ -34,6 +34,34 @@ function crossCopyPlatformDir(x64AppPath: string, arm64AppPath: string, relative
 	}
 }
 
+/**
+ * Dynamically scans a directory for platform-specific folders (e.g., containing darwin-x64 or darwin-arm64)
+ * and returns their relative paths for cross-copying.
+ */
+function discoverPlatformDirs(basePath: string, subPath: string, plat: string): string[] {
+	const targetDir = path.join(basePath, subPath);
+	if (!fs.existsSync(targetDir)) {
+		return [];
+	}
+
+	const discovered: string[] = [];
+	try {
+		const entries = fs.readdirSync(targetDir, { withFileTypes: true });
+		for (const entry of entries) {
+			if (entry.isDirectory()) {
+				// Check if the directory name matches or contains the platform suffix
+				if (entry.name.includes(plat) || entry.name === plat) {
+					discovered.path = path.join(subPath, entry.name);
+					discovered.push(path.join(subPath, entry.name));
+				}
+			}
+		}
+	} catch {
+		// Ignore read errors if directory is inaccessible
+	}
+	return discovered;
+}
+
 async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
 
@@ -51,37 +79,39 @@ async function main(buildDir?: string) {
 	
 	crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join('Contents', 'Resources', 'app', 'node-compile-cache'));
 
-	// Platform-specific packages and binaries definition for dynamic iteration
 	for (const plat of ['darwin-x64', 'darwin-arm64']) {
 		for (const base of nodeModulesBases) {
-			const githubPackages = [
-				path.join('@github', `copilot-${plat}`),
-				path.join('@github', `copilot-sdk-${plat}`),
-				path.join('@github', 'copilot', 'prebuilds', plat),
-				path.join('@github', 'copilot', 'tgrep', 'bin', plat),
-				path.join('@github', 'copilot', 'sdk', 'tgrep', 'bin', plat)
+			// Dynamically discover @github and @vscode packages containing the platform name
+			const githubPaths = discoverPlatformDirs(x64AppPath, path.join(base, '@github'), plat);
+			const vscodePaths = discoverPlatformDirs(x64AppPath, path.join(base, '@vscode'), plat);
+
+			for (const p of [...githubPaths, ...vscodePaths]) {
+				crossCopyPlatformDir(x64AppPath, arm64AppPath, p);
+			}
+
+			// Explicit structured prebuilds and binaries that rely on standard paths
+			const explicitPaths = [
+				path.join(base, '@github', 'copilot', 'prebuilds', plat),
+				path.join(base, '@github', 'copilot', 'tgrep', 'bin', plat),
+				path.join(base, '@github', 'copilot', 'sdk', 'tgrep', 'bin', plat),
+				path.join(base, '@vscode', 'ripgrep-universal', 'bin', plat)
 			];
 
-			const vscodePackages = [
-				path.join('@vscode', `os-proxy-resolver-${plat}`),
-				path.join('@vscode', 'ripgrep-universal', 'bin', plat)
-			];
-
-			for (const pkgPath of [...githubPackages, ...vscodePackages]) {
-				crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, pkgPath));
+			for (const ep of explicitPaths) {
+				crossCopyPlatformDir(x64AppPath, arm64AppPath, ep);
 			}
 		}
 
 		const copilotExtensionNodeModules = path.join('Contents', 'Resources', 'app', 'extensions', 'copilot', 'node_modules');
 		const copilotExtensionBinaries = [
-			path.join('@github', 'copilot', 'sdk', 'prebuilds', plat),
-			path.join('@github', 'copilot', 'sdk', 'ripgrep', 'bin', plat),
-			path.join('@github', 'copilot', 'sdk', 'tgrep', 'bin', plat),
-			path.join('@github', 'copilot', 'tgrep', 'bin', plat)
+			path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'prebuilds', plat),
+			path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'ripgrep', 'bin', plat),
+			path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'tgrep', 'bin', plat),
+			path.join(copilotExtensionNodeModules, '@github', 'copilot', 'tgrep', 'bin', plat)
 		];
 
 		for (const extBin of copilotExtensionBinaries) {
-			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, extBin));
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, extBin);
 		}
 	}
 
