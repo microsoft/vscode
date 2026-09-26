@@ -200,6 +200,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		// without a full restart can be live-propagated into the shared host.
 		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
+		void agentServiceComposition.artifactRuntime.integrations.initialize().catch(error => logService.error('[ArtifactIntegrations] Failed to restore artifact automations', error));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
 

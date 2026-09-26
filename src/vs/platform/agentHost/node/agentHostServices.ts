@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -87,6 +89,8 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 		: ':memory:';
 	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
 	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
+	services.set(IArtifactIntegrationRegistry, new SyncDescriptor(ArtifactIntegrationRegistry));
+	services.set(IAgentHostArtifactEventService, new SyncDescriptor(AgentHostArtifactEventService));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));

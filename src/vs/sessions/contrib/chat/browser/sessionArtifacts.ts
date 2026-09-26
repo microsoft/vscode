@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -23,6 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -34,7 +35,8 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../workbench/contrib/github/browser/githubCommitResolver.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
-import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { ArtifactIntegrationPresentation } from './artifactIntegrationPresentation.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -472,6 +474,7 @@ export class SessionArtifacts extends Disposable {
 		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		private readonly _gitHubReferences: IObservable<ISessionGitHubReferences>,
+		chat: IObservable<IChat | undefined>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -481,6 +484,7 @@ export class SessionArtifacts extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ISessionsGitHubService gitHubService: ISessionsGitHubService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -497,6 +501,66 @@ export class SessionArtifacts extends Disposable {
 			}
 			commitResolver.retain(commitTargets);
 		}));
+
+		const lifetimes = this._register(new DisposableMap<string, DisposableStore>());
+		const presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
+		const sessionChanges = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
+		let owner: IActiveSession | undefined;
+		this._register(autorun(reader => {
+			const current = session.read(reader);
+			if (current !== owner) {
+				lifetimes.clearAndDisposeAll();
+				presentations.set(new Map(), undefined);
+				owner = current;
+			}
+			const artifacts = current?.artifacts?.read(reader) ?? [];
+			const ids = new Set(artifacts.map(artifact => artifact.id));
+			for (const id of lifetimes.keys()) {
+				if (!ids.has(id)) {
+					lifetimes.deleteAndDispose(id);
+					const next = new Map(presentations.read(undefined));
+					next.delete(id);
+					presentations.set(next, undefined);
+				}
+			}
+			if (!current) {
+				return;
+			}
+			if (!current.capabilities.read(reader).supportsArtifactIntegrations) {
+				return;
+			}
+			sessionChanges.read(reader);
+			for (const artifact of artifacts) {
+				if (lifetimes.has(artifact.id) || (!artifact.link && !artifact.uri)) {
+					continue;
+				}
+				const lifetime = new DisposableStore();
+				lifetimes.set(artifact.id, lifetime);
+				void this._sessionsManagementService.acquireArtifactIntegration(current, artifact.id).then(reference => {
+					if (!reference) {
+						return;
+					}
+					lifetime.add(reference);
+					if (lifetime.isDisposed) {
+						return;
+					}
+					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, () => {
+						const invokingChat = chat.read(undefined);
+						if (!invokingChat || session.read(undefined) !== current) {
+							throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
+						}
+						return invokingChat.resource.toString();
+					}));
+					presentations.set(new Map(presentations.read(undefined)).set(artifact.id, presentation), undefined);
+				}).catch(error => {
+					if (!lifetime.isDisposed) {
+						logService.error('[ArtifactIntegrations] Could not acquire artifact presentation', error);
+						lifetimes.deleteAndDispose(artifact.id);
+					}
+				});
+			}
+		}));
+
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
 		// Rebuild after formatter/folder changes because the session folder mounts after activation.
 		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
@@ -519,6 +583,7 @@ export class SessionArtifacts extends Disposable {
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
+			const integrated = presentations.read(reader);
 			return buildSessionArtifactSections(
 				artifacts,
 				this._actions(current, reader),
@@ -526,7 +591,7 @@ export class SessionArtifacts extends Disposable {
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 				commits,
-			);
+			).map(section => ({ ...section, entries: section.entries.map(entry => integrated.get(entry.id)?.decorate(entry, reader) ?? entry) }));
 		});
 
 		this.sections = sectionsFor(true);

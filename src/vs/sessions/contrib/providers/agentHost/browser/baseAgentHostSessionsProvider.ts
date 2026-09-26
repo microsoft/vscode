@@ -71,6 +71,8 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
+import { AgentHostArtifactIntegrations } from './agentHostArtifactIntegrations.js';
+import { IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -1494,6 +1496,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
+				...(connection?.artifactIntegrationRequest && connection.connectionAvailable ? { supportsArtifactIntegrations: true } : {}),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -3523,6 +3526,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the next successful refresh.
 	 */
 	private readonly _sessionRefreshRetry = this._register(new MutableDisposable());
+	private readonly _artifactIntegrations = this._register(new MutableDisposable<AgentHostArtifactIntegrations>());
 
 	/** Current backoff delay (ms) for the session-refresh retry. */
 	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
@@ -3572,6 +3576,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
 		this._register(this._onDidChangeSessionsImmediately(() => {
+			if (this.connection?.connectionAvailable) {
+				this._getArtifactIntegrations().setConnection(this.connection);
+			}
 			for (const sessionId of this._observedAgentMergeSessionStates.keys()) {
 				this._keepAgentMergeSessionStateAlive(sessionId);
 			}
@@ -5635,6 +5642,47 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('removeSessionArtifactUnavailable', "Removing artifacts is unavailable for this session."));
 		}
 		await connection.removeSessionArtifact(cached.backendUri, artifactId);
+	}
+
+	private _getArtifactIntegrations(): AgentHostArtifactIntegrations {
+		if (!this._artifactIntegrations.value) {
+			this._artifactIntegrations.value = this._instantiationService.createInstance(AgentHostArtifactIntegrations, this.id);
+		}
+		return this._artifactIntegrations.value;
+	}
+
+	async acquireArtifactIntegration(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session) {
+			throw new Error(localize('artifactIntegrationSessionMissing', "The artifact's session is unavailable."));
+		}
+		const integrations = this._getArtifactIntegrations();
+		integrations.setConnection(this.connection);
+		const reference = await integrations.acquireArtifact(session.backendUri.toString(), artifactId);
+		return {
+			object: {
+				snapshot: reference.object.snapshot,
+				configure: (integrationId, revision, values) => reference.object.configure(integrationId, revision, values),
+				invoke: (integrationId, actionId, chat, requestId) => {
+					const resource = URI.parse(chat, true);
+					if (!session.chats.get().some(chat => this._uriIdentityService.extUri.isEqual(chat.resource, resource))) {
+						throw new Error('Artifact action chat does not belong to the invoking session');
+					}
+					const state = this._lastSessionStates.get(session.sessionId);
+					const backendChat = state && getSessionChatResource(state, resource.fragment || DEFAULT_CHAT_ID);
+					if (!backendChat) {
+						throw new Error(localize('artifactInvokingChatMissing', "The invoking chat has not been resolved on the agent host."));
+					}
+					return reference.object.invoke(integrationId, actionId, backendChat, requestId);
+				},
+				cancel: runId => reference.object.cancel(runId),
+				reconcile: runId => reference.object.reconcile(runId),
+				getRuns: (before, limit) => reference.object.getRuns(before, limit),
+				acquireDetails: (integrationId, detailsId) => reference.object.acquireDetails(integrationId, detailsId),
+			},
+			dispose: () => reference.dispose(),
+		};
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {

@@ -524,6 +524,7 @@ export interface IAgentServiceCallbackBinder {
 }
 
 export interface IAgentServiceCollaborators {
+	readonly artifactIntegrations?: IAgentService['artifactIntegrations'];
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
@@ -590,6 +591,7 @@ function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource
  * on the provider identifier in the session configuration.
  */
 export class AgentService extends Disposable implements IAgentService {
+	readonly artifactIntegrations: IAgentService['artifactIntegrations'];
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
@@ -785,6 +787,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAdditionalWorktreeLifecycleService private readonly _additionalWorktreeLifecycleService: IAdditionalWorktreeLifecycleService,
 	) {
 		super();
+		this.artifactIntegrations = collaborators.artifactIntegrations;
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;

@@ -193,7 +193,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => {
 						const messages: string[] = [];
 						for (const input of inputs) {
-							const result = collection.addOrPromoteArtifact(input, generateUuid);
+							const result = collection.addOrPromoteArtifact(input, generateUuid, { chat: context.chatUri, ...(context.turnId ? { turnId: context.turnId } : {}) });
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
 								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';

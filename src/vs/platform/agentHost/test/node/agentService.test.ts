@@ -1422,7 +1422,7 @@ suite('AgentService (node dispatcher)', () => {
 					databaseOpens,
 				}, {
 					repeatedClassification: true,
-					items,
+					items: items.map(item => ({ ...item, origin: { chat: buildDefaultChatUri(session) } })),
 					legacy: expectedArtifacts,
 					central: expectedArtifacts,
 					restarted: expectedArtifacts,

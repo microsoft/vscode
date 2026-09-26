@@ -72,6 +72,21 @@ suite('Session Artifacts', () => {
 			id: 'id-1',
 			count: 1,
 		});
+
+		test('stamps trusted origin, ignores agent-supplied origin, and preserves provenance on promotion', () => {
+			const input = { type: 'website', label: 'Example', link: 'https://example.com', isArtifact: false, origin: { chat: 'forged' } };
+			const first = new SessionArtifactCollection().add(parseSessionArtifactInput(input, TOOL), createId, { chat: 'original-chat', turnId: 'original-turn' });
+			const promoted = new SessionArtifactCollection(first.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ ...input, isArtifact: true }, TOOL), createId, { chat: 'different-chat' });
+			const restored = parseSessionArtifacts(stringifySessionArtifacts(promoted.artifacts));
+			assert.deepStrictEqual(restored, { artifacts: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Example', link: 'https://example.com', isArtifact: true, origin: { chat: 'original-chat', turnId: 'original-turn' } }], dropped: 0 });
+		});
+
+		test('promoting a legacy record does not invent its original chat', () => {
+			const input = { type: 'website', label: 'Legacy', link: 'https://example.com', isArtifact: false };
+			const first = new SessionArtifactCollection().add(parseSessionArtifactInput(input, TOOL), createId);
+			const promoted = new SessionArtifactCollection(first.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ ...input, isArtifact: true }, TOOL), createId, { chat: 'current-chat' });
+			assert.deepStrictEqual(promoted.artifact.origin, undefined);
+		});
 	});
 
 	test('promotes a duplicate reference to an artifact while preserving its id', () => {
