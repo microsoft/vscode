@@ -1184,9 +1184,9 @@
 
 						e.preventDefault();
 
-						// If an image was clicked and there is no active non-collapsed selection, select the image node so that copy works
+						// If an image was clicked and there is no active text selection, select the image node so that copy works
 						const selection = contentWindow.getSelection();
-						if (e.target && /** @type {HTMLElement} */ (e.target).tagName === 'IMG' && (!selection || selection.isCollapsed)) {
+						if (e.target && /** @type {HTMLElement} */ (e.target).tagName === 'IMG' && (!selection || selection.isCollapsed || selection.toString().length === 0)) {
 							const range = contentDocument.createRange();
 							range.selectNode(e.target);
 							selection?.removeAllRanges();
