@@ -2415,6 +2415,11 @@ export class Repository {
 
 		if (options.silent) {
 			spawnOptions.env!['VSCODE_GIT_FETCH_SILENT'] = 'true';
+
+			// Background fetches must not overwrite FETCH_HEAD while a pull is using it.
+			if (this._git.compareGitVersionTo('2.29.0') !== -1) {
+				args.push('--no-write-fetch-head');
+			}
 		}
 
 		try {
