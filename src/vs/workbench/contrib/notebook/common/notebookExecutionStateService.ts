@@ -95,6 +95,7 @@ export interface INotebookExecutionStateService {
 	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
 	getLastCompletedCellForNotebook(notebook: URI): number | undefined;
+	hasRunningExecutions(): boolean;
 }
 
 export interface INotebookCellExecution {
