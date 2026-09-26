@@ -1360,14 +1360,10 @@ export interface IAgent {
 	// ---- Metadata -----------------------------------------------------------
 
 	/**
-	 * Warms a short-lived, in-memory cache of per-session metadata from a single
-	 * bulk provider call, so a subsequent burst of {@link getChatMetadata} calls
-	 * (e.g. a `listSessions` pass over a large catalogue) can be served without
-	 * one provider round-trip per session. Returns a disposable that clears the
-	 * cache; callers dispose it once the burst is complete. Optional: providers
-	 * without a cheap bulk read simply omit it and pay per session.
+	 * Optionally warms metadata for a burst of {@link getChatMetadata} calls; the expected count lets providers avoid bulk reads for small bursts.
+	 * Callers release the returned lease after the burst; providers may retain a bounded cache across bursts.
 	 */
-	prewarmSessionMetadata?(): Promise<IDisposable>;
+	prewarmSessionMetadata?(expectedSessionCount: number): Promise<IDisposable>;
 
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
