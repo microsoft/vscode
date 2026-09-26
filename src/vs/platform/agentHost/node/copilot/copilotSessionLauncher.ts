@@ -90,6 +90,21 @@ export function isMcpServerExplicitlyProjected(server: ICopilotMcpServerInfo): b
 }
 
 /**
+ * The servers a launch registers through `SessionConfig.mcpServers`: root servers, overridden by same-named enabled
+ * servers that Agent Host projects explicitly. Ephemeral sessions register none.
+ */
+export function toSessionConfigMcpServers(plan: Pick<CopilotSessionLaunchPlan, 'isEphemeral' | 'snapshot'>): NonNullable<SessionConfig['mcpServers']> {
+	if (plan.isEphemeral) {
+		return {};
+	}
+	const explicitMcpServers = plan.snapshot.plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
+		!plugin.disabledMcpServers?.includes(server.name)
+		&& isMcpServerExplicitlyProjected(server)
+	));
+	return { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
+}
+
+/**
  * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
  * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
  * unchanged rather than dropped.
@@ -906,10 +921,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Hooks are also projected explicitly below because plugin directory discovery
 		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
-			!plugin.disabledMcpServers?.includes(server.name)
-			&& isMcpServerExplicitlyProjected(server)
-		));
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
@@ -986,7 +997,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...Object.keys(plan.snapshot.mcpServers),
 		] : undefined;
 		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
-		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
+		const mcpServers = toSessionConfigMcpServers(plan);
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
