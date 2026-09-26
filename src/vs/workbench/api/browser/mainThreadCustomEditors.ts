@@ -17,6 +17,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IFileDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { FileOperation, IFileService } from '../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
@@ -220,13 +221,13 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				let modelRef: IReference<ICustomEditorModel> | undefined;
 				const additionalModelRefs = new DisposableStore();
 				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation, extension.id);
 					if (webviewInput instanceof CustomEditorDiffInput && !isEqual(webviewInput.originalResource, resource)) {
-						additionalModelRefs.add(await this.getOrCreateCustomEditorModel(modelType, webviewInput.originalResource, viewType, {}, cancellation));
+						additionalModelRefs.add(await this.getOrCreateCustomEditorModel(modelType, webviewInput.originalResource, viewType, {}, cancellation, extension.id));
 					} else if (modelType === CustomEditorModelType.Text && webviewInput instanceof CustomEditorSideBySideDiffInput) {
 						const otherResource = webviewInput.side === 'original' ? webviewInput.modifiedResource : webviewInput.originalResource;
 						if (!isEqual(otherResource, resource)) {
-							additionalModelRefs.add(await this.getOrCreateCustomEditorModel(modelType, otherResource, viewType, {}, cancellation));
+							additionalModelRefs.add(await this.getOrCreateCustomEditorModel(modelType, otherResource, viewType, {}, cancellation, extension.id));
 						}
 					}
 				} catch (error) {
@@ -282,7 +283,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				if (webviewInput instanceof CustomEditorInput && capabilities.supportsMove) {
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = resolvedModelRef;
-						resolvedModelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
+						resolvedModelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None, extension.id);
 						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
 						oldModel.dispose();
 					});
@@ -419,6 +420,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		viewType: string,
 		options: { backupId?: string },
 		cancellation: CancellationToken,
+		ownerExtensionId: ExtensionIdentifier,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
 		if (existingModel) {
@@ -439,7 +441,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 								(editor instanceof CustomEditorInput && isEqual(editor.resource, resource))
 								|| (editor instanceof CustomEditorDiffInput && (isEqual(editor.originalResource, resource) || isEqual(editor.modifiedResource, resource)))
 								|| (editor instanceof CustomEditorSideBySideDiffInput && isEqual(editor.resource, resource))) as CustomEditorWebviewInput[];
-					}, cancellation);
+					}, ownerExtensionId, cancellation);
 					return this._customEditorService.models.add(resource, viewType, model);
 				}
 		}
@@ -546,6 +548,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		options: { backupId?: string },
 		untitledTextEditorService: IUntitledTextEditorService,
 		getEditors: () => CustomEditorWebviewInput[],
+		ownerExtensionId: ExtensionIdentifier,
 		cancellation: CancellationToken,
 	): Promise<MainThreadCustomEditorModel> {
 		const editors = getEditors();
@@ -563,7 +566,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			untitledTextEditorService.get(resource)?.revert();
 		}
 
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
+		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors, ownerExtensionId);
 	}
 
 	constructor(
@@ -574,6 +577,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		private readonly _editable: boolean,
 		startDirty: boolean,
 		private readonly _getEditors: () => CustomEditorWebviewInput[],
+		private readonly _ownerExtensionId: ExtensionIdentifier,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -591,8 +595,12 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		// so that dirty state is correct when first queried).
 		this._isDirtyFromContentChange = startDirty;
 
-		this._register(extensionService.onDidStop(() => {
+		const disconnect = () => {
+			if (this._extensionHostStopped) {
+				return;
+			}
 			this._extensionHostStopped = true;
+			this._ongoingSave?.cancel();
 			this._onDidChangeReadonly.fire();
 			for (const editor of this._getEditors()) {
 				editor.webview.setHtml(`<!DOCTYPE html>
@@ -603,6 +611,12 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 						</head>
 						<body>${localize('extensionHostStopped', "The extension host stopped. This custom editor is disconnected and cannot save changes. Unsaved changes may be lost if you close this editor.")}</body>
 					</html>`);
+			}
+		};
+		this._register(extensionService.onDidStop(disconnect));
+		this._register(extensionService.onDidStopExtensionHost(affected => {
+			if (affected.some(id => ExtensionIdentifier.equals(id, this._ownerExtensionId))) {
+				disconnect();
 			}
 		}));
 
@@ -778,7 +792,18 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async revert(options?: IRevertOptions) {
-		if (!this._editable || this._extensionHostStopped) {
+		if (!this._editable) {
+			return;
+		}
+		if (this._extensionHostStopped) {
+			this._undoService.removeElements(this._editorResource);
+			this.change(() => {
+				this._isDirtyFromContentChange = false;
+				this._fromBackup = false;
+				this._edits.length = 0;
+				this._currentEditIndex = -1;
+				this._savePoint = -1;
+			});
 			return;
 		}
 
@@ -831,7 +856,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		try {
 			await savePromise;
 
-			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+			if (this._ongoingSave === savePromise && !this._extensionHostStopped) { // Make sure we are still doing the same save
 				this.change(() => {
 					this._isDirtyFromContentChange = false;
 					this._savePoint = this._currentEditIndex;
@@ -865,6 +890,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		if (this._editable) {
 			// TODO: handle cancellation
 			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
+			if (this._extensionHostStopped) {
+				return false;
+			}
 			this.change(() => {
 				this._isDirtyFromContentChange = false;
 				this._savePoint = this._currentEditIndex;

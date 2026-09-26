@@ -84,6 +84,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private readonly _onDidStop = this._register(new Emitter<void>());
 	public readonly onDidStop = this._onDidStop.event;
+	private readonly _onDidStopExtensionHost = this._register(new Emitter<readonly ExtensionIdentifier[]>());
+	public readonly onDidStopExtensionHost = this._onDidStopExtensionHost.event;
 
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private readonly _registry = new LockableExtensionDescriptionRegistry(this._activationEventReader);
@@ -745,6 +747,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected async _doStopExtensionHosts(): Promise<void> {
+		const hadHosts = [...this._extensionHostManagers].length > 0;
 		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		for (const extensionStatus of this._extensionStatus.values()) {
 			if (extensionStatus.activationStarted) {
@@ -753,7 +756,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		await this._extensionHostManagers.stopAllInReverse();
-		this._onDidStop.fire();
+		if (hadHosts) {
+			this._onDidStop.fire();
+		}
 		for (const extensionStatus of this._extensionStatus.values()) {
 			extensionStatus.clearRuntimeStatus();
 		}
@@ -890,10 +895,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this._doStopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
+			const affectedExtensions = this._registry.getAllExtensionDescriptions()
+				.filter(extension => extensionHost.containsExtension(extension.identifier))
+				.map(extension => extension.identifier);
 			if (signal) {
 				this._onRemoteExtensionHostCrashed(extensionHost, signal);
 			}
-			this._extensionHostManagers.stopOne(extensionHost);
+			void this._extensionHostManagers.stopOne(extensionHost).then(() => {
+				this._onDidStopExtensionHost.fire(affectedExtensions);
+			});
 		}
 	}
 
