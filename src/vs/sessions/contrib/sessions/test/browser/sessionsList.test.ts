@@ -240,6 +240,85 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('renders inbox notification count as a badge and updates reactively', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const inboxNotificationCount = observableValue<number>(disposables, 0);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				instantiationService,
+				contextKeyService,
+				new class extends mock<IAutomationService>() {
+					override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+				},
+				constObservable([]),
+				constObservable(undefined),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+				inboxNotificationCount,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'inboxNotifications', label: 'Inbox', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const initial = {
+				isInbox: container.classList.contains('session-section-inbox'),
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			inboxNotificationCount.set(7, undefined);
+			const withNotifications = {
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'workspace:test', label: 'Workspace', sessions: [] },
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+			const recycled = {
+				isInbox: container.classList.contains('session-section-inbox'),
+				countText: template.count.textContent,
+				countDisplay: template.count.style.display,
+			};
+
+			assert.deepStrictEqual({ initial, withNotifications, recycled }, {
+				initial: {
+					isInbox: true,
+					countText: '',
+					countDisplay: 'none',
+				},
+				withNotifications: {
+					countText: '7',
+					countDisplay: '',
+				},
+				recycled: {
+					isInbox: false,
+					countText: '',
+					countDisplay: 'none',
+				},
+			});
+		});
+
 		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {

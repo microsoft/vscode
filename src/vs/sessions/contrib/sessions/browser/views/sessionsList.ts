@@ -100,6 +100,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { createSessionSummaryHover, getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -111,9 +112,12 @@ import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { ChatInboxEnabledContext, INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
+import { IInboxNotificationsService } from '../../../inboxOne/common/inboxNotificationsService.js';
 
 const $ = DOM.$;
 
+const INBOX_NOTIFICATIONS_SECTION_ID = 'inboxNotifications';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
@@ -125,6 +129,10 @@ const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-poi
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
 const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
+
+function lookupPrimaryCommandKeybinding(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, commandId: string) {
+	return keybindingService.lookupKeybinding(commandId, contextKeyService, true) ?? keybindingService.lookupKeybindings(commandId)[0];
+}
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
@@ -290,6 +298,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.chatImport;
 		case AUTOMATIONS_SECTION_ID:
 			return Codicon.calendar;
+		case INBOX_NOTIFICATIONS_SECTION_ID:
+			return Codicon.inbox;
 		case CUSTOMIZATIONS_SECTION_ID:
 			return Codicon.extensions;
 		case 'archived':
@@ -306,7 +316,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
+	return sectionId === AUTOMATIONS_SECTION_ID || sectionId === INBOX_NOTIFICATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -2026,9 +2036,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
+		private readonly inboxNotificationCount: IObservable<number> = constObservable(0),
+		private readonly inboxOpenKeybindingLabel: IObservable<string | undefined> = constObservable(undefined),
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
 		private readonly customizationsCount: IObservable<number> = constObservable(0),
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
+		private readonly hoverService: IHoverService | undefined = undefined,
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
 	) { }
@@ -2112,6 +2125,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('session-section-inbox');
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
 		template.migrationIndicator.classList.remove('visible');
@@ -2184,19 +2198,44 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
+		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			template.container.classList.add('session-section-inbox');
+			template.icon.style.display = '';
+			if (this.hoverService) {
+				const inboxHover = template.elementDisposables.add(new MutableDisposable<IDisposable>());
+				template.elementDisposables.add(autorun(reader => {
+					const keybindingLabel = this.inboxOpenKeybindingLabel.read(reader);
+					const hoverText = keybindingLabel
+						? localize('inboxNotificationsSectionHoverWithKeybinding', "Open Inbox ({0})", keybindingLabel)
+						: localize('inboxNotificationsSectionHover', "Open Inbox");
+					inboxHover.value = this.hoverService?.setupManagedHover(getDefaultHoverDelegate('element'), template.container, hoverText);
+				}));
+			}
+			template.elementDisposables.add(autorun(reader => {
+				const activeCustomView = this.customViewService.activeCustomView.read(reader);
+				template.container.classList.toggle('active', activeCustomView?.id === INBOX_NOTIFICATIONS_VIEW_ID);
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				const count = this.inboxNotificationCount.read(reader);
+				template.count.textContent = count > 0 ? String(count) : '';
+				template.count.style.display = count > 0 ? '' : 'none';
+			}));
+			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		} else {
 			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		}
 
 		template.label.textContent = element.label;
-		if (element.id !== CUSTOMIZATIONS_SECTION_ID) {
-			if (this.hideSectionCount || shortcut) {
-				template.count.textContent = '';
-				template.count.style.display = 'none';
-			} else {
-				template.count.textContent = String(element.sessions.length);
-				template.count.style.display = '';
-			}
+		if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+			// Inbox count is handled reactively from notification state above.
+		} else if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+			// Customizations section does not show a session count.
+		} else if (this.hideSectionCount || shortcut) {
+			template.count.textContent = '';
+			template.count.style.display = 'none';
+		} else {
+			template.count.textContent = String(element.sessions.length);
+			template.count.style.display = '';
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
@@ -2505,6 +2544,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
+	readonly inboxNotificationCount?: IObservable<number>;
+	readonly inboxOpenKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
@@ -2564,6 +2605,28 @@ class SessionsAccessibilityProvider {
 					return this.options?.automationNewBadgeVisible?.read(reader)
 						? localize('automationsNewFeatureAria', "{0}, new feature", label)
 						: label;
+				});
+			}
+			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+				if (!this.options?.inboxNotificationCount && !this.options?.inboxOpenKeybindingAriaLabel) {
+					return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+				}
+				return derived(this, reader => {
+					const count = this.options?.inboxNotificationCount?.read(reader) ?? 0;
+					const keybindingAriaLabel = this.options?.inboxOpenKeybindingAriaLabel?.read(reader);
+					if (count <= 0) {
+						return keybindingAriaLabel
+							? localize('inboxNotificationsAriaLabelWithKeybinding', "{0}, open inbox notifications, keyboard shortcut {1}", element.label, keybindingAriaLabel)
+							: localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+					}
+					if (count === 1) {
+						return keybindingAriaLabel
+							? localize('inboxNotificationsAriaLabelOneNotificationWithKeybinding', "{0}, {1} notification, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
+							: localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count);
+					}
+					return keybindingAriaLabel
+						? localize('inboxNotificationsAriaLabelManyNotificationsWithKeybinding', "{0}, {1} notifications, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
+						: localize('inboxNotificationsAriaLabelManyNotifications', "{0}, {1} notifications, open inbox notifications", element.label, count);
 				});
 			}
 			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
@@ -3351,7 +3414,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEditorService editorService: IEditorService,
+		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
@@ -3492,7 +3556,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
-		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
+		const inboxNotificationCount = derived(this, reader => this.inboxNotificationsService.notifications.read(reader).length);
+		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
+			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
+		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
+			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getAriaLabel() ?? undefined);
+		const customizationsActive = observableFromEvent(this, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor instanceof AICustomizationManagementEditorInput);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
@@ -3508,9 +3577,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.uriIdentityService,
 			this.customViewService,
 			this.menuService,
+			inboxNotificationCount,
+			inboxOpenKeybindingLabel,
 			customizationsActive,
 			customizationsCount,
 			customizationMigrationsAvailable,
+			hoverService,
 			templateId,
 			rowClassName,
 		);
@@ -3576,6 +3648,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
+					inboxNotificationCount,
+					inboxOpenKeybindingAriaLabel,
 					customizationsCount,
 					customizationMigrationsAvailable,
 					showUnreadInCollapsedSections,
@@ -3769,6 +3843,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
+			if (isSessionSection(element) && element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
+				this.tree.setSelection([]);
+				this.commandService.executeCommand(SHOW_INBOX_NOTIFICATIONS_COMMAND_ID);
+				return;
+			}
 			if (isSessionSection(element) && element.id === CUSTOMIZATIONS_SECTION_ID) {
 				this.tree.setSelection([]);
 				this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
@@ -3819,9 +3898,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const automationKeys = new Set<string>([ChatAutomationsEnabledContext.key]);
+		const sectionVisibilityKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatInboxEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(automationKeys)) {
+			if (e.affectsSome(sectionVisibilityKeys)) {
 				this.update();
 			}
 			if (!e.affectsSome(phoneKeys)) {
@@ -4255,6 +4334,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const navigationChildren: IObjectTreeElement<SessionListItem>[] = [];
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)
+			&& this.contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key)) {
+			navigationChildren.push(renderSection({ id: INBOX_NOTIFICATIONS_SECTION_ID, label: localize('inboxNotifications', "Inbox"), sessions: [] }));
+		}
+
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
 			navigationChildren.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));

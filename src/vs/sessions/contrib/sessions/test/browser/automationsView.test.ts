@@ -55,6 +55,7 @@ import { IChat, ISession, SessionStatus } from '../../../../services/sessions/co
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
@@ -667,6 +668,10 @@ suite('AutomationsCardsWidget', () => {
 			override readonly activeCustomView = constObservable(undefined);
 			override registerCustomView() { return { dispose() { } }; }
 			override hideCustomView() { }
+		}());
+		instantiationService.stub(IAgentsActivityService, new class extends mock<IAgentsActivityService>() {
+			override reportActiveSurface(): void { }
+			override reportSurfaceBlurred(): void { }
 		}());
 		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
