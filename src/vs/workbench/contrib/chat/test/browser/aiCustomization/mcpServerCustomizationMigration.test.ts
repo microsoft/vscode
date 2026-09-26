@@ -449,6 +449,7 @@ suite('McpServerCustomizationMigration', () => {
 				"metadata": { "type": "stdio", "command": "node", "version": "1" },
 				"cwd": { "type": "stdio", "command": "node", "cwd": "/tmp" },
 				"sse": { "type": "http", "transport": "sse", "url": "https://example.com" },
+				"nullEnv": { "type": "stdio", "command": "node", "env": { "REMOVE_ME": null } },
 				"disabled": { "type": "stdio", "command": "node" }
 			}
 		}`));
@@ -462,6 +463,7 @@ suite('McpServerCustomizationMigration', () => {
 					compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.SseTransportNotPortable] },
 					projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' },
 				}),
+				support(root, 'nullEnv', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } } }),
 				support(root, 'disabled', { enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace } }),
 				support(URI.file('/outside'), 'outside'),
 			],
@@ -480,6 +482,7 @@ suite('McpServerCustomizationMigration', () => {
 				['metadata', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['sse', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+				['nullEnv', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			],
 		});
 	});
@@ -554,18 +557,27 @@ suite('McpServerCustomizationMigration', () => {
 					unknownRoot: { type: 'stdio', command: '${workspaceFolder:missing}/server.js' },
 				},
 			},
-			target: { mcpServers: { portable: projectedConfiguration } },
+			target: {
+				mcpServers: {
+					portable: {
+						type: 'local',
+						command: projectedConfiguration.command,
+						args: [...projectedConfiguration.args!],
+						tools: ['*'],
+					},
+				},
+			},
 		});
 	});
 
-	test('resolves portable variables in equivalent existing targets', async () => {
+	test('accepts the target representation after resolving portable source variables', async () => {
 		const root = URI.file('/existing-variable-target');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"${workspaceFolder}/server.js"}}}'));
-		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"server":{"command":"${workspaceRoot}/server.js"}}}'));
 		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: `${root.fsPath}/server.js` };
+		await fileService.writeFile(targetUri, VSBuffer.fromString(`{"mcpServers":{"server":{"type":"local","command":${JSON.stringify(projectedConfiguration.command)},"args":[],"tools":["*"]}}}`));
 		const migrator = createMigrator(fileService, [{ uri: root, name: 'custom-name', index: 0 }]);
 
 		const result = await migrator.migrate([candidate(root, 'server', projectedConfiguration)], { roots: [root] });
@@ -577,7 +589,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: {} },
-			target: { mcpServers: { server: { command: '${workspaceRoot}/server.js' } } },
+			target: { mcpServers: { server: { type: 'local', command: projectedConfiguration.command, args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -606,7 +618,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: { unselected: { type: 'stdio', command: 'other' } } },
-			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			commentPreserved: true,
 		});
 	});
@@ -617,7 +629,7 @@ suite('McpServerCustomizationMigration', () => {
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"equivalent":{"command":"node","args":[]},"conflict":{"command":"node"}}}'));
-		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"equivalent":{"type":"stdio","command":"node"},"conflict":{"type":"stdio","command":"other"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"equivalent":{"type":"local","command":"node","args":[],"tools":["*"]},"conflict":{"type":"local","command":"other","args":[],"tools":["*"]}}}'));
 
 		const result = await createMigrator(fileService).migrate([
 			candidate(root, 'equivalent'),
@@ -669,7 +681,7 @@ suite('McpServerCustomizationMigration', () => {
 				result: { migratedCount: 1, failures: [] },
 				peerMigratedCount: 1,
 				source: { servers: {} },
-				target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+				target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 				messages: [`[MCP Customization Migration] Concurrent migration already completed for ${selected.sourceUri.toString()}; retaining ${selected.targetUri.toString()}.`],
 			});
 		});
@@ -707,7 +719,7 @@ suite('McpServerCustomizationMigration', () => {
 				failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed, McpServerCustomizationMigrationFailureReason.RollbackFailed],
 				peerMigratedCount: cause === 'context change' ? 2 : 1,
 				source: { servers: cause === 'context change' ? {} : { second: { command: 'node' } } },
-				target: { mcpServers: { first: { type: 'stdio', command: 'node' }, second: { type: 'stdio', command: 'node' } } },
+				target: { mcpServers: { first: { type: 'local', command: 'node', args: [], tools: ['*'] }, second: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}
@@ -721,7 +733,7 @@ suite('McpServerCustomizationMigration', () => {
 		const secondWindow = store.add(new FileService(new NullLogService()));
 		store.add(secondWindow.registerProvider(Schemas.file, provider));
 		await firstWindow.writeFile(first.sourceUri, VSBuffer.fromString('{"servers":{"first":{"command":"node"},"second":{"command":"node"}}}'));
-		const targetContent = '{"mcpServers":{"first":{"command":"node"}}}';
+		const targetContent = '{"mcpServers":{"first":{"type":"local","command":"node","args":[],"tools":["*"]}}}';
 		await firstWindow.writeFile(first.targetUri, VSBuffer.fromString(targetContent));
 		provider.resource = first.targetUri;
 		provider.afterWrite = async () => { await createMigrator(secondWindow).migrate([first]); };
@@ -826,7 +838,7 @@ suite('McpServerCustomizationMigration', () => {
 			result: { migratedCount: 1, failures: [] },
 			target: {
 				existing: { command: 'existing' },
-				server: { type: 'stdio', command: 'node' },
+				server: { type: 'local', command: 'node', args: [], tools: ['*'] },
 			},
 			commentPreserved: true,
 		});
@@ -851,7 +863,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -900,7 +912,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'changed' }, concurrent: { command: 'other' } } },
-			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1029,7 +1041,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1120,7 +1132,7 @@ suite('McpServerCustomizationMigration', () => {
 			],
 			primarySource: { servers: { demo: { command: 'node' } } },
 			secondarySource: { servers: { demo: { command: 'node' } } },
-			primaryTarget: { mcpServers: { unique: { type: 'stdio', command: 'node' } } },
+			primaryTarget: { mcpServers: { unique: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			secondaryTargetExists: false,
 			warnings: [
 				`[MCP Customization Migration] Rejected 'demo' from ${first.sourceUri.toString()}: reason=crossRootConflict, conflictingUri=${second.sourceUri.toString()}`,
