@@ -937,7 +937,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			const branch = await this._gitService.getBranch(repositoryRoot, selectedBranch);
 			if (branch?.kind === GitRefType.RemoteHead) {
 				try {
-					await this._gitService.fetch(repositoryRoot, branch.remote);
+					await this._gitService.fetch(repositoryRoot, branch);
 				} catch (error) {
 					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to fetch remote '${branch.remote}' before creating worktree: ${errorMessage(error)}`);
 				}

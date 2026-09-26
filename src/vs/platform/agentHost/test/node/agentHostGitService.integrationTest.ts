@@ -971,7 +971,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('fetch updates the selected remote before creating a worktree', async () => {
+	(hasGit ? test : test.skip)('fetch updates the selected remote branch with a narrowed fetch refspec', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		const remotePath = join(dir, 'remote.git');
@@ -979,8 +979,10 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const publisherPath = join(dir, 'publisher');
 		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
 		cp.execFileSync('git', ['remote', 'add', remoteName, remotePath], { cwd: dir, env, stdio: 'pipe' });
-		cp.execFileSync('git', ['push', '-q', remoteName, 'main'], { cwd: dir, env, stdio: 'pipe' });
-		cp.execFileSync('git', ['fetch', '-q', remoteName], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', remoteName, 'main', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['fetch', '-q', remoteName, `refs/heads/main:refs/remotes/${remoteName}/main`], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', '--replace-all', `remote.${remoteName}.fetch`, `+refs/heads/release:refs/remotes/${remoteName}/release`], { cwd: dir, env, stdio: 'pipe' });
 		const staleRemoteCommit = cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim();
 
 		cp.execFileSync('git', ['clone', '-q', '--branch', 'main', remotePath, publisherPath], { cwd: dir, env, stdio: 'pipe' });
@@ -996,7 +998,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.fetch(URI.file(dir), branch.remote);
+			await svc!.fetch(URI.file(dir), branch);
 			await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
 				commitish: `${remoteName}/main`,

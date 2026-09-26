@@ -345,8 +345,8 @@ suite('WorktreeIsolation', () => {
 				kind: GitRefType.RemoteHead,
 			};
 		};
-		gitService.fetch = async (_root, remote) => {
-			operations.push(`fetch:${remote}`);
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
 		};
 		gitService.addWorktree = async (_root, options) => {
 			operations.push(`add:${options.commitish}`);
@@ -372,7 +372,7 @@ suite('WorktreeIsolation', () => {
 		}, {
 			startPoint: 'origin/main',
 			diffBaseBranch: 'origin/main',
-			operations: ['resolve:origin/main', 'fetch:origin', 'add:origin/main'],
+			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 		});
 	});
 
@@ -386,8 +386,8 @@ suite('WorktreeIsolation', () => {
 			remote: 'origin',
 			kind: GitRefType.RemoteHead,
 		});
-		gitService.fetch = async (_root, remote) => {
-			operations.push(`fetch:${remote}`);
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
 			throw new Error('network unavailable');
 		};
 		gitService.addWorktree = async (_root, options) => {
@@ -414,8 +414,8 @@ suite('WorktreeIsolation', () => {
 			warnings: logService.warnings,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
-			operations: ['fetch:origin', 'add:origin/main'],
-			warnings: ["[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable"],
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
 		});
 	});
 
