@@ -48,7 +48,7 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ClaudeSdkPackage, IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
 import { isClaudeAccountSetUp, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
-import { mergeClaudeModelCatalogs, resolveClaudeSessionTransport } from './claudeModelSelection.js';
+import { applyObservedNativeModelLimits, mergeClaudeModelCatalogs, resolveClaudeSessionTransport, type IClaudeModelLimits } from './claudeModelSelection.js';
 import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -57,7 +57,8 @@ import { handleCanUseTool } from './claudeCanUseTool.js';
 import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
-import { tryParseClaudeModelId } from './claudeModelId.js';
+import { toSdkModelId, tryParseClaudeModelId } from './claudeModelId.js';
+import type { IClaudeObservedModelLimits } from './claudeSdkPipeline.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
@@ -156,6 +157,13 @@ const SDK_DEFAULT_MODEL_VALUE = 'default';
  */
 function isSdkDefaultModel(m: ModelInfo): boolean {
 	return m.value === SDK_DEFAULT_MODEL_VALUE;
+}
+
+/** One native `supportedModels()` enumeration: the catalog rows and the alias map they were built from. */
+interface INativeModelEnumeration {
+	readonly models: readonly IAgentModelInfo[];
+	/** SDK alias → concrete model id, both normalized by `toSdkModelId`. */
+	readonly aliases: ReadonlyMap<string, string>;
 }
 
 /**
@@ -361,6 +369,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+
+	/**
+	 * Context-window limits the SDK has reported per model (keyed by
+	 * {@link toSdkModelId}-normalized id). The native catalog is published
+	 * without limits, so these are folded into it on every publish; see
+	 * {@link applyObservedNativeModelLimits}.
+	 */
+	private readonly _observedModelLimits = new Map<string, IClaudeModelLimits>();
+
+	/**
+	 * Normalized alias → normalized concrete id for the SDK catalog's alias rows
+	 * (`sonnet` → `claude-sonnet-4-5`, …), committed together with the catalog.
+	 * `modelUsage` keys by the concrete id, so this lets an alias row receive
+	 * its observed limits.
+	 */
+	private _nativeModelAliases: ReadonlyMap<string, string> = new Map();
 	/**
 	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
 	 * token change, a transport flip, or a periodic tick from the host's
@@ -562,7 +586,29 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._emitSpawnedChatEvents(signal);
 		}));
 		entry.addDisposable(session.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
+		entry.addDisposable(session.onDidObserveModelLimits(limits => this._recordObservedModelLimits(limits)));
 		return entry;
+	}
+
+	/**
+	 * Remember a model's SDK-reported limits and, when they are new or changed
+	 * and match a catalog row, re-publish the catalog so the native model gains
+	 * a context window. A repeat observation republishes nothing.
+	 */
+	private _recordObservedModelLimits(limits: IClaudeObservedModelLimits): void {
+		const key = toSdkModelId(limits.model);
+		const previous = this._observedModelLimits.get(key);
+		if (previous && previous.contextWindow === limits.contextWindow && previous.maxOutputTokens === limits.maxOutputTokens) {
+			return;
+		}
+		this._observedModelLimits.set(key, { contextWindow: limits.contextWindow, maxOutputTokens: limits.maxOutputTokens });
+		const before = this._models.get();
+		const published = applyObservedNativeModelLimits(before, this._observedModelLimits, this._nativeModelAliases);
+		const changed = published.some((m, i) => m.maxContextWindow !== before[i].maxContextWindow || m.maxPromptTokens !== before[i].maxPromptTokens || m.maxOutputTokens !== before[i].maxOutputTokens);
+		this._logService.info(`[Claude] Observed limits for model ${limits.model}: contextWindow=${limits.contextWindow}, maxOutputTokens=${limits.maxOutputTokens}${changed ? '' : ' (no catalog row changed)'}`);
+		if (changed) {
+			this._models.set(published, undefined);
+		}
 	}
 
 	private _registerLiveChat(chat: URI, session: ClaudeAgentSession): void {
@@ -939,7 +985,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const [proxyOutcome, nativeOutcome] = await Promise.allSettled([
 			tokenAtStart ? this._fetchProxyModels(tokenAtStart) : Promise.resolve<readonly IAgentModelInfo[]>([]),
-			canAttemptNative ? this._fetchNativeModels() : Promise.resolve<readonly IAgentModelInfo[]>([]),
+			canAttemptNative ? this._fetchNativeModels() : Promise.resolve<INativeModelEnumeration>({ models: [], aliases: new Map() }),
 		]);
 		// Stale-write guard: a newer refresh superseded this one while we were
 		// awaiting — the proxy token rotated (sign-in / sign-out). A merged write
@@ -955,20 +1001,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// and are not counted as failures.
 			this._logService.error('[Claude] All attempted model sources failed (merged refresh); keeping last known-good catalog');
 		} else {
-			// Unwrap each settled fetch: its models on success, or an empty list on
+			// Unwrap each settled fetch: its value on success, or the fallback on
 			// rejection (logged) so the other provider's catalog still publishes.
-			const settledCatalog = (outcome: PromiseSettledResult<readonly IAgentModelInfo[]>, label: string): readonly IAgentModelInfo[] => {
+			const settled = <T>(outcome: PromiseSettledResult<T>, label: string, fallback: T): T => {
 				if (outcome.status === 'fulfilled') {
 					return outcome.value;
 				}
 				this._logService.error(outcome.reason, `[Claude] Failed to fetch ${label} models (merged refresh); keeping the other provider`);
-				return [];
+				return fallback;
 			};
-			const proxyModels = settledCatalog(proxyOutcome, 'proxy');
-			const nativeModels = settledCatalog(nativeOutcome, 'native');
-			const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
+			const proxyModels = settled<readonly IAgentModelInfo[]>(proxyOutcome, 'proxy', []);
+			// A failed native enumeration keeps the aliases from the last one that answered.
+			const native = settled<INativeModelEnumeration>(nativeOutcome, 'native', { models: [], aliases: this._nativeModelAliases });
+			const merged = mergeClaudeModelCatalogs(proxyModels, native.models);
 			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
-			this._models.set(merged, undefined);
+			this._nativeModelAliases = native.aliases;
+			this._models.set(applyObservedNativeModelLimits(merged, this._observedModelLimits, native.aliases), undefined);
 		}
 		// Last, never first: announcing `ready` before the catalog lands is exactly
 		// how the window renders "no account found".
@@ -989,7 +1037,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * `claude login` credential lives in the login keychain, where nothing on the
 	 * filesystem can see it. When it says no, the catalog is published empty.
 	 */
-	private async _fetchNativeModels(): Promise<readonly IAgentModelInfo[]> {
+	private async _fetchNativeModels(): Promise<INativeModelEnumeration> {
 		// A prompt iterable that never yields: enumeration only needs the
 		// control-request channel (`Query.supportedModels()`), not a real turn.
 		const neverYieldingPrompt: AsyncIterable<SDKUserMessage> = {
@@ -1004,11 +1052,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// Origin only — never the credential itself.
 			this._logService.info(`[Claude] Native account check: setUp=${setUp}, provider=${account.apiProvider ?? 'none'}, tokenSource=${account.tokenSource ?? 'absent'}, apiKeySource=${account.apiKeySource ?? 'absent'}`);
 			if (!setUp) {
-				return [];
+				return { models: [], aliases: new Map() };
 			}
-			return models
-				.filter(m => !isSdkDefaultModel(m))
-				.map(m => fromSdkModelInfo(m, this.id));
+			const aliases = new Map<string, string>();
+			for (const m of models) {
+				if (m.resolvedModel && m.resolvedModel !== m.value) {
+					aliases.set(toSdkModelId(m.value), toSdkModelId(m.resolvedModel));
+				}
+			}
+			return {
+				models: models
+					.filter(m => !isSdkDefaultModel(m))
+					.map(m => fromSdkModelInfo(m, this.id)),
+				aliases,
+			};
 		} finally {
 			// `close()` terminates the subprocess; aborting the controller is a
 			// belt-and-suspenders teardown for anything `close()` leaves pending.
