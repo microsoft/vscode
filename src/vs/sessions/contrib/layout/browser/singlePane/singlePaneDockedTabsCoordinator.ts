@@ -92,9 +92,9 @@ interface IPendingReconcile {
  * (not a strategy) because both belong to one reconcile pipeline that must stay single-instance
  * across the New→Existing submit transition — see `SinglePaneLayoutStrategy`'s doc comment.
  * Owned and disposed by {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}.
- * `SinglePaneNewSessionStrategy` supplies its own supplementary reconcile intents via
- * {@link queueReconcile}; `SinglePaneQuickChatStrategy` never wants managed tabs, so it never
- * calls in — the ambient session-change trigger below reconciles them away on its own.
+ * `SinglePaneDraftSessionStrategy` supplies workspace-draft supplementary reconcile intents via
+ * {@link queueReconcile}; workspace-less drafts never want managed tabs, so the ambient
+ * session-change trigger below reconciles them away on its own.
  *
  * See `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
  */
@@ -344,6 +344,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			const successor = this._pending as IPendingReconcile | undefined;
 			if (generation !== this._generation && successor && successor.sessionKey === pending.sessionKey) {
 				this._pending = { ...successor, trigger: mergeTriggers(successor.trigger, pending.trigger) };
+			}
+			if (generation === this._generation && !this._ctx.isRestoringSessionLayout) {
+				this._ctx.completeChangesEditorTransition();
 			}
 		}
 	}

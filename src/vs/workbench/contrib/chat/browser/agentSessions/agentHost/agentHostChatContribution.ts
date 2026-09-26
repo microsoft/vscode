@@ -35,12 +35,15 @@ import { languageModelSourcePresentationRegistry } from '../../../common/languag
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
+import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
+import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
@@ -118,7 +121,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
-	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
+	private readonly _authRecovery: AgentHostAuthenticationRecovery;
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
@@ -141,10 +144,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
+		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
@@ -285,9 +290,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const ahService = this._agentHostService;
 
 		// Chat session contribution.
-		// Keep the delegation picker available for local agent host sessions in
-		// both VS Code and the Agents app so users can hand off (continue) their
-		// conversation to any other agent host session or remote target.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
@@ -310,7 +312,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
 			agentHostProviderId: agent.provider,
-			supportsDelegation: true,
+			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
@@ -339,6 +341,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncProvider,
 			itemProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
+			mcpServerCompatibilityProvider: agent.provider === 'copilotcli' ? {
+				acquire: sessionResource => createCustomizationMcpServerCompatibilityScope(
+					this._agentHostCustomizationService.onDidChangeCustomizations,
+					() => this._agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource),
+					roots => this._activeClientService.acquireMcpServerSupportScope(sessionType, roots),
+				),
+			} : undefined,
+			mcpServerMigrationProvider: agent.provider === 'copilotcli'
+				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
+				: undefined,
 		}));
 
 		// Session handler
@@ -418,7 +430,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
-				await this._seedTestToken(agents, testToken, generation);
+				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
+					authTokenCache: this._authTokenCache,
+					isCurrent: () => this._isAuthenticationCurrent(generation),
+					authenticate: request => this._authenticateIfCurrent(request, generation),
+				});
 				return;
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
@@ -478,14 +494,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
-			for (const resource of protectedResources) {
-				await this._authTokenCache.authenticate(
-					resource.resource,
-					resource.scopes_supported,
-					testToken,
-					() => this._authenticateIfCurrent({ resource: resource.resource, token: testToken }, generation),
-				);
-			}
+			await authenticateProtectedResourcesWithToken(protectedResources, testToken, {
+				authTokenCache: this._authTokenCache,
+				isCurrent: () => this._isAuthenticationCurrent(generation),
+				authenticate: request => this._authenticateIfCurrent(request, generation),
+			});
 			return protectedResources.length > 0;
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
@@ -494,19 +507,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
 		});
-	}
-
-	private async _seedTestToken(agents: readonly AgentInfo[], token: string, generation: number): Promise<void> {
-		for (const agent of agents) {
-			for (const resource of agent.protectedResources ?? []) {
-				await this._authTokenCache.authenticate(
-					resource.resource,
-					resource.scopes_supported,
-					token,
-					() => this._authenticateIfCurrent({ resource: resource.resource, token }, generation),
-				);
-			}
-		}
 	}
 
 	private _getScenarioAutomationToken(): string | undefined {

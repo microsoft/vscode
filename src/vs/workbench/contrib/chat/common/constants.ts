@@ -52,7 +52,11 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	SessionCatalogEnabled = 'chat.agentHost.sessionCatalog.enabled',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
+	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
+	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
+	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -87,10 +91,13 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	PersistentProgress = 'chat.experimental.persistentProgress',
+	PersistentProgressVerbosity = 'chat.experimental.persistentProgressVerbosity',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
-	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
+	SubagentsDefaultToAuto = 'chat.subagents.defaultToAuto',
+	SubagentsShowCreditUsage = 'chat.subagents.showCreditUsage',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
@@ -98,17 +105,26 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
+	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
+	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
+	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
+	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
+	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
+	ChatCustomizationsMcpServerMigrationEnabled = 'chat.customizations.mcpServerMigration.enabled',
 	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
+	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -120,11 +136,13 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostDebugLogsDefaultExportLocation = 'chat.agentHost.debugLogs.defaultExportLocation',
 	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
-	TurnStatusPills = 'chat.turnStatusPills',
+	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
+	BtwTipEnabled = 'chat.btwTip.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -135,6 +153,27 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const enum CopilotHarnessIntroductionMode {
+	Off = 'off',
+	NewSession = 'newSession',
+	AfterRequest = 'afterRequest',
+}
+
+export function getCopilotHarnessIntroductionMode(configurationService: IConfigurationService): CopilotHarnessIntroductionMode {
+	const mode = configurationService.getValue<CopilotHarnessIntroductionMode>(ChatConfiguration.CopilotHarnessIntroductionMode);
+	return mode === CopilotHarnessIntroductionMode.NewSession || mode === CopilotHarnessIntroductionMode.AfterRequest
+		? mode
+		: CopilotHarnessIntroductionMode.Off;
+}
+
+export const enum ChatClosedPromoNotification {
+	None = 'none',
+	CopilotIconPopup = 'copilotIconPopup',
+}
+
+export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
+export const DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS = 5;
 
 /**
  * The "kind" of agents for custom agents.
@@ -225,6 +264,20 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum ChatProgressAnimation {
+	Off = 'off',
+	Weave = 'weave',
+	Draw = 'draw',
+	Orbit = 'orbit',
+	Accordion = 'accordion',
+	Dial = 'dial',
+}
+
+export enum ChatProgressVerbosity {
+	Verbose = 'verbose',
+	Compact = 'compact',
 }
 
 export enum CollapsedToolsDisplayMode {
@@ -358,6 +411,9 @@ export function isNewChatSessionTypeUsable(
 	agentHostEnabled = true,
 	managedSandboxEnforced = false,
 ): boolean {
+	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+		return false;
+	}
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
@@ -558,7 +614,8 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
 
 function getVisibleNonLocalEditorChatSessionTypes(

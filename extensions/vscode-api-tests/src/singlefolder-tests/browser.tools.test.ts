@@ -65,6 +65,12 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		return extractTextContent(result);
 	}
 
+	async function waitForCondition(predicate: () => boolean, attempts = 200, delayMs = 50): Promise<void> {
+		for (let i = 0; i < attempts && !predicate(); i++) {
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
+	}
+
 	test('open_browser_page tool is registered', async function () {
 		this.timeout(15000);
 
@@ -91,14 +97,25 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
 	});
 
-	(vscode.env.remoteName ? test.skip : test)('Agent storage is shared between API and tool pages and isolated from persistent storage', async function () {
+	(vscode.env.remoteName ? test.skip : test)('Agent storage is shared, filtered, and isolated from persistent storage', async function () {
 		this.timeout(60_000);
 
 		const token = `${Date.now()}-${Math.random()}`;
 		let agentReceivedCookie: string | undefined;
 		let globalReceivedCookie: string | undefined;
 		let workspaceReceivedCookie: string | undefined;
-		const server = http.createServer((request, response) => {
+		let agentProbeReceived = false;
+		let workspaceProbeReceived = false;
+		const server = http.createServer();
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, resolve);
+		});
+
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		const port = address.port;
+		server.on('request', (request, response) => {
 			if (request.url === '/set-global') {
 				response.setHeader('Set-Cookie', `vscode-browser-global-smoke=${token}; Path=/; SameSite=Lax`);
 				response.end('<title>global-cookie-set</title>');
@@ -107,13 +124,13 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 			if (request.url === '/set-workspace') {
 				response.setHeader('Set-Cookie', `vscode-browser-workspace-smoke=${token}; Path=/; SameSite=Lax`);
-				response.end('<title>workspace-cookie-set</title>');
+				response.end(`<title>workspace-cookie-set</title><img src="http://localhost:${port}/workspace-probe">`);
 				return;
 			}
 
 			if (request.url === '/set-agent') {
 				response.setHeader('Set-Cookie', `vscode-browser-agent-smoke=${token}; Path=/; SameSite=Lax`);
-				response.end('<title>agent-cookie-set</title>');
+				response.end(`<title>agent-cookie-set</title><img src="http://localhost:${port}/agent-probe">`);
 				return;
 			}
 
@@ -135,84 +152,94 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				return;
 			}
 
+			if (request.url === '/agent-probe') {
+				agentProbeReceived = true;
+				response.end();
+				return;
+			}
+
+			if (request.url === '/workspace-probe') {
+				workspaceProbeReceived = true;
+				response.end();
+				return;
+			}
+
 			response.end('<title>unexpected-request</title>');
 		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(0, '127.0.0.1', resolve);
-		});
-
-		const address = server.address();
-		assert.ok(address && typeof address !== 'string');
 		const browserConfig = vscode.workspace.getConfiguration('workbench.browser');
+		const agentConfig = vscode.workspace.getConfiguration('chat.agent');
 
 		try {
+			await agentConfig.update('allowedNetworkDomains', ['*'], vscode.ConfigurationTarget.Global);
+			await agentConfig.update('deniedNetworkDomains', ['localhost'], vscode.ConfigurationTarget.Global);
+			await agentConfig.update('networkFilter', true, vscode.ConfigurationTarget.Global);
+
 			await browserConfig.update('dataStorage', 'global', vscode.ConfigurationTarget.Global);
-			const globalSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/set-global`);
-			for (let i = 0; i < 100 && !globalSetTab.title.startsWith('global-cookie-set'); i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
+			const globalSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/set-global`);
+			await waitForCondition(() => globalSetTab.title.startsWith('global-cookie-set'));
 			assert.ok(globalSetTab.title.startsWith('global-cookie-set'), `Expected Global page to load, got title "${globalSetTab.title}"`);
 
 			await browserConfig.update('dataStorage', 'workspace', vscode.ConfigurationTarget.Global);
-			const workspaceSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/set-workspace`);
-			for (let i = 0; i < 100 && !workspaceSetTab.title.startsWith('workspace-cookie-set'); i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
+			const workspaceSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/set-workspace`);
+			await waitForCondition(() => workspaceSetTab.title.startsWith('workspace-cookie-set') && workspaceProbeReceived);
 			assert.ok(workspaceSetTab.title.startsWith('workspace-cookie-set'), `Expected Workspace page to load, got title "${workspaceSetTab.title}"`);
 
 			await browserConfig.update('dataStorage', 'agent', vscode.ConfigurationTarget.Global);
-			const agentSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/set-agent`);
+			const agentSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/set-agent`);
 
-			for (let i = 0; i < 100 && !agentSetTab.title.startsWith('agent-cookie-set'); i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
+			await waitForCondition(() => agentSetTab.title.startsWith('agent-cookie-set'), 600);
 			assert.ok(agentSetTab.title.startsWith('agent-cookie-set'), `Expected Agent page to load, got title "${agentSetTab.title}"`);
 
 			const output = await invokeTool('open_browser_page', {
-				url: `http://127.0.0.1:${address.port}/check-agent`,
+				url: `http://127.0.0.1:${port}/check-agent`,
 				forceNew: true,
 			});
 
 			await browserConfig.update('dataStorage', 'global', vscode.ConfigurationTarget.Global);
-			const globalCheckTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/check-global`);
-			for (let i = 0; i < 100 && !globalCheckTab.title.startsWith('global-cookie-checked'); i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
+			const globalCheckTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/check-global`);
+			await waitForCondition(() => globalCheckTab.title.startsWith('global-cookie-checked'));
 
 			await browserConfig.update('dataStorage', 'workspace', vscode.ConfigurationTarget.Global);
-			const workspaceCheckTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/check-workspace`);
-			for (let i = 0; i < 100 && !workspaceCheckTab.title.startsWith('workspace-cookie-checked'); i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
+			const workspaceCheckTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/check-workspace`);
+			await waitForCondition(() => workspaceCheckTab.title.startsWith('workspace-cookie-checked'));
 
 			assert.deepStrictEqual({
 				opened: /Page ID:/.test(output),
 				agentSharedCookie: agentReceivedCookie?.includes(`vscode-browser-agent-smoke=${token}`) === true,
 				agentReceivedGlobalCookie: agentReceivedCookie?.includes(`vscode-browser-global-smoke=${token}`) === true,
 				agentReceivedWorkspaceCookie: agentReceivedCookie?.includes(`vscode-browser-workspace-smoke=${token}`) === true,
+				agentBlockedRequest: !agentProbeReceived,
 				globalLoaded: globalCheckTab.title.startsWith('global-cookie-checked'),
 				globalSharedCookie: globalReceivedCookie?.includes(`vscode-browser-global-smoke=${token}`) === true,
 				globalReceivedAgentCookie: globalReceivedCookie?.includes(`vscode-browser-agent-smoke=${token}`) === true,
 				workspaceLoaded: workspaceCheckTab.title.startsWith('workspace-cookie-checked'),
 				workspaceSharedCookie: workspaceReceivedCookie?.includes(`vscode-browser-workspace-smoke=${token}`) === true,
 				workspaceReceivedAgentCookie: workspaceReceivedCookie?.includes(`vscode-browser-agent-smoke=${token}`) === true,
+				workspaceAllowedRequest: workspaceProbeReceived,
 			}, {
 				opened: true,
 				agentSharedCookie: true,
 				agentReceivedGlobalCookie: false,
 				agentReceivedWorkspaceCookie: false,
+				agentBlockedRequest: true,
 				globalLoaded: true,
 				globalSharedCookie: true,
 				globalReceivedAgentCookie: false,
 				workspaceLoaded: true,
 				workspaceSharedCookie: true,
 				workspaceReceivedAgentCookie: false,
+				workspaceAllowedRequest: true,
 			});
 		} finally {
 			await browserConfig.update('dataStorage', undefined, vscode.ConfigurationTarget.Global);
-			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			await agentConfig.update('networkFilter', undefined, vscode.ConfigurationTarget.Global);
+			await agentConfig.update('allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+			await agentConfig.update('deniedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+			await Promise.all(vscode.window.browserTabs.map(tab => tab.close()));
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
 		}
 	});
 
@@ -228,12 +255,32 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.match(listOutput, new RegExp(`^- \\[${pageId}\\]`, 'm'), `Expected list output to contain page ID "${pageId}", got: ${listOutput}`);
 	});
 
-	test('Open a page from the web', async function () {
+	test('Open a page over HTTP', async function () {
 		this.timeout(60000);
 
-		const output = await invokeTool('open_browser_page', { url: 'https://google.com/' });
+		// Serve from the extension host so remote runs also exercise the browser's remote proxy.
+		const server = http.createServer((_request, response) => {
+			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			response.end('<!DOCTYPE html><title>Browser tool test</title><h1>Browser tool HTTP fixture</h1>');
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(0, '127.0.0.1', resolve);
+			});
 
-		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const output = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}/` });
+
+			assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
+			assert.match(output, /Browser tool HTTP fixture/, `Expected output to contain the served page content, got: ${output}`);
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
 	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote

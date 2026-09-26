@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -20,6 +20,8 @@ import {
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
+	type ActiveTurn,
+	type ChatState,
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -88,12 +90,13 @@ function deleteEdit(uri: string, diff?: { added?: number; removed?: number }): o
 	return { type: ToolResultContentType.FileEdit, before: { uri, content: { uri: `${uri}.before` } }, diff };
 }
 
-function parsedEdit(kind: FileEditKind, uris: { after?: string; before?: string; beforeContent?: string }, diff?: { insertions?: number; deletions?: number }): IParsedFileEdit {
+function parsedEdit(kind: FileEditKind, uris: { after?: string; before?: string; beforeContent?: string; afterContent?: string }, diff?: { insertions?: number; deletions?: number }): IParsedFileEdit {
 	return {
 		kind,
 		afterUri: uris.after ? URI.file(uris.after) : undefined,
 		beforeUri: uris.before ? URI.file(uris.before) : undefined,
 		beforeContentUri: uris.beforeContent ? URI.file(uris.beforeContent) : undefined,
+		afterContentUri: uris.afterContent ? URI.file(uris.afterContent) : undefined,
 		insertions: diff?.insertions ?? 0,
 		deletions: diff?.deletions ?? 0,
 	};
@@ -188,23 +191,27 @@ suite('agentHostSessionFiles', () => {
 		const parsed = parseResponseParts(parts);
 
 		assert.deepStrictEqual(
-			parsed.map(e => ({ kind: e.kind, uri: (e.afterUri ?? e.beforeUri)?.toString() })),
+			parsed.map(e => ({
+				kind: e.kind,
+				uri: (e.afterUri ?? e.beforeUri)?.toString(),
+				afterContent: e.afterContentUri?.toString(),
+			})),
 			[
-				{ kind: FileEditKind.Create, uri: 'file:///created.txt' },
-				{ kind: FileEditKind.Edit, uri: 'file:///edited.txt' },
-				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt' },
+				{ kind: FileEditKind.Create, uri: 'file:///created.txt', afterContent: 'file:///created.txt.after' },
+				{ kind: FileEditKind.Edit, uri: 'file:///edited.txt', afterContent: 'file:///edited.txt.after' },
+				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt', afterContent: undefined },
 			],
 		);
 	});
 
-	test('reduceTurnChanges collapses repeated edits per file and aggregates diff stats', () => {
+	test('reduceTurnChanges uses the latest after-content snapshots and aggregates repeated edits', () => {
 		const edits: IParsedFileEdit[] = [
 			// created then edited → one created change, summed diffs, no original side
-			parsedEdit(FileEditKind.Create, { after: '/repo/new.ts' }, { insertions: 10 }),
-			parsedEdit(FileEditKind.Edit, { after: '/repo/new.ts', beforeContent: '/repo/new.ts.before' }, { insertions: 3, deletions: 1 }),
+			parsedEdit(FileEditKind.Create, { after: '/repo/new.ts', afterContent: '/snapshots/new.ts.created' }, { insertions: 10 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/new.ts', beforeContent: '/repo/new.ts.before', afterContent: '/snapshots/new.ts.edited' }, { insertions: 3, deletions: 1 }),
 			// pre-existing file edited twice → one modified change keeping the first original
-			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before' }, { insertions: 2, deletions: 4 }),
-			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before2' }, { insertions: 1 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before', afterContent: '/snapshots/existing.ts.first' }, { insertions: 2, deletions: 4 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before2', afterContent: '/snapshots/existing.ts.last' }, { insertions: 1 }),
 			// pre-existing file deleted → surfaced as a deletion (no modified side)
 			parsedEdit(FileEditKind.Delete, { before: '/repo/gone.ts', beforeContent: '/repo/gone.ts.before' }, { deletions: 8 }),
 		];
@@ -219,8 +226,8 @@ suite('agentHostSessionFiles', () => {
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/new.ts', modified: '/repo/new.ts', original: undefined, isOutsideWorkspace: false, insertions: 13, deletions: 1 },
-			{ uri: '/repo/existing.ts', modified: '/repo/existing.ts', original: '/repo/existing.ts.before', isOutsideWorkspace: false, insertions: 3, deletions: 4 },
+			{ uri: '/repo/new.ts', modified: '/snapshots/new.ts.edited', original: undefined, isOutsideWorkspace: false, insertions: 13, deletions: 1 },
+			{ uri: '/repo/existing.ts', modified: '/snapshots/existing.ts.last', original: '/repo/existing.ts.before', isOutsideWorkspace: false, insertions: 3, deletions: 4 },
 			{ uri: '/repo/gone.ts', modified: undefined, original: '/repo/gone.ts.before', isOutsideWorkspace: false, insertions: 0, deletions: 8 },
 		]);
 	});
@@ -278,6 +285,7 @@ suite('agentHostSessionFiles', () => {
 
 		const changes = reduceTurnChanges(edits, [URI.file('/repo')]).map(c => ({
 			uri: c.uri.path,
+			renamedFrom: c.renamedFromUri?.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
 			isOutsideWorkspace: c.isOutsideWorkspace,
@@ -286,7 +294,7 @@ suite('agentHostSessionFiles', () => {
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/renamed.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
+			{ uri: '/repo/renamed.ts', renamedFrom: '/repo/old.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
 		]);
 	});
 });
@@ -369,18 +377,81 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 		);
 	});
 
+	test('publishes a new Last Turn snapshot when only after-content changes', () => {
+		const onDidChange = store.add(new Emitter<ChatState>());
+		const createState = (afterContentUri: string): ChatState => upcastPartial<ChatState>({
+			turns: [],
+			activeTurn: upcastPartial<ActiveTurn>({
+				responseParts: [completedToolCallPart([{
+					type: ToolResultContentType.FileEdit,
+					before: { uri: 'file:///repo/a.ts', content: { uri: 'snapshot:/before/a.ts' } },
+					after: { uri: 'file:///repo/a.ts', content: { uri: afterContentUri } },
+					diff: { added: 1, removed: 0 },
+				}])],
+			}),
+		});
+		let state = createState('snapshot:/after-1/a.ts');
+		const subscription = new class extends mock<IAgentSubscription<ChatState>>() {
+			override get value() { return state; }
+			override readonly onDidChange = onDidChange.event;
+		}();
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+				return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
+			}
+		}();
+		const output = createSessionOutputObs(
+			SESSION_URI,
+			{
+				...createOptions(connection),
+				mapDiffUri: (uri, options) => options?.contentRef ? uri.with({ scheme: 'readonly-content' }) : uri,
+			},
+			constObservable(true),
+			constObservable(false),
+			constObservable(undefined),
+			new Map<string, unknown>(),
+		);
+		const changes = output.getLastTurnChanges(CHAT_A);
+		const observed: (string | undefined)[] = [];
+		const observer = store.add(autorun(reader => {
+			observed.push(changes.read(reader)[0]?.modifiedUri?.toString());
+		}));
+
+		state = createState('snapshot:/after-2/a.ts');
+		onDidChange.fire(state);
+		observer.dispose();
+
+		assert.deepStrictEqual(observed, [
+			'readonly-content:/after-1/a.ts',
+			'readonly-content:/after-2/a.ts',
+		]);
+	});
+
 	test('releaseChat drops the cached observables for a removed chat', () => {
 		const { connection } = createRecordingConnection();
 		const output = createOutput(connection);
 
 		const before = output.getLastTurnChanges(CHAT_A);
 		const cached = output.getLastTurnChanges(CHAT_A);
+		const customizationsBefore = output.getChatCustomizations(CHAT_A);
+		const customizationsCached = output.getChatCustomizations(CHAT_A);
 		output.releaseChat(CHAT_A);
 		const afterRelease = output.getLastTurnChanges(CHAT_A);
+		const customizationsAfterRelease = output.getChatCustomizations(CHAT_A);
 
 		assert.deepStrictEqual(
-			{ reusedWhileLive: cached === before, reusedAfterRelease: afterRelease === before },
-			{ reusedWhileLive: true, reusedAfterRelease: false },
+			{
+				reusedWhileLive: cached === before,
+				reusedAfterRelease: afterRelease === before,
+				customizationsReusedWhileLive: customizationsCached === customizationsBefore,
+				customizationsReusedAfterRelease: customizationsAfterRelease === customizationsBefore,
+			},
+			{
+				reusedWhileLive: true,
+				reusedAfterRelease: false,
+				customizationsReusedWhileLive: true,
+				customizationsReusedAfterRelease: false,
+			},
 		);
 	});
 });

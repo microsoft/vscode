@@ -5,11 +5,11 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { AgentMergeConfiguration, AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -22,11 +22,13 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SinglePaneChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
+import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -54,9 +56,10 @@ const agentMergeHasPullRequest = ContextKeyExpr.or(
 const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondition, agentMergeHasPullRequest);
 
 /**
- * Agent Merge owns the primary button only when neither marking the pull
- * request ready nor merging it applies — the states the user is otherwise left
- * waiting in, including a blocked pull request that offers no operation at all.
+ * Agent Merge owns the primary button while an enabled draft is still waiting
+ * for CI or review comments. The host advertises a distinct Mark Ready
+ * operation in that state so it remains available in the dropdown; once the
+ * pull request is ready, the normal Mark Ready operation takes over.
  *
  * The auto-merge states are included because Agent Merge replaces them on the
  * button: it subsumes "let this merge on its own once it is ready", and the
@@ -67,6 +70,10 @@ const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondit
 const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.EnableAutoMerge),
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.DisableAutoMerge),
+	ContextKeyExpr.and(
+		ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.MarkReadyWithAgentMerge),
+		SessionAgentMergeEnabledContext,
+	),
 	ContextKeyExpr.and(SessionHasOpenPullRequestContext, ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, '')),
 );
 
@@ -95,17 +102,23 @@ const agentMergeActionLabels: Record<AgentMergeRepairAction, string> = {
 
 const agentMergeRepairActions = Object.keys(agentMergeActionLabels) as readonly AgentMergeRepairAction[];
 
-/** Labels for the merge choice, short enough to read inside the submenu title. */
+/**
+ * Labels for the merge choice, short enough to read inside the submenu title.
+ *
+ * The session-scoped menu says On and Off rather than the `always` and `never`
+ * the setting stores: those values read as absolutes, which they only are for
+ * the defaults that apply across every session.
+ */
 const agentMergeMergePullRequestLabels: Record<AgentMergeMergePullRequest, string> = {
-	always: localize('agentMerge.merge.always', "Always"),
+	always: localize('agentMerge.merge.always', "On"),
 	ifUnchanged: localize('agentMerge.merge.ifUnchanged', "Only if Agent Merge Made No Changes"),
-	never: localize('agentMerge.merge.never', "Never"),
+	never: localize('agentMerge.merge.never', "Off"),
 };
 
 const agentMergeMergePullRequestDescriptions: Record<AgentMergeMergePullRequest, string> = {
 	always: localize('agentMerge.merge.always.description', "Merge the pull request whenever it is ready."),
-	ifUnchanged: localize('agentMerge.merge.ifUnchanged.description', "Merge the pull request only while Agent Merge has not changed it. Once a repair turn lands a commit this switches itself to Never."),
-	never: localize('agentMerge.merge.never.description', "Never merge the pull request automatically."),
+	ifUnchanged: localize('agentMerge.merge.ifUnchanged.description', "Merge the pull request only while Agent Merge has not changed it. Once a repair turn lands a commit this switches itself off."),
+	never: localize('agentMerge.merge.never.description', "Do not merge the pull request automatically."),
 };
 
 /**
@@ -122,47 +135,41 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IChangesViewService changesViewService: IChangesViewService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-		const providerListener = this._register(new MutableDisposable());
-		const configurationListener = this._register(new MutableDisposable());
+		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
+			if (changesEditorTransitionObs.read(reader)
+				|| changesViewService.activeSessionChangesetsLoadingObs.read(reader)
+				|| changesViewService.activeSessionLoadingObs.read(reader)) {
+				return;
+			}
 			const session = sessionsService.activeSession.read(reader);
-			const provider = session && sessionsProvidersService.getProvider(session.providerId);
-			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
-			const update = () => {
-				const state = session && agentHostProvider ? agentHostProvider.getAgentMergeSessionState(session.sessionId) : undefined;
-				enabledKey.set(state?.enabled === true);
-				const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(configurationService), state?.overrides);
+			// Each folder has its own Agent Merge; follow the one the active chat works in.
+			const chat = session?.activeChat.read(reader);
+			const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService, chat).read(reader) : undefined;
+			const enabled = state?.enabled === true;
+			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
+			contextKeyService.bufferChangeEvents(() => {
+				enabledKey.set(enabled);
 				for (const [action, key] of actionKeys) {
 					key.set(effective[action]);
 				}
 				mergePullRequestKey.set(effective.mergePullRequest);
-				// Explains both the toggle state of the dropdown entries and
-				// whether Agent Merge can claim the primary button at all.
-				const authorized = agentMergeRepairActions.filter(action => effective[action]);
-				const signature = `${session?.sessionId ?? 'none'}|${state?.enabled === true}|${authorized.join(',')}|${effective.mergePullRequest}`;
-				if (lastLogged !== signature) {
-					lastLogged = signature;
-					logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${state?.enabled === true}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
-				}
-			};
-			providerListener.value = agentHostProvider?.onDidChangeSessionConfig(changed => {
-				if (changed === session?.sessionId) {
-					update();
-				}
 			});
-			configurationListener.value = configurationService.onDidChangeConfiguration(event => {
-				if (Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))) {
-					update();
-				}
-			});
-			update();
+			const authorized = agentMergeRepairActions.filter(action => effective[action]);
+			const signature = `${session?.sessionId ?? 'none'}|${chat?.resource.toString() ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
+			if (lastLogged !== signature) {
+				lastLogged = signature;
+				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, chat=${chat?.resource.toString() ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
+			}
 		}));
 	}
 }
@@ -175,10 +182,11 @@ interface IAgentMergeActionPick extends IQuickPickItem {
 
 abstract class AgentMergeActionBase extends Action2 {
 
+	/** The active session and its active chat, whose folder's Agent Merge the actions change. */
 	protected getActiveSession(accessor: ServicesAccessor) {
 		const session = accessor.get(ISessionsService).activeSession.get();
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
-		return session && provider && isAgentHostProvider(provider) ? { session, provider } : undefined;
+		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;
 	}
 
 	/**
@@ -193,8 +201,8 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const configurationService = accessor.get(IConfigurationService);
 		const logService = accessor.get(ILogService);
-		const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
-		const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(configurationService), state?.overrides);
+		const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
+		const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(configurationService), state?.overrides);
 		const overrides: AgentMergeSessionOverrides = {
 			addressReviews: effective.addressReviews,
 			fixCI: effective.fixCI,
@@ -202,7 +210,7 @@ abstract class AgentMergeActionBase extends Action2 {
 			mergePullRequest: effective.mergePullRequest,
 			...patch,
 		};
-		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
+		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
 		logService.info(`[AgentMergeActions] Overrides updated: session=${active.session.sessionId}, change=${JSON.stringify(patch)}`);
 	}
 }
@@ -251,7 +259,7 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 		if (!active) {
 			return;
 		}
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, true, active.chat);
 		logService.info(`[AgentMergeActions] Enabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
@@ -277,7 +285,7 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 		if (!active) {
 			return;
 		}
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, false, active.chat);
 		logService.info(`[AgentMergeActions] Disabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
@@ -314,8 +322,8 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 			if (!active) {
 				return;
 			}
-			const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
-			const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(accessor.get(IConfigurationService)), state?.overrides);
+			const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
+			const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(accessor.get(IConfigurationService)), state?.overrides);
 			await this.updateOverrides(accessor, { [action]: !effective[action] });
 		}
 	});
@@ -401,7 +409,7 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 		}
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, true, active.chat);
 		logService.info(`[AgentMergeActions] Enable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
 		notificationService.info(localize('agentMerge.enabled', "Agent Merge is enabled for the active session."));
 	}
@@ -424,7 +432,7 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 		}
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, false, active.chat);
 		logService.info(`[AgentMergeActions] Disable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
 		notificationService.info(localize('agentMerge.disabled', "Agent Merge is disabled for the active session."));
 	}
@@ -449,8 +457,8 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		const quickInputService = accessor.get(IQuickInputService);
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		const defaults = getGlobalConfiguration(configurationService);
-		const current = active.provider.getAgentMergeSessionState(active.session.sessionId);
+		const defaults = getGlobalAgentMergeConfiguration(configurationService);
+		const current = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
 		const effective = resolveAgentMergeConfiguration(defaults, current?.overrides);
 		const picks: IAgentMergeActionPick[] = agentMergeRepairActions.map(action => ({
 			action,
@@ -464,7 +472,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		// The merge choice is an enum rather than a checkbox, so it is carried
 		// through untouched instead of being reset by this multi-select.
 		const overrides = result.reset ? undefined : toOverrides(result.actions, effective.mergePullRequest);
-		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
+		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
 		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${result.reset}, enabledActions=${[...result.actions].sort().join(',') || 'none'}`);
 		notificationService.info(result.reset
 			? localize('agentMerge.action.reset.complete', "Agent Merge now follows the global action defaults for this session.")
@@ -506,24 +514,6 @@ function pickAgentMergeActions(
 		}));
 		quickPick.show();
 	});
-}
-
-function getGlobalConfiguration(configurationService: IConfigurationService): AgentMergeConfiguration {
-	const mergePullRequest = configurationService.getValue<unknown>(AgentMergeSettingId.MergePullRequest);
-	return {
-		addressReviews: configurationService.getValue<boolean>(AgentMergeSettingId.AddressReviews) ?? defaultAgentMergeConfiguration.addressReviews,
-		fixCI: configurationService.getValue<boolean>(AgentMergeSettingId.FixCI) ?? defaultAgentMergeConfiguration.fixCI,
-		resolveConflicts: configurationService.getValue<boolean>(AgentMergeSettingId.ResolveConflicts) ?? defaultAgentMergeConfiguration.resolveConflicts,
-		// Tolerates the retired boolean form so a profile that has not run the
-		// settings migration yet still shows the right entry as selected.
-		mergePullRequest: isAgentMergeMergePullRequest(mergePullRequest)
-			? mergePullRequest
-			: typeof mergePullRequest === 'boolean'
-				? (mergePullRequest ? 'always' : 'never')
-				: defaultAgentMergeConfiguration.mergePullRequest,
-		mergeMethod: configurationService.getValue<AgentMergeConfiguration['mergeMethod']>(AgentMergeSettingId.MergeMethod) ?? defaultAgentMergeConfiguration.mergeMethod,
-		replyAttribution: configurationService.getValue<boolean>(AgentMergeSettingId.ReplyAttribution) ?? defaultAgentMergeConfiguration.replyAttribution,
-	};
 }
 
 function toOverrides(selected: ReadonlySet<AgentMergeRepairAction>, mergePullRequest: AgentMergeMergePullRequest): AgentMergeSessionOverrides {

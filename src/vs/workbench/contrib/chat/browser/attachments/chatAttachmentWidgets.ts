@@ -80,7 +80,7 @@ import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileL
 import { IChatResponseResourceFileSystemProvider } from '../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
+import { createChatImageHoverContent } from '../../../../browser/chatImagePreview.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -630,63 +630,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
-export function createImageHoverContent(resource: URI | undefined, fullName: string,
-	buffer: ArrayBuffer | Uint8Array,
-	cacheKey: string,
-	onContentsChanged?: () => void,
-	clickHandler?: () => void,
-	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void,
-	imageAlt = '',
-	showImageInHover = true): { readonly element: HTMLElement; readonly disposable: IDisposable } {
-
-	const disposable = new DisposableStore();
-	const hoverElement = dom.$('div.chat-attached-context-hover');
-	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: imageAlt });
-	if (showImageInHover) {
-		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-		hoverElement.appendChild(imageContainer);
-
-		if (clickHandler) {
-			imageContainer.classList.add('clickable');
-			imageContainer.tabIndex = 0;
-			imageContainer.role = 'button';
-			imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
-			disposable.add(registerOpenEditorListeners(imageContainer, async () => {
-				await clickHandler();
-			}));
-		}
-	}
-
-	if (resource) {
-		const urlContainer = clickHandler
-			? dom.$('a.chat-attached-context-url', {}, fullName)
-			: dom.$('div.chat-attached-context-url', {}, fullName);
-		const separator = dom.$('div.chat-attached-context-url-separator');
-		if (clickHandler) {
-			disposable.add(dom.addDisposableListener(urlContainer, 'click', clickHandler));
-		}
-		hoverElement.append(separator, urlContainer);
-	}
-
-	const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-	const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
-	const renderPreviewImage = async () => {
-		const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
-		if (disposable.isDisposed) {
-			return;
-		}
-		const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
-		const url = URL.createObjectURL(source);
-		previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
-		hoverImage.onload = () => onContentsChanged?.();
-		hoverImage.src = url;
-		onImageUrl?.(url, !!thumbnail, hoverImage);
-	};
-	void renderPreviewImage();
-
-	return { element: hoverElement, disposable };
-}
-
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
@@ -756,7 +699,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			replacePill(pillIcon);
 		};
 		const hoverFullName = omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName;
-		const hoverContent = createImageHoverContent(resource, hoverFullName, buffer, cacheKey, undefined, resource ? clickHandler : undefined, (url, isThumbnail, hoverImage) => {
+		const hoverContent = createChatImageHoverContent(resource, hoverFullName, buffer, cacheKey, undefined, resource ? clickHandler : undefined, (url, isThumbnail, hoverImage) => {
 			if (isThumbnail) {
 				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
@@ -1576,7 +1519,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const clickHandler = this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)
 				? async () => this.chatImageCarouselService.openCarouselAtResource(resource, data)
 				: undefined;
-			const preview = createImageHoverContent(
+			const preview = createChatImageHoverContent(
 				undefined,
 				attachment.name,
 				data,
@@ -1896,7 +1839,8 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 			content: this._input
 				? {
 					[BrowserViewSharingState.Shared]: this._input.getTitle() ?? '',
-					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.Available]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.BlockedByNetworkPolicy]: localize('chat.browserViewBlockedByNetworkPolicy', "This browser page cannot be shared because its address is blocked by network policy."),
 					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled', "Browser tools are not enabled."),
 				}[this._input.model?.sharingState ?? BrowserViewSharingState.Shared]
 				: localize('chat.browserViewClosed', "This browser page is no longer open."),
@@ -1959,7 +1903,8 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._input
 				? {
 					[BrowserViewSharingState.Shared]: localize('chat.browserViewAttachment.aria', "Attached browser page, {0}", name),
-					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.Available]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.BlockedByNetworkPolicy]: localize('chat.browserViewBlockedByNetworkPolicy.aria', "Browser page blocked by network policy, {0}", name),
 					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled.aria', "Browser tools are not enabled, {0}", name),
 				}[sharingState]
 				: localize('chat.browserViewClosed.aria', "Browser page unavailable, {0}", name)

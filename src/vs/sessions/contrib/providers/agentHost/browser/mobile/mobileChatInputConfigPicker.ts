@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -18,6 +18,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
@@ -25,7 +26,7 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../..
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -87,6 +88,7 @@ class MobileChatInputConfigPicker extends Disposable {
 	) {
 		super();
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
 		}));
@@ -350,6 +352,11 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -372,6 +379,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -381,20 +389,24 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// bottom sheet. Publish this as a neutral context key so the core model
 		// picker can gate itself out without depending on agent-host identity.
 		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this._register(autorun(reader => {
+			providersChanged.read(reader);
 			const session = sessionsService.activeSession.read(reader);
-			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig,
-			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
-				return new MobileChatInputConfigPickerActionViewItem(picker);
-			},
-		));
+		for (const menu of [Menus.NewSessionConfig, Menus.AutomationsDialogInputToolbar]) {
+			this._register(actionViewItemService.register(
+				menu,
+				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
+				(_action, _options, scopedInstantiationService) => {
+					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+					const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
+					return new MobileChatInputConfigPickerActionViewItem(picker);
+				},
+			));
+		}
 	}
 }
 

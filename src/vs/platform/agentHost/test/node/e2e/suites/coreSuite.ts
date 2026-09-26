@@ -13,8 +13,8 @@ import type { ChatErrorAction } from '../../../../common/state/protocol/actions.
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
-import { ActionType, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatInputRequestedAction, type ChatToolCallReadyAction, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
+import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, TurnState, type ChatInputAnswer, type ChatState, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
@@ -26,7 +26,7 @@ import {
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
@@ -311,6 +311,109 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
+	for (const { title, response, synchronizedOnly } of [
+		{ title: 'input drafts: submitting uses the synchronized answer after clearing an earlier draft', response: ChatInputResponseKind.Accept, synchronizedOnly: true },
+		{ title: 'input drafts: final submission overrides a synchronized draft', response: ChatInputResponseKind.Accept, synchronizedOnly: false },
+		{ title: 'input drafts: cancelling a drafted answer leaves the provider ready for another turn', response: ChatInputResponseKind.Cancel, synchronizedOnly: false },
+	]) {
+		// Omitting the final answers currently loses the synchronized draft at the provider boundary.
+		(interactiveInputPrompt && (!synchronizedOnly || context.runKnownIssueTests) ? test : test.skip)(title, async function () {
+			this.timeout(180_000);
+			assert.ok(interactiveInputPrompt);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-drafts-'));
+			tempDirs.push(workspace);
+			const session = await createRealSession(context.client, config, `input-drafts-${response}-${synchronizedOnly}-${config.provider}`, createdSessions, URI.file(workspace));
+			const chat = buildDefaultChatUri(session);
+			let clientSeq = await prepareInputSession(session);
+			const turnId = 'input-draft-turn';
+			dispatchTurn(context.client, session, turnId, `${interactiveInputPrompt} If the question is cancelled, reply exactly "cancelled" and do not ask again.`, clientSeq++);
+			const seen = new Set<number>();
+			let request: ChatInputRequestedAction['request'];
+			while (true) {
+				const notification = await context.client.waitForNotification(notification =>
+					(isActionNotification(notification, ActionType.ChatInputRequested)
+						|| isActionNotification(notification, ActionType.ChatToolCallReady)
+						|| isActionNotification(notification, ActionType.ChatError)
+						|| isActionNotification(notification, ActionType.ChatTurnComplete))
+					&& getActionEnvelope(notification).channel === chat
+					&& !seen.has(getActionEnvelope(notification).serverSeq),
+					90_000,
+				);
+				const envelope = getActionEnvelope(notification);
+				seen.add(envelope.serverSeq);
+				if (envelope.action.type === ActionType.ChatInputRequested) {
+					request = envelope.action.request;
+					break;
+				}
+				assert.strictEqual(envelope.action.type, ActionType.ChatToolCallReady, 'the provider must request input before completing');
+				const ready = envelope.action as ChatToolCallReadyAction;
+				if (!ready.confirmed) {
+					context.client.dispatch({
+						channel: chat, clientSeq: clientSeq++,
+						action: {
+							type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: ready.toolCallId,
+							approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+						},
+					});
+				}
+			}
+			const question = request.questions?.[0];
+			assert.ok(question?.kind === ChatInputQuestionKind.SingleSelect);
+			const questionId = question.id;
+			const apple = question.options.find(option => /Apple/i.test(option.label));
+			const banana = question.options.find(option => /Banana/i.test(option.label));
+			assert.ok(apple && banana);
+
+			async function setAnswer(answer: ChatInputAnswer | undefined): Promise<void> {
+				const sequence = clientSeq++;
+				context.client.dispatch({
+					channel: chat, clientSeq: sequence,
+					action: { type: ActionType.ChatInputAnswerChanged, requestId: request.id, questionId, answer },
+				});
+				const accepted = await context.client.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.ChatInputAnswerChanged)
+					&& getActionEnvelope(notification).channel === chat
+					&& getActionEnvelope(notification).origin?.clientSeq === sequence,
+				);
+				assert.strictEqual(getActionEnvelope(accepted).rejectionReason, undefined);
+				const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: chat });
+				const input = (subscribed.snapshot!.state as ChatState).activeTurn?.responseParts.find(part =>
+					part.kind === ResponsePartKind.InputRequest && part.request.id === request.id);
+				assert.ok(input?.kind === ResponsePartKind.InputRequest);
+				assert.deepStrictEqual(input.request.answers?.[questionId], answer);
+			}
+
+			await setAnswer({ state: ChatInputAnswerState.Draft, value: { kind: ChatInputAnswerValueKind.Selected, value: apple.id } });
+			await setAnswer(undefined);
+			const answer: ChatInputAnswer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: banana.id } };
+			await setAnswer(synchronizedOnly ? answer : { ...answer, value: { kind: ChatInputAnswerValueKind.Selected, value: apple.id } });
+			context.client.dispatch({
+				channel: chat, clientSeq: clientSeq++,
+				action: {
+					type: ActionType.ChatInputCompleted, requestId: request.id, response,
+					...(!synchronizedOnly ? { answers: { [question.id]: answer } } : {}),
+				},
+			});
+			const completed = await context.client.waitForNotification(notification =>
+				(isActionNotification(notification, ActionType.ChatTurnComplete) || isActionNotification(notification, ActionType.ChatError))
+				&& getActionEnvelope(notification).channel === chat
+				&& (getActionEnvelope(notification).action as { turnId: string }).turnId === turnId,
+				90_000,
+			);
+			assert.strictEqual(getActionEnvelope(completed).action.type, ActionType.ChatTurnComplete);
+			const history = await fetchSessionWithChat(context.client, session);
+			const input = history.turns.find(turn => turn.id === turnId)?.responseParts.find(part => part.kind === ResponsePartKind.InputRequest);
+			assert.ok(input?.kind === ResponsePartKind.InputRequest);
+			assert.deepStrictEqual({ response: input.response, answer: input.request.answers?.[question.id] }, { response, answer });
+			if (response === ChatInputResponseKind.Accept) {
+				assert.ok(observedToolResultTexts().some(text => text.includes('Banana')), 'the synchronized final answer must reach the provider');
+			} else {
+				const followup = await driveTurnToCompletion(context.client, session, 'after-input-cancel', 'Reply exactly "STILL_READY".', clientSeq + 100);
+				assert.strictEqual(followup.responseText.trim(), 'STILL_READY');
+			}
+		});
+	}
+
 	(modelSwitchTarget && modelSwitchReturnTarget ? test : test.skip)('model changes between turns retain provider context', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
@@ -336,8 +439,13 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			10,
 		);
 
+		// Model-validation probes and retries can repeat requests for the same model.
+		const models = context.observedModelRequestBodies
+			.map(body => observedModelRequest(body).model)
+			.filter((model, index, allModels) => index === 0 || model !== allModels[index - 1])
+			.slice(-2);
 		assert.deepStrictEqual({
-			models: context.observedModelRequestBodies.slice(-2).map(body => observedModelRequest(body).model),
+			models,
 			first: first.responseText.trim(),
 			secondRemembersCodeWord: /MARIGOLD/i.test(second.responseText),
 		}, {
@@ -392,11 +500,15 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			clientSeq: clientSeq + 1,
 			action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
 		});
-		await context.client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnCancelled')
-			&& getActionEnvelope(n).channel === chatUri,
-			30_000,
-		);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnCancelled')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === chatUri
+				&& envelope.action.type === ActionType.ChatTurnCancelled
+				&& envelope.action.turnId === turnId;
+		}, 30_000);
 		const replacement = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
@@ -405,7 +517,21 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			clientSeq + 2,
 		);
 
-		assert.strictEqual(replacement.responseText.trim(), 'replacement');
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: replacement.responseText.trim(),
+			replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-input-cancel').map(turn => ({
+				message: turn.message.text,
+				state: turn.state,
+			})),
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+		}, {
+			response: 'replacement',
+			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete }],
+			activeTurn: undefined,
+			inputNeeded: undefined,
+		});
 	});
 
 	(textInputPrompt ? test : test.skip)('provider freeform input is answered through AHP', async function () {
@@ -738,7 +864,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			errorType: action.part.error.errorType,
 			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
-			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
+			errorType: config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,
 		});
 	});

@@ -8,6 +8,11 @@ declare module 'vscode' {
 
 	export interface SourceControl {
 		/**
+		 * The source control name used by the active repository title variable.
+		 */
+		activeRepositoryName: string | undefined;
+
+		/**
 		 * Context value of the source control. This can be used to contribute source control specific actions.
 		 * For example, if a source control is given a context value of `repository`, when contributing actions to `scm/sourceControl/context`
 		 * using `menus` extension point, you can specify context value for key `scmProviderContext` in `when` expressions, like `scmProviderContext == repository`.
@@ -43,7 +48,8 @@ declare module 'vscode' {
 		 * @param iconPath An optional icon for the source control.
 		 * @param isHidden Whether the source control is hidden by default.
 		 * @param parent An optional parent source control.
-		 * @param name An optional human-readable repository name, distinct from the source control provider `label`.
+		 * @param name An optional human-readable repository name, distinct from the source control provider `label`
+		 * and from {@link SourceControl.activeRepositoryName}, which only overrides the active repository title variable.
 		 * The name is captured when the source control is created and cannot be changed. When omitted or empty,
 		 * the repository name is derived from its workspace folder, root URI, or provider label.
 		 * @returns An instance of source control.

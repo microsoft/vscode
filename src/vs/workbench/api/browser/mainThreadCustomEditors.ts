@@ -85,6 +85,11 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 	private readonly _pendingSideBySideDiffResolutions = new Map<string, PendingCustomEditorSideBySideDiffResolution>();
 
+	/**
+	 * Webview handle of each resolved input. An input is resolved again if creating its document failed.
+	 */
+	private readonly _webviewHandles = new WeakMap<CustomEditorWebviewInput, extHostProtocol.WebviewHandle>();
+
 	private readonly _webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
 	constructor(
@@ -192,11 +197,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				const handle = generateUuid();
-
 				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
-				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
+				const handle = this.getOrAddWebviewInput(webviewInput, serializeBuffersForPostMessage);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
@@ -227,11 +230,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						}
 					}
 				} catch (error) {
-					onUnexpectedError(error);
-					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					additionalModelRefs.dispose();
 					modelRef?.dispose();
-					return;
+					// Let the editor show the error. Resolving again, for example with Try Again, creates the document again
+					throw error;
 				}
 
 				if (!modelRef) {
@@ -324,6 +326,16 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 
 		this._editorProviders.set(viewType, disposables);
+	}
+
+	private getOrAddWebviewInput(webviewInput: CustomEditorWebviewInput, serializeBuffersForPostMessage: boolean): extHostProtocol.WebviewHandle {
+		let handle = this._webviewHandles.get(webviewInput);
+		if (!handle) {
+			handle = generateUuid();
+			this._webviewHandles.set(webviewInput, handle);
+			this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
+		}
+		return handle;
 	}
 
 	private resolveCustomEditorSideBySideDiff(

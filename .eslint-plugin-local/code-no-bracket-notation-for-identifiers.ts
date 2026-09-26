@@ -4,30 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 import * as ts from 'typescript';
 
 /**
- * Disallow bracket notation for accessing properties that are valid identifiers,
- * especially private members (starting with underscore). Bracket notation should
- * only be used for properties with special characters or computed property names.
- *
- * Bad:  obj['_privateMember']
- * Bad:  obj['normalProperty']
- * Good: obj._privateMember  // TypeScript will catch private access
- * Good: obj.normalProperty
- * Good: obj['property-with-dashes']
- * Good: obj[computedKey]
+ * Prefer dot notation for identifier properties, including TypeScript private members.
+ * Allow bracket notation for environment-variable names accessed directly through process.env.
  */
 export default new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		docs: {
-			description: 'Disallow bracket notation for accessing properties that are valid identifiers'
+			description: 'Disallow bracket notation for identifier properties except on process.env'
 		},
 		messages: {
-			noBracketNotation: 'Use dot notation instead of bracket notation for property \'{{property}}\'. Bracket notation bypasses TypeScript\'s type checking and access modifiers.'
+			noBracketNotation: 'Use dot notation instead of bracket notation for property \'{{property}}\'.'
 		},
 		schema: [],
 		fixable: 'code'
@@ -39,9 +32,6 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		 * Check if a string is a valid JavaScript identifier
 		 */
 		function isValidIdentifier(str: string): boolean {
-			if (str.includes('\\')) {
-				return false;
-			}
 			const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, str);
 			const token = scanner.scan();
 			const isIdentifierName = token === ts.SyntaxKind.Identifier
@@ -50,7 +40,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		}
 
 		return {
-			MemberExpression(node: any) {
+			MemberExpression(node: ESTree.MemberExpression) {
 				const memberExpr = node as TSESTree.MemberExpression;
 
 				// Only check computed member expressions (bracket notation)
@@ -60,6 +50,18 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 
 				// Only check string literals in brackets
 				if (memberExpr.property.type !== 'Literal' || typeof memberExpr.property.value !== 'string') {
+					return;
+				}
+
+				// Preserve escaped property names instead of replacing their authored representation.
+				if (memberExpr.property.raw.includes('\\')) {
+					return;
+				}
+
+				const receiver = memberExpr.object;
+				if (receiver.type === 'MemberExpression' && !receiver.computed
+					&& receiver.object.type === 'Identifier' && receiver.object.name === 'process'
+					&& receiver.property.type === 'Identifier' && receiver.property.name === 'env') {
 					return;
 				}
 

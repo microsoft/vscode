@@ -21,7 +21,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -153,6 +152,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
 		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
+			rootConfigResource: agentServiceOptions.rootConfigResource,
+			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
 		});
@@ -166,6 +167,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
+			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 			getGitHubCopilotToken: () => {
 				const resource = foundation.gitHubEndpointService.getCopilotResource();
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
@@ -177,7 +180,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			octoKitService,
 			copilotApiService,
-			isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
@@ -186,6 +188,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			agentServiceOptions,
 			accessor,
 			instantiationService!,
+			services,
 			logService,
 			sessionDataService,
 			foundation,

@@ -9,7 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -155,7 +155,17 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		], [true, false]);
 	});
 
-	test('uses declared agents window support', () => {
+	test('ignores declared agents window support when the experimental feature is disabled', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+		], [false, true]);
+	});
+
+	test('uses declared agents window support when the experimental feature is enabled', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([

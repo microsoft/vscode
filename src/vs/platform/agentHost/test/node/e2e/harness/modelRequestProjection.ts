@@ -36,6 +36,7 @@
  * an unrelated catalog bump; captures still record it for review.
  */
 
+import { hasKey } from '../../../../../../base/common/types.js';
 import type { IReadableAnthropicRequest } from './capiWireCodec.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 
@@ -160,19 +161,21 @@ function projectContent(content: unknown): unknown {
 	if (!Array.isArray(content)) {
 		return projectValue(content);
 	}
-	return content.filter(block => !isReasoningBlock(block)).map(block => {
-		const b = block as { type?: string; text?: string; name?: string; input?: unknown; tool_use_id?: string };
+	const blocks = content.filter(block => !isReasoningBlock(block)).map(block => {
+		const b = block as { type?: string; text?: string; name?: string; format?: 'custom'; input?: unknown; tool_use_id?: string };
 		switch (b.type) {
 			case 'text':
 				return { type: 'text', text: elideRuntimeIds(b.text ?? '') };
 			case 'tool_use':
-				return { type: 'tool_use', name: normalizeShellToolNameForCapture(b.name ?? ''), input: projectValue(b.input) };
+				return { type: 'tool_use', name: normalizeShellToolNameForCapture(b.name ?? ''), ...(b.format ? { format: b.format } : {}), input: projectValue(b.input) };
 			case 'tool_result':
 				return { type: 'tool_result', tool_use_id: elideRuntimeIds(b.tool_use_id ?? ''), content: TOOL_RESULT_PLACEHOLDER };
 			default:
 				return { type: b.type };
 		}
 	});
+	const [onlyBlock] = blocks;
+	return blocks.length === 1 && onlyBlock.type === 'text' && hasKey(onlyBlock, { text: true }) ? onlyBlock.text : blocks;
 }
 
 /** Projects a readable model request down to its host-authored structure. */

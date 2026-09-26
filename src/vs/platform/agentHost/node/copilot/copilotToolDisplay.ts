@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -228,24 +228,17 @@ interface ICopilotLongRunningSearchToolArgs {
 	query: string;
 }
 
-/**
- * Parameters shared by the agent-coordination tools (`read_agent`,
- * `write_agent`). The Copilot CLI identifies the target agent by its
- * human-readable `agent_id` (e.g. `math-helper`).
- */
-interface ICopilotAgentToolArgs {
-	agent_id?: string;
-}
+export type ToolAgentNameResolver = (agentId: string) => string | undefined;
 
 /**
- * Reads a well-formed `agent_id` from untrusted tool parameters. Since these are
- * parsed from JSON they may not match the expected shape, so the id is returned
- * only when it is a non-empty string and is therefore safe to render as inline
- * markdown code.
+ * Resolves opaque SDK agent ids to their display names for presentation only; invocation
+ * arguments are untouched. Unknown ids and blank names fall back to the raw id.
  */
-function getAgentId(parameters: Record<string, unknown> | undefined): string | undefined {
-	const agentId = (parameters as ICopilotAgentToolArgs | undefined)?.agent_id;
-	return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined;
+function getAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
+	if (typeof agentId !== 'string' || agentId.length === 0) {
+		return undefined;
+	}
+	return resolveAgentName?.(agentId)?.trim() || agentId;
 }
 
 /**
@@ -574,7 +567,8 @@ export function parseCopilotStreamingToolInput(raw: string): unknown {
 	return parsePartialToolInput(raw) ?? raw;
 }
 
-export function getToolDisplayName(toolName: string): string {
+/** Preserves built-in labels and uses SDK titles or original MCP names for external tools. */
+export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMessageToolRequest, 'toolTitle' | 'mcpToolName'>): string {
 	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -633,11 +627,11 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
 		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
 		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
-		default: return toolName;
+		default: return metadata?.toolTitle?.trim() || metadata?.mcpToolName?.trim() || toolName;
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -788,16 +782,31 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.ListAgents:
 			return localize('toolInvoke.listAgents', "List agents");
 		case CopilotToolName.ReadAgent: {
-			const agentId = getAgentId(parameters);
-			if (agentId) {
-				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
+			if (agentLabel) {
+				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
 			}
 			return localize('toolInvoke.readAgentGeneric', "Read agent");
 		}
 		case CopilotToolName.WriteAgent: {
-			const agentId = getAgentId(parameters);
-			if (agentId) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
+			if (agentLabel) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+			}
+			const agentLabels = Array.isArray(parameters?.agent_ids)
+				? parameters.agent_ids.map(agentId => getAgentLabel(agentId, resolveAgentName)).filter(label => label !== undefined)
+				: [];
+			if (agentLabels.length === 1) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabels[0])));
+			}
+			if (agentLabels.length > 1) {
+				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.map(label => appendEscapedMarkdownInlineCode(label)).join(', ')));
+			}
+			if (parameters?.scope === 'children') {
+				return localize('toolInvoke.writeChildAgents', "Write to child agents");
+			}
+			if (parameters?.scope === 'siblings') {
+				return localize('toolInvoke.writeSiblingAgents', "Write to sibling agents");
 			}
 			return localize('toolInvoke.writeAgentGeneric', "Write to agent");
 		}
@@ -809,7 +818,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
-export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
 		? parameters as Record<string, unknown>
 		: undefined;
@@ -850,11 +859,11 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
 		}
 		default:
-			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath);
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName);
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -895,7 +904,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Task:
 			return localize('toolComplete.task', "Delegated task");
 		default:
-			return getInvocationMessage(toolName, displayName, parameters, resolvePath);
+			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName);
 	}
 }
 
@@ -1196,10 +1205,11 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					permissionPath: path,
 				};
 			}
+			const serverDisplay = sdkToolName ? getServerToolDisplay(sdkToolName, args) : undefined;
 			return {
-				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
-				toolInput: args ? tryStringify(args) : tryStringify(request),
+				confirmationTitle: serverDisplay?.confirmationTitle ?? localize('copilot.permission.default.title', "Allow tool call?"),
+				invocationMessage: serverDisplay?.confirmationMessage ?? md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
+				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
 			};
@@ -1217,12 +1227,12 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 			};
 		}
 		case 'mcp': {
-			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			const title = request.toolTitle?.trim() || toolName || localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {
 				confirmationTitle: serverName
 					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
 					: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: serverName ? `${serverName}: ${title}` : title,
+				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: 'mcp',
 				permissionPath: path,

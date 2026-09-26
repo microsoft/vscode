@@ -13,6 +13,7 @@ import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
+import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
@@ -23,6 +24,41 @@ import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../p
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/** Agent Merge state that affects client-side presentation. */
+export interface IAgentMergeClientState {
+	readonly enabled: boolean;
+	readonly overrides?: AgentMergeSessionOverrides;
+}
+
+/**
+ * Opt-in policy offered on a remote host's recovery surface: when enabled,
+ * opening a chat whose host is not running starts the host instead of
+ * waiting for the user to click. Scoped to the host *kind* rather than an
+ * individual host, so the label names the kind ("WSL", not "Ubuntu-24.04")
+ * and toggling it from any one host applies to all hosts of that kind.
+ * Providers choose how the value is backed.
+ */
+export interface IAgentHostAutoConnect {
+	/** Checkbox label, e.g. "Automatically Start WSL When Opening Chats". */
+	readonly label: string;
+	readonly enabled: IObservable<boolean>;
+	setEnabled(enabled: boolean): void;
+}
+
+/** Localized labels shared by connection banners and recovery screens. */
+export interface IAgentHostConnectionLabels {
+	readonly unavailableTitle: string;
+	readonly unavailableDescription?: string;
+	readonly unavailable: string;
+	readonly connectingTitle: string;
+	readonly connectingDescription?: string;
+	readonly connecting: string;
+	readonly reconnecting: string;
+	reconnectingIn(seconds: number): string;
+	readonly incompatibleTitle: string;
+	readonly incompatible: string;
 }
 
 /**
@@ -48,6 +84,8 @@ export interface IAgentHostGroup {
 	 * `false` for groups whose members connect implicitly. Defaults to `true`.
 	 */
 	readonly connectable?: boolean;
+	/** Provider that creates new environments for this group, without requiring an existing connection. */
+	readonly sessionCreationProviderId?: string;
 }
 
 /**
@@ -58,6 +96,7 @@ export interface IAgentHostGroup {
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
+	readonly source?: McpServerSource;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
@@ -73,6 +112,8 @@ export interface IAgentHostMcpServer {
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
 	stop(): Promise<void>;
+	/** Continues a blocking startup in the background when the host supports it. */
+	background?(): Promise<void>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -86,6 +127,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Opens this host's connection log, including while connecting. */
+	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**
@@ -120,6 +163,22 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+	/** Permanently remove this host from the user-visible host inventory. */
+	remove?(): Promise<void>;
+	/**
+	 * Skips a pending reconnect backoff and retries at once. Present on remote
+	 * providers whose transport is restored by a protocol client.
+	 */
+	reconnectNow?(): void;
+	/**
+	 * Kind-scoped auto-start policy surfaced on the recovery screen. Present
+	 * on remote providers whose host can be started locally; omitted where
+	 * starting is not something VS Code can do.
+	 */
+	readonly autoConnect?: IAgentHostAutoConnect;
+
+	/** Optional labels for providers whose display name does not name the host. */
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -133,12 +192,22 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	// -- Dev Container drafts (optional, local provider only) --
 
+	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
+	readonly devContainerSourceWorkspace?: URI;
+	/** Fires when Dev Container workspace availability should be checked again. */
+	readonly onDidChangeDevContainerAvailability?: Event<void>;
+	/** Whether this workspace supports Dev Container execution. */
+	isDevContainerWorkspaceAvailable?(workspaceUri: URI): Promise<boolean>;
 	/** Whether this draft's workspace supports Dev Container execution. */
 	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Whether this draft has selected Dev Container execution, including pending availability. */
+	isDevContainerRequested?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
+	/** Enable Dev Container execution once availability resolves. Required selections fail rather than falling back to the host. */
+	preferDevContainer?(sessionId: string, options?: { readonly required?: boolean }): void;
 
 	// -- Dynamic Session Config --
 
@@ -154,6 +223,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	/** Tracks a draft configuration side effect that must finish before the first request. */
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**
 	 * Replaces the full set of running-session config values atomically.
 	 *
@@ -169,18 +240,24 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * there since the schema is still being resolved.
 	 */
 	replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void>;
-	/** Returns dynamic completions for a configuration property. */
+	/** Returns dynamic completions; new-session branch lists reuse the request started when their workspace was selected. */
 	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
-	/** Returns the persisted Agent Merge state for a running session. */
-	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
-	/** Enables or disables Agent Merge while preserving the session's action overrides. */
-	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
-	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */
-	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void>;
+	/**
+	 * Returns the persisted Agent Merge state of a running session's folder.
+	 * Each folder a chat works in has its own Agent Merge; pass `chat` for the
+	 * folder it works in, or omit it for the session folder (the main chat's).
+	 */
+	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined;
+	/** Returns observable Agent Merge client state of a folder (see {@link getAgentMergeSessionState}) while retaining the required session subscription. */
+	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined>;
+	/** Enables or disables Agent Merge for a folder (see {@link getAgentMergeSessionState}) while preserving its action overrides. */
+	setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI): Promise<void>;
+	/** Replaces a folder's Agent Merge action overrides (see {@link getAgentMergeSessionState}); `undefined` follows global defaults. */
+	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI): Promise<void>;
 
 	// -- Root (agent host) Config --
 

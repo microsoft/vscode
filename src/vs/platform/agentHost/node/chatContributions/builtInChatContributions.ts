@@ -5,16 +5,22 @@
 
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
+import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
+import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
+import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
+import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
+import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
+import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSessionOriginContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
@@ -29,11 +35,14 @@ export function registerBuiltInChatContributions(
 ): IDisposable {
 	const registrations = new DisposableStore();
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
+	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
+	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
 	registrations.add(contributions.registerContribution(GitHubReferencesContribution));
@@ -43,7 +52,10 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
+	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));
+	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
+	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	return registrations;
 }

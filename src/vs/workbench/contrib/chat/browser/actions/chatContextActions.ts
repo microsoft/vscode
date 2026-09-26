@@ -478,6 +478,7 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
 			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -536,7 +537,7 @@ export class AttachContextAction extends Action2 {
 
 		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
 

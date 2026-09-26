@@ -21,6 +21,7 @@ const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .interactive-input-part .model-pi
 // picker out of its width-driven compact (icon-only) layout so the inline
 // model-config button renders. See `ensureModelPickerExpanded`.
 const AUXILIARYBAR_PART = '.part.auxiliarybar';
+const WORKBENCH_VERTICAL_SASH = '.monaco-sash.vertical:not(.part .monaco-sash)';
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 // Context-usage gauge in the panel chat input. The inline widget only renders a
@@ -248,17 +249,8 @@ export class Chat {
 	}
 
 	/**
-	 * Opens the model picker (in the panel chat input) and selects the model
-	 * whose displayed name contains `modelName`. Clicks the model-picker name
-	 * button to open the popup, waits for the matching row to appear (models may
-	 * still be registering), clicks it, then confirms the selection committed.
-	 *
-	 * The row click can occasionally fail to commit — e.g. absorbed by the
-	 * action-widget's animating `context-view-pointerBlock` overlay — silently
-	 * leaving the previous model (often "Auto") selected. That model advertises
-	 * no configurable options, so the config button never appears and a later
-	 * `openModelConfig` wedges. To absorb this, re-open the picker and retry until
-	 * the name button reflects the chosen model or `timeoutMs` elapses.
+	 * Selects the model whose displayed name contains `modelName` in the panel chat input.
+	 * Reopens the picker and retries until the selection is confirmed or `timeoutMs` elapses.
 	 */
 	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
 		const page = this.code.driver.currentPage;
@@ -276,9 +268,7 @@ export class Chat {
 				// "Other Models" section.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 10_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
+				await row.click();
 				// Confirm the selection actually committed: the picker name button must
 				// now reflect the chosen model. (A non-committing click leaves the old
 				// model selected and the picker dismissed, so waiting only for the
@@ -330,18 +320,30 @@ export class Chat {
 
 			const box = await auxBar.boundingBox().catch(() => null);
 			if (box) {
-				// The auxiliary bar sits at the right edge of the workbench; its
-				// leading (left) sash lies on the bar's left border. Drag it left to
-				// widen the bar (and shrink the editor). Move the pointer onto the
-				// sash, then in two steps — a small nudge engages the drag before the
-				// larger travel — so the resize registers reliably.
-				const sashX = box.x;
-				const sashY = box.y + Math.min(box.height / 2, 200);
-				await page.mouse.move(sashX, sashY);
-				await page.mouse.down();
-				await page.mouse.move(sashX - 20, sashY);
-				await page.mouse.move(sashX - 160, sashY);
-				await page.mouse.up();
+				let closestSashBox: { x: number; y: number; width: number; height: number } | null = null;
+				let closestSashDistance = Number.POSITIVE_INFINITY;
+				for (const sash of await page.locator(WORKBENCH_VERTICAL_SASH).all()) {
+					const sashBox = await sash.boundingBox().catch(() => null);
+					if (sashBox) {
+						const sashDistance = Math.abs(sashBox.x + sashBox.width / 2 - box.x);
+						if (sashDistance < closestSashDistance) {
+							closestSashBox = sashBox;
+							closestSashDistance = sashDistance;
+						}
+					}
+				}
+
+				if (closestSashBox) {
+					// Floating panels offset the sash into the card gap, so drag from
+					// the sash's rendered bounds rather than the auxiliary bar edge.
+					const sashX = closestSashBox.x + closestSashBox.width / 2;
+					const sashY = closestSashBox.y + Math.min(closestSashBox.height / 2, 200);
+					await page.mouse.move(sashX, sashY);
+					await page.mouse.down();
+					await page.mouse.move(sashX - 20, sashY);
+					await page.mouse.move(sashX - 160, sashY);
+					await page.mouse.up();
+				}
 			}
 
 			// Let the ResizeObserver-driven relayout recompute the picker's compact

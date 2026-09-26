@@ -8,10 +8,12 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
+import type { IAgentTelemetryContext } from '../common/agent.js';
+import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionState, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
 import { IAgentHostTurnTracker, type AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
@@ -51,11 +53,13 @@ interface IToolCallTiming {
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	modelResolvedFromUsage: boolean;
 	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
+	readonly telemetryContext: IAgentTelemetryContext | undefined;
 }
 
 interface IStalledToolCall {
 	readonly blockerKind: ToolCallBlockerRequest['kind'];
 	readonly completionStopWatch: StopWatch;
+	readonly executorClientConnectionState: AgentHostExecutorClientConnectionState | undefined;
 }
 
 /**
@@ -87,6 +91,7 @@ export class AgentHostToolCallTracker extends Disposable {
 	constructor(
 		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 	}
@@ -105,6 +110,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
 			clientContext: this._turnTracker.getClientTelemetryContext(session, turnId),
+			telemetryContext: this._turnTracker.getTelemetryContext(session, turnId),
 		});
 	}
 
@@ -161,6 +167,7 @@ export class AgentHostToolCallTracker extends Disposable {
 
 		const report: IAgentHostToolInvokedReport = {
 			clientContext: timing.clientContext,
+			telemetryContext: timing.telemetryContext,
 			provider: timing.provider,
 			session: timing.session,
 			turnId: timing.turnId,
@@ -188,11 +195,14 @@ export class AgentHostToolCallTracker extends Disposable {
 			this._stalledToolCalls.delete(key);
 			this._reporter.stalledToolCallCompleted({
 				clientContext: timing.clientContext,
+				telemetryContext: timing.telemetryContext,
 				provider: timing.provider,
 				session: timing.session,
 				blockerKind: stalled.blockerKind,
+				toolCallId,
 				toolId: timing.toolId,
 				toolSourceKind: timing.toolSourceKind,
+				executorClientConnectionState: stalled.executorClientConnectionState,
 				result: resultBucket,
 				totalTimeMs,
 				timeAfterStallMs: stalled.completionStopWatch.elapsed(),
@@ -211,14 +221,18 @@ export class AgentHostToolCallTracker extends Disposable {
 		this._toolCallStallTimers.set(key, disposableTimeout(() => {
 			const stalledTimeMs = stopWatch.elapsed();
 			const clientContext = this._toolCalls.get(toolCallKey)?.clientContext;
-			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true) });
+			const executorClientConnectionState = this._getExecutorClientConnectionState(request);
+			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true), executorClientConnectionState });
 			this._reporter.toolCallStalled({
 				clientContext,
+				telemetryContext: this._toolCalls.get(toolCallKey)?.telemetryContext,
 				provider,
 				session,
 				blockerKind: request.kind,
+				toolCallId: request.toolCall.toolCallId,
 				toolId: request.toolCall.toolName,
 				toolSourceKind: toolSourceKindFromContributor(request.toolCall.contributor),
+				executorClientConnectionState,
 				stalledTimeMs,
 			});
 		}, TOOL_CALL_STALL_THRESHOLD_MS));
@@ -279,5 +293,15 @@ export class AgentHostToolCallTracker extends Disposable {
 
 	private _turnKey(session: string, turnId: string): string {
 		return `${session}\0${turnId}`;
+	}
+
+	private _getExecutorClientConnectionState(request: ToolCallBlockerRequest): AgentHostExecutorClientConnectionState | undefined {
+		if (request.kind !== SessionInputRequestKind.ToolClientExecution) {
+			return undefined;
+		}
+		if (this._clientConnections.isClientConnected(request.clientId)) {
+			return 'connected';
+		}
+		return this._clientConnections.hasSeenClient(request.clientId) ? 'disconnected' : 'unknown';
 	}
 }

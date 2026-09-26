@@ -31,6 +31,16 @@ export const enum ChatInputNotificationActionKind {
 
 interface IChatInputNotificationActionBase {
 	readonly label: string;
+	/** Accessible label for actions whose visual label is an icon. */
+	readonly ariaLabel?: string;
+	/** Whether the visible label contains only an icon. */
+	readonly iconOnly?: boolean;
+	/** Whether the action anchors to the leading edge of a split action row. */
+	readonly leading?: boolean;
+	/** Whether a secondary action keeps a theme-aware border. */
+	readonly outlined?: boolean;
+	readonly tooltip?: string;
+	readonly primary?: boolean;
 	readonly keepOpen?: boolean;
 	/** Stable id reported to telemetry, so two actions of the same kind can be told apart. */
 	readonly telemetryActionId?: string;
@@ -76,6 +86,7 @@ export interface IChatInputNotificationModelState {
 }
 
 export interface IChatInputNotificationContext {
+	readonly inputUri?: URI;
 	readonly sessionType: string | undefined;
 	readonly sessionResource: URI | undefined;
 	readonly deferredNotificationsEnabled: boolean;
@@ -92,6 +103,8 @@ export interface IChatInputNotificationBody {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	/** Targets one input instance, including when several inputs show the same session. */
+	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
@@ -99,9 +112,13 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
+	/** Called when the notification first becomes visible in each input. Must be idempotent. */
+	readonly onDidShow?: () => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;
+	/** Handles dismissal of this rendered notice, even if another input has since replaced it. */
+	readonly onDismiss?: () => void;
 	readonly autoDismissOnMessage: boolean;
 	/**
 	 * Optional allow-list of chat session types that should display this
@@ -141,6 +158,9 @@ export function resolveChatInputNotificationBody(
 	context: IChatInputNotificationContext,
 	onError: (error: unknown) => void,
 ): IChatInputNotificationBody | undefined {
+	if (!isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource, context.inputUri)) {
+		return undefined;
+	}
 	if (!evaluateChatInputNotificationPredicate(() => notification.when?.(context) ?? true, onError)) {
 		return undefined;
 	}
@@ -169,8 +189,9 @@ export function isChatInputNotificationApplicableToSessionType(notification: ICh
 	return !notification.sessionTypes?.length || (!!sessionType && notification.sessionTypes.includes(sessionType));
 }
 
-export function isChatInputNotificationApplicableToSession(notification: IChatInputNotification, sessionType: string | undefined, sessionResource: URI | undefined): boolean {
+export function isChatInputNotificationApplicableToSession(notification: IChatInputNotification, sessionType: string | undefined, sessionResource: URI | undefined, inputUri?: URI): boolean {
 	return isChatInputNotificationApplicableToSessionType(notification, sessionType)
+		&& (!notification.inputUri || isEqual(notification.inputUri, inputUri))
 		&& (!notification.sessionResources?.length || (!!sessionResource && notification.sessionResources.some(resource => isEqual(resource, sessionResource))));
 }
 
@@ -201,11 +222,8 @@ export interface IChatInputNotificationService {
 	 */
 	refresh(): void;
 
-	/**
-	 * Mark a notification as dismissed by the user. It will no longer be returned
-	 * by {@link getActiveNotification} until it is re-pushed with new content.
-	 */
-	dismissNotification(id: string): void;
+	/** Dismisses the rendered notice without dismissing a replacement published under the same id. */
+	dismissNotification(id: string, notification?: IChatInputNotification): void;
 
 	/**
 	 * Get the single active notification to display. Returns the highest-severity
@@ -276,13 +294,29 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		}
 	}
 
-	dismissNotification(id: string): void {
-		if (this._notifications.has(id) && !this._dismissed.has(id)) {
+	dismissNotification(id: string, notification = this._notifications.get(id)): void {
+		if (!notification) {
+			return;
+		}
+		if (this._notifications.get(id) !== notification) {
+			this._handleDismiss(notification);
+			return;
+		}
+		if (!this._dismissed.has(id)) {
 			this._dismissed.add(id);
 			// Forget the announced signature so a later re-show is announced again.
 			this._announcedById.delete(id);
 			this._onDidDismiss.fire(id);
+			this._handleDismiss(notification);
 			this._fireDidChange();
+		}
+	}
+
+	private _handleDismiss(notification: IChatInputNotification): void {
+		try {
+			notification.onDismiss?.();
+		} catch (error) {
+			this._logService.error('[ChatInputNotificationService] Failed to handle notification dismissal', error);
 		}
 	}
 
@@ -318,7 +352,7 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			if (!notification.autoDismissOnMessage || this._dismissed.has(notification.id)) {
 				continue;
 			}
-			if (context && !isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
+			if (context && !isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource, context.inputUri)) {
 				continue;
 			}
 			if (context && !evaluateChatInputNotificationPredicate(
