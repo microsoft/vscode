@@ -341,6 +341,34 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
 	});
 
+	test('reflects the desktop popup state on the trigger', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		]);
+		let hidePicker: (() => void) | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, _items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				hidePicker = () => delegate.onHide();
+			}
+		}();
+		const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService);
+		picker.setFolderSource(constObservable(folder));
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+
+		const expanded = [trigger?.getAttribute('aria-expanded')];
+		picker.showPicker();
+		expanded.push(trigger?.getAttribute('aria-expanded'));
+		assert.ok(hidePicker);
+		hidePicker();
+		expanded.push(trigger?.getAttribute('aria-expanded'));
+
+		assert.deepStrictEqual(expanded, ['false', 'true', 'false']);
+	});
+
 	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {
 		const cloud = sessionType('cloud', 'cloud-agent', 'Cloud');
 		const sandbox = sessionType('creation', 'sandbox-agent', 'Copilot');

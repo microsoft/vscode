@@ -467,6 +467,7 @@ export class SessionTypePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 		this._renderDisposables.add({
 			dispose: () => {
@@ -622,12 +623,14 @@ export class SessionTypePicker extends Disposable {
 				await this._selectSessionType(item);
 			},
 			onHide: () => {
+				triggerElement?.setAttribute('aria-expanded', 'false');
 				if (triggerElement?.isConnected) {
 					triggerElement.focus();
 				}
 			},
 		};
 
+		triggerElement?.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show<ISessionTypePickerItem>(
 			'sessionTypePicker',
 			false,

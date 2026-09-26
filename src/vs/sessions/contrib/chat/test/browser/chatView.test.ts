@@ -1484,9 +1484,6 @@ suite('Sessions - Chat View', () => {
 		const productionExperimentalContent = dom.append(productionNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
 		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalContent, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		const productionExperimentalWorkspaceAction = dom.append(productionExperimentalWorkspaceSlot, dom.$('.action-label'));
-		const productionExperimentalHarnessSlot = dom.append(productionExperimentalContent, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
-		const productionExperimentalHarnessAction = dom.append(productionExperimentalHarnessSlot, dom.$('.action-label'));
-		productionExperimentalHarnessAction.setAttribute('aria-expanded', 'true');
 		const productionExperimentalRepository = dom.append(productionExperimentalContent, dom.$('.new-chat-repo-config-container'));
 		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
 		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
@@ -1517,7 +1514,6 @@ suite('Sessions - Chat View', () => {
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
 		const productionExperimentalWorkspaceActionStyle = dom.getWindow(productionExperimentalWorkspaceAction).getComputedStyle(productionExperimentalWorkspaceAction);
-		const productionExperimentalHarnessActionStyle = dom.getWindow(productionExperimentalHarnessAction).getComputedStyle(productionExperimentalHarnessAction);
 		const productionExperimentalRepositoryActionBarStyle = dom.getWindow(productionExperimentalRepositoryActionBar).getComputedStyle(productionExperimentalRepositoryActionBar);
 		const productionExperimentalRepositoryActionStyle = dom.getWindow(productionExperimentalRepositoryAction).getComputedStyle(productionExperimentalRepositoryAction);
 		assert.deepStrictEqual({
@@ -1546,7 +1542,6 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
 			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
 			productionExperimentalWorkspaceBorderRadius: productionExperimentalWorkspaceActionStyle.borderRadius,
-			productionExperimentalHarnessOpenBackgroundImage: productionExperimentalHarnessActionStyle.backgroundImage,
 			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
 			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
 			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
@@ -1589,7 +1584,6 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
 			productionExperimentalWorkspaceBorderRadius: '4px',
-			productionExperimentalHarnessOpenBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16))',
 			productionExperimentalRepositoryBackgroundColor: 'rgb(255, 255, 255)',
 			productionExperimentalRepositoryBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
