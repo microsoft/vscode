@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { OpenAIEndpoint } from './openAIEndpoint';
+import * as assert from 'assert';
 
 /**
  * Azure-specific OpenAI endpoint that supports Entra ID authentication.
@@ -25,3 +26,12 @@ export class AzureOpenAIEndpoint extends OpenAIEndpoint {
 		return headers;
 	}
 }
+
+suite('AzureOpenAIEndpoint', () => {
+    test('throws an error when API key or Entra ID token is missing', () => {
+        const endpoint = new AzureOpenAIEndpoint({} as any);
+        assert.throws(() => {
+            endpoint.getExtraHeaders();
+        }, /AzureOpenAIEndpoint: API key or Entra ID token is missing/);
+    });
+});
