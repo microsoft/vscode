@@ -137,6 +137,10 @@ function convertNode(node: Node): string {
 		case 'strike':
 			return `~~${convertChildren(el)}~~`;
 
+		case 'style':
+		case 'script':
+			return '';
+
 		default:
 			return convertChildren(el);
 	}

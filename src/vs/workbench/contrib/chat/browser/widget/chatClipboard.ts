@@ -36,6 +36,12 @@ export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boole
 	let changed = false;
 
 	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+	for (const element of Array.from(fragment.querySelectorAll('style, script, .checkpoint-file-changes-summary'))) {
+		element.remove();
+		changed = true;
+	}
+
+	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
 	for (const anchor of Array.from(fragment.querySelectorAll('a'))) {
 		const target = getLinkTarget(anchor);
 		if (isPortableLinkTarget(target)) {
