@@ -154,7 +154,7 @@
     "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.15",
     "open": "^10.1.2",
-    "playwright-core": "1.61.0-alpha-2026-06-04",
+    "playwright-core": "1.63.0",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
     "tas-client": "0.4.6",
