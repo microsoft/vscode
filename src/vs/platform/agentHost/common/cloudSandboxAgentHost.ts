@@ -299,7 +299,7 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
  * so callers can tell a failure that may clear on its own from one that never will.
  */
 export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number) {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 	}

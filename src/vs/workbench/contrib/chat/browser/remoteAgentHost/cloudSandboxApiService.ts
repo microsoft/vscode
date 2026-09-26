@@ -737,6 +737,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		throw new CloudSandboxRequestError(
 			status,
 			`Mission Control ${action} failed: HTTP ${status ?? 'unknown'} - ${(body ?? '').slice(0, 200)}`,
+			retryAfterSeconds(context.res.headers?.['retry-after']),
 		);
 	}
 
@@ -825,19 +826,23 @@ function toQuery(searchParams: Record<string, string> | undefined): string {
 	return search ? `?${search}` : '';
 }
 
-/** Parse a `Retry-After` header (delta-seconds), or `undefined` when absent or unusable. */
+/** Parse `Retry-After` as delta-seconds or an HTTP date. */
 function retryAfterSeconds(value: string | string[] | undefined): number | undefined {
-	const raw = Array.isArray(value) ? value[0] : value;
+	const raw = (Array.isArray(value) ? value[0] : value)?.trim();
 	if (raw) {
-		const seconds = Number.parseInt(raw, 10);
-		if (Number.isFinite(seconds) && seconds > 0) {
+		const seconds = Number(raw);
+		if (Number.isSafeInteger(seconds) && seconds >= 0) {
 			return seconds;
+		}
+		const date = Number.isNaN(seconds) ? Date.parse(raw) : NaN;
+		if (Number.isFinite(date)) {
+			return Math.max(0, (date - Date.now()) / 1000);
 		}
 	}
 	return undefined;
 }
 
-/** Parse a `Retry-After` header (delta-seconds); fall back to a small default. */
+/** Parse a `Retry-After` header; fall back to a small default. */
 function parseRetryAfter(value: string | string[] | undefined): number {
 	return retryAfterSeconds(value) ?? DEFAULT_WAKING_RETRY_AFTER_SECONDS;
 }

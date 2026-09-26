@@ -7,6 +7,7 @@
 // entries supplied by registered connection factories.
 
 import { Emitter, Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
@@ -750,7 +751,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// the "fatal" path — the protocol client already gave up its own
 			// soft-reconnect attempts (or it was never enabled), so we rebuild
 			// from scratch.
-			if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			if (createdConnection.reconnectManagedByClient) {
+				this._rejectPendingConnectionWait(address, new Error(localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
+				observer?.('failed');
+			} else if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
 			}
 		}));
@@ -866,7 +870,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			if (createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
 			}
 		}

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { localize } from '../../../../../nls.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -26,11 +27,12 @@ import {
 	type ICloudSandboxClientToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DEFAULT_RECONNECT_POLICY } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
+import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -46,6 +48,14 @@ export const MAX_SEALED_TOKEN_RETRIES = 12;
 
 /** Delay between `/connect` re-mints while waiting for complete credentials. */
 const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
+
+// Retain the existing twenty 30-second waking windows as the total startup ceiling.
+const CONNECTION_TIMEOUT_MS = MAX_WAKING_RETRIES * 30_000;
+const SANDBOX_RECONNECT_POLICY = {
+	...DEFAULT_RECONNECT_POLICY,
+	maxElapsedTimeMs: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES * MIN_CREDENTIAL_REFRESH_DELAY_MS,
+	jitter: true,
+};
 
 interface IStagedCloudSandboxConnection {
 	readonly entry: IRemoteAgentHostEntry;
@@ -227,6 +237,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				{
 					clientId: staged.clientId,
 					clientInfo: editorWindowAgentHostClientInfo,
+					reconnectPolicy: SANDBOX_RECONNECT_POLICY,
 					prepareReconnect: async () => {
 						if (staged.reconnectRequiresRefresh) {
 							await refresher.refreshConnectionCredentials();
@@ -243,7 +254,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged),
 				},
 			);
-			return { connection: client, transportDisposable: store };
+			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
 		} catch (error) {
 			store.dispose();
 			throw error;
@@ -334,33 +345,41 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}`);
 
 		const telemetry = this._connectionFactory.beginConnect(address);
-		const cancellationListener = token.onCancellationRequested(() => {
+		const operation = new DisposableStore();
+		const source = operation.add(new CancellationTokenSource(token));
+		let timedOut = false;
+		operation.add(disposableTimeout(() => {
+			timedOut = true;
+			telemetry?.onConnectionStateChange('failed');
+			source.cancel();
+		}, CONNECTION_TIMEOUT_MS));
+		operation.add(token.onCancellationRequested(() => {
 			telemetry?.completeConnect('cancelled');
 			this._connectionFactory.releaseTelemetry(address, telemetry);
-		});
+		}));
 		let establishing = false;
 		try {
 			// Asked once: Mission Control blocks on the compute resume before replying, so its answer
 			// already reflects that attempt and re-asking only repeats the wait. `202 waking` is the one
 			// retried case, polled inside the mint against Mission Control's own Retry-After.
-			const clientToken = await this._mintWithWaking(options, token);
+			const clientToken = await raceCancellationError(this._mintWithWaking(options, source.token), source.token);
 
 			// A token only means Mission Control believes the environment is online — a sandbox deleted
 			// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
 			// The handshake's liveness watchdog settles that case.
 			establishing = true;
 			telemetry?.setConnectStage('connection');
-			const result = await this._establish(options, address, clientToken, token);
+			const result = await this._establish(options, address, clientToken, source.token);
 			telemetry?.completeConnect(token.isCancellationRequested ? 'cancelled' : 'success');
 			return result;
 		} catch (error) {
-			telemetry?.completeConnect(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure');
+			telemetry?.completeConnect(!timedOut && (isCancellationError(error) || token.isCancellationRequested) ? 'cancelled' : 'failure');
 			if (!establishing) {
 				this._connectionFactory.releaseTelemetry(address, telemetry);
 			}
-			throw error;
+			throw timedOut ? new Error(localize('cloudSandbox.connectionTimedOut', "Connecting to the sandbox timed out after {0} seconds.", CONNECTION_TIMEOUT_MS / 1000)) : error;
 		} finally {
-			cancellationListener.dispose();
+			operation.dispose();
 		}
 	}
 
@@ -405,27 +424,33 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			if (result.kind === 'token') {
 				return await this._awaitSealedToken(options, result.token, token);
 			}
-			const delayMs = Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS);
+			const delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds);
 			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_WAKING_RETRIES})`);
 			await timeout(delayMs, token);
 		}
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
 	}
 
-	/**
-	 * Re-mint credentials until they carry a sealed token, which a freshly provisioned environment
-	 * can omit for a short window after it comes up. Returns the last credentials either way, since
-	 * an environment may legitimately never seal one.
-	 */
+	private _wakingRetryDelay(retryAfterSeconds: number): number {
+		const delay = Math.max(retryAfterSeconds * 1000, SEALED_TOKEN_RETRY_DELAY_MS);
+		const withJitter = delay + Math.floor(Math.random() * Math.min(1000, delay * 0.2));
+		if (!Number.isFinite(withJitter) || withJitter >= CONNECTION_TIMEOUT_MS) {
+			throw new Error(localize('cloudSandbox.retryExceedsDeadline', "The sandbox requested a retry beyond the connection deadline."));
+		}
+		return withJitter;
+	}
+
+	/** Wait for complete credentials within the attempt limit; initialization validates the final bundle. */
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
+		let delayMs = this.sealedTokenRetryDelayMs;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
 		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
-			await timeout(this.sealedTokenRetryDelayMs, token);
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${delayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
+			await timeout(delayMs, token);
 
 			let result: CloudSandboxConnectResult;
 			try {
@@ -439,10 +464,11 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				break;
 			}
 			if (result.kind !== 'token') {
-				// Went back to waking mid-wait; the handshake watchdog covers a host that is gone.
-				break;
+				delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds);
+				continue;
 			}
 			clientToken = result.token;
+			delayMs = this.sealedTokenRetryDelayMs;
 		}
 		return clientToken;
 	}

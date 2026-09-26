@@ -469,6 +469,31 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		assert.deepStrictEqual({ beforeDeadline, calls: credentials.callCount }, { beforeDeadline: 1, calls: 2 });
 	}));
 
+	for (const retryAfterSeconds of [45, 7_200]) {
+		for (const response of ['rate limited', 'waking'] as const) {
+			test(`does not shorten a ${retryAfterSeconds}-second ${response} response`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+				let requests = 0;
+				const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+					if (++requests === 1) {
+						if (response === 'rate limited') {
+							throw new CloudSandboxRequestError(429, 'rate limited', retryAfterSeconds);
+						}
+						return { kind: 'waking', waking: { retryAfterSeconds } };
+					}
+					return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
+				});
+				await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+				await timeout(retryAfterSeconds * 1000 - 1);
+				await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+				const callsBeforeDeadline = credentials.callCount;
+				await timeout(1);
+				await refresher.ensureUnexpiredCredentials();
+				refresher.dispose();
+				assert.deepStrictEqual({ callsBeforeDeadline, calls: credentials.callCount }, { callsBeforeDeadline: 1, calls: 2 });
+			}));
+		}
+	}
+
 	for (const expiresAt of [new Date(START_TIME).toISOString(), '', 'not-a-date']) {
 		test(`refreshes credentials immediately when expiry is ${expiresAt}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const refreshed = tokenExpiringIn(40, START_TIME, { access_token: 'fresh' });
