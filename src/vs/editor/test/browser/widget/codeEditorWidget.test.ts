@@ -282,4 +282,32 @@ suite('CodeEditorWidget', () => {
 		disposables.dispose();
 	});
 
+	test('absorbs browser scrollLeft on the editor scrollable (#336539)', () => {
+		const disposables = new DisposableStore();
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			wordWrap: 'off',
+		}, { contributions: [] }));
+		const model = disposables.add(createTextModel('line\n'));
+		editor.setModel(model);
+		editor.layout({ width: 200, height: 100 });
+
+		const scrollable = editor.getDomNode()!.querySelector<HTMLElement>('.monaco-scrollable-element.editor-scrollable')!;
+		// Headless font metrics do not overflow on their own, so setMaxLineWidth only gives the scrollable a max.
+		editor._getViewModel()!.viewLayout.setMaxLineWidth(5000);
+		const wide = document.createElement('div');
+		wide.style.width = '5000px';
+		wide.style.height = '1px';
+		scrollable.appendChild(wide);
+		scrollable.scrollLeft = 400;
+		scrollable.dispatchEvent(new Event('scroll'));
+
+		assert.deepStrictEqual({ native: scrollable.scrollLeft, editor: editor.getScrollLeft() }, { native: 0, editor: 400 });
+		disposables.dispose();
+	});
+
 });
