@@ -23,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
@@ -34,7 +34,7 @@ import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLa
 import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
-import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, isUserProvidedModel, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
+import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner } from './modelPickerHover.js';
 
@@ -618,13 +618,15 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 		this._selectionVersion++;
-		// Choosing a tier closes the picker, so select Auto now rather than after the save.
-		if (context.selectedModelId !== model.identifier) {
-			this._applyModelSelection(model, context);
-		}
 		if (!property.schema.readOnly) {
 			await setModelConfigValues(model, context.configurationAccess, { [property.key]: value },
 				(...change) => context.onConfigurationChanged(model, ...change));
+		}
+		// Choosing a tier closes the picker, so this can run after it hid. Switch to
+		// Auto only once the tier is saved, and not over a model chosen since.
+		const current = this._context;
+		if (current?.configurationAccess === context.configurationAccess && current.selectedModelId === context.selectedModelId && current.selectedModelId !== model.identifier) {
+			this._applyModelSelection(model, current);
 		}
 	}
 

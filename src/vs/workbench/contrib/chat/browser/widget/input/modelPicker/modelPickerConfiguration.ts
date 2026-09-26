@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
@@ -34,6 +34,7 @@ export class ModelPickerConfiguration {
 		private readonly _host: IModelPickerConfigurationHost,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) { }
 
 	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, useTabbedPicker = false): void {
@@ -97,7 +98,7 @@ export class ModelPickerConfiguration {
 			return;
 		}
 
-		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, trigger, model, this._host.getChatSessionId());
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId());
 		const items = this._buildItems(telemetrySession);
 
 		const previouslyFocusedElement = dom.getActiveElement();

@@ -530,7 +530,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const telemetrySession = telemetry instanceof ModelPickerTelemetrySession
 			? telemetry
-			: new ModelPickerTelemetrySession(this._telemetryService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.());
+			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.());
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());
@@ -565,11 +565,11 @@ export class ModelPickerWidget extends Disposable {
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
-			telemetrySession.logPinChange(this._delegate.getModels().find(model => model.identifier === modelIdentifier), pinned);
+			const telemetry = { pickerSessionId: telemetrySession.id };
 			if (pinned) {
-				this._languageModelsService.pinModel(modelIdentifier);
+				this._languageModelsService.pinModel(modelIdentifier, telemetry);
 			} else {
-				this._languageModelsService.unpinModel(modelIdentifier);
+				this._languageModelsService.unpinModel(modelIdentifier, telemetry);
 			}
 		};
 

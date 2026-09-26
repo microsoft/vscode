@@ -32,7 +32,7 @@ import { TestSecretStorageService } from '../../../../../platform/secrets/test/c
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
 
 suite('LanguageModels', function () {
@@ -2312,5 +2312,73 @@ suite('LanguageModels - provider usage telemetry', function () {
 	test('sendChatRequest does not report first-party Copilot models', async function () {
 		const events = await sendRequestForVendor(COPILOT_VENDOR_ID, new ExtensionIdentifier('github.copilot-chat'));
 		assert.strictEqual(events.length, 0);
+	});
+});
+
+suite('LanguageModels - pin telemetry', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports only real pin changes, naming built-in models wherever they are relayed from', async function () {
+		const events: { eventName: string; data: unknown }[] = [];
+		const service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() { return Promise.resolve(); }
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() { return []; }
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			new class extends mock<ITelemetryService>() {
+				override publicLog2(eventName: string, data?: unknown) { events.push({ eventName, data }); }
+			},
+		));
+		const vendors = ['agent-host-copilotcli', 'ollama'];
+		service.deltaLanguageModelChatProviderDescriptors(vendors.map(vendor => ({ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined })), []);
+		for (const vendor of vendors) {
+			disposables.add(service.registerLanguageModelProvider(vendor, {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => [{
+					identifier: `${vendor}/model`,
+					metadata: {
+						extension: nullExtensionDescription.identifier, name: 'Model', vendor, family: 'family', version: '1.0', id: 'model',
+						maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						// Agent-host copies of the built-in models keep the built-in provider's group.
+						...(vendor === 'agent-host-copilotcli' ? { isBYOK: true, modelGroup: { id: 'copilot' } } : {}),
+					} satisfies ILanguageModelChatMetadata,
+				}],
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); },
+			}));
+		}
+		await service.selectLanguageModels({});
+
+		service.pinModel('agent-host-copilotcli/model', { pickerSessionId: 'picker-1' });
+		service.pinModel('agent-host-copilotcli/model');
+		service.pinModel('ollama/model');
+		service.unpinModel('ollama/model');
+		service.unpinModel('ollama/model');
+		service.unpinModel('removed/model');
+
+		assert.deepStrictEqual(events.filter(event => event.eventName === 'chat.modelPinChange').map(event => event.data), [
+			{ model: new TelemetryTrustedValue('agent-host-copilotcli/model'), pinned: true, pickerSessionId: 'picker-1' },
+			{ model: 'unknown', pinned: true, pickerSessionId: undefined },
+			{ model: 'unknown', pinned: false, pickerSessionId: undefined },
+		]);
 	});
 });

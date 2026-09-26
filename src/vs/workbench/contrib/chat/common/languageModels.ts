@@ -36,6 +36,7 @@ import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
@@ -570,6 +571,12 @@ export interface IModelConfigurationAccess {
 	readonly onDidChange?: Event<string>;
 }
 
+/** Where a pin change was made, for telemetry. */
+export interface IModelPinTelemetryContext {
+	/** The model picker open the change was made in. */
+	readonly pickerSessionId: string;
+}
+
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
@@ -677,12 +684,12 @@ export interface ILanguageModelsService {
 	/**
 	 * Pins a model so it appears in the pinned section of the model picker.
 	 */
-	pinModel(modelIdentifier: string): void;
+	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
 	 * Unpins a model, removing it from the pinned section.
 	 */
-	unpinModel(modelIdentifier: string): void;
+	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
 	 * Returns whether the given model is pinned.
@@ -926,6 +933,44 @@ const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 
 /** The provider-agnostic model id of the Auto meta-model. */
 export const AUTO_RAW_MODEL_ID = 'auto';
+
+/**
+ * Vendor ids that are the built-in provider under another name. Its models reach the
+ * picker from the extension, from the CLI harness, and as agent-host copies, and each
+ * of those names a different vendor.
+ */
+const BUILT_IN_GROUP_IDS: ReadonlySet<string> = new Set([COPILOT_VENDOR_ID, 'copilotcli']);
+
+/**
+ * Whether the user brought this model themselves rather than getting it from the
+ * built-in provider.
+ *
+ * This follows the provider group, the same thing the picker names a model's source by,
+ * rather than the BYOK flags: a host that forwards the built-in provider's models sets
+ * those flags on every model it relays, which would file the whole catalogue under the
+ * user's own models.
+ */
+export function isUserProvidedModel(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	languageModelsService: ILanguageModelsService,
+): boolean {
+	const groupId = model.metadata.modelGroup?.id ?? model.metadata.vendor;
+	if (BUILT_IN_GROUP_IDS.has(groupId)) {
+		return false;
+	}
+	return groupId !== languageModelsService.getVendors().find(vendor => vendor.isDefault)?.vendor;
+}
+
+/**
+ * A model's identifier for telemetry. Only built-in models are reported, wherever they
+ * are relayed from; models the user brought, and unknown ones, report as "unknown".
+ */
+export function getTelemetryModelIdentifier(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	languageModelsService: ILanguageModelsService,
+): string | TelemetryTrustedValue<string> {
+	return model && !isUserProvidedModel(model, languageModelsService) ? new TelemetryTrustedValue(model.identifier) : 'unknown';
+}
 
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
 	return model?.metadata.id === AUTO_RAW_MODEL_ID || model?.identifier === AUTO_MODEL_IDENTIFIER;
@@ -2391,23 +2436,46 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
 	}
 
-	pinModel(modelIdentifier: string): void {
+	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
 		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
 			return;
 		}
 		this._pinnedModelIds.push(modelIdentifier);
 		this._savePinnedModels();
+		this._logPinChange(modelIdentifier, true, telemetry);
 		this._onDidChangePinnedModels.fire();
 	}
 
-	unpinModel(modelIdentifier: string): void {
+	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
 		const index = this._pinnedModelIds.indexOf(modelIdentifier);
 		if (index === -1) {
 			return;
 		}
 		this._pinnedModelIds.splice(index, 1);
 		this._savePinnedModels();
+		this._logPinChange(modelIdentifier, false, telemetry);
 		this._onDidChangePinnedModels.fire();
+	}
+
+	private _logPinChange(modelIdentifier: string, pinned: boolean, telemetry: IModelPinTelemetryContext | undefined): void {
+		type ChatModelPinChangeEvent = {
+			model: string | TelemetryTrustedValue<string>;
+			pinned: boolean;
+			pickerSessionId: string | undefined;
+		};
+		type ChatModelPinChangeClassification = {
+			owner: 'lramos15';
+			comment: 'Reporting when a model is pinned or unpinned, from the model picker or the Models editor';
+			model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that was pinned or unpinned; "unknown" for models the user brought or that are no longer available' };
+			pinned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model was pinned (true) or unpinned (false)' };
+			pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the model picker open this change was made in; empty when made elsewhere, such as the Models editor' };
+		};
+		const metadata = this.lookupLanguageModel(modelIdentifier);
+		this._telemetryService.publicLog2<ChatModelPinChangeEvent, ChatModelPinChangeClassification>('chat.modelPinChange', {
+			model: getTelemetryModelIdentifier(metadata && { identifier: modelIdentifier, metadata }, this),
+			pinned,
+			pickerSessionId: telemetry?.pickerSessionId,
+		});
 	}
 
 	isModelPinned(modelIdentifier: string): boolean {

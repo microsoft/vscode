@@ -439,29 +439,37 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('failed tier saves are reported without changing the selected preference', async () => {
-		const failure = new Error('Cannot save the routing preference.');
-		const result = createPicker({
-			models: [createAutoModel(), ...models],
-			beforeSave: async () => { throw failure; },
+	for (const start of ['Auto', 'another provider\'s model'] as const) {
+		test(`failed tier saves from ${start} are reported without changing the selected model or preference`, async () => {
+			const failure = new Error('Cannot save the routing preference.');
+			const auto = createAutoModel();
+			const local = model('Local');
+			const ollama = { ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } };
+			const result = createPicker({ models: [auto, ...models, ollama], beforeSave: async () => { throw failure; } });
+			if (start !== 'Auto') {
+				// The Copilot tab remembers Auto mode, so its tiers are one click away.
+				result.picker.show(result.anchor, { ...result.context, selectedModelId: ollama.identifier });
+				element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+			}
+			const reported: Error[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => reported.push(error));
+			try {
+				selectRoutingChoice(result.popup, 'Intelligence');
+				await timeout(0);
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+			result.picker.show(result.anchor, { ...result.context, selectedModelId: start === 'Auto' ? auto.identifier : ollama.identifier });
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+			assert.deepStrictEqual({
+				reported,
+				changes: result.configurationChanges,
+				selected: selectedModels(result.popup),
+				selections: result.selections,
+			}, { reported: [failure], changes: [], selected: start === 'Auto' ? ['Balance'] : [], selections: [] });
 		});
-		const reported: Error[] = [];
-		const previousHandler = errorHandler.getUnexpectedErrorHandler();
-		setUnexpectedErrorHandler(error => reported.push(error));
-		try {
-			selectRoutingChoice(result.popup, 'Intelligence');
-			await timeout(0);
-		} finally {
-			setUnexpectedErrorHandler(previousHandler);
-		}
-		reopen(result);
-		assert.deepStrictEqual({
-			reported,
-			changes: result.configurationChanges,
-			selected: selectedModels(result.popup),
-			selections: result.selections,
-		}, { reported: [failure], changes: [], selected: ['Balance'], selections: [] });
-	});
+	}
 
 	for (const reopen of [false, true]) {
 		test(`pending tier saves cannot override ${reopen ? 'a reopened picker with a new scope' : 'switching to manual mode'}`, async () => {

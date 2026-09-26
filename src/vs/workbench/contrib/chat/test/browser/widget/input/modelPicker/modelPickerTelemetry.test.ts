@@ -37,7 +37,7 @@ import { ModelPickerConfiguration } from '../../../../../browser/widget/input/mo
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget, TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 
 function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadataAndIdentifier {
@@ -82,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel]) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -100,7 +100,6 @@ suite('ModelPickerTelemetry', () => {
 			},
 			getModelConfigurationActions: () => [],
 		};
-		const models = [autoModel, model, fastModel, otherModel, thirdPartyModel];
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
 		store.add(toDisposable(() => container.remove()));
 		const details = dom.append(container, dom.$('.tabbed-action-list-details', { role: 'dialog', tabindex: '-1' }));
@@ -265,8 +264,15 @@ suite('ModelPickerTelemetry', () => {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
 			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
-			override pinModel(id: string) { pinnedModelIds.push(id); }
-			override unpinModel(id: string) { pinnedModelIds.splice(pinnedModelIds.indexOf(id), 1); }
+			// The real service reports pin changes; record what the picker passes it instead.
+			override pinModel(id: string, telemetry?: IModelPinTelemetryContext) {
+				pinnedModelIds.push(id);
+				events.push({ name: 'pinModel', data: { id, pickerSessionId: telemetry && pickerSessionIds.indexOf(telemetry.pickerSessionId) } });
+			}
+			override unpinModel(id: string, telemetry?: IModelPinTelemetryContext) {
+				pinnedModelIds.splice(pinnedModelIds.indexOf(id), 1);
+				events.push({ name: 'unpinModel', data: { id, pickerSessionId: telemetry && pickerSessionIds.indexOf(telemetry.pickerSessionId) } });
+			}
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
 		const entitlementService = new TestChatEntitlementService();
@@ -501,8 +507,8 @@ suite('ModelPickerTelemetry', () => {
 		};
 	}
 
-	function pinChange(pinned: boolean) {
-		return { name: 'chat.modelPinChange', data: { model: new TelemetryTrustedValue(otherModel.identifier), pinned, pickerSessionId: 0 } };
+	function pinChange(pinned: boolean, target = otherModel) {
+		return { name: pinned ? 'pinModel' : 'unpinModel', data: { id: target.identifier, pickerSessionId: 0 } };
 	}
 
 	function pickerOpened(pickerSessionId: number, entryPoint: string, inputMethod = 'unknown') {
@@ -660,7 +666,7 @@ suite('ModelPickerTelemetry', () => {
 		result.showCard(otherModel.metadata.name);
 		result.container.querySelector<HTMLElement>('[aria-label="Pin Model"]')!.click();
 		result.hide();
-		assert.deepStrictEqual({ pins: result.events.filter(event => event.name === 'chat.modelPinChange'), pickerEvents: result.pickerEvents }, {
+		assert.deepStrictEqual({ pins: result.events.filter(event => event.name === 'pinModel'), pickerEvents: result.pickerEvents }, {
 			pins: [pinChange(true)],
 			pickerEvents: [pickerOpened(0, 'command'), pickerClosed(0, true)],
 		});
@@ -685,7 +691,7 @@ suite('ModelPickerTelemetry', () => {
 		let now = 1000;
 		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
 			publicLog2: (name: string, data?: IStringDictionary<unknown>) => { logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId }); },
-		}), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', () => now);
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', () => now);
 		now = 1250.4;
 		session.logModelChange(model, otherModel, 'session-1');
 		now = 2000;
@@ -774,10 +780,9 @@ suite('ModelPickerTelemetry', () => {
 		result.showCard(fastModel.metadata.name);
 		result.container.querySelector<HTMLElement>('[aria-label="Unpin Model"]')!.click();
 
-		const pin = (target: ILanguageModelChatMetadataAndIdentifier, pinned: boolean) => ({ name: 'chat.modelPinChange', data: { model: new TelemetryTrustedValue(target.identifier), pinned, pickerSessionId: 0 } });
 		assert.deepStrictEqual({ pinned: result.pinnedModelIds, events: result.events }, {
 			pinned: [],
-			events: [pin(model, true), modelChange(model, fastModel), pin(model, false)],
+			events: [pinChange(true, model), modelChange(model, fastModel), pinChange(false, model)],
 		});
 	});
 
@@ -789,6 +794,26 @@ suite('ModelPickerTelemetry', () => {
 		assert.deepStrictEqual({ events: result.events, saved: result.configurations.get(model.identifier) }, {
 			events: [], saved: { reasoningEffort: 'medium' },
 		});
+	});
+
+	test('switching between agent-host Copilot models reports their ids rather than unknown', () => {
+		// Copies of the built-in models an agent host relays name another vendor but keep
+		// the built-in provider's group, as in the Copilot CLI session reported in #338061.
+		const relayed = (target: ILanguageModelChatMetadataAndIdentifier) => createModel(target.metadata.id, {
+			vendor: 'agent-host-copilotcli', isBYOK: true, modelGroup: { id: 'copilot' }, configurationSchema: target.metadata.configurationSchema,
+		});
+		const relayedAuto = relayed(autoModel);
+		const relayedModel = relayed(model);
+		const result = createPicker(true, relayedAuto, undefined, [relayedAuto, relayedModel]);
+		result.toggleAuto();
+		assert.deepStrictEqual(result.events, [{
+			name: 'chat.modelChange',
+			data: {
+				fromModel: new TelemetryTrustedValue('agent-host-copilotcli/auto'),
+				toModel: new TelemetryTrustedValue('agent-host-copilotcli/test-model'),
+				chatSessionId: 'session-1', searched: false, otherModelsExpanded: false, pickerSessionId: 0,
+			},
+		}]);
 	});
 
 	test('tabbed Auto toggles report the current previous model while the popup stays open', () => {

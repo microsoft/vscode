@@ -6,7 +6,7 @@
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 
 /** How the user opened a model picker surface. */
@@ -35,7 +35,7 @@ type ChatModelPickerOpenedClassification = {
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random id for this picker open, used to correlate the open, change, and close events of one interaction' };
 	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the picker was opened: modelName, configuration, hoverConfigure, or command' };
 	inputMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The input the picker was opened with: keyboard, mouse, or unknown when opened by a command' };
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model selected when the picker opened; "unknown" for third-party providers' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model selected when the picker opened; "unknown" for models the user brought' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current chat session, used to correlate the picker interaction with the session.' };
 };
 
@@ -59,20 +59,6 @@ type ChatModelPickerClosedEvent = {
 	pickerSessionId: string;
 	durationMs: number;
 	searched: boolean;
-};
-
-type ChatModelPinChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when a model is pinned or unpinned in the model picker';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that was pinned or unpinned; "unknown" for third-party providers' };
-	pinned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model was pinned (true) or unpinned (false)' };
-	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the picker open this change was made in' };
-};
-
-type ChatModelPinChangeEvent = {
-	model: string | TelemetryTrustedValue<string>;
-	pinned: boolean;
-	pickerSessionId: string;
 };
 
 type ChatModelChangeClassification = {
@@ -135,11 +121,6 @@ type ChatContextSizeChangeEvent = {
 	pickerSessionId: string;
 };
 
-/** Third-party providers choose their own model ids, so only first-party ones are reported. */
-function getReportedModel(model: ILanguageModelChatMetadataAndIdentifier): string | TelemetryTrustedValue<string> {
-	return model.metadata.vendor === COPILOT_VENDOR_ID ? new TelemetryTrustedValue(model.identifier) : 'unknown';
-}
-
 /**
  * Reports one open of a model picker surface: an open event, each model and
  * configuration change made while it is open, and a close event. Every event
@@ -156,6 +137,7 @@ export class ModelPickerTelemetrySession {
 
 	constructor(
 		private readonly _telemetryService: ITelemetryService,
+		private readonly _languageModelsService: ILanguageModelsService,
 		trigger: IModelPickerOpenTrigger,
 		model: ILanguageModelChatMetadataAndIdentifier | undefined,
 		chatSessionId: string | undefined,
@@ -166,7 +148,7 @@ export class ModelPickerTelemetrySession {
 			pickerSessionId: this.id,
 			entryPoint: trigger.entryPoint,
 			inputMethod: trigger.inputMethod,
-			model: model ? getReportedModel(model) : 'unknown',
+			model: getTelemetryModelIdentifier(model, this._languageModelsService),
 			chatSessionId,
 		});
 	}
@@ -181,14 +163,6 @@ export class ModelPickerTelemetrySession {
 		this._otherModelsExpanded = true;
 	}
 
-	logPinChange(model: ILanguageModelChatMetadataAndIdentifier | undefined, pinned: boolean): void {
-		this._telemetryService.publicLog2<ChatModelPinChangeEvent, ChatModelPinChangeClassification>('chat.modelPinChange', {
-			model: model ? getReportedModel(model) : 'unknown',
-			pinned,
-			pickerSessionId: this.id,
-		});
-	}
-
 	private _elapsed(at = this._now()): number {
 		return Math.max(0, Math.round(at - this._openedAt));
 	}
@@ -199,8 +173,8 @@ export class ModelPickerTelemetrySession {
 		chatSessionId: string | undefined,
 	): void {
 		this._telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
-			fromModel: fromModel ? getReportedModel(fromModel) : 'unknown',
-			toModel: getReportedModel(toModel),
+			fromModel: getTelemetryModelIdentifier(fromModel, this._languageModelsService),
+			toModel: getTelemetryModelIdentifier(toModel, this._languageModelsService),
 			chatSessionId,
 			durationMs: this._elapsed(),
 			searched: this._searched,
@@ -221,10 +195,10 @@ export class ModelPickerTelemetrySession {
 		toValue: unknown,
 		requestedAt: number,
 	): void {
-		const isFirstParty = model.metadata.vendor === COPILOT_VENDOR_ID;
+		const isFirstParty = !isUserProvidedModel(model, this._languageModelsService);
 		if (group === MODEL_CONFIG_GROUP_CONTEXT) {
 			this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-				model: getReportedModel(model),
+				model: getTelemetryModelIdentifier(model, this._languageModelsService),
 				fromValue: String(fromValue ?? ''),
 				toValue: String(toValue),
 				durationMs: this._elapsed(requestedAt),
@@ -234,8 +208,8 @@ export class ModelPickerTelemetrySession {
 		}
 		if (group === MODEL_CONFIG_GROUP_EFFORT) {
 			this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
-				model: getReportedModel(model),
-				// Third-party providers choose their own property keys.
+				model: getTelemetryModelIdentifier(model, this._languageModelsService),
+				// Models the user brought choose their own property keys.
 				property: isFirstParty ? key : 'unknown',
 				fromValue: String(fromValue ?? ''),
 				toValue: String(toValue),
