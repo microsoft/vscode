@@ -256,6 +256,29 @@ describe('Copilot session provenance', () => {
 		});
 	});
 
+	test('an issuer-only identity change emits an authentication event even when the token is unchanged', async () => {
+		const initial = api.selected!;
+		api.sessions.splice(0, api.sessions.length, initial);
+		const service = createService();
+		await service.refreshAuthentication();
+		const issuers: Array<string | undefined> = [];
+		disposables.add(service.onDidAuthenticationChange(() => issuers.push(service.anyGitHubSession?.authorizationServer?.toString())));
+		const next = { ...initial, authorizationServer: URI.parse('https://first.ghe.com/login/oauth') };
+		api.sessions[0] = next;
+		api.selected = next;
+		await service.refreshAuthentication();
+		await service.refreshAuthentication();
+		expect({
+			issuers,
+			accessToken: service.anyGitHubSession?.accessToken,
+			enterpriseUri: tokenStore.githubEnterpriseUri?.toString()
+		}).toEqual({
+			issuers: ['https://first.ghe.com/login/oauth'],
+			accessToken: initial.accessToken,
+			enterpriseUri: 'https://first.ghe.com/'
+		});
+	});
+
 	test('permissive lookups do not clear or retarget the selected any-session URI', async () => {
 		const manager = new TestCopilotTokenManager();
 		const service = createService(manager);
