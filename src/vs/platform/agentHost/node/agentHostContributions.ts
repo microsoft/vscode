@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -22,10 +23,12 @@ import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvid
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
+import { GitHubPullRequestArtifactIntegration } from './artifactIntegrations/githubPullRequestArtifactIntegration.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
 	try {
+		store.add(accessor.get(IArtifactIntegrationRegistry).register(instantiationService.createInstance(GitHubPullRequestArtifactIntegration), 'github.pullRequest.v1'));
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));

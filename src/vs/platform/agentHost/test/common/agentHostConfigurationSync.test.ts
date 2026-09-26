@@ -12,6 +12,8 @@ import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../common/githubPullRequestArtifact.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
@@ -93,6 +95,13 @@ suite('AgentHostConfigurationSync', () => {
 		});
 
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
+	});
+
+	test('never leaks workspace PR check exclusions into host-global configuration', () => {
+		const configurationService = createConfigurationService({
+			[gitHubPullRequestMarkReadyIgnoredChecksSetting]: { defaultValue: [], userValue: ['Global *'], workspaceValue: ['Workspace *'], workspaceFolderValue: ['Folder *'] },
+		});
+		assert.deepStrictEqual(resolveAgentHostConfigurationSyncPatch(configurationService, AgentHostConfigurationSyncTarget.Local)[AgentHostGitHubArtifactIgnoredChecksConfigKey], ['Global *']);
 	});
 
 	test('prefers policy over user, user over application, and falls back to the default', () => {

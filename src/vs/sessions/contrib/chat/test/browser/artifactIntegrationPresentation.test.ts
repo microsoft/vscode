@@ -79,7 +79,7 @@ suite('Artifact Integration Presentation', () => {
 		let opened = 0;
 		let closed = 0;
 		let resourceOpens = 0;
-		let chat = 'invoking-chat';
+		const chat = observableValue('invoking chat', 'invoking-chat');
 		const invokedChats: string[] = [];
 		const invoked: { integrationId: string; actionId: string }[] = [];
 		const acquiredDetails: string[] = [];
@@ -122,7 +122,7 @@ suite('Artifact Integration Presentation', () => {
 				};
 			},
 		};
-		const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, () => chat));
+		const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, reader => chat.read(reader)));
 		const base: IChatPillEntry = { id: 'artifact', label: 'Original', toolbarActions, open: () => { resourceOpens++; } };
 		const entry = derived(reader => presentation.decorate(base, reader));
 		const host = $('.monaco-workbench.chat-pills');
@@ -136,7 +136,7 @@ suite('Artifact Integration Presentation', () => {
 		return {
 			presentation, snapshot, details, base, entry, host, container, item, hovers, dismissed, configured, errors, openedItems, acquiredDetails,
 			counts: () => ({ opened, closed, resourceOpens }), invokedChats, invoked,
-			setChat: (value: string) => { chat = value; },
+			setChat: (value: string) => { chat.set(value, undefined); },
 			setConfigureResult: (result: Promise<void>) => { configureResult = result; },
 		};
 	}
@@ -363,6 +363,33 @@ suite('Artifact Integration Presentation', () => {
 		f.setChat('another-chat');
 		await invoking;
 		assert.deepStrictEqual({ opens: f.counts().resourceOpens, chats: f.invokedChats }, { opens: 1, chats: ['invoking-chat'] });
+	});
+
+	test('manual controls follow the invoking chat without changing shared automation', async () => {
+		const f = fixture();
+		f.snapshot.set({
+			...f.snapshot.get(),
+			contributions: f.snapshot.get().contributions.map(contribution => ({
+				...contribution, view: {
+					...contribution.view, stateActions: [{
+						id: 'analyse', enabled: true, chatAvailability: {
+							'invoking-chat': { enabled: false, disabledReason: 'Check out the PR branch in this chat.' },
+							'other-chat': { enabled: true },
+						},
+					}]
+				},
+			})),
+		}, undefined);
+		const panel = openDetails(f);
+		await Promise.resolve();
+		const button = panel.element.querySelector<HTMLElement>('.artifact-action-unit [role="button"]')!;
+		const initial = { disabled: button.getAttribute('aria-disabled'), reason: panel.element.textContent?.includes('Check out the PR branch') };
+		f.setChat('other-chat');
+		const enabled = button.getAttribute('aria-disabled');
+		button.click();
+		await Promise.resolve();
+		assert.deepStrictEqual({ initial, enabled, chats: f.invokedChats, configured: f.configured },
+			{ initial: { disabled: 'true', reason: true }, enabled: 'false', chats: ['other-chat'], configured: [] });
 	});
 
 	test('a provider section named main does not replace the main details control', async () => {

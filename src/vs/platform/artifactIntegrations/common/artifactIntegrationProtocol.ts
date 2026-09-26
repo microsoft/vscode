@@ -81,6 +81,10 @@ function isPart(value: unknown): boolean {
 		&& (value.description === undefined || typeof value.description === 'string');
 }
 
+function isActionAvailability(value: unknown): boolean {
+	return isRecord(value) && typeof value.enabled === 'boolean' && (value.disabledReason === undefined || typeof value.disabledReason === 'string');
+}
+
 export function isArtifactDetails(value: unknown): value is ArtifactDetails {
 	return isRecord(value) && isAvailability(value.availability) && typeof value.title === 'string'
 		&& (value.description === undefined || typeof value.description === 'string')
@@ -104,7 +108,8 @@ export function isArtifactSnapshot(value: unknown): value is ArtifactSnapshot {
 			&& (contribution.view.main === undefined || isPart(contribution.view.main))
 			&& Array.isArray(contribution.view.sections) && contribution.view.sections.every(section => isRecord(section) && strings(section, 'id') && isPart(section))
 			&& [contribution.view.stateActions, contribution.view.generalActions].every(actions => Array.isArray(actions) && actions.every(action =>
-				isRecord(action) && strings(action, 'id') && typeof action.enabled === 'boolean' && (action.disabledReason === undefined || typeof action.disabledReason === 'string')))
+				isRecord(action) && strings(action, 'id') && isActionAvailability(action)
+				&& (action.chatAvailability === undefined || (isRecord(action.chatAvailability) && Object.entries(action.chatAvailability).every(([chat, availability]) => chat.length > 0 && isActionAvailability(availability))))))
 			&& Array.isArray(contribution.view.automationAvailability) && contribution.view.automationAvailability.every(option => isRecord(option) && strings(option, 'id') && typeof option.available === 'boolean'
 				&& (option.unavailableReason === undefined || typeof option.unavailableReason === 'string')));
 }

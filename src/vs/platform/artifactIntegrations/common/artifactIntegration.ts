@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 
 export type ArtifactJsonValue = null | boolean | number | string | readonly ArtifactJsonValue[] | { readonly [key: string]: ArtifactJsonValue };
 
@@ -19,6 +21,7 @@ export interface ArtifactRecord {
 	readonly id: string;
 	readonly resource: string;
 	readonly label: string;
+	readonly isArtifact?: boolean;
 	readonly origin?: ArtifactOrigin;
 }
 
@@ -50,10 +53,15 @@ export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
 
-export interface ArtifactActionView {
-	readonly id: string;
+export interface ArtifactActionAvailability {
 	readonly enabled: boolean;
 	readonly disabledReason?: string;
+}
+
+export interface ArtifactActionView extends ArtifactActionAvailability {
+	readonly id: string;
+	/** When present, manual invocation also requires an enabled entry for the invoking chat. */
+	readonly chatAvailability?: Readonly<Record<string, ArtifactActionAvailability>>;
 }
 
 export interface ArtifactContributionView {
@@ -147,7 +155,8 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
 	readonly presentationPriority?: number;
-	match(resource: URI, token: CancellationToken): ArtifactResourceMatch | undefined | Promise<ArtifactResourceMatch | undefined>;
+	readonly onDidChange?: Event<void>;
+	match(resource: URI, token: CancellationToken, artifact: ArtifactRecord): ArtifactResourceMatch | undefined | Promise<ArtifactResourceMatch | undefined>;
 	createResource(match: ArtifactResourceMatch, context: IArtifactResourceContext, token: CancellationToken): Promise<TResource>;
 	createBinding(resource: TResource, context: IArtifactBindingContext): IArtifactIntegrationBinding;
 }
@@ -223,6 +232,8 @@ export interface ArtifactAutomationRequest {
 export interface IArtifactAutomationContext {
 	runAutomation(request: ArtifactAutomationRequest): Promise<ArtifactRun>;
 	reconcileRun(runId: string): Promise<void>;
+	/** Providers may revoke consent, but cannot grant or broaden it. */
+	disableAutomation(optionId: string, expectedRevision: number, reason: string): Promise<void>;
 	readonly runs: IObservable<readonly ArtifactRun[]>;
 }
 
@@ -290,6 +301,14 @@ export interface IArtifactModel {
 
 export interface IArtifactIntegrationAccess {
 	acquireArtifact(session: string, artifactId: string): Promise<IReference<IArtifactModel>>;
+}
+
+export function getArtifactActionAvailability(action: ArtifactActionView, chat: string | undefined): ArtifactActionAvailability {
+	if (!action.enabled || !action.chatAvailability) {
+		return action;
+	}
+	return chat !== undefined && Object.hasOwn(action.chatAvailability, chat) ? action.chatAvailability[chat]
+		: { enabled: false, disabledReason: localize('artifactInvokingChatUnavailable', "This action is not available in the invoking chat.") };
 }
 
 export function isArtifactRunSettled(run: ArtifactRun): boolean {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -20,6 +21,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -1140,6 +1142,63 @@ suite('SessionChatInputToolbar', () => {
 			});
 		}
 	}
+
+	test('decorates a promoted PR in place, preserves navigation, and leaves reference links plain', async () => {
+		const { instantiationService } = createServices();
+		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
+			{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link },
+		]);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const snapshot = observableValue<ArtifactSnapshot>('integrated PR', {
+			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session:quick-chat',
+			artifact: { id: 'recorded', label: 'Recorded title', resource: link.toString(), isArtifact: true },
+			mainIntegrationId: 'github.pullRequest', runs: [],
+			contributions: [{
+				integrationId: 'github.pullRequest', label: 'GitHub Pull Request', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: {
+					availability: { kind: 'available' },
+					main: { icon: { id: 'git-pull-request' }, label: '#42', detailsId: 'main' },
+					sections: [
+						{ id: 'checks', icon: { id: 'pending' }, label: '3/5', detailsId: 'checks' },
+						{ id: 'comments', icon: { id: 'comment-discussion' }, label: '2', detailsId: 'comments' },
+					],
+					stateActions: [], generalActions: [], automationAvailability: [],
+				},
+			}],
+		});
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: id === 'recorded' ? snapshot : constObservable({ ...snapshot.get(), artifact: { id, label: 'Reference', resource: link.toString() }, contributions: [] }),
+			})),
+		}));
+		let opened = 0;
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const labels = () => [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(element => element.textContent);
+		const initial = labels();
+		const contribution = snapshot.get().contributions[0];
+		snapshot.set({ ...snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, sections: [contribution.view.sections[0]] } }] }, undefined);
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill .chat-dropdown-pill-button')!.click();
+		assert.deepStrictEqual({
+			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
+			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
+		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
+	});
 
 	test('pull request artifact removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);

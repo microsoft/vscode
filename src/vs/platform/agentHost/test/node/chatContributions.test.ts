@@ -33,6 +33,7 @@ import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -2367,6 +2368,18 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
 		await Promise.resolve();
 		assert.strictEqual(await contributions.database.getMetadata('configValues'), JSON.stringify({ [SessionConfigKey.SandboxEnabled]: 'off' }));
+	});
+
+	test('persists artifact-scoped workspace settings through the existing session metadata path', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const config = {
+			[gitHubPullRequestArtifactWorkspaceSettingsKey('pr')]: { chat: buildDefaultChatUri(contributions.session), workingDirectory: 'file:///repo', ignoredChecks: ['Optional *'] },
+			[gitHubPullRequestArtifactWorkspaceSettingsKey('another-pr')]: null,
+		};
+		contributions.stateManager.setSessionConfig(contributions.session, { schema: { type: 'object', properties: {} }, values: config });
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config }));
+		await Promise.resolve();
+		assert.deepStrictEqual(JSON.parse((await contributions.database.getMetadata('configValues'))!), config);
 	});
 
 	test('clears automatic archive time when a session is unarchived', async () => {

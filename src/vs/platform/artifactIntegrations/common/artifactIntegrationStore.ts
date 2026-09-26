@@ -102,6 +102,7 @@ function isDictionary<T>(value: unknown, check: (item: unknown) => item is T): v
 
 export function isArtifactRecord(value: unknown): value is ArtifactRecord {
 	return isRecord(value) && typeof value.id === 'string' && typeof value.resource === 'string' && typeof value.label === 'string'
+		&& (value.isArtifact === undefined || typeof value.isArtifact === 'boolean')
 		&& (value.origin === undefined || (isRecord(value.origin) && typeof value.origin.chat === 'string' && (value.origin.turnId === undefined || typeof value.origin.turnId === 'string')));
 }
 

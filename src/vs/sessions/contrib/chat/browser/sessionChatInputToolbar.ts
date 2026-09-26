@@ -393,7 +393,14 @@ export class SessionChatInputToolbar extends Disposable {
 		} : undefined;
 		const pullRequestSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._pullRequestDropdownHoverCache);
+			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._pullRequestDropdownHoverCache)
+				.map(section => ({
+					...section,
+					entries: section.entries.map(entry => {
+						const decorated = sessionArtifacts.decorateEntry(entry, reader);
+						return { ...entry, ...decorated, label: entry.label, pullRequestState: getPullRequestStatusFromIcon(decorated.icon) ?? entry.pullRequestState };
+					}),
+				}));
 		});
 		const issueRefs = derivedOpts<readonly IGitHubIssueRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).issues);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {

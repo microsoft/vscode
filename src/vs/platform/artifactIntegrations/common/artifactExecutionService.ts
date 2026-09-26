@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactAction, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactRecord, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactAction, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactRecord, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError, ArtifactStoredBinding, artifactActionConsent, artifactOptionConsent, isArtifactJsonValue } from './artifactIntegrationStore.js';
 import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptTrackingError, ArtifactSessionState, IArtifactChatObservation, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome } from './artifactRuntime.js';
 
@@ -105,7 +105,7 @@ export class ArtifactExecutionService extends Disposable {
 			throw new Error('An invoking chat and request ID are required');
 		}
 		const binding = this.requireBinding(bindingId);
-		const action = this.requireAction(binding, actionId, true);
+		const action = this.requireAction(binding, actionId, true, chat);
 		const run = await this.ledger.transact(state => {
 			const existing = state.runs.find(run => run.bindingId === bindingId && run.source === 'manual' && run.requestId === requestId);
 			if (existing) {
@@ -394,8 +394,12 @@ export class ArtifactExecutionService extends Disposable {
 		if (presentation.availability.kind !== 'available') {
 			return presentation.availability.kind === 'loading' ? localize('artifactStateLoading', "Waiting for current artifact state.") : presentation.availability.reason;
 		}
-		if (run.source === 'manual' && ![...presentation.stateActions, ...presentation.generalActions].some(action => action.id === run.actionId && action.enabled)) {
-			return localize('artifactActionUnavailable', "This artifact action is no longer available.");
+		if (run.source === 'manual') {
+			const action = [...presentation.stateActions, ...presentation.generalActions].find(action => action.id === run.actionId);
+			const availability = action && getArtifactActionAvailability(action, run.chat);
+			if (!availability?.enabled) {
+				return availability?.disabledReason ?? localize('artifactActionUnavailable', "This artifact action is no longer available.");
+			}
 		}
 		const state = this.ledger.state.get();
 		const related = new Set(state.bindings.filter(candidate => candidate.credentialScope === binding.credentialScope
@@ -604,12 +608,13 @@ export class ArtifactExecutionService extends Disposable {
 		return { authority: this.runtime.authority, session: binding.session, artifact: binding.artifact, integrationId: binding.integrationId, run };
 	}
 
-	private requireAction(binding: IArtifactExecutionBinding, actionId: string, manual: boolean): ArtifactAction {
+	private requireAction(binding: IArtifactExecutionBinding, actionId: string, manual: boolean, chat?: string): ArtifactAction {
 		const action = binding.provider.actions.find(action => action.id === actionId);
 		const view = binding.presentation.get();
 		const offered = [...view.stateActions, ...view.generalActions].find(action => action.id === actionId);
-		if (!action || (manual && !offered?.enabled)) {
-			throw new Error(localize('artifactActionUnavailable', "This artifact action is no longer available."));
+		const availability = offered && getArtifactActionAvailability(offered, chat);
+		if (!action || (manual && !availability?.enabled)) {
+			throw new Error(availability?.disabledReason ?? localize('artifactActionUnavailable', "This artifact action is no longer available."));
 		}
 		return action;
 	}
