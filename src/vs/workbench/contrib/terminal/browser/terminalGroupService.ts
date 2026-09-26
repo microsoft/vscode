@@ -71,7 +71,12 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		super();
 
 		const terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		const terminalActiveGroupIsLastContextKey = TerminalContextKeys.activeGroupIsLast.bindTo(this._contextKeyService);
 		this._register(Event.runAndSubscribe(this.onDidChangeGroups, () => terminalGroupCountContextKey.set(this.groups.length)));
+		this._register(Event.runAndSubscribe(Event.any(this.onDidChangeActiveGroup, this.onDidChangeGroups), () => {
+			const idx = this.activeGroupIndex;
+			terminalActiveGroupIsLastContextKey.set(idx >= 0 && idx === this.groups.length - 1);
+		}));
 
 		const splitTerminalActiveContextKey = TerminalContextKeys.splitTerminalActive.bindTo(this._contextKeyService);
 		this._register(Event.runAndSubscribe(this.onDidFocusInstance, () => {
@@ -396,6 +401,42 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this.groups.splice(sourceGroupIndex, 1);
 		}
 		this._onDidChangeInstances.fire();
+	}
+
+	moveGroupUp(group: ITerminalGroup): void {
+		const index = this.groups.indexOf(group);
+		if (index <= 0) {
+			return;
+		}
+		this.groups.splice(index - 1, 0, this.groups.splice(index, 1)[0]);
+		if (this.activeGroupIndex === index) {
+			this.activeGroupIndex = index - 1;
+		} else if (this.activeGroupIndex === index - 1) {
+			this.activeGroupIndex = index;
+		}
+		this._onDidChangeInstances.fire();
+	}
+
+	moveGroupDown(group: ITerminalGroup): void {
+		const index = this.groups.indexOf(group);
+		if (index < 0 || index >= this.groups.length - 1) {
+			return;
+		}
+		this.groups.splice(index + 1, 0, this.groups.splice(index, 1)[0]);
+		if (this.activeGroupIndex === index) {
+			this.activeGroupIndex = index + 1;
+		} else if (this.activeGroupIndex === index + 1) {
+			this.activeGroupIndex = index;
+		}
+		this._onDidChangeInstances.fire();
+	}
+
+	getGroupsBelow(group: ITerminalGroup): ITerminalGroup[] {
+		const index = this.groups.indexOf(group);
+		if (index < 0) {
+			return [];
+		}
+		return this.groups.slice(index + 1);
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after') {
