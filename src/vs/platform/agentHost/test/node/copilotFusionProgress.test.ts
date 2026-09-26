@@ -14,19 +14,30 @@ import { fusionTestData as data, fusionTestEvent as event } from './copilotFusio
 suite('CopilotFusionProgress', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('explains each pattern without promising task-specific actions or listing the phase plan', () => {
+	test('uses the SDK workflow hint without listing the phase plan', () => {
 		const descriptions = [
-			['single', 'Using Single: one solver will work on your request.'],
-			['cascade', 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'],
-			['critique', 'Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.'],
+			['single', 'SDK-provided single workflow description.'],
+			['cascade', 'SDK-provided cascade workflow description.'],
+			['critique', 'SDK-provided critique workflow description.'],
 		] as const;
 		for (const [pattern, description] of descriptions) {
 			const progress = new CopilotFusionProgress();
 			// The resolved event carries a phase plan; the milestone must not echo it back.
-			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern }));
+			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern, hint: description }));
 			const content = JSON.stringify(result?.part?.content);
-			assert.deepStrictEqual({ description: content.includes(description), plan: content.includes('→') }, { description: true, plan: false });
+			const meta = result?.part && readAgentSystemNotificationMeta(result.part);
+			assert.deepStrictEqual({
+				description: content.includes(description),
+				metadataDescription: meta?.fusionDescription,
+				plan: content.includes('→'),
+			}, {
+				description: true,
+				metadataDescription: description,
+				plan: false,
+			});
 		}
+		const withoutHint = new CopilotFusionProgress().accept(event('session.fusion_resolved', { ...data.resolved, hint: undefined }));
+		assert.strictEqual(withoutHint?.part && readAgentSystemNotificationMeta(withoutHint.part).fusionDescription, '');
 	});
 
 	test('uses CLI phase labels consistently for live and replayed phases', () => {

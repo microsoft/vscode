@@ -175,16 +175,42 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion milestones render with status-specific icons', () => {
-		assert.deepStrictEqual(['selected', 'completed', 'failed', 'cancelled', 'degraded'].map(fusionStatus => {
-			const part = systemNotificationToChatPart('Fusion milestone', 'local', { kind: AgentSystemNotificationKind.FusionProgress, fusionStatus });
-			return part?.kind === 'systemNotification' ? { icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
+	test('Fusion milestones render workflow descriptions and terminal statuses with specific icons', () => {
+		assert.deepStrictEqual((['selected', 'completed', 'failed', 'cancelled', 'degraded'] as const).map(fusionStatus => {
+			const content = fusionStatus === 'selected' ? 'Selected workflow\n\nSDK-provided workflow description.' : 'Fusion milestone';
+			const part = systemNotificationToChatPart(content, 'local', toAgentSystemNotificationMeta({
+				kind: AgentSystemNotificationKind.FusionProgress,
+				fusionStatus,
+				fusionDescription: fusionStatus === 'selected' ? 'SDK-provided workflow description.' : undefined,
+			}));
+			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
 		}), [
-			{ icon: Codicon.layers.id, collapsible: false, presentation: 'workflow' },
-			{ icon: Codicon.check.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.error.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.warning.id, collapsible: true, presentation: undefined },
+			{ content: 'SDK-provided workflow description.', icon: undefined, collapsible: undefined, presentation: 'workflowDescription' },
+			{ content: 'Fusion milestone', icon: Codicon.check.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.error.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.warning.id, collapsible: true, presentation: undefined },
+		]);
+		assert.strictEqual(systemNotificationToChatPart('Selected workflow', 'local', toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: 'selected',
+			fusionDescription: '',
+		})), undefined);
+	});
+
+	test('Fusion selections preserve host content without the local description metadata', () => {
+		assert.deepStrictEqual([
+			'Host-provided workflow description.',
+			'Host-provided heading\n\nHost-provided workflow description.',
+		].map(content => {
+			const part = systemNotificationToChatPart(content, 'remote', {
+				kind: AgentSystemNotificationKind.FusionProgress,
+				fusionStatus: 'selected',
+			});
+			return part?.kind === 'systemNotification' ? { content: part.content.value, presentation: part.presentation } : undefined;
+		}), [
+			{ content: 'Host-provided workflow description.', presentation: 'workflowDescription' },
+			{ content: 'Host-provided heading\n\nHost-provided workflow description.', presentation: 'workflowDescription' },
 		]);
 	});
 

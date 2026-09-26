@@ -161,6 +161,18 @@ suite('Agent host _meta readers', () => {
 				invalid: invalid.map(() => empty),
 			});
 		});
+
+		test('round trips the namespaced Fusion description and drops malformed values', () => {
+			assert.deepStrictEqual({
+				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
+				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
+				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+			}, {
+				valid: 'Workflow description.',
+				empty: '',
+				invalid: undefined,
+			});
+		});
 	});
 
 	suite('readEphemeralSessionMeta', () => {

@@ -5,7 +5,7 @@
 
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -544,17 +544,26 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
-		case AgentSystemNotificationKind.FusionProgress:
+		case AgentSystemNotificationKind.FusionProgress: {
+			if (meta.fusionStatus === 'selected') {
+				const description = meta.fusionDescription === undefined
+					? markdown.value
+					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
+				return description ? {
+					kind: 'systemNotification',
+					content: { ...markdown, value: description },
+					presentation: 'workflowDescription',
+				} : undefined;
+			}
 			return {
 				kind: 'systemNotification',
 				content: markdown,
-				collapsible: meta.fusionStatus !== 'selected',
-				presentation: meta.fusionStatus === 'selected' ? 'workflow' : undefined,
-				icon: meta.fusionStatus === 'selected' ? Codicon.layers
-					: meta.fusionStatus === 'failed' ? Codicon.error
-						: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
-							: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+				collapsible: true,
+				icon: meta.fusionStatus === 'failed' ? Codicon.error
+					: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
+						: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
 			};
+		}
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
