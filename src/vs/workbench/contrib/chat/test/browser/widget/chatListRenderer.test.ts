@@ -979,6 +979,7 @@ suite('ChatListRenderer', () => {
 				scrollToCurrentItem: () => { },
 			},
 			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
+			_editingDisposables: disposables.add(new MutableDisposable()),
 			createInput: () => { },
 			getInput: () => text,
 			onDidChangeItems: () => { },
