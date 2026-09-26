@@ -191,3 +191,29 @@ export function firstHttpUrl(applicationUrl: string): string | undefined {
 		.map(u => u.trim())
 		.find(u => /^https?:\/\//.test(u));
 }
+
+/** Split a launch profile's commandLineArgs string into arguments, honouring double quotes
+ *  (e.g. `--message "hello world"` stays one argument). */
+export function splitCommandLineArgs(args: string): string[] {
+	const out: string[] = [];
+	let current = '';
+	let inQuote = false;
+	for (const ch of args) {
+		if (ch === '"') {
+			inQuote = !inQuote;
+			continue;
+		}
+		if (ch === ' ' && !inQuote) {
+			if (current.length > 0) {
+				out.push(current);
+				current = '';
+			}
+			continue;
+		}
+		current += ch;
+	}
+	if (current.length > 0) {
+		out.push(current);
+	}
+	return out;
+}

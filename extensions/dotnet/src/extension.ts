@@ -16,6 +16,7 @@ import {
 	parseSlnProjects,
 	parseSlnxProjects,
 	resolveProfiles,
+	splitCommandLineArgs,
 	targetFrameworkOf,
 	assemblyNameOf,
 	LaunchProfile,
@@ -462,7 +463,7 @@ function runTask(project: DotnetProject, profile: LaunchProfile | undefined): Th
 		args.push('--launch-profile', profile.name);
 	}
 	if (profile?.commandLineArgs) {
-		args.push(...profile.commandLineArgs.split(' ').filter(a => a.length > 0));
+		args.push(...splitCommandLineArgs(profile.commandLineArgs));
 	}
 	const task = new vscode.Task(
 		{ type: 'dotnet-run' },
@@ -501,7 +502,12 @@ async function runOrDebug(mode: 'run' | 'debug', arg?: { fsPath?: string }): Pro
 				vscode.window.showErrorMessage('The selected project is outside the current workspace.');
 				return;
 			}
-			projects = [makeProject(target, folder)];
+			const candidate = makeProject(target, folder);
+			if (candidate.kind === 'LIBRARY') {
+				vscode.window.showErrorMessage(`${candidate.name} is a Library Project — it has no entry point and cannot be run.`);
+				return;
+			}
+			projects = [candidate];
 			context.workspaceState.update(STARTUP_KEY, target);
 			refreshStatusBar();
 		}
@@ -560,7 +566,7 @@ async function debugProject(project: DotnetProject, profile: LaunchProfile): Pro
 		program,
 		cwd: project.dir,
 		env,
-		args: profile.commandLineArgs ? profile.commandLineArgs.split(' ').filter(a => a.length > 0) : [],
+		args: profile.commandLineArgs ? splitCommandLineArgs(profile.commandLineArgs) : [],
 	});
 	await autoOpenBrowser(project.kind, profile);
 }
@@ -589,8 +595,9 @@ async function resolveProgram(project: DotnetProject): Promise<string | undefine
 			return candidate;
 		}
 	}
-	// Last resort: newest matching DLL anywhere under the build output tree.
-	const binDir = baseOut ? path.resolve(project.dir, baseOut.trim()) : path.join(project.dir, 'bin');
+	// Last resort: newest matching DLL under the Debug output tree only (the pipeline
+	// always builds Debug; searching all configurations could launch a stale Release DLL).
+	const binDir = baseOut ? path.resolve(project.dir, baseOut.trim()) : path.join(project.dir, 'bin', 'Debug');
 	const found = findNewestDll(binDir, `${assembly}.dll`, 4);
 	if (found) {
 		return found;
