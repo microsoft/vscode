@@ -27,7 +27,7 @@ import { INotificationService, NotificationPriority, Severity } from '../../../.
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
@@ -127,7 +127,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
@@ -537,7 +537,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
+				globalStorageHome: this._userDataProfileService.currentProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
 				isSessionsWindow: this._environmentService.isSessionsWindow
