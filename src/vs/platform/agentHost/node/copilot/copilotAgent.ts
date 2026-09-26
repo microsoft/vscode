@@ -216,7 +216,7 @@ const SESSION_METADATA_BULK_THRESHOLD = 100;
 const SESSION_METADATA_CACHE_TTL_MS = 30_000;
 
 interface ICopilotSessionMetadataCache {
-	promise: Promise<ReadonlyMap<string, SessionMetadata> | undefined>;
+	readonly metadata: ReadonlyMap<string, SessionMetadata>;
 	expiresAt: number;
 	references: number;
 }
@@ -896,6 +896,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _invalidatingModelRefresh: Promise<void> | undefined;
 
 	private _client: CopilotClient | undefined;
+	private _clientGeneration = 0;
 	private _clientConnectorAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	/**
@@ -2683,6 +2684,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
+			this._clientGeneration++;
 			this._clientConnectorAuthentication = { connectorsEnabled: startupConfig.copilotConnectors, enterpriseHost: startupConfig.enterpriseHost, token: gitHubToken };
 			this._clientStarting = undefined;
 			return client;
@@ -3199,45 +3201,53 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** One bulk snapshot, shared across listing bursts but only used while a listing holds a lease. */
 	private _prewarmedSessionMetadata: ICopilotSessionMetadataCache | undefined;
+	private _prewarmingSessionMetadata: Promise<ICopilotSessionMetadataCache | undefined> | undefined;
 
 	async prewarmSessionMetadata(expectedSessionCount: number): Promise<IDisposable> {
 		if (this._prewarmedSessionMetadata && this._prewarmedSessionMetadata.expiresAt <= Date.now()) {
 			this._prewarmedSessionMetadata = undefined;
 		}
-		if (!this._prewarmedSessionMetadata) {
+		let cache = this._prewarmedSessionMetadata;
+		if (!cache) {
 			// Small fallback sets use the caller's concurrency-limited, exact-session reads instead of scanning the entire SDK store.
-			if (expectedSessionCount < SESSION_METADATA_BULK_THRESHOLD) {
+			if (!this._prewarmingSessionMetadata && expectedSessionCount < SESSION_METADATA_BULK_THRESHOLD) {
 				return Disposable.None;
 			}
-			const cache: ICopilotSessionMetadataCache = {
-				promise: Promise.resolve(undefined),
-				expiresAt: Infinity,
-				references: 0,
-			};
-			cache.promise = (async () => {
-				const sessions = await this._listSdkSessions('prewarm session metadata', client => client.listSessions());
-				cache.expiresAt = Date.now() + SESSION_METADATA_CACHE_TTL_MS;
-				return sessions ? new Map(sessions.map(metadata => [metadata.sessionId, metadata])) : undefined;
-			})();
-			this._prewarmedSessionMetadata = cache;
+			if (!this._prewarmingSessionMetadata) {
+				const load = (async () => {
+					let sourceClient: CopilotClient | undefined;
+					let sourceClientGeneration = -1;
+					const sessions = await this._listSdkSessions('prewarm session metadata', client => {
+						sourceClient = client;
+						sourceClientGeneration = this._clientGeneration;
+						return client.listSessions();
+					});
+					if (!sessions || this._client !== sourceClient || this._clientGeneration !== sourceClientGeneration) {
+						return undefined;
+					}
+					const loaded: ICopilotSessionMetadataCache = {
+						metadata: new Map(sessions.map(metadata => [metadata.sessionId, metadata])),
+						expiresAt: Date.now() + SESSION_METADATA_CACHE_TTL_MS,
+						references: 0,
+					};
+					this._prewarmedSessionMetadata = loaded;
+					return loaded;
+				})();
+				this._prewarmingSessionMetadata = load;
+				const clear = () => {
+					if (this._prewarmingSessionMetadata === load) {
+						this._prewarmingSessionMetadata = undefined;
+					}
+				};
+				void load.then(clear, clear);
+			}
+			cache = await this._prewarmingSessionMetadata;
+			if (!cache) {
+				return Disposable.None;
+			}
 		}
-		const cache = this._prewarmedSessionMetadata;
 		cache.references++;
-		let acquired = false;
-		try {
-			if (!await cache.promise) {
-				return Disposable.None;
-			}
-			acquired = true;
-			return toDisposable(() => { cache.references--; });
-		} finally {
-			if (!acquired) {
-				cache.references--;
-				if (this._prewarmedSessionMetadata === cache) {
-					this._prewarmedSessionMetadata = undefined;
-				}
-			}
-		}
+		return toDisposable(() => { cache.references--; });
 	}
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
@@ -3251,7 +3261,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Serve from the bulk-warmed cache when available; otherwise fall back to a
 		// per-session RPC (also covers a session the bulk list transiently omitted).
 		const cache = this._prewarmedSessionMetadata;
-		const prewarmed = cache && cache.references > 0 ? (await cache.promise)?.get(sessionId) : undefined;
+		const prewarmed = cache && cache.references > 0 ? cache.metadata.get(sessionId) : undefined;
 		const sessionMetadata = prewarmed ?? await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
 		if (!sessionMetadata) {
 			return undefined;

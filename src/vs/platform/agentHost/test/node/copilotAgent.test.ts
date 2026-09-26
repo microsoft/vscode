@@ -5824,13 +5824,15 @@ suite('CopilotAgent', () => {
 			readonly listStarted = new DeferredPromise<void>();
 			listGate: Promise<void> | undefined;
 			listError: Error | undefined;
+			readonly listErrors: (Error | undefined)[] = [];
 
 			override async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
 				const sessions = await super.listSessions();
 				this.listStarted.complete();
 				await this.listGate;
-				if (this.listError) {
-					throw this.listError;
+				const error = this.listErrors.shift() ?? this.listError;
+				if (error) {
+					throw error;
 				}
 				return sessions;
 			}
@@ -6019,6 +6021,29 @@ suite('CopilotAgent', () => {
 					listCalls: client.listSessionCallCount,
 					metadataCalls: client.getSessionMetadataCalls,
 				}, { listCalls: 2, metadataCalls: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('publishes a successful bulk retry after closed-connection recovery', async () => {
+			const client = new MetadataClient([sdkSession('recovered')]);
+			client.listErrors.push(new Error('Connection is closed.'));
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const first = disposables.add(await agent.prewarmSessionMetadata(100));
+				await readMetadata(agent, 'recovered');
+				first.dispose();
+				const trailing = disposables.add(await agent.prewarmSessionMetadata(100));
+				await readMetadata(agent, 'recovered');
+				trailing.dispose();
+				assert.deepStrictEqual({
+					listCalls: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+					startCalls: client.startCallCount,
+					stopCalls: client.stopCallCount,
+				}, { listCalls: 2, metadataCalls: [], startCalls: 2, stopCalls: 1 });
 			} finally {
 				await disposeAgent(agent);
 			}
