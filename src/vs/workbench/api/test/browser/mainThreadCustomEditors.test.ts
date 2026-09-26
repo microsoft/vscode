@@ -219,7 +219,9 @@ suite('MainThreadCustomEditors', () => {
 			message: webview.html?.includes('extension host'),
 		};
 
+		await assert.rejects(customEditors.customEditors.$onDidEdit(resource, viewType, 2, undefined), /not editable/);
 		input.dispose();
+		customEditors.models.disposeAllModelsForView(viewType);
 		await timeout(0);
 		assert.deepStrictEqual({ afterStop, unexpectedErrors }, {
 			afterStop: { wasDirty: true, wasReadonly: false, dirty: true, readonly: true, message: true },
