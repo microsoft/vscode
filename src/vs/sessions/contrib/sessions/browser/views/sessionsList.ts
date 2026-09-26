@@ -3398,6 +3398,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
@@ -3531,7 +3532,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setSelection([element], event);
 		};
 		const showUnreadInCollapsedSections = observableConfigValue(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, false, this.configurationService);
-		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const headerStatusTriggerPending = observableValue(this, true);
 		const headerStatusTrigger: ISessionHeaderStatusTrigger = {
 			pending: headerStatusTriggerPending,

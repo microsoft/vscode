@@ -1056,8 +1056,11 @@ suite('AgentHostGitStateService', () => {
 	test('reports the automatic attachment experiment trigger where the modes diverge, in both modes', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const repository: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode' };
+			const currentPullRequest = 'https://github.com/microsoft/vscode/pull/2';
 			const cases = {
 				'feature branch': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: repository },
+				'feature branch with an explicitly associated PR': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: [currentPullRequest], associatedPullRequestUrls: [currentPullRequest], pullRequestBranchName: 'feature' } },
+				'feature branch with an automatically attached PR': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: [currentPullRequest], pullRequestBranchName: 'feature' } },
 				'base branch with an automatically attached PR': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' } },
 				'base branch': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: repository },
 			} satisfies Record<string, { gitState: ISessionGitState; gitHubState: ISessionGitHubState }>;
@@ -1076,11 +1079,16 @@ suite('AgentHostGitStateService', () => {
 			}
 
 			const trigger = [`config.${AgentHostAutoAttachPullRequestsSettingId}`];
+			// An explicitly associated PR of the current branch is kept, unresolved, in both modes.
 			assert.deepStrictEqual(triggers, {
 				'automatic feature branch': trigger,
+				'automatic feature branch with an explicitly associated PR': [],
+				'automatic feature branch with an automatically attached PR': trigger,
 				'automatic base branch with an automatically attached PR': trigger,
 				'automatic base branch': [],
 				'restricted feature branch': trigger,
+				'restricted feature branch with an explicitly associated PR': [],
+				'restricted feature branch with an automatically attached PR': trigger,
 				'restricted base branch with an automatically attached PR': trigger,
 				'restricted base branch': [],
 			});
@@ -1103,6 +1111,40 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
 				beforeContext: [],
 				afterContext: [`config.${AgentHostAutoAttachPullRequestsSettingId}`],
+			});
+		});
+	});
+
+	test('reports the automatic attachment experiment trigger for peer-folder lookups only while the branch has no PR', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			const triggers: Record<string, readonly string[]> = {};
+			for (const autoAttachPullRequests of [true, false]) {
+				for (const [name, peerGitHubState] of Object.entries({
+					'without a PR': { owner: 'microsoft', repo: 'vscode' },
+					'with its PR': { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'], pullRequestBranchName: 'peer-feature' },
+				} satisfies Record<string, ISessionGitHubState>)) {
+					const telemetryService = new TestExperimentTriggerTelemetryService();
+					const h = createHarness({ autoAttachPullRequests, telemetryService });
+					h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+					const peer = buildChatUri(SESSION, 'peer');
+					const peerFolder = 'file:///peer';
+					seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+					h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+					await h.service.setSessionGitHubState(peer, peerGitHubState);
+					h.setGitResult(peerGitState);
+
+					await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+					triggers[`${autoAttachPullRequests ? 'automatic' : 'restricted'} ${name}`] = telemetryService.triggers;
+				}
+			}
+
+			const trigger = [`config.${AgentHostAutoAttachPullRequestsSettingId}`];
+			assert.deepStrictEqual(triggers, {
+				'automatic without a PR': trigger,
+				'automatic with its PR': [],
+				'restricted without a PR': trigger,
+				'restricted with its PR': [],
 			});
 		});
 	});

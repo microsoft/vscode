@@ -144,9 +144,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const gitState = readSessionGitState(state._meta);
 		const branchName = gitState?.branchName;
 
-		// Automatic association looks up the pull request of a branch other than the base, while
-		// restricted association also drops pull requests that are not artifacts or explicitly associated.
-		if ((branchName && branchName !== gitState?.baseBranchName) || this._pullRequestAssociationResolver.wouldRestrictPullRequests(state._meta, gitHubState)) {
+		// Automatic association looks up the pull request of a branch other than the base, unless an
+		// explicitly associated one is already resolved, which restricted association keeps as well.
+		// Restricted association also drops pull requests that are not artifacts or explicitly associated.
+		const lookupDiverges = !!branchName && branchName !== gitState?.baseBranchName && !this._pullRequestAssociationResolver.hasExplicitCurrentPullRequest(state._meta, gitHubState, branchName);
+		if (lookupDiverges || this._pullRequestAssociationResolver.wouldRestrictPullRequests(state._meta, gitHubState)) {
 			this._reportAutoAttachExperimentTrigger();
 		}
 
@@ -254,8 +256,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (!gitHubState?.owner || !gitHubState.repo || !branchName || branchName === gitState?.baseBranchName) {
 			return;
 		}
+		// Restricted association leaves other folders alone, so only a lookup that automatic association makes diverges.
+		if (gitHubState.pullRequestBranchName === branchName) {
+			return;
+		}
 		this._reportAutoAttachExperimentTrigger();
-		if (!this._isAutomaticPullRequestAttachmentEnabled() || gitHubState.pullRequestBranchName === branchName) {
+		if (!this._isAutomaticPullRequestAttachmentEnabled()) {
 			return;
 		}
 
