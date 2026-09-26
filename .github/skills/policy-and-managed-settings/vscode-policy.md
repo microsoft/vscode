@@ -56,9 +56,10 @@ If one policy controls multiple VS Code settings, one setting owns `policy`; the
 ## Required Procedure
 
 1. Add/update the policy and focused value/projection tests.
-2. Check the build watch task or run the smallest relevant type check/test (`npm run typecheck-client` when needed).
-3. Run `npm run export-policy-data`.
-4. Verify the policy appears and include `build/lib/policies/policyData.jsonc`.
+2. Add the policy's Agent Host enforcement status to `agentHostPolicySupport` in `src/vs/platform/agentHost/common/agentHostPolicySupport.ts`. The export fails without it.
+3. Check the build watch task or run the smallest relevant type check/test (`npm run typecheck-client` when needed).
+4. Run `npm run export-policy-data`.
+5. Verify the policy appears and include `build/lib/policies/policyData.jsonc`.
 
 Never edit or synthesize `policyData.jsonc`, and never invoke a single product entrypoint's `--export-policy-data` directly. Run the npm command from the worktree containing the source change; it exports both Workbench and the Agents window, detects conflicting policy metadata, and produces the complete catalog.
 
