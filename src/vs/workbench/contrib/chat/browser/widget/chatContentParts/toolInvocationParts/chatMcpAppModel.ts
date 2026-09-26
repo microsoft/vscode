@@ -40,6 +40,44 @@ import { IChatWidgetService } from '../../../chat.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { IMcpAppRenderData } from './chatMcpAppSubPart.js';
 
+/**
+ * Schemes a CSP source in an MCP App's domain lists may carry.
+ *
+ * The MCP Apps schema documents every one of `connectDomains`,
+ * `resourceDomains`, `frameDomains` and `baseUriDomains` as origins, and a
+ * network origin is what each of the directives they feed is for.
+ */
+const mcpAppCspSourceSchemes = new Set(['http', 'https', 'ws', 'wss', 'data', 'blob']);
+
+/**
+ * Keeps the entries of a server supplied CSP domain list that are network origins.
+ *
+ * These lists widen the policy the MCP App frame runs under, so an entry naming
+ * a privileged application scheme would grant the frame reach that the sandbox
+ * is there to withhold, and no such scheme is an origin in the sense the schema
+ * describes. Entries carrying any other scheme are dropped rather than the whole
+ * list being refused, so one bad entry does not cost an app the rest of its policy.
+ *
+ * A source with no scheme is a host source (`example.com`, `*.example.com`,
+ * `example.com:443`, `*`) and is left alone. A port is not mistaken for a scheme:
+ * a scheme source is either `scheme:` on its own or followed by `//`.
+ */
+export function toNetworkOrigins(domains: readonly string[] | undefined): string[] | undefined {
+	return domains?.filter(domain => {
+		const source = domain.trim();
+		if (!source) {
+			return false;
+		}
+
+		const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):(\/\/)?$|^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(source);
+		if (!scheme) {
+			return true;
+		}
+
+		return mcpAppCspSourceSchemes.has((scheme[1] ?? scheme[3]).toLowerCase());
+	});
+}
+
 /** Storage key for persistent webview origins */
 const ORIGIN_STORE_KEY = 'chatMcpApp.origins';
 
@@ -258,7 +296,7 @@ export class ChatMcpAppModel extends Disposable {
 		// it solely as a detached document is safe) this requires making the HTML trusted
 		// in the renderer and bypassing various tsec warnings. I consider the string
 		// munging here to be the lesser of two evils.
-		const cleanDomains = (s: string[] | undefined) => (s?.join(' ') || '')
+		const cleanDomains = (s: string[] | undefined) => (toNetworkOrigins(s)?.join(' ') || '')
 			.replaceAll('&', '&amp;')
 			.replaceAll('<', '&lt;')
 			.replaceAll('>', '&gt;')
