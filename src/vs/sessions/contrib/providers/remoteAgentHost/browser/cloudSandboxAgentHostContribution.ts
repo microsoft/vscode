@@ -160,7 +160,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			});
 			seededProvider = provider;
 			this._persistInventory();
-			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
+			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
 			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
 			}

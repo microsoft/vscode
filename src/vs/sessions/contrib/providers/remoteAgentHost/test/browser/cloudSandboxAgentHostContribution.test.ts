@@ -195,7 +195,7 @@ interface ITestHarness {
 	/** Runs a discovery pass and waits for it to reconcile. */
 	runDiscovery(): Promise<void>;
 	/** Runs while a `connect` is in flight, for testing what can race with it. */
-	onConnect?: (token: CancellationToken) => Promise<void>;
+	onConnect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	onDisconnect?: () => Promise<void>;
 	/** The state Mission Control reports for an environment. Defaults to `offline`. */
 	environmentStatus: CloudSandboxEnvironmentStatus;
@@ -323,7 +323,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
 		override async connect(connectOptions: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string> {
 			connectedTo.push(connectOptions.environmentId);
-			await harness.onConnect?.(token);
+			await harness.onConnect?.(connectOptions, token);
 			return cloudSandboxAddress(connectOptions.environmentId);
 		}
 		override async disconnect(address: string): Promise<void> {
@@ -787,12 +787,12 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const secondReady = new DeferredPromise<void>();
 		let firstToken = CancellationToken.None;
 		let secondToken = CancellationToken.None;
-		harness.onConnect = async token => {
+		harness.onConnect = async (_options, token) => {
 			firstToken = token;
 			await firstReady.p;
 		};
 		const first = assert.rejects(harness.contribution.connect({ environmentId: 'env-1', name: 'First' }), CancellationError);
-		harness.onConnect = async token => {
+		harness.onConnect = async (_options, token) => {
 			secondToken = token;
 			await secondReady.p;
 		};
@@ -1450,6 +1450,8 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 
 	test('creates the task, seeds it like a discovered one, and connects to the bound environment', async () => {
 		const harness = await createContribution(store, []);
+		let connectionSource: ICloudSandboxConnectOptions['connectionSource'];
+		harness.onConnect = async options => { connectionSource = options.connectionSource; };
 
 		const provisioned = await harness.contribution.provisionSession({ repoNwo: 'osortega/simple-server', prompt: 'fix it' }, CancellationToken.None);
 
@@ -1460,11 +1462,13 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			seeded: provider?.seeded.map(m => ({ session: m.session.toString(), summary: m.summary, project: m.project?.displayName })),
 			// The relay must target the bound VM, never the `github-sandbox` sentinel.
 			connectedTo: harness.connectedTo,
+			connectionSource,
 			resolvedSession: provisioned.session.resource.path,
 		}, {
 			ids: { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' },
 			seeded: [{ session: 'copilot:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
 			connectedTo: ['env-new'],
+			connectionSource: 'created',
 			resolvedSession: '/sess-new',
 		});
 	});

@@ -7,11 +7,13 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { traceConnectionOperation, type IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
@@ -29,11 +31,11 @@ import {
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_RECONNECT_POLICY } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
-import { ICloudSandboxTelemetryService, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
+import { getCloudSandboxConnectionSurface, ICloudSandboxTelemetryService, type CloudSandboxConnectionSurface, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
@@ -73,15 +75,17 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	private readonly _stagedConnections = new Map<string, IStagedCloudSandboxConnection>();
 	private readonly _connectionTelemetry = this._register(new DisposableMap<string, ICloudSandboxConnectionTelemetry>());
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
+	private readonly _surface: CloudSandboxConnectionSurface;
 
 	constructor(
 		private readonly _instantiationService: IInstantiationService,
 		private readonly _configurationService: IConfigurationService,
-		private readonly _environmentService: IEnvironmentService,
+		private readonly _environmentService: IWorkbenchEnvironmentService,
 		private readonly _telemetryService: ICloudSandboxTelemetryService,
 	) {
 		super();
 		this.entries = this._entries;
+		this._surface = getCloudSandboxConnectionSurface(this._environmentService.isSessionsWindow, isWeb);
 		// Staging is cleared only by an explicit `unstageConfiguration`, never by
 		// observing the connection disappear. The service withdraws an entry
 		// before arming a retry, so treating that as removal would delete the
@@ -91,13 +95,17 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		// are terminal.
 	}
 
-	beginConnect(address: string): ICloudSandboxConnectionTelemetry | undefined {
+	beginConnect(address: string, source: ICloudSandboxConnectOptions['connectionSource']): ICloudSandboxConnectionTelemetry | undefined {
 		if (this._store.isDisposed || this._connectionTelemetry.has(address)) {
 			return undefined;
 		}
-		const telemetry = this._telemetryService.trackConnection('credentials');
+		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, source);
 		this._connectionTelemetry.set(address, telemetry);
 		return telemetry;
+	}
+
+	getTelemetry(address: string): ICloudSandboxConnectionTelemetry | undefined {
+		return this._connectionTelemetry.get(address);
 	}
 
 	releaseTelemetry(address: string, telemetry: ICloudSandboxConnectionTelemetry | undefined): void {
@@ -117,7 +125,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		const staged = this._stagedConnections.get(address);
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
-			telemetry = this._telemetryService.trackConnection('connection');
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, staged?.options.connectionSource);
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -196,10 +204,12 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 		const store = new DisposableStore();
 		try {
+			const telemetry = this._connectionTelemetry.get(address);
+			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
 			const refresher = store.add(this._instantiationService.createInstance(
 				CloudSandboxCredentialRefresher,
 				address,
-				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
+				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId, onRequest: telemetry?.createRequestObserver() },
 				staged.clientId,
 				staged.creds,
 				staged.refreshState,
@@ -211,7 +221,6 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				}
 			}));
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-			const telemetry = this._connectionTelemetry.get(address);
 			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
 				url: buildWpsUrl(staged.creds.token),
 				toHostGroup: staged.creds.token.groups.to_host,
@@ -233,24 +242,25 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				transportFactory,
 				{
 					clientId: staged.clientId,
-					clientInfo: editorWindowAgentHostClientInfo,
+					clientInfo: this._environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
 					reconnectPolicy: SANDBOX_RECONNECT_POLICY,
-					prepareReconnect: async () => {
+					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
 						if (staged.reconnectRequiresRefresh) {
 							await refresher.refreshConnectionCredentials();
 						} else {
 							await refresher.ensureUnexpiredCredentials();
 						}
 						staged.reconnectRequiresRefresh = true;
-					},
+					}),
 					prepareAuthentication: async () => {
 						if (staged.lastAuthenticationToken && staged.lastAuthenticationToken === staged.creds.token.encrypted_github_token) {
-							await refresher.refreshAuthenticationCredentials();
+							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshAuthenticationCredentials());
 						}
 					},
 					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged),
 				},
 			);
+			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
 		} catch (error) {
 			store.dispose();
@@ -294,7 +304,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@ICloudSandboxTelemetryService telemetryService: ICloudSandboxTelemetryService,
 	) {
@@ -341,7 +351,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}`);
 
-		const telemetry = this._connectionFactory.beginConnect(address);
+		const telemetry = this._connectionFactory.beginConnect(address, options.connectionSource);
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
@@ -359,13 +369,18 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			// Asked once: Mission Control blocks on the compute resume before replying, so its answer
 			// already reflects that attempt and re-asking only repeats the wait. `202 waking` is the one
 			// retried case, polled inside the mint against Mission Control's own Retry-After.
-			const clientToken = await raceCancellationError(this._mintWithWaking(options, source.token), source.token);
+			const requestTelemetry = this._connectionFactory.getTelemetry(address);
+			const clientToken = await traceConnectionOperation(
+				event => requestTelemetry?.recordConnectionDiagnostic(event),
+				'credentials',
+				() => raceCancellationError(this._mintWithWaking(options, source.token, requestTelemetry), source.token),
+			);
 
 			// A token only means Mission Control believes the environment is online — a sandbox deleted
 			// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
 			// The handshake's liveness watchdog settles that case.
 			establishing = true;
-			telemetry?.setConnectStage('connection');
+			requestTelemetry?.setConnectStage('connection');
 			const result = await this._establish(options, address, clientToken, source.token);
 			telemetry?.completeConnect(token.isCancellationRequested ? 'cancelled' : 'success');
 			return result;
@@ -412,14 +427,14 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	/** Mint client creds, retrying (bounded) while the environment is waking. */
-	private async _mintWithWaking(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<ICloudSandboxClientToken> {
+	private async _mintWithWaking(options: ICloudSandboxConnectOptions, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
 		for (let attempt = 0; attempt < MAX_WAKING_RETRIES; attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, token);
 			if (result.kind === 'token') {
-				return await this._awaitSealedToken(options, result.token, token);
+				return await this._awaitSealedToken(options, result.token, token, telemetry);
 			}
 			const delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds);
 			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_WAKING_RETRIES})`);
@@ -438,7 +453,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	/** Refresh the initial client's credentials within the attempt limit; initialization validates the final bundle. */
-	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
+	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
 		let delayMs = this.sealedTokenRetryDelayMs;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
@@ -451,7 +466,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 			let result: CloudSandboxConnectResult;
 			try {
-				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId }, minted.client_id, token);
+				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, minted.client_id, token);
 			} catch (err) {
 				if (isCancellationError(err) || token.isCancellationRequested) {
 					throw err;
