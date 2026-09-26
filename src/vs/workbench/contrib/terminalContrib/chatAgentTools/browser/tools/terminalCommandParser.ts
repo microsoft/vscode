@@ -104,7 +104,7 @@ export function tokenize(segment: string): string[] {
 	return tokens;
 }
 
-export type SegmentSeparator = '|' | '&&' | '||' | ';' | '|&';
+export type SegmentSeparator = '|' | '&&' | '||' | ';' | '|&' | '&';
 
 export interface ICommandSegment {
 	readonly raw: string;
@@ -126,9 +126,9 @@ export interface IParsedCommand {
 }
 
 /**
- * Split a command line into segments using `|`, `||`, `&&`, `;`, `|&` as
- * separators. Honors quoting so that `echo "a;b" | wc -l` splits into two
- * segments, not three.
+ * Split a command line into segments using `|`, `||`, `&&`, `;`, `|&`, and
+ * `&` as separators. Honors quoting so that `echo "a;b" | wc -l` splits into
+ * two segments, not three.
  */
 function splitSegments(command: string): Array<{ raw: string; sep: SegmentSeparator | undefined }> {
 	const out: Array<{ raw: string; sep: SegmentSeparator | undefined }> = [];
@@ -195,6 +195,10 @@ function splitSegments(command: string): Array<{ raw: string; sep: SegmentSepara
 		if (ch === '&' && command[i + 1] === '&') {
 			push('&&');
 			i++;
+			continue;
+		}
+		if (ch === '&' && command[i + 1] !== '>' && !cur.endsWith('>') && cur.trim().length > 0) {
+			push('&');
 			continue;
 		}
 		if (ch === ';') {

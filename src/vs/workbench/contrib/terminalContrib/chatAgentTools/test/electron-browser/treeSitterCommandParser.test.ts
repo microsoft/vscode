@@ -40,6 +40,24 @@ suite('TreeSitterCommandParser', () => {
 		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 	});
 
+	suite('countExecutionUnits', () => {
+		test('counts PowerShell invocation expressions before redirected commands', async () => {
+			const count = await parser.countExecutionUnits(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'[System.IO.File]::CreateSymbolicLink("link", "C:\\outside\\file.txt")\nWrite-Host payload > link'
+			);
+			ok(count > 1);
+		});
+
+		test('does not count quoted PowerShell invocation text', async () => {
+			const count = await parser.countExecutionUnits(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Write-Host \'[System.IO.File]::CreateSymbolicLink("link", "C:\\outside\\file.txt")\' > file.txt'
+			);
+			deepStrictEqual(count, 1);
+		});
+	});
+
 	suite('extractSubCommands', () => {
 		suite('bash', () => {
 			async function t(commandLine: string, expectedCommands: string[]) {
