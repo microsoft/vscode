@@ -476,6 +476,8 @@ export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
  */
 export interface IChatExternalEdit {
 	kind: 'externalEdit';
+	/** The parent subagent tool call whose inline trace owns this edit. */
+	subAgentInvocationId?: string;
 	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
 	uri: URI;
 	/** The kind of file operation. */
@@ -1182,7 +1184,7 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
-	readonly icon?: undefined;
+	readonly icon?: ThemeIcon;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
