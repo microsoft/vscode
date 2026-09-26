@@ -23,7 +23,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { AnchorPosition } from '../../../base/common/layout.js';
+import { AnchorPosition, layout as layoutAlongAxis, LayoutAnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
@@ -830,6 +830,8 @@ export interface IActionListOptions {
 	 * Optional fixed side of the anchor where the action list should render.
 	 */
 	readonly anchorPosition?: AnchorPosition;
+	/** Preferred side, falling back when needed and locking the resolved direction on first layout. `anchorPosition` takes precedence. */
+	readonly preferredAnchorPosition?: AnchorPosition;
 	/** Uses the available height instead of the usual fractional viewport cap. */
 	readonly useFullHeight?: boolean;
 }
@@ -1690,7 +1692,6 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._list.domFocus();
 		this._focusCheckedOrFirst();
-		this._showTabThroughPanelForFocusedItem();
 	}
 
 	clearFocus(): void {
@@ -2390,22 +2391,6 @@ export class ActionListWidget<T> extends Disposable {
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
-	private _showTabThroughPanelForFocusedItem(): void {
-		const focused = this._list.getFocus();
-		if (focused.length === 0) {
-			return;
-		}
-		const index = focused[0];
-		const element = this._list.element(index);
-		if (!element.hover?.tabThroughPanel) {
-			return;
-		}
-		const row = this._getRowElement(index);
-		if (row) {
-			this._showSubmenuForElement(element, row);
-		}
-	}
-
 	private _getTabThroughPanelControls(element: IActionListItem<T>, row: HTMLElement): { readonly toolbar: ActionBar | undefined; readonly panelControls: readonly HTMLElement[] } {
 		if (element.hover?.tabThroughPanel && this._currentSubmenuElement !== element) {
 			this._showSubmenuForElement(element, row);
@@ -2446,8 +2431,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (!row || !dom.isHTMLElement(activeElement)) {
 			return;
 		}
-		const controls = this._getTabThroughPanelControls(element, row);
-		const inToolbar = controls.toolbar?.isFocused() ?? false;
+		const inToolbar = this._itemToolbars.get(element)?.isFocused() ?? false;
 		const inPanel = this._submenuContainer.contains(activeElement);
 
 		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
@@ -2467,6 +2451,7 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
+		const controls = this._getTabThroughPanelControls(element, row);
 		let target: HTMLElement | undefined;
 		if (event.shiftKey) {
 			if (inPanel) {
@@ -2571,8 +2556,9 @@ export class ActionListWidget<T> extends Disposable {
 
 		const preserveVerticalPosition = element.hover?.preserveVerticalPosition;
 		const hasSubmenuActions = !!element.submenuActions?.length;
-		const content = preserveVerticalPosition ? dom.$('.action-list-submenu-content') : this._submenuContainer;
-		const viewport = preserveVerticalPosition ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
+		const scrollableContent = preserveVerticalPosition || (!hasSubmenuActions && !this._options?.persistentHover && !element.hover?.alignToParent);
+		const content = scrollableContent ? dom.$('.action-list-submenu-content') : this._submenuContainer;
+		const viewport = scrollableContent ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
 		const scrollbar = viewport && !hasSubmenuActions ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
@@ -2786,12 +2772,21 @@ export class ActionListWidget<T> extends Disposable {
 			if (persistent) {
 				this._submenuContainer.style.width = `${edgeRect.width / zoom}px`;
 			}
-			const panelRect = this._submenuContainer.getBoundingClientRect();
+			let panelRect = this._submenuContainer.getBoundingClientRect();
 			let panelWidth = alignToParent ? panelRect.width : maxWidth + 10;
-			const spaceRight = targetWindow.innerWidth - (alignToParent ? edgeRect.right : anchorRect.right);
-			const spaceLeft = edgeRect.left;
 			const gap = alignToParent ? 0 : 4;
 			const viewportMargin = 4;
+			const spaceRight = targetWindow.innerWidth - viewportMargin - edgeRect.right - gap;
+			const spaceLeft = edgeRect.left - viewportMargin - gap;
+
+			if (!alignToParent && !hasSubmenuActions) {
+				// Keep previews beside their row while retaining a readable content width.
+				const minimumPanelWidth = Math.min(panelWidth, 240);
+				const availableSideWidth = Math.max(spaceRight, spaceLeft);
+				if (availableSideWidth >= minimumPanelWidth) {
+					panelWidth = Math.min(panelWidth, availableSideWidth);
+				}
+			}
 
 			// On a narrow viewport (e.g. a phone) neither side may have room for the
 			// panel next to its anchor. Clamp its width to what actually fits
@@ -2827,9 +2822,11 @@ export class ActionListWidget<T> extends Disposable {
 				left -= (pageLeft + panelWidth) - (targetWindow.innerWidth - viewportMargin);
 			}
 
-			this._submenuContainer.style.left = `${left / zoom}px`;
-
-			const panelHeight = panelRect.height;
+			panelRect = this._submenuContainer.getBoundingClientRect();
+			// The scroll viewport still has its previous height when content changes.
+			const panelHeight = viewport && scrollbar && !preserveVerticalPosition
+				? content.getBoundingClientRect().height + panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height
+				: panelRect.height;
 			if (preserveVerticalPosition) {
 				openingPanelHeight ??= panelHeight / zoom;
 			}
@@ -2856,6 +2853,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (parentRect.top + top < 0) {
 				top = -parentRect.top;
 			}
+			this._submenuContainer.style.left = `${left / zoom}px`;
 			if (preserveVerticalPosition) {
 				openingPanelTop ??= top / zoom;
 			}
@@ -2893,15 +2891,15 @@ export class ActionListWidget<T> extends Disposable {
 						});
 					}
 				}, targetWindow));
-				this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
+				this._submenuDisposables.add(observer.observe(viewport ? content : this._submenuContainer, { box: 'border-box' }));
 			}
-			if (this._options?.persistentHover || preserveVerticalPosition) {
-				this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
-					this._cancelSubmenuShow();
-					this._resetSubmenuPointer();
-					layout();
-				}));
-			}
+		}
+		if (this._currentSubmenuElement === element) {
+			this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
+				this._cancelSubmenuShow();
+				this._resetSubmenuPointer();
+				layout();
+			}));
 		}
 	}
 
@@ -2984,6 +2982,8 @@ export class ActionListWidget<T> extends Disposable {
 	 * which blurs the action widget and dismisses it.
 	 */
 	private _clearSubmenuContainer(): void {
+		this._cancelSubmenuHide();
+		this._cancelSubmenuShow();
 		this._layoutSubmenu = undefined;
 		this._resetSubmenuPointer();
 		if (this._submenuContainer.contains(dom.getActiveElement())) {
@@ -3187,6 +3187,7 @@ export class ActionList<T> extends Disposable {
 	private _showAbove: boolean | undefined;
 	/** Height to size against instead of the current contents. Survives re-layouts. */
 	private _fixedContentHeight: number | undefined;
+	private readonly _anchorPosition: AnchorPosition | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 	private readonly _useFullHeight: boolean;
 	private readonly _widgetClassName: string | undefined;
@@ -3224,8 +3225,8 @@ export class ActionList<T> extends Disposable {
 	 * Used by the context view delegate to lock the dropdown direction.
 	 */
 	get anchorPosition(): AnchorPosition | undefined {
-		if (this._preferredAnchorPosition !== undefined) {
-			return this._preferredAnchorPosition;
+		if (this._anchorPosition !== undefined) {
+			return this._anchorPosition;
 		}
 		if (this._showAbove === undefined) {
 			return undefined;
@@ -3247,7 +3248,8 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
-		this._preferredAnchorPosition = options?.anchorPosition;
+		this._anchorPosition = options?.anchorPosition;
+		this._preferredAnchorPosition = options?.preferredAnchorPosition;
 		this._useFullHeight = options?.useFullHeight ?? false;
 		this._widgetClassName = options?.widgetClassName;
 
@@ -3362,7 +3364,7 @@ export class ActionList<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
-		if (this.hasDynamicHeight() || this._preferredAnchorPosition !== undefined) {
+		if (this.hasDynamicHeight() || this._anchorPosition !== undefined || this._preferredAnchorPosition !== undefined) {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
@@ -3370,15 +3372,28 @@ export class ActionList<T> extends Disposable {
 			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - bottomGap;
 			const spaceAbove = anchorTopInViewport;
 
-			// Lock the direction on first layout based on whether the full
-			// unconstrained list fits below. Once decided, the dropdown stays
-			// in the same position even when the visible item count changes.
+			// Keep the resolved direction stable when filtering changes the visible item count.
 			if (this._showAbove === undefined) {
 				// A pinned height decides the direction too, so a later tab cannot flip it.
 				const fullHeight = this._fixedContentHeight ?? this._widget.computeFullHeight();
-				this._showAbove = this._preferredAnchorPosition !== undefined
-					? this._preferredAnchorPosition === AnchorPosition.ABOVE
-					: (chromeHeight + fullHeight > spaceBelow && spaceAbove > spaceBelow);
+				if (this._anchorPosition !== undefined) {
+					this._showAbove = this._anchorPosition === AnchorPosition.ABOVE;
+				} else if (this._preferredAnchorPosition !== undefined) {
+					const preferAbove = this._preferredAnchorPosition === AnchorPosition.ABOVE;
+					const viewportMaxHeight = this._useFullHeight ? viewportHeight : Math.floor(viewportHeight * 0.6);
+					const desiredHeight = Math.min(chromeHeight + fullHeight, viewportMaxHeight) + this.computeActionWidgetVerticalChromeHeight();
+					// Reflect above preferences so both directions use the same flip policy.
+					const placement = layoutAlongAxis(viewportHeight - bottomGap, desiredHeight, {
+						offset: preferAbove ? viewportHeight - bottomGap - anchorTopInViewport - anchorRect.height : anchorTopInViewport,
+						size: anchorRect.height,
+						position: LayoutAnchorPosition.Before,
+					});
+					this._showAbove = placement.result === 'overlap'
+						? spaceAbove > spaceBelow
+						: placement.result === 'ok' ? preferAbove : !preferAbove;
+				} else {
+					this._showAbove = chromeHeight + fullHeight > spaceBelow && spaceAbove > spaceBelow;
+				}
 			}
 			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
@@ -3390,7 +3405,7 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = this._useFullHeight ? targetWindow.innerHeight : Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
-		if (this._preferredAnchorPosition !== undefined) {
+		if (this._anchorPosition !== undefined || this._preferredAnchorPosition !== undefined) {
 			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
 			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
 			return Math.max(0, height - chromeHeight);

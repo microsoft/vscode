@@ -148,6 +148,39 @@ suite('ActionWidgetService', () => {
 		return { container, layout, service };
 	}
 
+	for (const preferredAnchorPosition of [AnchorPosition.ABOVE, AnchorPosition.BELOW]) {
+		for (const fallback of [false, true]) {
+			test(`resolves preferred side ${preferredAnchorPosition} before context view placement with fallback ${fallback}`, () => {
+				const { container, layout, service } = setup();
+				const viewportHeight = dom.getWindow(container).innerHeight;
+				const y = fallback
+					? preferredAnchorPosition === AnchorPosition.ABOVE ? 20 : viewportHeight - 44
+					: viewportHeight / 2;
+				const expectedAbove = fallback ? preferredAnchorPosition === AnchorPosition.BELOW : preferredAnchorPosition === AnchorPosition.ABOVE;
+				service.show('placement', false, ['first', 'second', 'third'].map(id => ({
+					kind: ActionListItemKind.Action, label: id, item: { id },
+				})), { onSelect: () => { }, onHide: () => { } }, { x: 200, y, width: 100, height: 24 }, undefined, [], undefined, {
+					preferredAnchorPosition, showFilter: true, focusFilterOnOpen: true,
+				});
+				const popup = container.querySelector<HTMLElement>('.action-widget')!;
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				const before = popup.getBoundingClientRect();
+				input.value = 'first';
+				input.dispatchEvent(new globalThis.Event('input'));
+				layout.fire({ container, dimension: { width: 900, height: viewportHeight } });
+				const after = popup.getBoundingClientRect();
+				assert.deepStrictEqual({
+					placedOnResolvedSide: expectedAbove ? before.bottom <= y + 1 : before.top >= y + 23,
+					retainsResolvedSide: expectedAbove ? after.bottom <= y + 1 : after.top >= y + 23,
+					shrank: after.height < before.height,
+					focusPreserved: document.activeElement === input,
+					visible: service.isVisible,
+				}, { placedOnResolvedSide: true, retainsResolvedSide: true, shrank: true, focusPreserved: true, visible: true });
+				service.hide();
+			});
+		}
+	}
+
 	test('closes an inline permission action once before focusing a warning dialog', () => {
 		const { container, service } = setup();
 		const trigger = dom.append(container, dom.$('button'));
