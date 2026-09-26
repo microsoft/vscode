@@ -145,6 +145,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			useWebSocket = false;
 			ignoreStatefulMarker = true;
 		}
+		const configuredHeadroomProxyUrl = this._configurationService.getConfig(ConfigKey.Advanced.HeadroomProxyUrl) || '';
+		if (useWebSocket && configuredHeadroomProxyUrl.trim().length > 0) {
+			this._logService.debug('[ChatMLFetcher] Disabling WebSocket for request because HeadroomProxyUrl is configured — falling back to HTTP so requests are intercepted by the proxy.');
+			useWebSocket = false;
+			ignoreStatefulMarker = true;
+		}
 		if (!telemetryProperties) {
 			telemetryProperties = {};
 		}
