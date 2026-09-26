@@ -8,25 +8,26 @@ import type { ILogger } from '../logging';
 import { Disposable } from '../util/dispose';
 import { getAbsoluteUri, MdLinkOpener } from '../util/openDocumentLink';
 import type { LinkPresentation } from './linkPresentation/linkPresentationResolver';
+import type { MarkdownEditorRenderer } from './markdownEditorProtocol';
 
 export class MarkdownEditorRichLinkController extends Disposable {
 	readonly #documentUri: vscode.Uri;
 	readonly #linkOpener: MdLinkOpener;
 	readonly #logger: ILogger;
-	readonly #postMessage: (message: object) => Thenable<boolean>;
+	readonly #publish: MarkdownEditorRenderer['richLinkPresentations'];
 	readonly #entries = new Map<string, vscode.Disposable>();
 
 	constructor(
 		document: vscode.TextDocument,
 		linkOpener: MdLinkOpener,
 		logger: ILogger,
-		postMessage: (message: object) => Thenable<boolean>,
+		publish: MarkdownEditorRenderer['richLinkPresentations'],
 	) {
 		super();
 		this.#documentUri = document.uri;
 		this.#linkOpener = linkOpener;
 		this.#logger = logger;
-		this.#postMessage = postMessage;
+		this.#publish = publish;
 	}
 
 	updateTargets(hrefs: readonly string[]): void {
@@ -60,8 +61,7 @@ export class MarkdownEditorRichLinkController extends Disposable {
 
 	async #publishPresentation(href: string, presentation: LinkPresentation | undefined): Promise<void> {
 		try {
-			await this.#postMessage({
-				type: 'richLinkPresentations',
+			await this.#publish({
 				presentations: [{ href, presentation }],
 			});
 		} catch (error) {
