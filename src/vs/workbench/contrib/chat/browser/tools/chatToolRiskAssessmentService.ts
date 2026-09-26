@@ -71,7 +71,12 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined {
-		return this._cache.get(this._cacheKey(tool, parameters, resolveRiskPromptKind(tool, kind)))?.assessment;
+		const resolvedKind = resolveRiskPromptKind(tool, kind);
+		const normalizedParameters = normalizeRiskParameters(parameters, resolvedKind);
+		if (resolvedKind === 'terminal' && normalizedParameters === undefined) {
+			return undefined;
+		}
+		return this._cache.get(this._cacheKey(tool, normalizedParameters, resolvedKind))?.assessment;
 	}
 
 	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined> {
@@ -80,7 +85,11 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		}
 
 		const resolvedKind = resolveRiskPromptKind(tool, kind);
-		const key = this._cacheKey(tool, parameters, resolvedKind);
+		const normalizedParameters = normalizeRiskParameters(parameters, resolvedKind);
+		if (resolvedKind === 'terminal' && normalizedParameters === undefined) {
+			return undefined;
+		}
+		const key = this._cacheKey(tool, normalizedParameters, resolvedKind);
 
 		const cached = this._cache.get(key);
 		if (cached) {
@@ -94,7 +103,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 		const promise = (async () => {
 			try {
-				const assessment = await this._invokeModel(tool, parameters, resolvedKind, token);
+				const assessment = await this._invokeModel(tool, normalizedParameters, resolvedKind, token);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -112,7 +121,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	private _cacheKey(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
-		return kind + '::' + tool.id + '::' + stableStringify(normalizeRiskCacheParameters(parameters, kind));
+		return kind + '::' + tool.id + '::' + stableStringify(parameters);
 	}
 
 	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
@@ -124,6 +133,9 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		}
 
 		const prompt = buildPrompt(tool, parameters, kind);
+		if (prompt === undefined) {
+			return undefined;
+		}
 		const response = await this._languageModelsService.sendChatRequest(
 			models[0],
 			undefined,
@@ -165,26 +177,27 @@ function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undef
 }
 
 /**
- * Compute the subset of tool parameters that are relevant to the risk
- * assessment, used as the cache key so re-invocations of the same tool call
- * hit the cache even when model-generated descriptive fields differ.
+ * Compute the tool parameters used for both the assessment prompt and cache key.
  */
-function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
+function normalizeRiskParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
 	if (kind === 'terminal' && parameters && typeof parameters === 'object') {
 		const p = parameters as Record<string, unknown>;
-		return { command: p.command };
+		return typeof p.command === 'string' ? { command: p.command } : undefined;
 	}
 	return parameters;
 }
 
-function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
-	const argsJson = serializeParameters(parameters);
+function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string | undefined {
+	const argsJson = serializeParameters(parameters, kind !== 'terminal');
+	if (argsJson === undefined) {
+		return undefined;
+	}
 	return kind === 'terminal'
 		? buildTerminalPrompt(tool, argsJson)
 		: buildGenericToolPrompt(tool, argsJson);
 }
 
-function serializeParameters(parameters: unknown): string {
+function serializeParameters(parameters: unknown, allowTruncation: boolean): string | undefined {
 	let argsJson: string;
 	try {
 		argsJson = JSON.stringify(parameters ?? {});
@@ -192,6 +205,9 @@ function serializeParameters(parameters: unknown): string {
 		argsJson = '{}';
 	}
 	if (argsJson.length > MAX_PARAM_BYTES) {
+		if (!allowTruncation) {
+			return undefined;
+		}
 		argsJson = argsJson.slice(0, MAX_PARAM_BYTES) + '...[truncated]';
 	}
 	return argsJson;
