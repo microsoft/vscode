@@ -935,6 +935,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
+	private _connectorRefreshGeneration = 0;
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
@@ -1776,6 +1777,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	getMcpServerOwners(session: URI): ReadonlyMap<string, string> | undefined {
 		return this._findSessionChat(session)?.mcpServerOwners();
+	}
+
+	async refreshConnectorSessions(): Promise<void> {
+		this._connectorRefreshGeneration++;
+		await Promise.all(this._allLiveSessions().map(session =>
+			this._queueChat(AgentSession.id(session.ownerSessionUri), session.sessionId, 'refreshConnectorSession', async () => {
+				if (!session.isDisposed) {
+					session.markConnectorConfigurationChanged();
+				}
+			}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to schedule Connector MCP refresh`, error))
+		));
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
@@ -5844,9 +5856,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CancellationError();
 		}
 		this._sessionsPendingRegistration.add(session);
+		const connectorRefreshGeneration = this._connectorRefreshGeneration;
 		try {
 			await session.initializeSession();
 			await beforeRegistration?.();
+			if (connectorRefreshGeneration !== this._connectorRefreshGeneration) {
+				session.markConnectorConfigurationChanged();
+			}
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}

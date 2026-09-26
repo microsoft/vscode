@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../../../base/common/arrays.js';
-import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { raceCancellationError, Throttler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -17,11 +17,13 @@ import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { CopilotConnectorsError, CopilotConnectorsRequest, copilotConnectorsScope, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -153,6 +155,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private _connectionStateKnown = false;
 	private _lastRefreshTime = 0;
 	private refreshGeneration = 0;
+	private readonly agentHostRefresh = this._register(new Throttler());
 
 	constructor(
 		@ICopilotConnectorsRequestService private readonly requestService: ICopilotConnectorsRequestService,
@@ -161,6 +164,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
@@ -341,7 +346,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				return this._connectors;
 			}
 			this._lastRefreshTime = Date.now();
-			this.setConnectors(connectors, scoped);
+			const connectedMembershipChanged = this.setConnectors(connectors, scoped);
+			if (connectedMembershipChanged) {
+				await this.refreshAgentHostConnectorSessions();
+			}
 			return this._connectors;
 		} finally {
 			operation.dispose();
@@ -532,13 +540,30 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private setConnectors(connectors: readonly ICopilotConnector[], connectionStateKnown = this._connectionStateKnown): void {
+	private setConnectors(connectors: readonly ICopilotConnector[], connectionStateKnown = this._connectionStateKnown): boolean {
+		const previousConnected = this._connectionStateKnown ? connectedConnectorNames(this._connectors) : [];
+		const nextConnected = connectionStateKnown ? connectedConnectorNames(connectors) : [];
+		const connectedMembershipChanged = connectionStateKnown && (!this._connectionStateKnown || !equals(previousConnected, nextConnected));
 		if (equals(this._connectors, connectors) && this._connectionStateKnown === connectionStateKnown) {
-			return;
+			return false;
 		}
 		this._connectors = connectors;
 		this._connectionStateKnown = connectionStateKnown;
 		this._onDidChange.fire();
+		return connectedMembershipChanged;
+	}
+
+	private refreshAgentHostConnectorSessions(): Promise<void> {
+		if (!this.agentHostService.refreshCopilotConnectorSessions) {
+			return Promise.resolve();
+		}
+		return this.agentHostRefresh.queue(async () => {
+			try {
+				await this.agentHostService.refreshCopilotConnectorSessions?.();
+			} catch (error) {
+				this.logService.warn('[CopilotConnectorsService] Unable to refresh live Agent Host sessions', error);
+			}
+		});
 	}
 
 	override dispose(): void {
@@ -629,6 +654,13 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 
 function getAccountIdentity(account: IDefaultAccount | null): string | undefined {
 	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
+}
+
+function connectedConnectorNames(connectors: readonly ICopilotConnector[]): string[] {
+	return connectors
+		.filter(connector => connector.connectionStatus === 'connected')
+		.map(connector => connector.name)
+		.sort();
 }
 
 function invalidConnectorPage(): CopilotConnectorsError {

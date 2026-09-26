@@ -1012,6 +1012,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	markConnectorConfigurationChanged(): void {
+		this._requiresConnectorConfigurationRefresh = true;
+	}
+
 	/**
 	 * Captures terminal-only observed usage, excluding descendants and restored history.
 	 * Child snapshots are frozen by canonical turn id before their owning tool resumes.
@@ -1173,6 +1177,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
+	private _requiresConnectorConfigurationRefresh = false;
 	/**
 	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
 	 * Connected and needs-auth statuses remain the final lifecycle authority.
@@ -2297,6 +2302,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
+		if (this._requiresConnectorConfigurationRefresh) {
+			return true;
+		}
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
 	}

@@ -211,6 +211,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	const typed = stub as {
 		sessionId?: string;
 		sessionUri?: URI;
+		ownerSessionUri?: URI;
 		resourceUri?: URI;
 		chatChannelUri?: URI;
 		usesStaticGitHubToken?: boolean;
@@ -219,6 +220,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	};
 	typed.sessionId ??= sessionId;
 	typed.sessionUri ??= sessionUri;
+	typed.ownerSessionUri ??= sessionUri;
 	typed.usesStaticGitHubToken ??= true;
 	// A session-backed (default) chat's host-chosen persistence scope is the
 	// session itself; that is how the agent identifies it without rebuilding a
@@ -239,6 +241,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	const typed = stub as {
 		sessionId?: string;
 		sessionUri?: URI;
+		ownerSessionUri?: URI;
 		resourceUri?: URI;
 		chatChannelUri?: URI;
 		bindChatChannel?: (uri: URI) => void;
@@ -246,6 +249,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	};
 	typed.sessionId ??= resolvedSdkSessionId;
 	typed.sessionUri ??= ownerSession;
+	typed.ownerSessionUri ??= ownerSession;
 	// An additional chat is scoped to its own chat URI, never the session.
 	typed.resourceUri ??= chatUri;
 	typed.chatChannelUri ??= chatUri;
@@ -3534,6 +3538,103 @@ suite('CopilotAgent', () => {
 				afterTurn: { stopCount: 1, rejectedDisposed: true, failedDisposed: true },
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('queues Connector refresh behind in-flight chat work', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const calls: string[] = [];
+		const session = {
+			isDisposed: false,
+			markConnectorConfigurationChanged() { calls.push('refresh'); },
+			dispose() { this.isDisposed = true; },
+		};
+		const gate = new DeferredPromise<void>();
+		try {
+			setDefaultSessionStub(agent, 'connector-live-refresh', session);
+			const queued = (agent as unknown as {
+				_queueChat<T>(sessionId: string, chatKey: string, operation: string, task: () => Promise<T>): Promise<T>;
+			})._queueChat('connector-live-refresh', 'connector-live-refresh', 'activeTurn', () => gate.p);
+
+			const reconciliation = agent.refreshConnectorSessions();
+			await timeout(0);
+			const whileBusy = [...calls];
+			gate.complete();
+			await Promise.all([queued, reconciliation]);
+
+			assert.deepStrictEqual({ whileBusy, afterIdle: calls }, { whileBusy: [], afterIdle: ['refresh'] });
+		} finally {
+			gate.complete();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('marks live sessions for Connector refresh and skips disposed sessions', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const session = AgentSession.uri('copilotcli', 'connector-reconciliation');
+		const calls: string[] = [];
+		try {
+			setDefaultSessionStub(agent, AgentSession.id(session), {
+				isDisposed: false,
+				markConnectorConfigurationChanged() { calls.push('default'); },
+				dispose() { },
+			});
+			setPeerChatStub(agent, URI.parse(buildChatUri(session, 'healthy')), {
+				isDisposed: false,
+				markConnectorConfigurationChanged() { calls.push('peer'); },
+				dispose() { },
+			}, 'connector-healthy');
+			setPeerChatStub(agent, URI.parse(buildChatUri(session, 'disposed')), {
+				isDisposed: true,
+				markConnectorConfigurationChanged() { calls.push('disposed'); },
+				dispose() { },
+			}, 'connector-disposed');
+
+			await agent.refreshConnectorSessions();
+
+			assert.deepStrictEqual(calls.sort(), ['default', 'peer']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('marks sessions when a Connector changes while they initialize', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const initializeStarted = new DeferredPromise<void>();
+		const initializeGate = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const session = {
+			sessionId: 'initializing-connector-session',
+			async initializeSession() {
+				calls.push('initialize');
+				initializeStarted.complete();
+				await initializeGate.p;
+				calls.push('initialized');
+			},
+			markConnectorConfigurationChanged() { calls.push('refresh'); },
+			dispose() { },
+		} as unknown as CopilotAgentSession;
+		try {
+			const initialization = (agent as unknown as {
+				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
+			})._initializeAndRegisterSession(session, () => calls.push('register'));
+			await initializeStarted.p;
+
+			await agent.refreshConnectorSessions();
+			const whileInitializing = [...calls];
+			initializeGate.complete();
+			await initialization;
+
+			assert.deepStrictEqual({
+				whileInitializing,
+				afterInitialization: calls,
+			}, {
+				whileInitializing: ['initialize'],
+				afterInitialization: ['initialize', 'initialized', 'refresh', 'register'],
+			});
+		} finally {
+			initializeGate.complete();
 			await disposeAgent(agent);
 		}
 	});

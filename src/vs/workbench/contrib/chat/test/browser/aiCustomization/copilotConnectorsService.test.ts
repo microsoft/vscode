@@ -16,6 +16,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { CopilotConnectorsRequestService } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -138,6 +139,21 @@ suite('CopilotConnectorsService', () => {
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const opened: string[] = [];
+		let reconciliationError: Error | undefined;
+		const reconciliations: number[] = [];
+		const reconciliationWaits: Promise<void>[] = [];
+		const agentHostService = new class extends mock<IAgentHostService>() {
+			override async refreshCopilotConnectorSessions(): Promise<void> {
+				reconciliations.push(reconciliations.length + 1);
+				const wait = reconciliationWaits.shift();
+				if (wait) {
+					await wait;
+				}
+				if (reconciliationError) {
+					throw reconciliationError;
+				}
+			}
+		}();
 		const openerService = new class extends mock<IOpenerService>() {
 			override async open(resource: URI) {
 				opened.push(resource.toString(true));
@@ -151,10 +167,14 @@ suite('CopilotConnectorsService', () => {
 			productService,
 			configurationService,
 			openerService,
+			agentHostService,
+			new NullLogService(),
 		));
 		return {
 			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, signInCalls, authenticationService, defaultAccountService,
-			initialAccount, initialSession, accountChanged, sessionsChanged,
+			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations,
+			queueReconciliationWait: (wait: Promise<void>) => reconciliationWaits.push(wait),
+			setReconciliationError: (error: Error | undefined) => { reconciliationError = error; },
 			setAccount: (value: IDefaultAccount | null, notify = true) => {
 				account = value;
 				if (notify) {
@@ -258,6 +278,7 @@ suite('CopilotConnectorsService', () => {
 			resource: connectors[0]?.protectedResourceMetadataUrl,
 			scopes: connectors[0]?.scopes,
 			mcpServers: fixture.service.connectedMcpServers,
+			reconciliations: fixture.reconciliations.length,
 			consent: fixture.consentCalls,
 		}, {
 			authorizationRequired: false,
@@ -270,6 +291,7 @@ suite('CopilotConnectorsService', () => {
 			resource: undefined,
 			scopes: [],
 			mcpServers: [],
+			reconciliations: 0,
 			consent: [],
 		});
 	});
@@ -796,6 +818,7 @@ suite('CopilotConnectorsService', () => {
 			requests: fixture.requests,
 			opened: fixture.opened,
 			connectionStateKnown: fixture.service.connectionStateKnown,
+			reconciliations: fixture.reconciliations.length,
 			connected: fixture.service.connectedMcpServers.map(server => ({
 				connector: server.connector.name,
 				serverName: server.serverName,
@@ -816,8 +839,35 @@ suite('CopilotConnectorsService', () => {
 			}],
 			opened: ['https://github.com/settings/copilot/connectors/mail'],
 			connectionStateKnown: true,
+			reconciliations: 2,
 			connected: [{ connector: 'mail', serverName: 'mail-server' }],
 		});
+	});
+
+	test('refreshes live sessions on the first authoritative catalog even when no connector is connected', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+
+		await fixture.service.refresh(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			connectionStateKnown: fixture.service.connectionStateKnown,
+			reconciliations: fixture.reconciliations.length,
+		}, {
+			connectionStateKnown: true,
+			reconciliations: 1,
+		});
+	});
+
+	test('does not refresh live sessions again when connected membership is unchanged', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected') },
+			{ body: catalogResponse('connected') },
+		]);
+
+		await fixture.service.refresh(CancellationToken.None);
+		await fixture.service.refresh(CancellationToken.None);
+
+		assert.strictEqual(fixture.reconciliations.length, 1);
 	});
 
 	test('disconnects a connector and refreshes its state', async () => {
@@ -836,6 +886,7 @@ suite('CopilotConnectorsService', () => {
 			requests: fixture.requests.map(request => ({ type: request.type, url: request.url })),
 			status: fixture.service.connectors[0]?.connectionStatus,
 			disconnected,
+			reconciliations: fixture.reconciliations.length,
 		}, {
 			requests: [{
 				type: 'GET',
@@ -849,7 +900,51 @@ suite('CopilotConnectorsService', () => {
 			}],
 			status: 'not_connected',
 			disconnected: ['mail'],
+			reconciliations: 2,
 		});
+	});
+
+	test('keeps authoritative connector state when live Agent Host refresh fails', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		fixture.setReconciliationError(new Error('Agent Host unavailable'));
+
+		const connectors = await fixture.service.refresh(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			status: connectors[0]?.connectionStatus,
+			reconciliations: fixture.reconciliations.length,
+		}, {
+			status: 'connected',
+			reconciliations: 1,
+		});
+	});
+
+	test('coalesces overlapping live session refreshes without losing a later connector change', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected') },
+			{ body: catalogResponse('available') },
+		]);
+		const firstReconciliation = new DeferredPromise<void>();
+		fixture.queueReconciliationWait(firstReconciliation.p);
+
+		const firstRefresh = fixture.service.refresh(CancellationToken.None);
+		await timeout(0);
+		assert.strictEqual(fixture.reconciliations.length, 1);
+
+		const secondRefresh = fixture.service.refresh(CancellationToken.None);
+		await timeout(0);
+		assert.deepStrictEqual({
+			status: fixture.service.connectors[0]?.connectionStatus,
+			reconciliations: fixture.reconciliations.length,
+		}, {
+			status: 'not_connected',
+			reconciliations: 1,
+		});
+
+		firstReconciliation.complete();
+		await Promise.all([firstRefresh, secondRefresh]);
+
+		assert.strictEqual(fixture.reconciliations.length, 2);
 	});
 
 	test('does not initialize or request connectors while the experiment is disabled', async () => {
