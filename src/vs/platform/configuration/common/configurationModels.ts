@@ -799,6 +799,9 @@ export class Configuration {
 
 		if (value === undefined) {
 			memoryConfiguration.removeValue(key);
+			if (overrides.resource && memoryConfiguration.isEmpty()) {
+				this._memoryConfigurationByResource.delete(overrides.resource);
+			}
 		} else {
 			memoryConfiguration.setValue(key, value);
 		}
