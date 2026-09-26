@@ -8,7 +8,7 @@ import { Model } from './model';
 import { dispose, fromNow, getCommitShortHash, IDisposable, truncate } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
-import { BlameInformation, Commit } from './git';
+import { BlameInformation, Commit, objectIdRegex } from './git';
 import { fromGitUri, isGitUri, toGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
@@ -419,7 +419,7 @@ export class GitBlameController {
 			// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
 			// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
 			// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
-			if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
+			if (objectIdRegex.test(ref) || ref === 'HEAD' || ref === '~') {
 				workingTreeChanges = allChanges = [];
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
@@ -478,7 +478,7 @@ export class GitBlameController {
 		} else {
 			// Resource with the `git` scheme
 			const { ref } = fromGitUri(textEditor.document.uri);
-			commit = /^[0-9a-f]{40}$/i.test(ref) ? ref : repository.HEAD.commit;
+			commit = objectIdRegex.test(ref) ? ref : repository.HEAD.commit;
 		}
 
 		// Git blame information
