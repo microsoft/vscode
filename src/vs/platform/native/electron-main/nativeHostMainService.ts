@@ -29,6 +29,7 @@ import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electro
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -50,6 +51,7 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { GPUCompositingState } from './gpuCompositingState.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -57,6 +59,8 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly gpuCompositingState: GPUCompositingState;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -72,9 +76,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
+		@IGPUProcessMainService gpuProcessMainService: IGPUProcessMainService
 	) {
 		super();
+
+		this.gpuCompositingState = this._register(new GPUCompositingState(gpuProcessMainService));
 
 		// Events
 		{
@@ -149,6 +156,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
+			this.onDidChangeGPUCompositing = this.gpuCompositingState.onDidChange;
+
 			this.onDidChangeDisplay = Event.debounce(Event.any(
 				Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
 					// Electron will emit 'display-metrics-changed' events even when actually
@@ -205,6 +214,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	//#endregion
 
@@ -877,6 +887,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getOSVirtualMachineHint(): Promise<number> {
 		return virtualMachineHint.value();
+	}
+
+	async isGPUCompositingEnabled(): Promise<boolean> {
+		return this.gpuCompositingState.enabled;
 	}
 
 	async getOSColorScheme(): Promise<IColorScheme> {

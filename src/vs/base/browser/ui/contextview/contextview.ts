@@ -62,20 +62,47 @@ export interface IDelegate {
 export interface IContextViewCloseAnimation {
 	readonly className: string;
 	readonly duration: number;
-	readonly requiredAncestorClasses?: readonly string[];
+	/** Requirements must match one ancestor; a nested array accepts any listed class. */
+	readonly requiredAncestorClasses?: readonly (string | readonly string[])[];
+}
+
+export function hasRequiredAncestorClasses(element: HTMLElement, classNames: IContextViewCloseAnimation['requiredAncestorClasses']): boolean {
+	if (!classNames?.length) {
+		return true;
+	}
+
+	for (let candidate: HTMLElement | null = element; candidate;) {
+		const current: HTMLElement = candidate;
+		if (classNames.every(requirement => typeof requirement === 'string'
+			? current.classList.contains(requirement)
+			: requirement.some(className => current.classList.contains(className)))) {
+			return true;
+		}
+
+		if (current.parentElement) {
+			candidate = current.parentElement;
+		} else {
+			const root = current.getRootNode();
+			candidate = root instanceof ShadowRoot && DOM.isHTMLElement(root.host) ? root.host : null;
+		}
+	}
+
+	return false;
 }
 
 export const CONTEXT_VIEW_MENU_MOTION_CLASS = 'context-view-menu-motion';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS = 'context-view-menu-motion-closing';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
-export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'] as const;
+export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = [['modern-ui', 'modern-ui-frosted-glass'], 'monaco-enable-motion'] as const;
 export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
+/** Inherited while an opacity animation isolates descendant menu backdrops. */
+export const CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-backdrop-opacity';
 const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
-const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
 
-const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
-const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+export const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
+export const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
 export const contextViewMenuCloseAnimation: IContextViewCloseAnimation = {
 	className: CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS,
@@ -116,6 +143,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	@keyframes context-view-menu-motion-open {
+		from, to {
+			${CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE}: 100%;
+		}
+
 		0% {
 			opacity: 0;
 			transform: scale(0.97);
@@ -128,6 +159,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	@keyframes context-view-menu-motion-close {
+		from, to {
+			${CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE}: 100%;
+		}
+
 		0% {
 			opacity: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE}, 1);
 			transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));
@@ -387,7 +422,7 @@ export class ContextView extends Disposable {
 		delegate.onHide?.(data);
 
 		const closeAnimation = delegate.closeAnimation;
-		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && this.hasRequiredAncestorClasses(closeAnimation.requiredAncestorClasses)) {
+		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && hasRequiredAncestorClasses(this.view, closeAnimation.requiredAncestorClasses)) {
 			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
 			this.prepareMenuCloseAnimation();
 			this.view.inert = true;
@@ -439,28 +474,6 @@ export class ContextView extends Disposable {
 		const computedStyle = DOM.getWindow(surface).getComputedStyle(surface);
 		this.view.style.setProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE, computedStyle.opacity);
 		this.view.style.setProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, computedStyle.transform);
-	}
-
-	private hasRequiredAncestorClasses(classNames: readonly string[] | undefined): boolean {
-		if (!classNames?.length) {
-			return true;
-		}
-
-		for (let candidate: HTMLElement | null = this.view; candidate;) {
-			const current: HTMLElement = candidate;
-			if (classNames.every(className => current.classList.contains(className))) {
-				return true;
-			}
-
-			if (current.parentElement) {
-				candidate = current.parentElement;
-			} else {
-				const root = current.getRootNode();
-				candidate = root instanceof ShadowRoot && DOM.isHTMLElement(root.host) ? root.host : null;
-			}
-		}
-
-		return false;
 	}
 
 	private onDOMEvent(e: UIEvent, onCapture: boolean): void {

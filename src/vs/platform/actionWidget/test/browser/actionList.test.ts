@@ -741,8 +741,18 @@ suite('ActionListWidget', () => {
 		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 		const nested = submenu.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
 		assert.ok(nested);
+		const submenuAnimated = submenu.parentElement?.classList.contains('action-widget-animated');
+		const nestedAnimated = nested.parentElement?.classList.contains('action-widget-animated');
 		nested.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		assert.deepStrictEqual(selected, ['container', 'remote']);
+		assert.deepStrictEqual({
+			selected,
+			submenuAnimated,
+			nestedAnimated,
+		}, {
+			selected: ['container', 'remote'],
+			submenuAnimated: true,
+			nestedAnimated: true,
+		});
 	});
 
 	test('Escape from a submenu hides the action list', () => {

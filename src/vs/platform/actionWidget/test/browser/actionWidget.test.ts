@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
@@ -26,6 +27,8 @@ import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
+import { actionWidgetDropdownCloseAnimation, withActionWidgetDropdownMotion } from '../../browser/actionWidgetDropdown.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS } from '../../browser/actionWidgetMotion.js';
 
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +79,19 @@ suite('ActionWidgetService', () => {
 		assert.ok(input);
 		return { service, input, selected, cancelled };
 	}
+
+	test('opts plain popups into shared motion without a caller-provided dropdown class', () => {
+		const { service, input } = showWidget(true);
+		const widget = input.closest('.action-widget')!;
+		assert.deepStrictEqual({
+			animated: widget.classList.contains(ACTION_WIDGET_ANIMATED_CLASS),
+			callerDropdown: widget.classList.contains(ACTION_WIDGET_DROPDOWN_MOTION_CLASS),
+		}, {
+			animated: true,
+			callerDropdown: false,
+		});
+		service.hide();
+	});
 
 	for (const filterAsCombobox of [undefined, true]) {
 		test(`only combobox popups handle Escape before the shared keybindings: ${filterAsCombobox}`, () => {
@@ -145,7 +161,43 @@ suite('ActionWidgetService', () => {
 		const contextView = disposables.add(instantiationService.createInstance(ContextViewService));
 		instantiationService.set(IContextViewService, contextView);
 		const service = disposables.add(instantiationService.createInstance(ActionWidgetService));
-		return { container, layout, service };
+		return { container, layout, service, contextView };
+	}
+
+	for (const { name, classes, animate } of [
+		{ name: 'Editor motion', classes: 'modern-ui monaco-enable-motion', animate: true },
+		{ name: 'Agents glass motion', classes: 'agent-sessions-workbench modern-ui-frosted-glass monaco-enable-motion', animate: true },
+		{ name: 'Agents without glass', classes: 'agent-sessions-workbench monaco-enable-motion', animate: false },
+		{ name: 'Agents reduced motion', classes: 'agent-sessions-workbench modern-ui-frosted-glass monaco-reduce-motion', animate: false },
+		{ name: 'Editor reduced motion', classes: 'modern-ui monaco-reduce-motion', animate: false },
+		{ name: 'legacy motion', classes: 'monaco-enable-motion', animate: false },
+	]) {
+		test(`picker closing motion with ${name}`, () => {
+			const { container, service, contextView } = setup();
+			const clock = sinon.useFakeTimers();
+			disposables.add(toDisposable(() => clock.restore()));
+			container.classList.add(...classes.split(' '));
+			let hides = 0;
+			service.show('test', false, [{ kind: ActionListItemKind.Action, label: 'Action', item: 'action' }], {
+				onSelect: () => { },
+				onHide: () => hides++,
+			}, { x: 100, y: 100 }, container, undefined, undefined, withActionWidgetDropdownMotion(undefined));
+			const view = contextView.getContextViewElement();
+			const widget = view.querySelector<HTMLElement>('.action-widget')!;
+			const read = () => ({ hides, hidden: view.style.display === 'none' });
+
+			service.hide();
+			service.hide();
+			const initial = { ...read(), closing: widget.classList.contains(ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS) };
+			clock.tick(actionWidgetDropdownCloseAnimation.duration - 1);
+			const beforeEnd = read();
+			clock.tick(1);
+			assert.deepStrictEqual({ initial, beforeEnd, finished: read() }, {
+				initial: { hides: 1, hidden: !animate, closing: animate },
+				beforeEnd: { hides: 1, hidden: !animate },
+				finished: { hides: 1, hidden: true },
+			});
+		});
 	}
 
 	test('closes an inline permission action once before focusing a warning dialog', () => {

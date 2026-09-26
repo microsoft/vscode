@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -17,7 +19,7 @@ import { UriIdentityService } from '../../../../../platform/uriIdentity/common/u
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { AGENTS_WINDOW_PROFILE_ID, InMemoryUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfileService.js';
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -30,10 +32,18 @@ import { ConfigurationService } from '../../browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isNative } from '../../../../../base/common/platform.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
 import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
+import { LayoutSettings, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
+import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
+import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import '../../../../../workbench/browser/workbench.contribution.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -47,6 +57,7 @@ suite('Sessions ConfigurationService', () => {
 	let userDataProfileService: IUserDataProfileService;
 	let workspaceConfigResource: URI;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const startupProperties = { ...configurationRegistry.getConfigurationProperties() };
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
@@ -167,9 +178,9 @@ suite('Sessions ConfigurationService', () => {
 
 		const environmentService = TestEnvironmentService;
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		const userDataProfilesService = disposables.add(new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
-		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		userDataProfileService = disposables.add(new UserDataProfileService(await userDataProfilesService.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents')));
 
 		const configResource = joinPath(ROOT, 'agent-sessions.code-workspace');
 		workspaceConfigResource = configResource;
@@ -416,6 +427,72 @@ suite('Sessions ConfigurationService', () => {
 	// #endregion
 
 	// #region Writing
+
+	(isNative ? test : test.skip)('displays and persists frosted-glass preferences in the Agents profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const keys = [LayoutSettings.MODERN_UI_FROSTED_GLASS, LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY];
+		const properties: Record<string, IConfigurationPropertySchema> = {};
+		for (const key of keys) {
+			if (!configurationRegistry.getConfigurationProperties()[key]) {
+				assert.ok(startupProperties[key], `${key} must be registered at startup`);
+				properties[key] = deepClone(startupProperties[key]);
+			}
+		}
+		if (Object.keys(properties).length) {
+			const configuration: IConfigurationNode = { id: '_test_sessions_glass', properties };
+			configurationRegistry.registerConfiguration(configuration);
+			disposables.add(toDisposable(() => configurationRegistry.deregisterConfigurations([configuration])));
+			await testObject.reloadConfiguration();
+		}
+		const parent = disposables.add(new SettingsTreeGroupElement('glass', undefined, 'Glass', 0, true));
+		const assignments = disposables.add(new ExperimentalSettingsService());
+		const languageService = new class extends mock<ILanguageService>() { }();
+		const elements = keys.map(key => {
+			const schema = configurationRegistry.getConfigurationProperties()[key];
+			const setting = new class extends mock<ISetting>() {
+				override key = key;
+				override type = schema.type;
+				override scope = schema.scope;
+				override description = [];
+			}();
+			return disposables.add(new SettingsTreeSettingElement(setting, parent, ConfigurationTarget.USER_LOCAL, true, undefined, languageService, TestProductService, userDataProfileService, testObject, true, assignments));
+		});
+		const readSettings = () => elements.map(element => {
+			element.inspectSelf();
+			return { value: element.value, configured: element.isConfigured };
+		});
+		const defaults = readSettings();
+		await testObject.updateValue(LayoutSettings.MODERN_UI_FROSTED_GLASS, false);
+		await testObject.updateValue(LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY, 75);
+		await testObject.reloadConfiguration();
+		const configured = readSettings();
+		const effective = keys.map(key => testObject.getValue(key));
+		const persisted: Record<string, boolean | number> = JSON.parse((await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString());
+		for (const key of keys) {
+			await testObject.updateValue(key, undefined);
+		}
+		assert.deepStrictEqual({
+			profile: {
+				isDefault: userDataProfileService.currentProfile.isDefault,
+				isAgentsWindowProfile: userDataProfileService.currentProfile.isAgentsWindowProfile,
+				inheritsSettings: userDataProfileService.currentProfile.useDefaultFlags?.settings,
+			},
+			defaults,
+			configured,
+			effective,
+			persisted,
+			reset: readSettings(),
+		}, {
+			profile: { isDefault: false, isAgentsWindowProfile: true, inheritsSettings: true },
+			defaults: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
+			configured: [{ value: false, configured: true }, { value: 75, configured: true }],
+			effective: [false, 75],
+			persisted: {
+				[LayoutSettings.MODERN_UI_FROSTED_GLASS]: false,
+				[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: 75,
+			},
+			reset: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
+		});
+	}));
 
 	test('updateValue writes to user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue('sessionsConfigurationService.testSetting', 'writtenValue');
