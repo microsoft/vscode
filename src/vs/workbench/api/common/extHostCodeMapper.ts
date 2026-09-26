@@ -74,6 +74,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		this.providers.set(handle, provider);
 		return {
 			dispose: () => {
+				this.providers.delete(handle);
 				return this._proxy.$unregisterCodeMapperProvider(handle);
 			}
 		};
