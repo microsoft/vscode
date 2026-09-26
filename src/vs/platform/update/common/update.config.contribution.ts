@@ -93,6 +93,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('updateTitleBar', "Show the update indicator in the title bar."),
 			included: !isWeb
+		},
+		'update.confirmRestart': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('updateConfirmRestart', "Controls whether to ask for confirmation before restarting to apply an update from the update indicator in the title bar. Restarting closes and reopens all windows."),
+			included: !isWeb
 		}
 	}
 });
