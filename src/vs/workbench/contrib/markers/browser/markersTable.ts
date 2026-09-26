@@ -157,15 +157,15 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		templateData.codeColumn.classList.remove('code-label');
 		templateData.codeColumn.classList.remove('code-link');
 
-		if (element.marker.source && element.marker.code) {
+		if (element.marker.code) {
 			if (typeof element.marker.code === 'string') {
 				templateData.codeColumn.classList.add('code-label');
-				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code})`;
+				templateData.codeColumn.title = element.marker.source ? `${element.marker.source} (${element.marker.code})` : element.marker.code;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 				templateData.codeLabel.set(element.marker.code, element.codeMatches);
 			} else {
 				templateData.codeColumn.classList.add('code-link');
-				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
+				templateData.codeColumn.title = element.marker.source ? `${element.marker.source} (${element.marker.code.value})` : element.marker.code.value;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
 				const codeLinkLabel = templateData.elementDisposables.add(new HighlightedLabel($('.code-link-label')));
