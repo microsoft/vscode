@@ -133,6 +133,14 @@
 	margin-left: auto;
 }
 
+.chat-input-notification-widget .chat-input-notification-actions.compact {
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-input-notification-widget .chat-input-notification-actions.split {
+	flex: 1 0 100%;
+}
+
 /* Action buttons */
 .chat-input-notification-widget .chat-input-notification-action-button {
 	font-size: var(--vscode-fontSize-label2);
@@ -152,6 +160,28 @@
 	color: var(--vscode-foreground);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	opacity: 0.8;
+}
+
+.chat-input-notification-widget .chat-input-notification-actions.compact .chat-input-notification-action-button:not(.icon-only) {
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.leading {
+	margin-right: auto;
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.secondary.outlined {
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.icon-only {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.icon-only .codicon {
+	margin: 0;
 }
 
 .chat-input-notification-widget .chat-input-notification-action-button.secondary:hover {

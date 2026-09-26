@@ -21,7 +21,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
@@ -44,7 +44,7 @@ export interface IModelCardOptions {
 	readonly isUBB: boolean;
 	readonly openerService: IOpenerService;
 	/** Called after a configuration value changes so the caller can report it and refresh its own label. */
-	readonly onDidChangeConfiguration?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void;
+	readonly onDidChangeConfiguration?: ModelConfigChangeListener;
 	/** Whether the model is pinned, when pinning is offered here. */
 	readonly isPinned?: boolean;
 	/** The organization default represented by this card, including either speed variant. */

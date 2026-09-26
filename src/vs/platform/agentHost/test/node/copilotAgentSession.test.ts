@@ -25,7 +25,7 @@ import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } 
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
@@ -54,6 +54,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -1043,7 +1044,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				options.captureRuntime.current = runtime;
 			}
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService);
-		}
+		},
 	};
 
 	const services = new ServiceCollection();
@@ -1311,6 +1312,11 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
  */
 const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
 const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
+const TEST_SESSION_ATTACHMENTS_DIR = URI.file('/session-data/test-session-1/attachments').fsPath;
+
+function expectedSessionSandboxConfig(platform: NodeJS.Platform, sandbox: Parameters<typeof buildSandboxConfigForSdk>[1]): SandboxConfig | undefined {
+	return buildSandboxConfigForSdk(platform, sandbox, [TEST_SESSION_ATTACHMENTS_DIR]);
+}
 
 function defaultNonPtyShellTerminalUri(toolCallId: string): string {
 	const session = AgentSession.uri('copilot', 'test-session-1');
@@ -7374,7 +7380,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual']);
 		});
 
@@ -7387,7 +7393,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
 		});
 
@@ -7841,9 +7847,9 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['manual', 'allow-all', 'manual'],
 				sandboxConfigs: [
-					buildSandboxConfigForSdk('linux', sandbox),
-					buildSandboxConfigForSdk('linux', sandbox),
-					buildSandboxConfigForSdk('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
+					expectedSessionSandboxConfig('linux', sandbox),
 				],
 			});
 		});
@@ -7891,8 +7897,8 @@ suite('CopilotAgentSession', () => {
 
 					assert.deepStrictEqual(results, [
 						{ enabled: false },
-						buildSandboxConfigForSdk(platform, sandbox),
-						buildSandboxConfigForSdk(platform, sandbox),
+						expectedSessionSandboxConfig(platform, sandbox),
+						expectedSessionSandboxConfig(platform, sandbox),
 					].map(sandboxConfig => ({
 						beforePrompt: [sandboxConfig],
 						afterPrompt: [sandboxConfig, sandboxConfig],
@@ -7922,8 +7928,8 @@ suite('CopilotAgentSession', () => {
 				beforePrompt,
 				afterPrompt: mockSession.sandboxConfigUpdates,
 			}, {
-				beforePrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }],
-				afterPrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
+				beforePrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }],
+				afterPrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
 			});
 		});
 
@@ -8050,7 +8056,7 @@ suite('CopilotAgentSession', () => {
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox),
+				sandbox: expectedSessionSandboxConfig('linux', sandbox),
 			});
 		});
 
@@ -8065,7 +8071,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
@@ -8080,7 +8086,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', {
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('win32', {
 				...sandbox,
 				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:\\src3\\'] },
 			}));
@@ -8105,7 +8111,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [buildSandboxConfigForSdk('linux', sandbox)]);
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [expectedSessionSandboxConfig('linux', sandbox)]);
 		});
 
 		test('sandbox config changes apply while idle and active with the custom terminal tool enabled', async () => {
@@ -8122,7 +8128,7 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
-				buildSandboxConfigForSdk('linux', {
+				expectedSessionSandboxConfig('linux', {
 					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 				}),
@@ -8332,7 +8338,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox),
+				sandbox: expectedSessionSandboxConfig('linux', sandbox),
 			});
 		});
 
@@ -14563,6 +14569,73 @@ Use the attached image as context.
 			assert.strictEqual(mcpResult?.permissionDecision, 'deny');
 		});
 
+		test('restricts only the GitHub MCP servers a launch projects during Agent Merge turns', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const mcpJsonUri = URI.file('/workspace/.mcp.json');
+			const mcpServer = (name: string, configuration: IMcpServerConfiguration, sdkRegistration: ICopilotMcpServerInfo['sdkRegistration']): ICopilotMcpServerInfo => ({
+				name,
+				configuration,
+				sdkRegistration,
+				uri: mcpJsonUri,
+				customization: { type: CustomizationType.McpServer, id: name, uri: mcpJsonUri.toString(), name, state: { kind: McpServerStatus.Stopped } },
+			});
+			const { session } = await createAgentSession(disposables, {
+				captureRuntime: capturedRuntime,
+				clientSnapshot: {
+					tools: [],
+					plugins: [{
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [
+							mcpServer('component-explorer', { type: McpServerType.LOCAL, command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] }, 'sessionConfig'),
+							mcpServer('corp', { type: McpServerType.LOCAL, command: 'node', args: ['corp.js'] }, 'sessionConfig'),
+							mcpServer('docs', { type: McpServerType.LOCAL, command: 'github-mcp-server', args: ['stdio'] }, 'sessionConfig'),
+						],
+						disabledMcpServers: ['docs'],
+						agents: [],
+						skills: [],
+						instructions: [],
+					}, {
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [mcpServer('octo', { type: McpServerType.LOCAL, command: 'github-mcp-server', args: ['stdio'] }, 'pluginDiscovery')],
+						disabledMcpServers: ['octo'],
+						agents: [],
+						skills: [],
+						instructions: [],
+						pluginDir: URI.file('/plugins/octo'),
+					}],
+					mcpServers: {
+						corp: { type: McpServerType.REMOTE, url: 'https://api.githubcopilot.com/mcp/' },
+						docs: { type: McpServerType.LOCAL, command: 'node', args: ['docs.js'] },
+						hub: { type: McpServerType.REMOTE, url: 'https://api.githubcopilot.com/mcp/' },
+					},
+				},
+			});
+			(session as unknown as ISessionInternalsForTest)._agentMergeTurn = true;
+
+			const toolNames = ['component-explorer-sessions', 'corp-get_me', 'docs-search', 'hub-get_me', 'octo-get_me', 'github-mcp-server-get_me'];
+			const decisions = await Promise.all(toolNames.map(async toolName => {
+				const result = await capturedRuntime.current!.handlePreToolUse({
+					sessionId: 'test-session-1',
+					timestamp: new Date(0),
+					workingDirectory: '/tmp',
+					toolName,
+					toolArgs: {},
+				});
+				return [toolName, result?.permissionDecision ?? 'allow'];
+			}));
+
+			assert.deepStrictEqual(Object.fromEntries(decisions), {
+				'component-explorer-sessions': 'allow',
+				'corp-get_me': 'allow',
+				'docs-search': 'allow',
+				'hub-get_me': 'deny',
+				'octo-get_me': 'deny',
+				'github-mcp-server-get_me': 'deny',
+			});
+		});
+
 		test('logs and rethrows onPostToolUse failures', async () => {
 			const logService = new CapturingLogService();
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
@@ -17677,6 +17750,14 @@ Use the attached image as context.
 			});
 		});
 
+		test('Connector changes require an MCP launch configuration refresh', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			session.markConnectorConfigurationChanged();
+
+			assert.strictEqual(session.requiresMcpLaunchConfigurationRefresh, true);
+		});
+
 		test('MCP authentication only clears auth-required after all matching server challenges resolve', async () => {
 			const { session, runtime, signals, mockSession } = await createAgentSession(disposables);
 			const firstAuth = runtime.handleMcpAuthRequest({
@@ -19492,7 +19573,10 @@ Use the attached image as context.
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
+				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR],
+				clearPolicyOnExit: true,
+			});
 		});
 
 		test('grants the shell init directory read access while a script is configured', async () => {
@@ -19505,10 +19589,10 @@ Use the attached image as context.
 			// The SDK fails silently when an init script is outside the sandbox
 			// read policy, so the per-turn policy must include this directory.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.ok(
-				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
-				JSON.stringify(sandboxConfig?.userPolicy?.filesystem),
-			);
+			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
+				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, TEST_SHELL_INIT_DIR],
+				clearPolicyOnExit: true,
+			});
 		});
 
 		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {

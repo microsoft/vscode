@@ -2043,6 +2043,26 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 		});
 
+		test('refreshes Connector sessions through capable providers', async () => {
+			const calls: string[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.refreshConnectorSessions = async () => { calls.push(provider.id); };
+			const otherProvider = new MockAgent('other');
+			disposables.add(toDisposable(() => otherProvider.dispose()));
+			const otherProviderContract: IAgent = otherProvider;
+			otherProviderContract.refreshConnectorSessions = async () => { calls.push(otherProviderContract.id); };
+			const unsupportedProvider = new MockAgent('unsupported');
+			disposables.add(toDisposable(() => unsupportedProvider.dispose()));
+			registerTestAgentProvider(service, provider);
+			registerTestAgentProvider(service, otherProvider);
+			registerTestAgentProvider(service, unsupportedProvider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await managementService.refreshCopilotConnectorSessions();
+
+			assert.deepStrictEqual(calls, ['copilot', 'other']);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -13572,6 +13592,7 @@ suite('AgentService (node dispatcher)', () => {
 				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -13681,6 +13702,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				restore: async () => { },

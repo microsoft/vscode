@@ -19,6 +19,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -69,7 +71,9 @@ suite('ChatSessionArchiveNudge', () => {
 				return super.error(error);
 			}
 		}());
-		return { instantiationService, configurationService, errors, warnings, playedSignals };
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		return { instantiationService, configurationService, errors, warnings, playedSignals, triggers: telemetryService.triggers };
 	}
 
 	function createAssignmentService(read: (name: string) => string | boolean | undefined | Promise<string | boolean | undefined>, onDidRefetchAssignments: Event<void> = Event.None): IWorkbenchAssignmentService {
@@ -88,13 +92,13 @@ suite('ChatSessionArchiveNudge', () => {
 	}
 
 	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
-		const { instantiationService, configurationService, errors, warnings, playedSignals } = createServices(assignmentService, wording, reducedMotion);
+		const { instantiationService, configurationService, errors, warnings, playedSignals, triggers } = createServices(assignmentService, wording, reducedMotion);
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
 		const [archive, cleanupSettings] = widget.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const dismiss = widget.domNode.querySelector<HTMLElement>('.action-label')!;
-		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, playedSignals, container };
+		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, playedSignals, container, triggers };
 	}
 
 	async function setWording(configurationService: TestConfigurationService, wording: ChatSessionArchiveActionWording): Promise<void> {
@@ -238,6 +242,23 @@ suite('ChatSessionArchiveNudge', () => {
 
 		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`reports the copy experiment triggers when rendered and the confetti trigger when marking as done without confetti${reducedMotion ? ', except with reduced motion' : ''}`, async () => {
+			const { archive, configurationService, triggers } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, reducedMotion);
+			await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
+			const rendered = [...triggers];
+
+			archive.click();
+			await Promise.resolve();
+
+			const copyTriggers = [CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT];
+			assert.deepStrictEqual({ rendered, markedAsDone: triggers }, {
+				rendered: copyTriggers,
+				markedAsDone: reducedMotion ? copyTriggers : [...copyTriggers, `config.${SESSIONS_MARK_AS_DONE_CONFETTI_SETTING}`],
+			});
+		});
+	}
 
 	test('does not show confetti when reduced motion is enabled', async () => {
 		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);

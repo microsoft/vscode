@@ -73,6 +73,7 @@ interface ICodexGitHubMcpHarness {
 	_buildSessionMcpServers(session: {
 		readonly sessionId: string;
 		readonly workingDirectory: URI;
+		readonly agentMergeTurn?: boolean;
 	}): Record<string, ICodexMcpServerConfigJson>;
 }
 
@@ -396,6 +397,35 @@ suite('CodexAgent', () => {
 		}) as ICodexGitHubMcpHarness;
 		assert.deepStrictEqual(aliasedServers._buildSessionMcpServers({ sessionId: 'alias', workingDirectory: URI.file('/work') }), {
 			alias: { url: 'https://api.githubcopilot.com/mcp/' },
+		});
+	});
+
+	test('Agent Merge turns omit only GitHub MCP servers', () => {
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: {
+				getRootValue: () => ({
+					'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+					corp: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
+				}),
+			},
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		const session = { sessionId: 'agent-merge', workingDirectory: URI.file('/work') };
+
+		assert.deepStrictEqual({
+			regularTurn: Object.keys(harness._buildSessionMcpServers(session)),
+			agentMergeTurn: harness._buildSessionMcpServers({ ...session, agentMergeTurn: true }),
+		}, {
+			regularTurn: ['component-explorer', 'corp'],
+			agentMergeTurn: {
+				'component-explorer': { command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+			},
 		});
 	});
 

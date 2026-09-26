@@ -39,7 +39,8 @@ export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin' }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string };
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
+	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
 	readonly identifier: string;
@@ -124,6 +125,8 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly nextCursor?: string;
 	/** A failure after fetching these items. Preserve them, but do not continue this source until a new query. */
 	readonly error?: string;
+	/** Optional validity token shared across native pages, independent of request cancellation. Invalidates buffered entries and continuations; never sent over IPC. */
+	readonly cacheToken?: CancellationToken;
 	/** A partial failure that leaves this source's remaining pages available. */
 	readonly warning?: string;
 }
@@ -184,6 +187,11 @@ export interface ICustomizationMarketplaceService {
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
+export const IAgentFinderMarketplaceService = createDecorator<IAgentFinderMarketplaceService>('agentFinderMarketplaceService');
+
+/** AgentFinder marketplace transport, hosted in the shared process on desktop. */
+export interface IAgentFinderMarketplaceService extends ICustomizationMarketplaceService { }
+
 export interface ICustomizationMarketplaceQueryService {
 	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 }
@@ -192,6 +200,7 @@ interface IMarketplaceSourceState {
 	cursor?: string;
 	total?: number;
 	items: ICustomizationMarketplaceSourceEntry[];
+	cacheToken?: CancellationToken;
 	error?: string;
 	exhausted: boolean;
 	lastScore: number;
@@ -241,7 +250,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const continuation = options.cursor && this.continuations.get(options.cursor.token);
 		if (options.cursor && (!continuation || continuation.query !== query || continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize ||
-			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id))) {
+			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id) ||
+			continuation.states.some(state => state.cacheToken?.isCancellationRequested))) {
 			throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 		}
 		const states: IMarketplaceSourceState[] = continuation
@@ -268,6 +278,10 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						state.exhausted = true;
 						return;
 					}
+					if (state.cacheToken?.isCancellationRequested || page.cacheToken?.isCancellationRequested ||
+						(state.cursor !== undefined && state.cacheToken !== page.cacheToken)) {
+						throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
+					}
 					if (page.items.length > pageSize ||
 						(page.total !== undefined && (!Number.isSafeInteger(page.total) || page.total < page.items.length)) ||
 						(page.nextCursor !== undefined && (!page.nextCursor || page.nextCursor === state.cursor || !page.items.length))) {
@@ -289,6 +303,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						lastPriority = priority;
 					}
 					state.items = [...page.items];
+					state.cacheToken = page.cacheToken;
 					state.cursor = page.nextCursor;
 					state.total = page.total;
 					state.error = page.error ?? state.error ?? page.warning;
@@ -297,6 +312,9 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.lastPriority = lastPriority;
 				})), cancellation.token);
 
+				if (states.some(state => state.cacheToken?.isCancellationRequested)) {
+					throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
+				}
 				let selected = -1;
 				for (let offset = 0; offset < states.length; offset++) {
 					const index = (nextSourceIndex + offset) % states.length;

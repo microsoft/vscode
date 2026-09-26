@@ -684,6 +684,9 @@ export interface IActionListOptions {
 	/** Reveals a filter when printable text is typed in a list without a filter input. */
 	readonly onType?: (text: string) => void;
 
+	/** Called when the user changes the filter text, but not when it is cleared programmatically. */
+	readonly onDidChangeFilter?: (text: string) => void;
+
 	/**
 	 * Optional actions shown in the filter row, to the right of the input.
 	 */
@@ -1233,6 +1236,7 @@ export class ActionListWidget<T> extends Disposable {
 					}
 					this._filterText = value;
 					this._applyOrUpdateFilter();
+					this._options?.onDidChangeFilter?.(value);
 				};
 
 				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
@@ -1369,6 +1373,7 @@ export class ActionListWidget<T> extends Disposable {
 						this._filterInput.value = e.key;
 						this._filterText = e.key;
 						this._applyOrUpdateFilter();
+						this._options?.onDidChangeFilter?.(e.key);
 					} else {
 						this._options?.onType?.(e.key);
 					}

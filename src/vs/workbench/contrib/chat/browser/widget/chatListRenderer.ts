@@ -858,7 +858,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly pendingProgressContent = this._register(new DisposableMap<IChatListItemTemplate, IPendingProgressContent>());
 	private readonly thinkingPartOwners = new WeakMap<IChatContentPart, ChatThinkingContentPart>();
 	/** Subagent markdown items by the no-content shim that stands in for them, so a re-render can retire the previous revision. */
-	private readonly subagentMarkdownItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; codeblocksPartId: string }>();
+	private readonly subagentEditItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; partId: string }>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 
@@ -3189,6 +3189,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.pendingProgressContent.deleteAndLeak(templateData);
 		try {
 			const renderedParts = templateData.renderedParts ?? [];
+			const pendingParts = renderedParts.filter(part => part?.domNode && pending.fragment.contains(part.domNode));
 			const renderedNodes = new Set<Node>(coalesce(renderedParts.map(part => part?.domNode)));
 			for (const [index, part] of renderedParts.entries()) {
 				if (part?.domNode?.parentNode === pending.fragment) {
@@ -3205,6 +3206,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 			this.appendResponseContent(templateData, pending.fragment);
+			if (templateData.rowContainer.isConnected) {
+				for (const part of pendingParts) {
+					this.remountRenderedPart(part);
+				}
+			} else {
+				templateData.renderedPartsMounted = false;
+			}
 			const element = templateData.currentElement;
 			if (isResponseVM(element)) {
 				this.updateCompletedResponseDisclosure(element, templateData.renderedContent ?? [], templateData, templateData.wasResponseComplete === false && element.isComplete);
@@ -3345,11 +3353,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					alreadyRenderedPart.dispose();
 				}
 
-				// A subagent markdown item is re-rendered as a new part with a new id, so retire the
-				// revision it replaces before it is appended again.
-				const subagentMarkdownItem = this.subagentMarkdownItems.get(alreadyRenderedPart);
-				if (subagentMarkdownItem) {
-					subagentMarkdownItem.subagentPart.removeMarkdownItemByPartId(subagentMarkdownItem.codeblocksPartId);
+				// Retire the subagent's previous edit revision before appending its replacement.
+				const subagentEditItem = this.subagentEditItems.get(alreadyRenderedPart);
+				if (subagentEditItem) {
+					subagentEditItem.subagentPart.removeEditItemByPartId(subagentEditItem.partId);
 				}
 
 				// Replace old DOM from thinking wrapper to prevent accumulation
@@ -4680,16 +4687,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// Skip rendering completed tool invocations that are hidden and have no meaningful content - ie, autopilot "task complete".
-		// We intentionally only short-circuit when the invocation's presentation is hidden, otherwise extension-contributed
-		// tools that don't supply a `pastTenseMessage` (proposed API) get filtered out incorrectly.
-		if (IChatToolInvocation.isComplete(toolInvocation) && IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
-			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-			const text = typeof msg === 'string' ? msg : msg?.value;
-			if (!text || text.trim().length === 0) {
-				return this.renderNoContent((other) =>
-					(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && other.toolCallId === toolInvocation.toolCallId);
-			}
+		if (IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
+			return this.renderNoContent(other =>
+				(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+				&& other.toolCallId === toolInvocation.toolCallId
+				&& IChatToolInvocation.isEffectivelyHidden(other));
 		}
 
 		// A completed turn renders all generated images in one gallery. Keep the gallery on the
@@ -4710,11 +4712,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const subagentId = getSubagentId(toolInvocation);
 		if (subagentId && isResponseVM(context.element)) {
 			toolInvocation.isAttachedToThinking = false;
-			if (IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
-				return this.renderNoContent(other =>
-					(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-					&& other.toolCallId === toolInvocation.toolCallId);
-			}
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex, batchedSubagentParts);
 		}
 
@@ -4726,7 +4723,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const retainedPart = retainedToolParts?.get(toolInvocation.toolCallId);
 		const partToReuse = retainedPart instanceof ChatToolInvocationPart ? retainedPart : undefined;
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = partToReuse;
-		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart; part: ChatToolInvocationPart } => {
+		const createToolPart = () => {
 			lazilyCreatedPart = partToReuse ?? this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
 			if (!partToReuse) {
 				lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
@@ -4742,7 +4739,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex, templateData);
 			}
-			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
+			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart, isVisible: lazilyCreatedPart.isVisible };
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
@@ -5391,14 +5388,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderExternalEdit(content: IChatExternalEdit, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const editPart = this.instantiationService.createInstance(ChatExternalEditContentPart, content, context);
+		const partId = `externalEdit-${content.uri.toString()}-${content.undoStopId ?? ''}`;
+		if (content.subAgentInvocationId && isResponseVM(context.element)) {
+			const subagentPart = this.getSubagentPart(templateData.renderedParts, content.subAgentInvocationId);
+			if (subagentPart) {
+				subagentPart.appendEditItem(() => ({ domNode: editPart.domNode, disposable: editPart }), partId, editPart, editPart);
+				const shim = this.renderNoContent((other, followingContent, element) =>
+					other.kind === 'externalEdit' && other.undoStopId === content.undoStopId && editPart.hasSameContent(other, followingContent, element));
+				this.subagentEditItems.set(shim, { subagentPart, partId });
+				return shim;
+			}
+		}
 
 		// Pin the pill into the surrounding thinking part so diff stats bubble
 		// up into the thinking title. The list renderer pinning logic above
 		// already routes externalEdit kinds through this path.
 		const collapsedToolsMode = this.getCollapsedToolsMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(content, context.element)) {
-			// Stable id per part so the thinking part can dedup if it sees us twice.
-			const partId = `externalEdit-${content.uri.toString()}-${content.undoStopId ?? ''}`;
 			const { part: lastThinking, separatedFromReasoning } = this.getLastThinkingPartForGroupedItem(context, templateData);
 			if (!lastThinking && shouldCreateGroupedThinkingPart(collapsedToolsMode, separatedFromReasoning)) {
 				const thinkingPart = this.renderThinkingPart({ kind: 'thinking' }, context, templateData);
@@ -5512,11 +5518,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (subAgentInvocationId) {
 				const subagentPart = this.getSubagentPart(templateData.renderedParts, subAgentInvocationId);
 				if (subagentPart && markdownPart?.domNode && isComplete) {
-					subagentPart.appendMarkdownItem(
+					subagentPart.appendEditItem(
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
-						markdown,
-						templateData.value,
 						markdownPart,
 						markdownPart,
 					);
@@ -5524,7 +5528,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						other.kind === 'markdownContent'
 						&& other.content.value === markdown.content.value
 						&& extractSubAgentInvocationIdFromText(other.content.value) === subAgentInvocationId);
-					this.subagentMarkdownItems.set(shim, { subagentPart, codeblocksPartId: markdownPart.codeblocksPartId });
+					this.subagentEditItems.set(shim, { subagentPart, partId: markdownPart.codeblocksPartId });
 					return shim;
 				}
 			}
@@ -5761,7 +5765,7 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 			return !isSubagentToolInvocation(part);
 		}
-		if (part.kind === 'hook') {
+		if (part.kind === 'hook' || part.kind === 'externalEdit') {
 			return !part.subAgentInvocationId;
 		}
 		return part.kind !== 'markdownContent' || !extractSubAgentInvocationIdFromText(part.content.value);
@@ -5781,7 +5785,7 @@ function isNestedSubagentContent(part: IChatRendererContent): boolean {
 	if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 		return !!part.subAgentInvocationId;
 	}
-	if (part.kind === 'hook') {
+	if (part.kind === 'hook' || part.kind === 'externalEdit') {
 		return !!part.subAgentInvocationId;
 	}
 	return part.kind === 'markdownContent' && !!extractSubAgentInvocationIdFromText(part.content.value);

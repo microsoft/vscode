@@ -60,10 +60,6 @@
 	white-space: nowrap;
 }
 
-.chat-terminal-progress-row > div:first-child {
-	display: none;
-}
-
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
