@@ -14,6 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AGENT_MERGE_TOOL_NAMES } from '../../common/agentMergePrompt.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -109,6 +110,29 @@ suite('Agent Merge server tools', () => {
 			afterDisabling: [],
 			withoutAccessor: false,
 		});
+	});
+
+	test('defers every tool behind tool search while keeping the wire definitions unchanged', () => {
+		const { stateManager, host } = createHarness(true);
+		host.advertise(sessionUri);
+
+		assert.deepStrictEqual({
+			deferrals: host.getDefinitionsForSession(sessionUri).map(({ name, deferLoading }) => ({ name, deferLoading })),
+			advertisedCarriesDeferral: stateManager.getSessionState(sessionUri)?.serverTools?.some(tool => Object.keys(tool).includes('deferLoading')),
+		}, {
+			deferrals: toolNames.map(name => ({ name, deferLoading: true })),
+			advertisedCarriesDeferral: false,
+		});
+	});
+
+	test('repair prompt names the deferred tools it requires', () => {
+		const definitionNames = createAgentMergeServerToolGroup().definitions.map(definition => definition.name);
+		assert.deepStrictEqual(
+			AGENT_MERGE_TOOL_NAMES.filter(name => !definitionNames.includes(name)),
+			[],
+			'AGENT_MERGE_TOOL_NAMES in common/agentMergePrompt.ts must match the server tool definitions',
+		);
+		assert.deepStrictEqual([...AGENT_MERGE_TOOL_NAMES].sort(), [readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName].sort());
 	});
 
 	test('rejects enablement calls after the feature is disabled', async () => {

@@ -687,7 +687,7 @@ suite('CustomizationMigrationService', () => {
 				source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
 			}, {
 				candidates: copilot ? [[PromptsStorage.user, sourceUri.toString(), targetUri.toString()]] : [],
-				exclusions: copilot ? [['null-env', ['Environment variables with null values are not supported in Copilot home configuration. Remove or replace the null value to migrate this server.']]] : [],
+				exclusions: copilot ? [['null-env', ['Environment variables with null values are not supported in the destination MCP configuration. Remove or replace the null value to migrate this server.']]] : [],
 				hint: copilot ? '1 user customization needs an update to keep working.' : undefined,
 				staleFailures: copilot ? ['noLongerEligible'] : [],
 				result: { migratedCount: copilot ? 1 : 0, failures: [] },
@@ -863,7 +863,7 @@ suite('CustomizationMigrationService', () => {
 			enabledExecutionResult: { migratedCount: 1, failures: [] },
 			enabledExecutionWrites: ['/workspace/.mcp.json', '/workspace/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -936,7 +936,7 @@ suite('CustomizationMigrationService', () => {
 			],
 			writes: ['/queued-before-plan/.mcp.json', '/queued-before-plan/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1171,7 +1171,7 @@ suite('CustomizationMigrationService', () => {
 			changedDuringWriteResult: { migratedCount: 1, failures: [] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
 			source: '{\n\t"servers": {}\n}',
-			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "node"\n\t\t}\n\t}\n}',
+			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "local",\n\t\t\t"command": "node",\n\t\t\t"args": [],\n\t\t\t"tools": [\n\t\t\t\t"*"\n\t\t\t]\n\t\t}\n\t}\n}',
 		});
 	});
 
@@ -1281,7 +1281,7 @@ suite('CustomizationMigrationService', () => {
 			failures: [],
 			sourceBeforeSupportSettled: { servers: { server: { command: 'node' } } },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1342,8 +1342,8 @@ suite('CustomizationMigrationService', () => {
 			result: { migratedCount: 2, failures: [] },
 			sources: [{ servers: {} }, { servers: {} }],
 			targets: [
-				{ mcpServers: { server0: { type: 'stdio', command: 'node' } } },
-				{ mcpServers: { server1: { type: 'stdio', command: 'node' } } },
+				{ mcpServers: { server0: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				{ mcpServers: { server1: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			],
 		});
 	});
@@ -1611,7 +1611,7 @@ suite('CustomizationMigrationService', () => {
 				localSource: sourceContent,
 				localTargetExists: false,
 				remoteSource: disconnected ? { servers: { server: { command: 'node' } } } : { servers: {} },
-				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}
