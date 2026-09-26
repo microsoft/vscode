@@ -224,7 +224,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			case McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration: {
 				const configuration = server?.projectedConfiguration;
 				if (configuration?.type === McpServerType.LOCAL && configuration.env && Object.values(configuration.env).some(value => value === null)) {
-					return [localize('mcpMigrationServerNullEnvironment', "Environment variables with null values are not supported in Copilot home configuration. Remove or replace the null value to migrate this server.")];
+					return [localize('mcpMigrationServerNullEnvironment', "Environment variables with null values are not supported in the destination MCP configuration. Remove or replace the null value to migrate this server.")];
 				}
 				return [localize('mcpMigrationServerUnrepresentable', "The server configuration cannot be moved without changing its behavior.")];
 			}
