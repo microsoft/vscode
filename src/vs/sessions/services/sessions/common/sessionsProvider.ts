@@ -451,6 +451,12 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/**
+	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Providers without host-owned worktrees leave this capability undefined.
+	 */
+	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;
 
