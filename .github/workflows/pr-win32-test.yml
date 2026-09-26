@@ -281,9 +281,22 @@ jobs:
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 20
+        timeout-minutes: 30
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $directory = "$env:ProgramFiles\GitHubCopilot"
+          New-Item -ItemType Directory -Path $directory | Out-Null
+          try {
+            npm run smoketest-no-compile -- --tracing
+            exit $LASTEXITCODE
+          } finally {
+            $file = Join-Path $directory 'managed-settings.json'
+            if (Test-Path -LiteralPath $file) {
+              Remove-Item -LiteralPath $file
+            }
+            [System.IO.Directory]::Delete($directory)
+          }
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'

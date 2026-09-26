@@ -405,8 +405,14 @@ jobs:
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        timeout-minutes: 30
+        run: |
+          set -e
+          policy_dir=/etc/github-copilot
+          sudo mkdir "$policy_dir"
+          trap 'sudo rm -f "$policy_dir/managed-settings.json"; sudo rmdir "$policy_dir"' EXIT
+          sudo chown "$(id -u):$(id -g)" "$policy_dir"
+          npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
           VSCODE_SMOKE_TEST_POLICY: '1'

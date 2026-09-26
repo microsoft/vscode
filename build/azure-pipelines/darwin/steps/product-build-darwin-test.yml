@@ -107,12 +107,16 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
+        policy_dir='/Library/Application Support/GitHubCopilot'
+        sudo mkdir "$policy_dir"
+        trap 'sudo rm -f "$policy_dir/managed-settings.json"; sudo rmdir "$policy_dir"' EXIT
+        sudo chown "$(id -u):$(id -g)" "$policy_dir"
         APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
       displayName: 🧪 Run smoke tests (Electron)
 
     - script: brew list squid >/dev/null 2>&1 || brew install squid
