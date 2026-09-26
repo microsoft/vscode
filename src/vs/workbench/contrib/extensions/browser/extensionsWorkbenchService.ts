@@ -360,8 +360,8 @@ export class Extension implements IExtension {
 
 	get outdatedTargetPlatform(): boolean {
 		return !!this.local && !!this.gallery
-			&& ![TargetPlatform.UNDEFINED, TargetPlatform.WEB].includes(this.local.targetPlatform)
-			&& this.gallery.properties.targetPlatform !== TargetPlatform.WEB
+			&& this.local.targetPlatform !== TargetPlatform.WEB
+			&& ![TargetPlatform.UNDEFINED, TargetPlatform.UNIVERSAL, TargetPlatform.UNKNOWN, TargetPlatform.WEB].includes(this.gallery.properties.targetPlatform)
 			&& this.local.targetPlatform !== this.gallery.properties.targetPlatform
 			&& semver.eq(this.latestVersion, this.version);
 	}
@@ -744,7 +744,10 @@ class Extensions extends Disposable {
 		const compatibleGalleryExtensionsToFetch: IExtensionInfo[] = [];
 		await Promise.allSettled(mappedExtensions.map(async ([extension, gallery]) => {
 			if (extension.local) {
-				if (await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
+				// A compatible universal package may come from a query for a different installation platform.
+				// Resolve the preferred package for this server before offering it as an update.
+				const hasPreferredTargetPlatform = targetPlatform === TargetPlatform.WEB || gallery.properties.targetPlatform === targetPlatform || !gallery.allTargetPlatforms.includes(targetPlatform);
+				if (hasPreferredTargetPlatform && await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
 					compatibleGalleryExtensions.push(gallery);
 				} else {
 					compatibleGalleryExtensionsToFetch.push({ ...extension.local.identifier, preRelease: extension.local.preRelease });
