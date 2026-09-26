@@ -1,0 +1,5 @@
+{
+	"displayName": "Jev Search PoC",
+	"description": "Development-only Search panel experiment with a local demo scorer and a replaceable model-scoring boundary.",
+	"startDemo": "Start Local Demo"
+}

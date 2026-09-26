@@ -1,0 +1,64 @@
+{
+	"name": "jev-search-poc",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"private": true,
+	"license": "MIT",
+	"type": "commonjs",
+	"engines": {
+		"vscode": "^1.140.0"
+	},
+	"main": "./out/extension.js",
+	"extensionKind": [
+		"workspace"
+	],
+	"enabledApiProposals": [
+		"aiTextSearchProvider",
+		"findFiles2",
+		"textSearchComplete2",
+		"textSearchProvider2"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": false
+		},
+		"virtualWorkspaces": {
+			"supported": false
+		}
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "jevSearch.startDemo",
+				"title": "%startDemo%",
+				"category": "Jev Search PoC",
+				"enablement": "!config.chat.disableAIFeatures && isWorkspaceTrusted"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "jevSearch.startDemo",
+					"when": "!config.chat.disableAIFeatures && isWorkspaceTrusted"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"compile": "tsc -p .",
+		"demo": "npm run compile && node out/demo.js",
+		"probe:jev": "npm run compile && node out/probeJev.js",
+		"test": "npm run compile && mocha --ui tdd \"out/test/*.test.js\""
+	},
+	"dependencies": {
+		"@typesafe-ai/sdk": "0.6.0"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.10",
+		"@types/node": "24.x",
+		"mocha": "^11.7.0",
+		"typescript": "^6.0.2"
+	}
+}

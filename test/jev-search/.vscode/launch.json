@@ -1,0 +1,33 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run Jev Search PoC",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--disable-extensions",
+				"--user-data-dir=${workspaceFolder}/.vscode-test/user-data",
+				"--extensions-dir=${workspaceFolder}/.vscode-test/extensions",
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--enable-proposed-api=vscode.jev-search-poc",
+				"${workspaceFolder}/demo.code-workspace"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"preLaunchTask": "npm: compile"
+		},
+		{
+			"name": "Probe Jev (Synthetic Data, Live API)",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/out/probeJev.js",
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"preLaunchTask": "npm: compile"
+		}
+	]
+}

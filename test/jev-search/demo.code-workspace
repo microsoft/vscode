@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "fixtures/workspace"
+		}
+	],
+	"settings": {
+		"search.searchView.semanticSearchBehavior": "manual",
+		"search.searchView.keywordSuggestions": false
+	}
+}

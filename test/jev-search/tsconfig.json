@@ -1,0 +1,22 @@
+{
+	"extends": "../../extensions/tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"noEmitOnError": true,
+		"sourceMap": true,
+		"types": [
+			"node",
+			"mocha"
+		]
+	},
+	"include": [
+		"src/**/*.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.aiTextSearchProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.findFiles2.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textSearchComplete2.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textSearchProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textSearchProvider2.d.ts"
+	]
+}
