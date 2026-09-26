@@ -14,6 +14,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -23,10 +24,12 @@ import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPi
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
+const HYDRA_FUSION_LEARN_MORE_URL = URI.parse('https://aka.ms/hydrafusion-blog');
 
 export interface IModelPickerHoverContent {
 	readonly element: HTMLElement;
 	readonly disposable: DisposableStore;
+	readonly tabbableElements: readonly HTMLElement[];
 }
 
 export function getModelHoverContent(
@@ -34,6 +37,7 @@ export function getModelHoverContent(
 	isUBB: boolean | undefined,
 	onConfigure: ((group: string, fromKeyboard: boolean) => void) | undefined,
 	openerService: IOpenerService,
+	descriptionOverride?: string,
 ): IModelPickerHoverContent | undefined {
 	const isAuto = isAutoModel(model);
 	// HydraFusion routes across models like Auto, so it is presented the same way: its detail
@@ -42,6 +46,7 @@ export function getModelHoverContent(
 	const promo = !isRouter && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
+	const tabbableElements: HTMLElement[] = [];
 
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
@@ -143,10 +148,14 @@ export function getModelHoverContent(
 		costInfoRendered = true;
 	}
 
-	if (!costInfoRendered && model.metadata.tooltip) {
-		const element = renderModelDescription(model.metadata.tooltip, openerService, disposables);
+	const description = descriptionOverride ?? model.metadata.tooltip;
+	if (!costInfoRendered && (description || isHydraFusionModel(model))) {
+		const { element, learnMoreLink } = renderModelDescription(description ?? '', openerService, disposables, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		element.classList.add('chat-model-hover-description');
 		container.appendChild(element);
+		if (learnMoreLink) {
+			tabbableElements.push(learnMoreLink);
+		}
 	}
 
 	const totalTokens = getModelContextWindowTotal(model.metadata);
@@ -183,13 +192,14 @@ export function getModelHoverContent(
 				}));
 				button.label = label;
 				disposables.add(button.onDidClick(e => onConfigure?.(group, dom.isKeyboardEvent(e))));
+				tabbableElements.push(button.element);
 			}
 			configRow.appendChild(buttonsContainer);
 			container.appendChild(configRow);
 		}
 	}
 
-	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
+	return container.children.length > 0 ? { element: container, disposable: disposables, tabbableElements } : undefined;
 }
 
 /**
