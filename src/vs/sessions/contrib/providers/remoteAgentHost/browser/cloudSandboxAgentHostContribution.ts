@@ -104,6 +104,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			address: cloudSandboxAddress(env.environmentId),
 			name: env.name,
 			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
+			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 			omitHostFromWorkspaceLabel: true,
