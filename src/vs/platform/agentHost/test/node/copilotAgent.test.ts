@@ -7,14 +7,14 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, useFakeTimers } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -5820,6 +5820,54 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('prewarmSessionMetadata cache', () => {
+		class MetadataClient extends TestCopilotClient {
+			readonly listStarted = new DeferredPromise<void>();
+			listGate: Promise<void> | undefined;
+			listError: Error | undefined;
+
+			override async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
+				const sessions = await super.listSessions();
+				this.listStarted.complete();
+				await this.listGate;
+				if (this.listError) {
+					throw this.listError;
+				}
+				return sessions;
+			}
+		}
+
+		function readMetadata(agent: CopilotAgent, id: string) {
+			const session = AgentSession.uri('copilotcli', id);
+			return agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+		}
+
+		test('repeated small fallback sets never scan the unrelated SDK catalog', async () => {
+			const client = new TestCopilotClient(Array.from({ length: 4858 }, (_, i) => sdkSession(`session-${i}`)));
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const returned: (string | undefined)[] = [];
+				for (let pass = 0; pass < 2; pass++) {
+					const warm = disposables.add(await agent.prewarmSessionMetadata(47));
+					for (let i = 0; i < 47; i++) {
+						returned.push((await readMetadata(agent, `session-${i}`))?.chat.toString());
+					}
+					warm.dispose();
+				}
+				assert.deepStrictEqual({
+					listCalls: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+					returned,
+				}, {
+					listCalls: 0,
+					metadataCalls: Array.from({ length: 94 }, (_, i) => `session-${i % 47}`),
+					returned: Array.from({ length: 94 }, (_, i) => defaultChatUri(AgentSession.uri('copilotcli', `session-${i % 47}`)).toString()),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
 			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
 			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
@@ -5830,7 +5878,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				const read = (session: URI) => agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
 
-				const warm = await agent.prewarmSessionMetadata();
+				const warm = disposables.add(await agent.prewarmSessionMetadata(100));
 				// One bulk list warmed the cache; a hit is served without a per-session RPC.
 				await read(sessionA);
 				const afterHit = { listCalls: client.listSessionCallCount, rpcCalls: [...client.getSessionMetadataCalls] };
@@ -5839,7 +5887,7 @@ suite('CopilotAgent', () => {
 				await read(sessionMissing);
 				const afterMiss = [...client.getSessionMetadataCalls];
 
-				// After disposal the cache is cleared and normal per-session reads resume.
+				// Outside a listing lease, normal per-session reads remain fresh.
 				warm.dispose();
 				await read(sessionB);
 				const afterDisposal = [...client.getSessionMetadataCalls];
@@ -5849,6 +5897,165 @@ suite('CopilotAgent', () => {
 					afterMiss: ['prewarm-missing'],
 					afterDisposal: ['prewarm-missing', 'prewarm-b'],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('coalesces concurrent scans and reuses the snapshot for trailing small listings', async () => {
+			const gate = new DeferredPromise<void>();
+			const client = new MetadataClient([sdkSession('shared')]);
+			client.listGate = gate.p;
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const first = agent.prewarmSessionMetadata(100);
+				await client.listStarted.p;
+				const second = agent.prewarmSessionMetadata(1000);
+				gate.complete();
+				const firstLease = disposables.add(await first);
+				const secondLease = disposables.add(await second);
+				firstLease.dispose();
+				firstLease.dispose();
+				await readMetadata(agent, 'shared');
+				secondLease.dispose();
+				const trailingLease = disposables.add(await agent.prewarmSessionMetadata(1));
+				await readMetadata(agent, 'shared');
+				trailingLease.dispose();
+				assert.deepStrictEqual({
+					listCalls: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+				}, { listCalls: 1, metadataCalls: [] });
+			} finally {
+				gate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('expires 30 seconds after a slow scan completes without extending on cache hits', async () => {
+			const gate = new DeferredPromise<void>();
+			const sessions = [sdkSession('expiring')];
+			const client = new MetadataClient(sessions);
+			client.listGate = gate.p;
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const clock = useFakeTimers({ toFake: ['Date'] });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const initial = agent.prewarmSessionMetadata(100);
+				await client.listStarted.p;
+				clock.tick(84_400);
+				gate.complete();
+				disposables.add(await initial).dispose();
+				sessions[0] = { ...sdkSession('expiring'), summary: 'Updated' };
+				clock.tick(29_999);
+				const cachedLease = disposables.add(await agent.prewarmSessionMetadata(100));
+				const cachedSummary = (await readMetadata(agent, 'expiring'))?.summary;
+				cachedLease.dispose();
+				const beforeExpiry = client.listSessionCallCount;
+				clock.tick(1);
+				const smallLease = disposables.add(await agent.prewarmSessionMetadata(99));
+				await readMetadata(agent, 'expiring');
+				smallLease.dispose();
+				const largeLease = disposables.add(await agent.prewarmSessionMetadata(100));
+				const refreshedSummary = (await readMetadata(agent, 'expiring'))?.summary;
+				largeLease.dispose();
+				assert.deepStrictEqual({
+					beforeExpiry,
+					afterExpiry: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+					cachedSummary,
+					refreshedSummary,
+				}, {
+					beforeExpiry: 1, afterExpiry: 2, metadataCalls: ['expiring'],
+					cachedSummary: 'SDK expiring', refreshedSummary: 'Updated',
+				});
+			} finally {
+				clock.restore();
+				gate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('refreshes expired snapshots even with an old lease and isolates release across generations', async () => {
+			const client = new TestCopilotClient([sdkSession('leased')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const clock = useFakeTimers({ toFake: ['Date'] });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const first = disposables.add(await agent.prewarmSessionMetadata(100));
+				clock.tick(30_000);
+				const second = disposables.add(await agent.prewarmSessionMetadata(100));
+				first.dispose();
+				await readMetadata(agent, 'leased');
+				const whileLeased = client.listSessionCallCount;
+				second.dispose();
+				disposables.add(await agent.prewarmSessionMetadata(100)).dispose();
+				assert.deepStrictEqual({
+					whileLeased,
+					afterRelease: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+				}, { whileLeased: 2, afterRelease: 2, metadataCalls: [] });
+			} finally {
+				clock.restore();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('failed concurrent scans are not cached and the next listing can retry', async () => {
+			const client = new MetadataClient([sdkSession('retry')]);
+			client.listError = new Error('metadata scan failed');
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await Promise.all([
+					assert.rejects(agent.prewarmSessionMetadata(100), /metadata scan failed/),
+					assert.rejects(agent.prewarmSessionMetadata(100), /metadata scan failed/),
+				]);
+				client.listError = undefined;
+				const lease = disposables.add(await agent.prewarmSessionMetadata(100));
+				await readMetadata(agent, 'retry');
+				lease.dispose();
+				assert.deepStrictEqual({
+					listCalls: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+				}, { listCalls: 2, metadataCalls: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('client shutdown invalidates retained metadata even while an old lease is held', async () => {
+			const client = new TestCopilotClient([sdkSession('shutdown')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const lease = disposables.add(await agent.prewarmSessionMetadata(100));
+				await agent.shutdown();
+				const afterShutdown = disposables.add(await agent.prewarmSessionMetadata(100));
+				assert.strictEqual(afterShutdown, Disposable.None);
+				lease.dispose();
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('an unavailable client does not cache an empty snapshot or prevent retry', async () => {
+			const client = new MetadataClient([sdkSession('available')]);
+			client.listError = new CancellationError();
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const unavailable = disposables.add(await agent.prewarmSessionMetadata(100));
+				client.listError = undefined;
+				const available = disposables.add(await agent.prewarmSessionMetadata(100));
+				const metadata = await readMetadata(agent, 'available');
+				available.dispose();
+				assert.deepStrictEqual({
+					unavailable: unavailable === Disposable.None,
+					listCalls: client.listSessionCallCount,
+					metadataCalls: client.getSessionMetadataCalls,
+					summary: metadata?.summary,
+				}, { unavailable: true, listCalls: 2, metadataCalls: [], summary: 'SDK available' });
 			} finally {
 				await disposeAgent(agent);
 			}

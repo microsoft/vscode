@@ -6313,14 +6313,16 @@ suite('AgentService (node dispatcher)', () => {
 		class CountingMetadataAgent extends TimedExternalAgent {
 			metadataCalls: string[] = [];
 			prewarmCalls = 0;
+			prewarmSessionCounts: number[] = [];
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
 				return super.getChatMetadata(chat, context);
 			}
 
-			async prewarmSessionMetadata() {
+			async prewarmSessionMetadata(expectedSessionCount: number) {
 				this.prewarmCalls++;
+				this.prewarmSessionCounts.push(expectedSessionCount);
 				return toDisposable(() => { });
 			}
 		}
@@ -7602,6 +7604,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: agent.metadataCalls,
 				providerPrewarmCalls: agent.prewarmCalls,
 				sessionDatabaseOpenSessions: [...new Set(databaseOpens)],
+				prewarmSessionCounts: agent.prewarmSessionCounts,
 				sessionDatabaseOpenCount: databaseOpens.length,
 			}, {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
@@ -7609,8 +7612,44 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: [fallbackSession.toString()],
 				providerPrewarmCalls: 1,
 				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
+				prewarmSessionCounts: [1],
 				sessionDatabaseOpenCount: 4,
 			});
+		});
+
+		test('prewarm counts include only fallback sessions and are grouped by provider', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const agents = [
+				disposables.add(new CountingMetadataAgent('copilot')),
+				disposables.add(new CountingMetadataAgent('other')),
+			];
+			for (const [index, agent] of agents.entries()) {
+				for (let i = 0; i < index + 2; i++) {
+					const session = agent.addSession(`fallback-${i}`, 25);
+					await orchestratorDatabase.registerSessionV2(session.toString(), {
+						provider: agent.id, startTime: 10, source: 'explicit',
+					}, { checkTombstone: false });
+				}
+				const eligible = agent.addSession('eligible', 30);
+				await orchestratorDatabase.registerSessionV2(eligible.toString(), {
+					provider: agent.id, startTime: 10, source: 'explicit',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(eligible, centralData(eligible, 30, 'Central'));
+			}
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			for (const agent of agents) {
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+			}
+			await svc.whenCatalogReconciliationIdle();
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessionCount: listed.length,
+				prewarmCounts: agents.map(agent => agent.prewarmSessionCounts),
+			}, { sessionCount: 7, prewarmCounts: [[2], [3]] });
 		});
 
 		test('central list drops an ineligible row whose fallback has no provider and lists eligible rows without a session database', async () => {
