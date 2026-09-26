@@ -951,7 +951,6 @@ interface IRenderEditorOptions {
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
-	readonly mcpTab?: string;
 	readonly toolsSearchQuery?: string;
 	readonly emptyWorkspaceSection?: boolean;
 	readonly emptyUserSection?: boolean;
@@ -1827,13 +1826,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		await new Promise(resolve => setTimeout(resolve, 100));
 	}
 
-	if (options.mcpTab) {
-		const tab = Array.from(ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .customization-tree-tab'))
-			.find(element => element.textContent?.includes(options.mcpTab!));
-		tab?.click();
-		await new Promise(resolve => setTimeout(resolve, 100));
-	}
-
 	if (options.toolsSearchQuery) {
 		const input = ctx.container.querySelector('.tools-content-container input') as HTMLInputElement | null;
 		if (input) {
@@ -2704,7 +2696,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// MCP Servers tab with many servers to verify scrollable list layout
+	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups. The tree edges align with the title and search field.'],
@@ -2716,24 +2708,22 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers page shows connected connector MCP servers in User or Built-In, and a Connectors tab with connected, connect, retry, and review states.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows a Connectors section above the Installed tree with connected, connect, retry, and review states. Connected connector MCP servers also appear under Installed.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
-			mcpTab: 'Connectors',
 		}),
 	}),
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The empty Connectors tab explains that no connectors are available instead of showing a blank page.'],
+		expectedVisualDescriptions: ['When no connectors are available, the MCP Servers page omits the empty Connectors section and keeps the Installed tree usable.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [],
-			mcpTab: 'Connectors',
 		}),
 	}),
 
@@ -3526,7 +3516,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
-			mcpTab: 'Connectors',
 			openFirstItem: true,
 			openItemLabel: 'Work IQ Mail',
 		}),
