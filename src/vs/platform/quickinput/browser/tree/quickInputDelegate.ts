@@ -5,6 +5,7 @@
 
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IQuickTreeItem } from '../../common/quickInput.js';
+import { QUICK_INPUT_ITEM_HEIGHT } from '../quickInputConstants.js';
 import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 
 /**
@@ -12,7 +13,7 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
  */
 export class QuickInputTreeDelegate<T extends IQuickTreeItem> implements IListVirtualDelegate<T> {
 	getHeight(_element: T): number {
-		return 22;
+		return QUICK_INPUT_ITEM_HEIGHT;
 	}
 
 	getTemplateId(_element: T): string {

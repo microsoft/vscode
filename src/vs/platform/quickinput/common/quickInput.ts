@@ -954,6 +954,15 @@ export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
 export type QuickInputAlignment = 'top' | 'center' | 'custom';
 
+/** Command identifiers for keyboard-accessible quick input resizing. */
+export const enum QuickInputCommandId {
+	IncreaseWidth = 'quickInput.increaseWidth',
+	DecreaseWidth = 'quickInput.decreaseWidth',
+	IncreaseHeight = 'quickInput.increaseHeight',
+	DecreaseHeight = 'quickInput.decreaseHeight',
+	ResetSize = 'quickInput.resetSize'
+}
+
 export interface IQuickInputService {
 
 	readonly _serviceBrand: undefined;
@@ -1066,6 +1075,16 @@ export interface IQuickInputService {
 	 * @param alignment either a preset or a custom alignment
 	 */
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
+
+	/**
+	 * Resizes the current quick input by the given pixel dimensions.
+	 */
+	resize(widthChange: number, heightChange: number): void;
+
+	/**
+	 * Resets the current quick input dimensions while preserving its position.
+	 */
+	resetSize(): void;
 }
 
 //#region Quick Tree
