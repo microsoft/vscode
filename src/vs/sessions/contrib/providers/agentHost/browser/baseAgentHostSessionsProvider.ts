@@ -6090,7 +6090,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
 			if (committedSession) {
-				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				const sentConfig = sendOptions.agentHostSessionConfig ?? {};
+				this._preserveNewSessionConfig(newSession, committedSession.sessionId, sentConfig);
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
 				}
@@ -6107,7 +6108,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					committedAdapter.setChatAgent(committedAdapter.resource, newSession.getSelectedAgent());
 				}
 				// Replay edits made while committing, after the session handler dispatched the original snapshot.
-				const sentConfig = sendOptions.agentHostSessionConfig ?? {};
 				const changedConfig = Object.fromEntries(Object.entries(newSession.getConfigValues() ?? {}).filter(([property, value]) => !equals(value, sentConfig[property])));
 				this._dispatchRunningSessionConfig(committedSession.sessionId, changedConfig);
 				// Session graduated: release the eager subscription without
@@ -6157,21 +6157,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * When a session transitions from untitled (new) to committed (running),
-	 * carry over the full resolved config (schema + values) so consumers like
-	 * the session-settings JSONC editor can round-trip non-mutable values
-	 * (`isolation`, `branch`, …) through a replace dispatch. Mutable-vs-readonly
-	 * behavior is still driven off the per-property `sessionMutable` flag.
+	 * carry over the config schema with the values the host received, so
+	 * consumers like the session-settings JSONC editor can round-trip
+	 * non-mutable values (`isolation`, `branch`, …) through a replace dispatch.
+	 * Mutable-vs-readonly behavior is still driven off the per-property
+	 * `sessionMutable` flag.
 	 */
-	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string): void {
-		const config = newSession.getConfig();
-		if (config && Object.keys(config.schema.properties).length > 0) {
+	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string, values: Record<string, unknown>): void {
+		const schema = newSession.getConfig()?.schema;
+		if (schema && Object.keys(schema.properties).length > 0) {
 			this._runningSessionConfigs.set(committedSessionId, {
-				schema: { type: 'object', properties: { ...config.schema.properties } },
-				values: { ...config.values },
+				schema: { type: 'object', properties: { ...schema.properties } },
+				values: { ...values },
 			});
 		}
 
-		this._applyWorktreeIsolation(committedSessionId, config?.values);
+		this._applyWorktreeIsolation(committedSessionId, values);
 	}
 
 	private _preserveNewSessionModelSelection(

@@ -2704,10 +2704,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.resolveSessionConfigResult = { schema, values: { autoApprove: 'default', isolation: 'worktree' } };
 		const { provider, session, rawId, sent, commit } = await sendFirstRequestWithoutCommitting();
 
-		// The re-resolve also changes the non-mutable isolation, which must not be forwarded.
+		// The re-resolve also changes the non-mutable isolation, which must not reach the host.
 		agentHost.resolveSessionConfigResult = { schema, values: { autoApprove: 'autoApprove', isolation: 'folder' } };
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autoApprove');
 		const committed = await commit();
+		const committedResolveConfig = agentHost.resolveSessionConfigRequests.at(-1)?.config;
 		const sessionChannel = AgentSession.uri('copilotcli', rawId).toString();
 		const configDispatches = agentHost.dispatchedActions
 			.filter(dispatch => dispatch.channel === sessionChannel && dispatch.action.type === ActionType.SessionConfigChanged)
@@ -2728,10 +2729,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			sentWithFirstRequest: sent[0].agentHostSessionConfig,
 			configDispatches,
+			committedResolveConfig,
 			afterHostState: provider.getSessionConfig(committed.sessionId)?.values,
 		}, {
 			sentWithFirstRequest: { autoApprove: 'default', isolation: 'worktree' },
 			configDispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }],
+			committedResolveConfig: { autoApprove: 'autoApprove', isolation: 'worktree' },
 			afterHostState: { autoApprove: 'autoApprove', isolation: 'worktree' },
 		});
 	});
