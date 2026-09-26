@@ -71,6 +71,8 @@ import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -135,6 +137,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 	private _githubProfileAccountKey: string | undefined;
+	private _welcomePhraseAnnounced = false;
 
 	private static _takeNextWelcomePhraseIndex(): number {
 		const index = nextNewSessionWelcomePhraseIndex;
@@ -152,6 +155,7 @@ export class NewChatWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -533,13 +537,15 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			configuredWelcomeNameChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
-			this._updateWelcomeMessage(
+			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
+			const phrase = this._updateWelcomeMessage(
 				welcomeMessage,
 				welcomeMessageTitle,
 				this._showWelcomePhrases.read(reader),
 				this._welcomePhraseIndex,
 				this._getWelcomeName(profileName),
 			);
+			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 
@@ -812,11 +818,11 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): void {
+	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): string | undefined {
 		container.hidden = !visible;
 		if (!visible) {
 			title.textContent = '';
-			return;
+			return undefined;
 		}
 
 		const phrase = accountName
@@ -841,6 +847,27 @@ export class NewChatWidget extends Disposable {
 				localize('newSession.welcome.ship', "Let’s ship something"),
 			][phraseIndex];
 		title.textContent = phrase;
+		return phrase;
+	}
+
+	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
+		if (
+			!phrase
+			|| !inputVisible
+			|| this._welcomePhraseAnnounced
+			|| !this.accessibilityService.isScreenReaderOptimized()
+			|| !this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.NewSessionWelcome)
+		) {
+			return;
+		}
+
+		this._welcomePhraseAnnounced = true;
+		this.accessibilityService.status(localize(
+			'newSession.welcome.announcement',
+			"{0}\nTo disable this announcement, set {1} to false.",
+			phrase,
+			AccessibilityVerbositySettingId.NewSessionWelcome,
+		));
 	}
 
 	private _renderChatTip(): void {

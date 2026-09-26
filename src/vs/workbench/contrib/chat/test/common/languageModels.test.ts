@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -127,6 +127,15 @@ suite('LanguageModels', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bounds Auto edit attribution to known tiers and leaves other models unset', () => {
+		const known = ['efficiency', 'balance', 'intelligence', 'fast'];
+		const tiers = [undefined, ...known, '', 'auto', 'default', 'balanced', 'Efficiency', ' efficiency ', ...Array.from({ length: 100 }, (_, i) => `unknown-${i}`)];
+		const modelIds = ['copilot/auto', undefined, 'copilot/gpt-5', 'copilot|auto', 'auto'];
+
+		assert.deepStrictEqual(modelIds.map(modelId => tiers.map(tier => getAutoModelTier(modelId, tier))),
+			modelIds.map(modelId => tiers.map(tier => modelId === 'copilot/auto' && tier !== undefined && known.includes(tier) ? tier : undefined)));
+	});
 
 	test('empty selector returns all', async function () {
 

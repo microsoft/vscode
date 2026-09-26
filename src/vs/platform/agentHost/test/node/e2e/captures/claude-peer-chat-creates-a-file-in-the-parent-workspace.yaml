@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -17,7 +17,7 @@ exchanges:
             content: PEER_CREATED
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -35,5 +35,5 @@ exchanges:
               tool_use_id: toolcall_0
               content: 'File created successfully at: ${workdir}/peer-created.txt (file state is current in your context — no need to Read it back)'
     response:
-      content: Created `peer-created.txt` containing `PEER_CREATED`.
+      content: I created `${workdir}/peer-created.txt`. It contains exactly `PEER_CREATED`, with no newline at the end.
       stopReason: end_turn

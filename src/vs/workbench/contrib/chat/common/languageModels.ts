@@ -931,6 +931,20 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  */
 const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 
+/** Returns a known, client-resolved Auto tier suitable for edit attribution. */
+export function getAutoModelTier(modelId: string | undefined, autoTier: string | undefined) {
+	if (modelId === AUTO_MODEL_IDENTIFIER) {
+		switch (autoTier) {
+			case 'efficiency':
+			case 'balance':
+			case 'intelligence':
+			case 'fast':
+				return autoTier;
+		}
+	}
+	return undefined;
+}
+
 /** The provider-agnostic model id of the Auto meta-model. */
 export const AUTO_RAW_MODEL_ID = 'auto';
 
