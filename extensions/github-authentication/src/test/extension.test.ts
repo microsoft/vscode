@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { enterpriseUrisSetting } from '../common/enterpriseConfiguration';
 import { enterpriseUriSetting } from '../common/enterpriseStorage';
 import { activate } from '../extension';
 import { GitHubSessionEngine } from '../github';
@@ -21,14 +22,17 @@ suite('GitHub authentication activation', () => {
 	let registration: sinon.SinonStub;
 	let errors: sinon.SinonStub;
 	let configurationChanged: vscode.EventEmitter<vscode.ConfigurationChangeEvent>;
+	let trustGranted: vscode.EventEmitter<void>;
 
 	setup(() => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		disposables.push(new vscode.Disposable(() => clock.restore()));
 		configurationChanged = new vscode.EventEmitter<vscode.ConfigurationChangeEvent>();
+		trustGranted = new vscode.EventEmitter<void>();
 		const logLevels = new vscode.EventEmitter<vscode.LogLevel>();
-		disposables.push(configurationChanged, logLevels);
+		disposables.push(configurationChanged, trustGranted, logLevels);
 		sinon.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake(configurationChanged.event);
+		sinon.stub(vscode.workspace, 'onDidGrantWorkspaceTrust').callsFake(trustGranted.event);
 		sinon.stub(vscode.window, 'registerUriHandler').returns(new vscode.Disposable(() => { }));
 		sinon.stub(vscode.window, 'createOutputChannel').returns({
 			name: 'Test',
@@ -60,16 +64,16 @@ suite('GitHub authentication activation', () => {
 		return createTestExtensionContext(disposables, secrets, state);
 	}
 
-	function configure(uri: string) {
+	function configure(uris: string[], legacy?: string, scope: 'globalValue' | 'workspaceValue' = 'globalValue') {
 		const config: vscode.WorkspaceConfiguration = {
-			get: sinon.stub().callsFake(key => key === enterpriseUriSetting ? uri : true),
-			inspect: sinon.stub(),
+			get: sinon.stub().callsFake(key => key === enterpriseUrisSetting ? uris : key === enterpriseUriSetting ? legacy : true),
+			inspect: sinon.stub().callsFake(() => ({ key: enterpriseUrisSetting, defaultValue: [], [scope]: uris })),
 			has: sinon.stub(),
 			update: sinon.stub()
 		};
 		sinon.stub(vscode.workspace, 'getConfiguration').returns(config);
 		return {
-			setUri(value: string): void { uri = value; }
+			setUri(value: string): void { uris = [value]; }
 		};
 	}
 
@@ -86,7 +90,7 @@ suite('GitHub authentication activation', () => {
 		disposables.push(secrets);
 		await secrets.store('github.auth', JSON.stringify([publicSession]));
 		const state = new TestMemento();
-		configure('https://tenant.example/Team');
+		configure(['https://tenant.example/Team']);
 		const read = sinon.stub(GitHubSessionEngine.prototype, 'getSessions').callThrough();
 		read.onFirstCall().rejects(new Error('Enterprise initialization failed'));
 
@@ -109,7 +113,7 @@ suite('GitHub authentication activation', () => {
 	test('a configuration change can recover enterprise authentication after an initial failure', async () => {
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);
-		configure('https://tenant.example/Team');
+		configure(['https://tenant.example/Team']);
 		const read = sinon.stub(GitHubSessionEngine.prototype, 'getSessions').callThrough();
 		read.onFirstCall().rejects(new Error('Enterprise initialization failed'));
 		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
@@ -127,20 +131,23 @@ suite('GitHub authentication activation', () => {
 		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1, attempts: 2 });
 	});
 
-	for (const failure of ['secret read', 'account link migration'] as const) {
+	for (const failure of ['secret read', 'account link migration', 'conflicting stores'] as const) {
 		test(`enterprise ${failure} failure leaves public GitHub active and registers an actionable enterprise error`, async () => {
 			const secrets = new TestSecretStorage();
 			disposables.push(secrets);
 			await secrets.store('github.auth', JSON.stringify([publicSession]));
 			const state = new TestMemento();
-			configure('https://tenant.example/Team');
+			configure(['https://tenant.example/Team', 'https://tenant.example/Team/']);
 			if (failure === 'secret read') {
 				sinon.stub(secrets, 'get').callThrough().withArgs('https://tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
-			} else {
+			} else if (failure === 'account link migration') {
 				await state.update('tenant.example/Team.ghes.auth.microsoftAccountLinks', [{
 					gitHubAccountId: '42', gitHubAccountLabel: 'octocat', microsoftAccountLabel: 'mona@example.com'
 				}]);
 				state.updateError = new Error('Account link storage is unavailable');
+			} else {
+				await secrets.store('tenant.example/Team.ghes.auth', JSON.stringify([publicSession]));
+				await secrets.store('tenant.example/Team/.ghes.auth', JSON.stringify([publicSession]));
 			}
 
 			await activate(context(secrets, state));
@@ -148,7 +155,7 @@ suite('GitHub authentication activation', () => {
 			const publicProvider = providers.get('github');
 			const enterpriseProvider = providers.get('github-enterprise');
 			assert.ok(publicProvider && enterpriseProvider);
-			const message = failure === 'secret read' ? /Secret storage is unavailable/ : /Account link storage is unavailable/;
+			const message = failure === 'secret read' ? /Secret storage is unavailable/ : failure === 'account link migration' ? /Account link storage is unavailable/ : /Multiple saved authentication stores/;
 			assert.match(errors.firstCall.args[0], message);
 			await assert.rejects(Promise.resolve(enterpriseProvider.createSession(['repo'], {})), message);
 			assert.deepStrictEqual({
@@ -163,14 +170,14 @@ suite('GitHub authentication activation', () => {
 	test('a configuration change can recover enterprise authentication after an initial storage failure', async () => {
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);
-		configure('https://tenant.example/Team');
+		configure(['https://tenant.example/Team']);
 		const read = sinon.stub(secrets, 'get').callThrough().withArgs('https://tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
 		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
 		await activate(context(secrets, new TestMemento()));
 		const publicProvider = providers.get('github');
 		read.resolves(undefined);
 
-		configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUriSetting });
+		configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUrisSetting });
 		await update.lastCall.returnValue;
 
 		assert.deepStrictEqual({
@@ -188,7 +195,7 @@ suite('GitHub authentication activation', () => {
 		test(`initial failure preserves the latest configuration ${replacementFails ? 'error' : 'session'} (${changes.join(' -> ')})`, async () => {
 			const secrets = new TestSecretStorage();
 			disposables.push(secrets);
-			const config = configure('https://initial.example');
+			const config = configure(['https://initial.example']);
 			const initialRead = Promise.withResolvers<vscode.AuthenticationSession[]>();
 			const initialStarted = Promise.withResolvers<void>();
 			for (const uri of new Set(['https://initial.example', ...changes])) {
@@ -213,7 +220,7 @@ suite('GitHub authentication activation', () => {
 			await initialStarted.promise;
 			for (const uri of changes) {
 				config.setUri(uri);
-				configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUriSetting });
+				configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUrisSetting });
 			}
 			const latestUpdate = update.lastCall.returnValue;
 			initialRead.reject(new Error('Superseded initialization failed'));
@@ -242,4 +249,24 @@ suite('GitHub authentication activation', () => {
 		});
 	}
 
+	test('granting trust applies an explicitly empty workspace list without depending on a value-change event', async () => {
+		const secrets = new TestSecretStorage();
+		disposables.push(secrets);
+		let trusted = false;
+		sinon.stub(vscode.workspace, 'isTrusted').get(() => trusted);
+		configure([], 'https://legacy.example', 'workspaceValue');
+		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
+		await activate(context(secrets, new TestMemento()));
+		const before = registration.lastCall.args[3].supportedAuthorizationServers.map((uri: vscode.Uri) => uri.toString());
+
+		trusted = true;
+		trustGranted.fire();
+		await update.lastCall.returnValue;
+
+		assert.deepStrictEqual({
+			before,
+			after: registration.lastCall.args[3].supportedAuthorizationServers,
+			errorCount: errors.callCount
+		}, { before: ['https://legacy.example/login/oauth'], after: [], errorCount: 0 });
+	});
 });
