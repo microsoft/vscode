@@ -35,6 +35,14 @@ function createNullCopilotApiService(): ICopilotApiService {
 	};
 }
 
+class TestLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
 suite('WorktreeIsolation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -132,7 +140,7 @@ suite('WorktreeIsolation', () => {
 		};
 	}
 
-	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly sessionDataService?: ISessionDataService }): WorktreeIsolation {
+	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
@@ -141,7 +149,7 @@ suite('WorktreeIsolation', () => {
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
 			options?.sessionDataService ?? createSessionDataService(db),
-			new NullLogService(),
+			options?.logService ?? new NullLogService(),
 		));
 	}
 
@@ -326,7 +334,26 @@ suite('WorktreeIsolation', () => {
 	});
 
 	test('uses an explicitly selected remote branch as the worktree start point', async () => {
-		const isolation = createIsolation(disposables);
+		const gitService = createGitService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => {
+			operations.push(`resolve:${name}`);
+			return {
+				ref: `refs/remotes/${name}`,
+				name,
+				remote: 'origin',
+				kind: GitRefType.RemoteHead,
+			};
+		};
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService });
 		await isolation.resolveWorkingDirectory({
 			sessionUri,
 			sessionId,
@@ -341,9 +368,54 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			startPoint: addWorktreeCalls[0]?.commitish,
 			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+			operations,
 		}, {
 			startPoint: 'origin/main',
 			diffBaseBranch: 'origin/main',
+			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+		});
+	});
+
+	test('continues creating the worktree when fetching the selected remote fails', async () => {
+		const gitService = createGitService();
+		const logService = new TestLogService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			ref: `refs/remotes/${name}`,
+			name,
+			remote: 'origin',
+			kind: GitRefType.RemoteHead,
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+			throw new Error('network unavailable');
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService, logService });
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+			warnings: logService.warnings,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
 		});
 	});
 
