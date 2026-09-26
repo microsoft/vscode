@@ -5,15 +5,35 @@
 
 import { localize } from '../../../../nls.js';
 import { parse } from '../../../../base/common/json.js';
+import { AgentMergeSessionOverrides, agentMergeMergeBehaviorSummary, agentMergeMergePullRequestValues, isAgentMergeMergePullRequest } from '../../common/agentMerge.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
+export const setAgentMergeEnabledToolName = 'setAgentMergeEnabled';
 export const readAgentMergeCIToolName = 'readAgentMergeCI';
 export const replyToAgentMergeReviewThreadToolName = 'replyToAgentMergeReviewThread';
 export const rerunAgentMergeWorkflowToolName = 'rerunAgentMergeWorkflow';
 
 const definitions: readonly IAgentServerToolDefinition[] = [
+	{
+		name: setAgentMergeEnabledToolName,
+		title: 'Configure Agent Merge',
+		description: 'Enable, disable, or configure Agent Merge for the current chat\'s folder when the user asks to start, stop, or configure Agent Merge, keep a pull request green, or merge it when ready. Not for one-off pull request inspection or repair. This does not change the global Agent Merge setting or GitHub auto-merge. Enablement and supplied options persist for this folder within the session; other folders are unchanged. Only change options the user requests. Enabling monitoring alone does not enable automatic merging: for an explicit "merge when green" request, set mergePullRequest to "always", or "ifUnchanged" if the user wants to review agent-made changes first. Use the returned effective configuration when explaining what will happen. Initial enablement captures the current Git branch and returns target.branchName; autonomous work starts after the current turn ends. Calling again updates the configuration even when already enabled without changing the target; omitted options stay unchanged. The current tool-approval policy applies.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				enabled: { type: 'boolean', description: 'Whether Agent Merge should monitor and act on the pull request for this chat\'s folder. Pass true to update options while keeping it enabled.' },
+				addressReviews: { type: 'boolean', description: 'Whether to address new pull request review comments. Omit to preserve the current option.' },
+				fixCI: { type: 'boolean', description: 'Whether to fix failing CI checks. Omit to preserve the current option.' },
+				resolveConflicts: { type: 'boolean', description: 'Whether to resolve merge conflicts and update a behind branch. Omit to preserve the current option.' },
+				mergePullRequest: { type: 'string', enum: [...agentMergeMergePullRequestValues], description: 'When to merge automatically once ready: always, only while unchanged by Agent Merge, or never. Omit to preserve the current option.' },
+			},
+			required: ['enabled'],
+		},
+		annotations: { readOnlyHint: false },
+		deferLoading: true,
+	},
 	{
 		name: readAgentMergeCIToolName,
 		title: 'Read Agent Merge CI',
@@ -34,6 +54,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 			},
 		},
 		annotations: { readOnlyHint: true },
+		deferLoading: true,
 	},
 	{
 		name: replyToAgentMergeReviewThreadToolName,
@@ -49,6 +70,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 			required: ['threadId', 'body'],
 		},
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 	{
 		name: rerunAgentMergeWorkflowToolName,
@@ -63,14 +85,17 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 			required: ['runId'],
 		},
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 ];
 
+/** Agent Merge tool implementations, each invoked with the chat the tool call comes from. */
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
-	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
-	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
-	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
+	setEnabled(chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string>;
+	readFailedCI(chat: string, request?: AgentMergeCIRequest): Promise<string>;
+	replyToReviewThread(chat: string, threadId: string, body: string, resolve: boolean): Promise<string>;
+	rerunFailedWorkflow(chat: string, runId: string, failedJobsOnly: boolean): Promise<string>;
 }
 
 export interface AgentMergeCIRequest {
@@ -134,17 +159,37 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 		definitions,
 		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
 		isEnabledForSession: () => true,
+		canRequireConfirmation: toolName => toolName === setAgentMergeEnabledToolName,
 		execute: (_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
 			}
+			// The invoking chat: Agent Merge runs per folder, and a repair turn's
+			// authorization belongs only to the chat running it.
+			const chat = context.chatUri;
 			switch (toolName) {
+				case setAgentMergeEnabledToolName: {
+					const args = asRecord(rawArgs, toolName);
+					if (Object.keys(args).some(key => !['enabled', 'addressReviews', 'fixCI', 'resolveConflicts', 'mergePullRequest'].includes(key))) {
+						throw new Error(`Invalid ${toolName} input: unsupported configuration option.`);
+					}
+					const mergePullRequest = args.mergePullRequest;
+					if (mergePullRequest !== undefined && !isAgentMergeMergePullRequest(mergePullRequest)) {
+						throw new Error(`Invalid ${toolName} input: mergePullRequest must be always, ifUnchanged, or never.`);
+					}
+					return accessor.setEnabled(chat, requiredBoolean(args.enabled, 'enabled', toolName), {
+						...(args.addressReviews !== undefined ? { addressReviews: requiredBoolean(args.addressReviews, 'addressReviews', toolName) } : {}),
+						...(args.fixCI !== undefined ? { fixCI: requiredBoolean(args.fixCI, 'fixCI', toolName) } : {}),
+						...(args.resolveConflicts !== undefined ? { resolveConflicts: requiredBoolean(args.resolveConflicts, 'resolveConflicts', toolName) } : {}),
+						...(mergePullRequest !== undefined ? { mergePullRequest } : {}),
+					});
+				}
 				case readAgentMergeCIToolName:
-					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));
+					return accessor.readFailedCI(chat, parseAgentMergeCIRequest(rawArgs));
 				case replyToAgentMergeReviewThreadToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.replyToReviewThread(
-						context.sessionUri,
+						chat,
 						requiredString(args.threadId, 'threadId', toolName),
 						requiredString(args.body, 'body', toolName),
 						optionalBoolean(args.resolve, 'resolve', toolName) ?? true,
@@ -153,7 +198,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 				case rerunAgentMergeWorkflowToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.rerunFailedWorkflow(
-						context.sessionUri,
+						chat,
 						requiredString(args.runId, 'runId', toolName),
 						optionalBoolean(args.failedJobsOnly, 'failedJobsOnly', toolName) ?? true,
 					);
@@ -162,12 +207,41 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 					throw new Error(`Unknown Agent Merge server tool: ${toolName}`);
 			}
 		},
-		getDisplay: (toolName, _args, result) => getDisplay(toolName, result),
+		getDisplay,
 	};
 }
 
-function getDisplay(toolName: string, result: IServerToolDisplayResult | undefined): IServerToolDisplay | undefined {
+function getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
+		case setAgentMergeEnabledToolName: {
+			if (!isRecord(args)) {
+				return undefined;
+			}
+			const enabled = args.enabled;
+			if (typeof enabled !== 'boolean') {
+				return undefined;
+			}
+			const configure = enabled && ['addressReviews', 'fixCI', 'resolveConflicts', 'mergePullRequest'].some(key => args[key] !== undefined);
+			return {
+				displayName: configure
+					? localize('agentMerge.tool.configure', "Configure Agent Merge")
+					: enabled
+						? localize('agentMerge.tool.enable', "Enable Agent Merge")
+						: localize('agentMerge.tool.disable', "Disable Agent Merge"),
+				invocationMessage: configure
+					? localize('agentMerge.tool.configure.running', "Configuring Agent Merge")
+					: enabled
+						? localize('agentMerge.tool.enable.running', "Enabling Agent Merge")
+						: localize('agentMerge.tool.disable.running', "Disabling Agent Merge"),
+				pastTenseMessage: getEnablementMessage(enabled, result),
+				confirmationTitle: configure
+					? localize('agentMerge.tool.configure.confirmationTitle', "Configure Agent Merge?")
+					: enabled
+						? localize('agentMerge.tool.enable.confirmationTitle', "Enable Agent Merge?")
+						: localize('agentMerge.tool.disable.confirmationTitle', "Disable Agent Merge?"),
+				confirmationMessage: getEnablementConfirmation(enabled, args),
+			};
+		}
 		case readAgentMergeCIToolName:
 			return {
 				displayName: localize('agentMerge.tool.readCI', "Read Agent Merge CI"),
@@ -195,6 +269,61 @@ function getDisplay(toolName: string, result: IServerToolDisplayResult | undefin
 	}
 }
 
+function getEnablementConfirmation(enabled: boolean, args: Record<string, unknown>): string {
+	const changes: string[] = [];
+	if (typeof args.addressReviews === 'boolean') {
+		changes.push(args.addressReviews
+			? localize('agentMerge.tool.configure.addressReviews.on', "Address new pull request review comments.")
+			: localize('agentMerge.tool.configure.addressReviews.off', "Do not address pull request review comments."));
+	}
+	if (typeof args.fixCI === 'boolean') {
+		changes.push(args.fixCI
+			? localize('agentMerge.tool.configure.fixCI.on', "Fix failing CI checks.")
+			: localize('agentMerge.tool.configure.fixCI.off', "Do not fix failing CI checks."));
+	}
+	if (typeof args.resolveConflicts === 'boolean') {
+		changes.push(args.resolveConflicts
+			? localize('agentMerge.tool.configure.resolveConflicts.on', "Resolve merge conflicts and update the branch when it falls behind.")
+			: localize('agentMerge.tool.configure.resolveConflicts.off', "Do not resolve merge conflicts or update a behind branch."));
+	}
+	switch (args.mergePullRequest) {
+		case 'always':
+			changes.push(localize('agentMerge.tool.configure.merge.always', "Merge the pull request automatically when it is ready, including changes made by Agent Merge."));
+			break;
+		case 'ifUnchanged':
+			changes.push(localize('agentMerge.tool.configure.merge.ifUnchanged', "Merge the pull request automatically when it is ready, only if Agent Merge has not made changes."));
+			break;
+		case 'never':
+			changes.push(localize('agentMerge.tool.configure.merge.never', "Do not merge the pull request automatically."));
+			break;
+	}
+	if (changes.length === 0) {
+		return enabled
+			? localize('agentMerge.tool.enable.confirmationMessage', "Allow Agent Merge to monitor the pull request for this chat's folder and work autonomously using its existing options, including merging if configured?")
+			: localize('agentMerge.tool.disable.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this chat's folder?");
+	}
+	const heading = enabled
+		? localize('agentMerge.tool.configure.confirmationMessage', "Allow Agent Merge to monitor the pull request for this chat's folder and work autonomously with these option changes? Unspecified options stay unchanged.")
+		: localize('agentMerge.tool.configure.disabled.confirmationMessage', "Stop Agent Merge monitoring and autonomous work for this chat's folder, and save these option changes? Unspecified options stay unchanged.");
+	return [heading, '', ...changes.map(change => `- ${change}`)].join('\n');
+}
+
+function getEnablementMessage(enabled: boolean, result: IServerToolDisplayResult | undefined): string {
+	if (result?.success === false) {
+		return localize('agentMerge.tool.setEnabled.failed', "Failed to update Agent Merge");
+	}
+	const value: { readonly enabled?: boolean; readonly configuration?: { readonly mergePullRequest?: string }; readonly monitoring?: string } | undefined = result?.text ? parse(result.text) : undefined;
+	if (value?.enabled && isAgentMergeMergePullRequest(value.configuration?.mergePullRequest)) {
+		const summary = agentMergeMergeBehaviorSummary(value.configuration.mergePullRequest);
+		return value.monitoring === 'pending'
+			? localize('agentMerge.tool.enable.pending', "Agent Merge enabled; monitoring starts after this turn. {0}", summary)
+			: localize('agentMerge.tool.enable.configured', "Agent Merge enabled. {0}", summary);
+	}
+	return (value?.enabled ?? enabled)
+		? localize('agentMerge.tool.enable.complete', "Enabled Agent Merge")
+		: localize('agentMerge.tool.disable.complete', "Disabled Agent Merge");
+}
+
 function getWorkflowRerunMessage(result: IServerToolDisplayResult | undefined): string {
 	if (result?.success === false) {
 		return localize('agentMerge.tool.rerunWorkflow.failed', "Failed to rerun workflow");
@@ -210,11 +339,15 @@ function getWorkflowRerunMessage(result: IServerToolDisplayResult | undefined): 
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function asRecord(value: unknown, toolName: string): Record<string, unknown> {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+	if (!isRecord(value)) {
 		throw new Error(`Invalid ${toolName} input: expected an object.`);
 	}
-	return value as Record<string, unknown>;
+	return value;
 }
 
 function requiredString(value: unknown, field: string, toolName: string): string {
@@ -224,12 +357,13 @@ function requiredString(value: unknown, field: string, toolName: string): string
 	return value;
 }
 
-function optionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
+function requiredBoolean(value: unknown, field: string, toolName: string): boolean {
 	if (typeof value !== 'boolean') {
 		throw new Error(`Invalid ${toolName} input: ${field} must be a boolean.`);
 	}
 	return value;
+}
+
+function optionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
+	return value === undefined ? undefined : requiredBoolean(value, field, toolName);
 }

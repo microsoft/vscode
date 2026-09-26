@@ -114,6 +114,12 @@ export interface IAgentHostTerminalService {
 	 * is provided. Call with `undefined` to clear.
 	 */
 	setDefaultCwd(cwd: URI | undefined): void;
+
+	/**
+	 * The address of the agent host a terminal runs on, or `undefined` when it
+	 * is not an agent host terminal or its host is no longer registered.
+	 */
+	getAgentHostAddress(instance: ITerminalInstance): string | undefined;
 }
 
 export class AgentHostTerminalService extends Disposable implements IAgentHostTerminalService {
@@ -134,6 +140,8 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	 * keyed by terminal URI string. Used for reconnection scoping.
 	 */
 	private readonly _activePtys = new Map<string, { pty: AgentHostPty; clientId: string }>();
+	/** The {@link _activePtys} key and connection of each agent host terminal, keyed by instance id. */
+	private readonly _instanceKeys = new Map<number, { readonly key: string; readonly clientId: string }>();
 	private readonly _pendingRevives = new Map<string, Promise<ITerminalInstance>>();
 
 	constructor(
@@ -339,7 +347,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			throw error;
 		}
 
-		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
+		this._registerInstancePtyCleanup(instance, key, connection.clientId, ptyRegistration);
 
 		return instance;
 	}
@@ -410,7 +418,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 		this._revivedInstances.set(key, instance);
 		instance.store.add(store);
-		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
+		this._registerInstancePtyCleanup(instance, key, connection.clientId, ptyRegistration);
 
 		return instance;
 	}
@@ -445,8 +453,12 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	 * Ties the registration's lifetime to the terminal instance so the local
 	 * pty is disposed even on paths that never call `shutdown()`.
 	 */
-	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, ptyRegistration: IAgentHostPtyRegistration): void {
+	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, clientId: string, ptyRegistration: IAgentHostPtyRegistration): void {
+		this._instanceKeys.set(instance.instanceId, { key, clientId });
 		const cleanup = () => {
+			if (this._instanceKeys.get(instance.instanceId)?.key === key) {
+				this._instanceKeys.delete(instance.instanceId);
+			}
 			if (this._revivedInstances.get(key) === instance) {
 				this._revivedInstances.delete(key);
 			}
@@ -458,6 +470,16 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		} else {
 			instance.store.add(instance.onDisposed(cleanup));
 		}
+	}
+
+	getAgentHostAddress(instance: ITerminalInstance): string | undefined {
+		const registration = this._instanceKeys.get(instance.instanceId);
+		if (!registration) {
+			return undefined;
+		}
+		// Reconnection moves the terminal's PTY to the new connection.
+		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
+		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
 	}
 
 	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {

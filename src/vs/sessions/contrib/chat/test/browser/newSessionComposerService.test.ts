@@ -61,4 +61,28 @@ suite('NewSessionComposerService', () => {
 			userVersion: 1,
 		});
 	});
+
+	test('tracks draft input changes and excludes unready composers from live content checks', () => {
+		const service = disposables.add(new NewSessionComposerService());
+		const changed = disposables.add(new Emitter<void>());
+		let ready = false;
+		let hasInput = false;
+		const registration = service.registerComposer({
+			...composer(),
+			get isInputReady() { return ready; },
+			get hasInput() { return hasInput; },
+			onDidChangeInput: changed.event,
+		});
+		const beforeReady = service.hasDraftInput;
+		ready = true;
+		const empty = service.hasDraftInput;
+		hasInput = true;
+		changed.fire();
+		const occupied = service.hasDraftInput;
+		registration.dispose();
+		changed.fire();
+		assert.deepStrictEqual({ beforeReady, empty, occupied, disposed: service.hasDraftInput, version: service.inputVersion.get() }, {
+			beforeReady: undefined, empty: false, occupied: true, disposed: undefined, version: 1,
+		});
+	});
 });

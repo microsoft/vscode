@@ -368,12 +368,11 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label .monaco-button,
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-collapsible-content-animation,
+.chat-subagent-part.chat-used-context.chat-subagent-open-chat-only > .chat-collapsible-content-animation,
 .chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-list {
 	display: none;
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label::after {
+.chat-subagent-part > .chat-used-context-label::after {
 	display: none;
 }

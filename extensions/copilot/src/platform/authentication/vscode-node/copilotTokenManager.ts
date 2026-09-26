@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, window } from 'vscode';
+import * as l10n from '@vscode/l10n';
+import { AuthenticationSession, env, window } from 'vscode';
 import { FetchBlockedError } from '../../../shared-fetch-utils/common/fetchTypes';
 import { DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS } from '../../../shared-fetch-utils/common/middleware/rateLimitBackoffMiddleware';
 import { TaskSingler } from '../../../util/common/taskSingler';
-import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { isEqual } from '../../../util/vs/base/common/resources';
+import { AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { IDomainService } from '../../endpoint/common/domainService';
 import { IEnvService } from '../../env/common/envService';
@@ -18,6 +20,9 @@ import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { CopilotToken, ExtendedTokenInfo, TokenErrorNotificationId, TokenInfoOrError } from '../common/copilotToken';
 import { ErrorNoTelemetry } from '../../../util/vs/base/common/errors';
 import { nowSeconds } from '../common/copilotTokenManager';
+import { authProviderId } from '../common/authentication';
+import { ICopilotTokenStore } from '../common/copilotTokenStore';
+import { resolveGitHubSessionUri } from '../common/enterprise';
 import { BaseCopilotTokenManager } from '../node/copilotTokenManager';
 import { getAnyAuthSession } from './session';
 
@@ -47,7 +52,8 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 		@ICAPIClientService capiClientService: ICAPIClientService,
 		@IFetcherService fetcherService: IFetcherService,
 		@IEnvService envService: IEnvService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ICopilotTokenStore private readonly _tokenStore: ICopilotTokenStore
 	) {
 		super(new BaseOctoKitService(capiClientService, fetcherService, logService, telemetryService), logService, telemetryService, domainService, capiClientService, fetcherService, envService);
 	}
@@ -72,14 +78,8 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 		return new CopilotToken(this.copilotToken);
 	}
 
-	private async _auth(): Promise<TokenInfoOrError> {
-		const failWith = this.configurationService.getConfig(ConfigKey.Advanced.DebugGitHubAuthFailWith);
-		if (failWith) {
-			return { kind: 'failure', reason: failWith };
-		}
-
-		const allowNoAuthAccess = this.configurationService.getNonExtensionConfig<boolean>('chat.allowAnonymousAccess');
-		const session = await getAnyAuthSession(this.configurationService, { silent: true });
+	private async _auth(session: AuthenticationSession | undefined, providerId: AuthProviderId): Promise<TokenInfoOrError> {
+		const allowNoAuthAccess = providerId === AuthProviderId.GitHub && this.configurationService.getNonExtensionConfig<boolean>('chat.allowAnonymousAccess');
 		if (!session && !allowNoAuthAccess) {
 			this._logService.warn('GitHub login failed');
 			this._telemetryService.sendGHTelemetryErrorEvent('auth.github_login_failed');
@@ -111,7 +111,23 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 	}
 
 	private async _authShowWarnings(): Promise<ExtendedTokenInfo> {
-		const tokenResult = await this._taskSingler.getOrCreate('auth', () => this._auth());
+		const failWith = this.configurationService.getConfig(ConfigKey.Advanced.DebugGitHubAuthFailWith);
+		let tokenResult: TokenInfoOrError;
+		if (failWith) {
+			tokenResult = { kind: 'failure', reason: failWith };
+		} else {
+			const providerId = authProviderId(this.configurationService);
+			const session = await getAnyAuthSession(this.configurationService, { silent: true });
+			const enterpriseUri = session && providerId === AuthProviderId.GitHubEnterprise ? resolveGitHubSessionUri(session, providerId) : undefined;
+			if (providerId !== authProviderId(this.configurationService) || (session && !isEqual(enterpriseUri, this._tokenStore.githubEnterpriseUri))) {
+				throw new GitHubLoginFailedError(l10n.t('The GitHub account changed while getting a session.'));
+			}
+			const key = JSON.stringify([providerId, session?.account.id, session?.authorizationServer?.toString(), session?.accessToken]);
+			tokenResult = await this._taskSingler.getOrCreate(key, () => this._auth(session, providerId));
+			if (providerId !== authProviderId(this.configurationService) || (session && !isEqual(enterpriseUri, this._tokenStore.githubEnterpriseUri))) {
+				throw new GitHubLoginFailedError(l10n.t('The GitHub account changed while fetching a Copilot token.'));
+			}
+		}
 		this.sendTokenResultErrorTelemetry(tokenResult);
 
 		if (tokenResult.kind === 'failure' && tokenResult.reason === 'NotAuthorized') {

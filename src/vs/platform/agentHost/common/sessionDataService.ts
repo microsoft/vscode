@@ -8,12 +8,15 @@ import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
+import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
 import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
+
+export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
@@ -105,6 +108,40 @@ export interface ILocalTurnRecord {
 	payload: string;
 }
 
+interface ISessionCatalogSyncIdentity {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+}
+
+/** Durable canonical catalog projection awaiting central acknowledgement. */
+export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: string;
+	readonly payloadHash: string;
+	readonly acknowledgedHash?: string;
+	readonly state: 'pending';
+}
+
+/** Compact receipt retained after the pending payload has been acknowledged. */
+export interface ISessionCatalogSyncAcknowledgedSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: undefined;
+	readonly payloadHash: string;
+	readonly acknowledgedHash: string;
+	readonly state: 'acknowledged';
+}
+
+export type ISessionCatalogSyncSnapshot = ISessionCatalogSyncPendingSnapshot | ISessionCatalogSyncAcknowledgedSnapshot;
+
+/** Identity fields required to acknowledge exactly one catalog synchronization snapshot. */
+export interface ISessionCatalogSyncAcknowledgement {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+	readonly payloadHash: string;
+}
+
+/** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -152,6 +189,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Returns whether the session database contains any persisted conversation
+	 * turn, including host-injected local turns.
+	 */
+	hasConversationTurns(): Promise<boolean>;
 
 	/**
 	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
@@ -303,6 +346,28 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
 
+	/**
+	 * Store terminal output for a tool invocation within an existing turn.
+	 * Replaces any output already stored for the same tool call.
+	 */
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void>;
+
+	/**
+	 * Delete terminal output for a tool invocation.
+	 */
+	deleteTerminalOutput(toolCallId: string): Promise<void>;
+
+	/**
+	 * Return the stored terminal output size in bytes without loading its content.
+	 */
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
+
+	/**
+	 * Read terminal output for a tool invocation.
+	 * Returns `undefined` if no output exists for the given tool call.
+	 */
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
+
 	// ---- Session metadata ------------------------------------------------
 
 	/**
@@ -336,6 +401,26 @@ export interface ISessionDatabase extends IDisposable {
 	 * by `copies` are read from their source keys and copied when present.
 	 */
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
+	 * Atomically stores metadata and advances the durable catalog relay snapshot.
+	 */
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+
+	/**
+	 * Atomically transitions to a new session generation when the stored generation matches.
+	 */
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+
+	/**
+	 * Returns the durable catalog relay snapshot, if one has been stored.
+	 */
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined>;
+
+	/**
+	 * Acknowledges the snapshot only when every supplied identity field still matches.
+	 */
+	acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean>;
 
 	/**
 	 * Store or clear the draft for a chat in this session.
@@ -497,6 +582,33 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+
+	/**
+	 * Cumulative per-session storage access counts for this host process, when
+	 * the implementation tracks them.
+	 *
+	 * Opening a session database is the dominant cost of any listing that
+	 * cannot be served from the catalog, and it is the one figure that
+	 * compares across machines — wall-clock timings do not, because per-file
+	 * costs differ by an order of magnitude between platforms (virus
+	 * scanning, filesystem). Diagnostics log these counts so a single log
+	 * export explains a slow session list without needing a custom build.
+	 *
+	 * Optional because it is diagnostics only: an implementation that does not
+	 * own real files (test doubles, in-memory fakes) has nothing to report.
+	 */
+	readonly storageAccessCounts?: ISessionStorageAccessCounts;
+}
+
+/**
+ * Cumulative counts of per-session storage accesses. See
+ * {@link ISessionDataService.storageAccessCounts}.
+ */
+export interface ISessionStorageAccessCounts {
+	/** Databases actually opened (cache misses), not reference acquisitions. */
+	readonly opens: number;
+	/** Existence probes performed by `tryOpenDatabase`. */
+	readonly stats: number;
 }
 
 /**

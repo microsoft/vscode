@@ -6,8 +6,9 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
-- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the setting-gated default-model guidance for subagents (`chat.copilot.subagentModelGuidance.enabled`).
+- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -46,9 +47,9 @@ These lines compose with a per-model `tool_instructions` override (see `composeT
 
 ## Tool search (deferred tool loading)
 
-When `chat.agentHost.copilot.toolSearch.enabled` is on AND the session's model supports it (`agentHostModelSupportsToolSearch`), the launcher sets `toolSearch: { enabled: true, deferThreshold: 1 }` and the session defers MCP + non-core client tools behind the runtime's `tool_search_tool`:
+When `chat.agentHost.copilot.toolSearch.enabled` is on AND the session's model supports it (`agentHostModelSupportsToolSearch`), the launcher sets `toolSearch: { enabled: true, deferThreshold: 1 }` and the session defers MCP tools, non-core client tools, and server tools marked with `deferLoading` behind the runtime's `tool_search_tool`:
 
-- **The override** (`copilotAgentSession._createClientSdkTools`): the client's forwarded `toolSearch` tool is registered as `tool_search_tool` with `overridesBuiltInTool: true` and `defer: 'never'`, so the runtime routes the model's search to the client's semantic search. The SDK supplies the runtime's live deferred-tool metadata to the override handler; Agent Host carries that corpus as transient tool-call metadata and injects it only into the local `toolSearch` invocation, so embeddings rank the runtime/MCP tools rather than the extension's registry. The corpus is never added to model-facing tool input. Every other client tool gets `defer: 'never'` if it is in `NON_DEFERRED_CLIENT_TOOL_NAMES` (`runTests`, `rename`, `usages`), else `defer: 'auto'`. Built-in runtime tools are never deferred. The renderer (`agentHostSessionHandler._setupClientToolCall`) maps `tool_search_tool` back to `toolSearch` to execute the real VS Code tool.
+- **The override** (`copilotAgentSession._createClientSdkTools`): the client's forwarded `toolSearch` tool is registered as `tool_search_tool` with `overridesBuiltInTool: true` and `defer: 'never'`, so the runtime routes the model's search to the client's semantic search. The SDK supplies the runtime's live deferred-tool metadata to the override handler; Agent Host carries that corpus as transient tool-call metadata and injects it only into the local `toolSearch` invocation, so embeddings rank the runtime/MCP tools rather than the extension's registry. The corpus is never added to model-facing tool input. Every other client tool gets `defer: 'never'` if it is in `NON_DEFERRED_CLIENT_TOOL_NAMES` (`runTests`, `semanticSearch`), else `defer: 'auto'`. Built-in runtime tools are never deferred. The renderer (`agentHostSessionHandler._setupClientToolCall`) maps `tool_search_tool` back to `toolSearch` to execute the real VS Code tool.
 - **The prompt** (this folder): `toolSearchInstructionLines(toolSearchActive)` adds a `tool_instructions` line (`toolSearchToolInstructions`) telling the model to load deferred tools via `tool_search_tool` first — gated on `context.toolSearchActive` because the `toolSearch` tool is *always* forwarded, so presence alone can't gate it. The runtime already emits its own deferred-tools reminder (`build_deferred_tools_user_message`) with the accurate deferred set, so this layer intentionally does NOT re-list the deferred tools.
 
 The two identity/count levers are independent: `deferThreshold` is a total tool-count gate (1 ⇒ always active), while each tool's `defer` flag decides whether *that* tool is deferred.
@@ -78,6 +79,8 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 ```
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
+
+This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/`o3`/`o4` families, and the `openai` family alias; it has no setting. GPT and `openai` matching follows Copilot Chat's `isOpenAIModel` family conventions, case-insensitively. Agent Host has a model ID rather than endpoint-provider metadata; a custom model ID can use the existing `family` override to route through a known OpenAI family. The experiment is isolated to the branch and tracked in [microsoft/vscode-internalbacklog#9579](https://github.com/microsoft/vscode-internalbacklog/issues/9579). It discourages automatic post-edit rereads and full-diff reviews, but preserves targeted reads for failed checks, ambiguous tool output, or correctness uncertainty, required validation, and explicitly requested broader reviews. It does not change delegation or non-OpenAI models. Guidance is resolved on session create/resume; existing in-flight sessions keep their launch-time prompt.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 

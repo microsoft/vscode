@@ -21,7 +21,7 @@ import { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
@@ -44,10 +44,12 @@ interface IRouterHarness {
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
 	readonly recordedSessionUris: string[] = [];
+	readonly recordedChatUris: (string | undefined)[] = [];
 	readonly flushedSessionUris: string[] = [];
 
 	override async recordEdit(edit: IAgentEditAttribution) {
 		this.recordedSessionUris.push(edit.sessionUri);
+		this.recordedChatUris.push(edit.chatUri);
 		return undefined;
 	}
 
@@ -91,12 +93,12 @@ function createRouter(
 	return { router, signals, fileService };
 }
 
-function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
-	return { type: 'assistant', message: { content } } as Extract<SDKMessage, { type: 'assistant' }>;
+function assistantMessage(content: unknown, parentToolUseId: string | null = null): Extract<SDKMessage, { type: 'assistant' }> {
+	return { type: 'assistant', message: { content }, parent_tool_use_id: parentToolUseId } as Extract<SDKMessage, { type: 'assistant' }>;
 }
 
-function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
-	return { type: 'user', message: { content } } as Extract<SDKMessage, { type: 'user' }>;
+function userMessage(content: unknown, parentToolUseId: string | null = null): Extract<SDKMessage, { type: 'user' }> {
+	return { type: 'user', message: { content }, parent_tool_use_id: parentToolUseId } as Extract<SDKMessage, { type: 'user' }>;
 }
 
 suite('ClaudeSdkMessageRouter', () => {
@@ -153,10 +155,43 @@ suite('ClaudeSdkMessageRouter', () => {
 
 		assert.deepStrictEqual({
 			recordedSessionUris: attributionService.recordedSessionUris,
+			recordedChatUris: attributionService.recordedChatUris,
 			flushedSessionUris: attributionService.flushedSessionUris,
 		}, {
 			recordedSessionUris: [chatChannelUri.toString()],
+			recordedChatUris: [chatChannelUri.toString()],
 			flushedSessionUris: [chatChannelUri.toString()],
+		});
+	});
+
+	test('uses available subagent provenance from edit start and completion', async () => {
+		const sessionUri = 'claude:/sess-1';
+		const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
+		const attributionService = new RecordingAgentEditAttributionService();
+		const { router, fileService } = createRouter(disposables, chatChannelUri, attributionService);
+		const file = URI.file('/work/subagent.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+		for (const { parentToolUseId, availableAtStart } of [
+			{ parentToolUseId: 'task-1', availableAtStart: true },
+			{ parentToolUseId: 'nested-task', availableAtStart: true },
+			{ parentToolUseId: 'result-task', availableAtStart: false },
+		]) {
+			const toolUseId = `edit-${parentToolUseId}`;
+			await router.handle(assistantMessage([
+				{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: file.fsPath, content: parentToolUseId } },
+			], availableAtStart ? parentToolUseId : null), 'turn-1');
+			await fileService.writeFile(file, VSBuffer.fromString(parentToolUseId));
+			await router.handle(userMessage([
+				{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' },
+			], availableAtStart ? null : parentToolUseId), 'turn-1');
+		}
+		assert.deepStrictEqual({
+			sessionUris: attributionService.recordedSessionUris,
+			chatUris: attributionService.recordedChatUris,
+		}, {
+			sessionUris: [chatChannelUri.toString(), chatChannelUri.toString(), chatChannelUri.toString()],
+			chatUris: ['task-1', 'nested-task', 'result-task'].map(toolCallId => buildSubagentChatUri(sessionUri, toolCallId)),
 		});
 	});
 });

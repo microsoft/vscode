@@ -23,7 +23,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
 
 	public invocationMessage: string | IMarkdownString;
-	public readonly originMessage: string | IMarkdownString | undefined;
+	public originMessage: string | IMarkdownString | undefined;
 	public pastTenseMessage: string | IMarkdownString | undefined;
 	public confirmationMessages: IToolConfirmationMessages | undefined;
 	public presentation: IPreparedToolInvocation['presentation'];
@@ -294,6 +294,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (preparedInvocation.invocationMessage) {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
+		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;
@@ -316,6 +317,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (preparedInvocation.invocationMessage) {
 			this.invocationMessage = preparedInvocation.invocationMessage;
 		}
+		this.originMessage = preparedInvocation.originMessage ?? this.originMessage;
 		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
 		this.confirmationMessages = preparedInvocation.confirmationMessages;
 		this.presentation = preparedInvocation.presentation;
@@ -348,6 +350,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			type: IChatToolInvocation.StateKind.Completed,
 			confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
 			resultDetails: result?.toolResultDetails,
+			resultError: result?.toolResultError,
 			postConfirmed,
 			contentForModel: result?.content || [],
 			parameters: this.parameters,
@@ -447,6 +450,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
+			...(this.icon ? { icon: this.icon } : {}),
+			resultError: IChatToolInvocation.resultError(this),
 			resultDetails: isToolResultOutputDetails(details)
 				? { output: { type: 'data', mimeType: details.output.mimeType, base64Data: encodeBase64(details.output.value) } }
 				: details,

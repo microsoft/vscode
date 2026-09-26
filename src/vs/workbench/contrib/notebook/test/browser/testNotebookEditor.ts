@@ -12,6 +12,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -277,7 +278,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	let visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
 
-	const id = Date.now().toString();
+	const id = generateUuid();
 	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		// eslint-disable-next-line local/code-must-use-super-dispose
 		override dispose() {
@@ -440,18 +441,9 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 		}
 	};
 
-	const res = await callback(model, disposables, instantiationService);
-	if (res instanceof Promise) {
-		res.finally(() => {
-			originalNotebook.editor.dispose();
-			originalNotebook.viewModel.notebookDocument.dispose();
-			originalNotebook.viewModel.dispose();
-			modifiedNotebook.editor.dispose();
-			modifiedNotebook.viewModel.notebookDocument.dispose();
-			modifiedNotebook.viewModel.dispose();
-			disposables.dispose();
-		});
-	} else {
+	try {
+		return await callback(model, disposables, instantiationService);
+	} finally {
 		originalNotebook.editor.dispose();
 		originalNotebook.viewModel.notebookDocument.dispose();
 		originalNotebook.viewModel.dispose();
@@ -460,7 +452,6 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 		modifiedNotebook.viewModel.dispose();
 		disposables.dispose();
 	}
-	return res;
 }
 
 interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegate {
@@ -488,21 +479,14 @@ export async function withTestNotebook<R = any>(cells: MockNotebookCell[], callb
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
 
 	return runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, disposables, instantiationService);
-		if (res instanceof Promise) {
-			res.finally(() => {
-				notebookEditor.editor.dispose();
-				notebookEditor.viewModel.dispose();
-				notebookEditor.editor.textModel.dispose();
-				disposables.dispose();
-			});
-		} else {
+		try {
+			return await callback(notebookEditor.editor, notebookEditor.viewModel, disposables, instantiationService);
+		} finally {
 			notebookEditor.editor.dispose();
 			notebookEditor.viewModel.dispose();
 			notebookEditor.editor.textModel.dispose();
 			disposables.dispose();
 		}
-		return res;
 	});
 }
 

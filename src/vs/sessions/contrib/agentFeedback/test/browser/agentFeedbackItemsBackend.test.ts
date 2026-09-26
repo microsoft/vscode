@@ -220,4 +220,72 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			],
 		});
 	});
+
+	test('moves to the provider\'s new connection after a reconnect', () => {
+		const sessionResource = URI.parse('remote-agent-host:///session');
+		const annotationsUri = URI.parse('copilot:///session/annotations');
+		const resourceUris = createAgentHostResourceUriMapper('remote-test');
+		const log: string[] = [];
+		const createConnection = (name: string) => new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = resourceUris;
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				log.push(`${name}: subscribe`);
+				const state: AnnotationsState = { annotations: [] };
+				const subscription: IAgentSubscription<AnnotationsState> = {
+					value: state,
+					verifiedValue: state,
+					onDidChange: Event.None,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				};
+				return {
+					object: subscription as IAgentSubscription<ComponentToState[T]>,
+					dispose: () => log.push(`${name}: unsubscribe`),
+				};
+			}
+			override dispatch(_channel: string, action: ClientAnnotationsAction): void {
+				log.push(`${name}: ${action.type}`);
+			}
+		}();
+		let connection = createConnection('old');
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override getFeedbackAnnotationsChannel() {
+				return { connection, annotationsUri };
+			}
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly providerId = 'agenthost-test';
+			override readonly sessionId = 'session';
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override getSession() { return session; }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T {
+				return provider as unknown as T;
+			}
+		});
+		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
+
+		backend.getItems(sessionResource);
+		connection = createConnection('new');
+		backend.upsert({
+			id: 'added',
+			text: 'Added feedback',
+			resourceUri: resourceUris.fromAgentHost(URI.file('added.ts')),
+			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			sessionResource,
+			kind: AgentFeedbackKind.UserReview,
+			state: AgentFeedbackState.Accepted,
+		});
+
+		assert.deepStrictEqual(log, [
+			'old: subscribe',
+			'old: unsubscribe',
+			'new: subscribe',
+			'new: annotations/set',
+		]);
+	});
 });
