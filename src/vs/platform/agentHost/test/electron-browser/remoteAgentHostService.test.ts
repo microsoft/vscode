@@ -13,6 +13,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { URI } from '../../../../base/common/uri.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -68,6 +69,10 @@ class MockProtocolClient extends Disposable {
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
+	operatingSystem = 'linux';
+	networkDiagnosticsError: Error | undefined;
+	networkDiagnosticsDeferred: DeferredPromise<void> | undefined;
+	networkDiagnosticsRequestCount = 0;
 	nextReconnectAt: number | undefined;
 	reconnectNowCalls = 0;
 	reconnectNowResult = false;
@@ -90,6 +95,26 @@ class MockProtocolClient extends Disposable {
 	async triggerVscodeUpgrade(method: string) {
 		this.triggerVscodeUpgradeCalls.push(method);
 		return { ok: true, upgradeStarted: true };
+	}
+
+	async getNetworkDiagnosticsInfo() {
+		this.networkDiagnosticsRequestCount++;
+		const deferred = this.networkDiagnosticsDeferred;
+		const error = this.networkDiagnosticsError;
+		if (deferred) {
+			await deferred.p;
+		}
+		if (error) {
+			throw error;
+		}
+		return {
+			version: '1.0.0',
+			os: this.operatingSystem,
+			arch: 'x64',
+			proxySettings: {},
+			proxyEnv: {},
+			endpoints: [],
+		};
 	}
 
 	fireClose(reason?: AgentHostTransportFailureReason): void {
@@ -605,7 +630,13 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		const connection = await connectionPromise;
 
-		assert.deepStrictEqual(connection, {
+		assert.deepStrictEqual({
+			address: connection.address,
+			name: connection.name,
+			clientId: connection.clientId,
+			defaultDirectory: connection.defaultDirectory,
+			status: connection.status,
+		}, {
 			address: 'host1:8080',
 			name: 'Host 1',
 			clientId: createdClients[0].clientId,
@@ -633,7 +664,13 @@ suite('RemoteAgentHostService', () => {
 			name: 'Updated Host',
 			connectionToken: 'new-token',
 		}]);
-		assert.deepStrictEqual(connection, {
+		assert.deepStrictEqual({
+			address: connection.address,
+			name: connection.name,
+			clientId: connection.clientId,
+			defaultDirectory: connection.defaultDirectory,
+			status: connection.status,
+		}, {
 			address: 'host1:8080',
 			name: 'Updated Host',
 			clientId: createdClients[0].clientId,
@@ -1586,11 +1623,151 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	suite('host operating system', () => {
+		async function waitForOperatingSystem(address: string, operatingSystem: OperatingSystem): Promise<void> {
+			while (service.connections.find(connection => connection.address === address)?.operatingSystem !== operatingSystem) {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+		}
+
+		test('resolves mixed authority operating systems independently', async () => {
+			configService.setEntries([
+				{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } },
+				{ name: 'Linux', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://linux:8080' } },
+			]);
+			await waitForCreatedClients(2);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[0].connectDeferred.complete();
+			createdClients[1].connectDeferred.complete();
+			await Promise.all([
+				waitForOperatingSystem('windows:8080', OperatingSystem.Windows),
+				waitForOperatingSystem('linux:8080', OperatingSystem.Linux),
+			]);
+
+			assert.deepStrictEqual(service.connections.map(connection => ({
+				address: connection.address,
+				operatingSystem: connection.operatingSystem,
+			})), [
+				{ address: 'windows:8080', operatingSystem: OperatingSystem.Windows },
+				{ address: 'linux:8080', operatingSystem: OperatingSystem.Linux },
+			]);
+		});
+
+		test('retries operating system lookup after a soft reconnect', async () => {
+			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].networkDiagnosticsError = new Error('transport closed');
+			createdClients[0].connectDeferred.complete();
+			await waitForConnected();
+			while (createdClients[0].networkDiagnosticsRequestCount < 1) {
+				await timeout(0);
+			}
+			await timeout(0);
+			createdClients[0].networkDiagnosticsError = undefined;
+
+			createdClients[0].fireConnectionState('reconnecting');
+			createdClients[0].fireConnectionState('connected');
+			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
+
+			assert.deepStrictEqual({
+				operatingSystem: service.connections[0]?.operatingSystem,
+				networkDiagnosticsRequestCount: createdClients[0].networkDiagnosticsRequestCount,
+			}, {
+				operatingSystem: OperatingSystem.Windows,
+				networkDiagnosticsRequestCount: 2,
+			});
+		});
+
+		test('retries an in-flight operating system lookup after a soft reconnect', async () => {
+			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].networkDiagnosticsError = new Error('transport closed');
+			const initialRequest = createdClients[0].networkDiagnosticsDeferred = new DeferredPromise<void>();
+			createdClients[0].connectDeferred.complete();
+			await waitForConnected();
+			while (createdClients[0].networkDiagnosticsRequestCount < 1) {
+				await timeout(0);
+			}
+
+			createdClients[0].fireConnectionState('reconnecting');
+			createdClients[0].fireConnectionState('connected');
+			createdClients[0].networkDiagnosticsDeferred = undefined;
+			createdClients[0].networkDiagnosticsError = undefined;
+			initialRequest.complete();
+			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
+
+			assert.strictEqual(createdClients[0].networkDiagnosticsRequestCount, 2);
+		});
+
+		test('retains the last known operating system while redialing and refreshes replacement connections', async () => {
+			configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+
+			service.reconnect('host:8080');
+			await waitForCreatedClients(2);
+			const whileRedialing = service.connections[0]?.operatingSystem;
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[1].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+
+			assert.deepStrictEqual({
+				whileRedialing,
+				afterReplacement: service.connections[0]?.operatingSystem,
+			}, {
+				whileRedialing: OperatingSystem.Windows,
+				afterReplacement: OperatingSystem.Linux,
+			});
+		});
+
+		test('clears operating system state on removal and disablement', async () => {
+			const entry: IRemoteAgentHostEntry = { name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } };
+			configService.setEntries([entry]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+
+			configService.setEntries([]);
+			configService.setEntries([entry]);
+			await waitForCreatedClients(2);
+			const afterRemoval = service.connections[0]?.operatingSystem;
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[1].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+
+			configService.setEnabled(false);
+			configService.setEnabled(true);
+			await waitForCreatedClients(3);
+			const afterDisablement = service.connections[0]?.operatingSystem;
+
+			assert.deepStrictEqual({
+				afterRemoval,
+				afterDisablement,
+			}, {
+				afterRemoval: undefined,
+				afterDisablement: undefined,
+			});
+		});
+	});
+
 	suite('host label formatter', () => {
 
 		function formatterFor(address: string): ResourceLabelFormatter | undefined {
 			const authority = agentHostAuthority(address);
 			return registeredFormatters.find(f => f.scheme === AGENT_HOST_SCHEME && f.authority === authority);
+		}
+
+		async function waitForFormatter(address: string, predicate: (formatter: ResourceLabelFormatter | undefined) => boolean): Promise<ResourceLabelFormatter> {
+			while (!predicate(formatterFor(address))) {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+			return formatterFor(address)!;
 		}
 
 		test('registers formatter when an entry is added', async () => {
@@ -1599,6 +1776,21 @@ suite('RemoteAgentHostService', () => {
 			const formatter = formatterFor('host1:8080');
 			assert.ok(formatter, 'formatter is registered');
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('updates formatter with native Windows path formatting after connecting', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+
+			const formatter = await waitForFormatter('host1:8080', candidate => candidate?.formatting.separator === '\\');
+			assert.deepStrictEqual(formatter.formatting, {
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+				workspaceSuffix: 'Host 1',
+			});
 		});
 
 		test('refreshes formatter when an entry name changes', async () => {

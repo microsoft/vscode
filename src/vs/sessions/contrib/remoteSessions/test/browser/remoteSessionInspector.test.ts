@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -28,6 +29,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
@@ -43,6 +45,7 @@ class InspectionConnection extends mock<IAgentHostService>() {
 	override readonly clientId = 'window-client';
 	override readonly onAgentHostStart = Event.None;
 	override readonly onAgentHostExit = Event.None;
+	override readonly resourceUris = identityAgentHostResourceUriMapper;
 	readonly manager: AgentSubscriptionManager;
 	readonly snapshots = new Map<string, IStateSnapshot | Promise<IStateSnapshot>>();
 	readonly subscribed: string[] = [];
@@ -130,7 +133,7 @@ suite('RemoteSessionInspector', () => {
 			}
 			override getConnectionByAuthority(authority: string) { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
 		const providersService = new class extends mock<ISessionsProvidersService>() {
 			override getProviders() { return providers; }
 		}();
