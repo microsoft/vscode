@@ -192,22 +192,38 @@ export function firstHttpUrl(applicationUrl: string): string | undefined {
 		.find(u => /^https?:\/\//.test(u));
 }
 
-/** Split a launch profile's commandLineArgs string into arguments, honouring double quotes
- *  (e.g. `--message "hello world"` stays one argument). Empty quoted arguments are kept
- *  and `\"` escapes a literal quote; other backslashes are literal (Windows paths). */
+/** Split a launch profile's commandLineArgs string into arguments using the standard
+ *  Windows argument-parsing rules (CommandLineToArgvW semantics, matching what the
+ *  dotnet CLI itself does): backslash pairs are literal, an odd trailing backslash
+ *  escapes the following quote, double quotes toggle quoting, and `""` is an empty
+ *  argument. Example: `--message "hello world"` stays one argument for the value. */
 export function splitCommandLineArgs(args: string): string[] {
 	const out: string[] = [];
 	let current = '';
 	let hasToken = false;
 	let inQuote = false;
+	let backslashes = 0;
 	for (let i = 0; i < args.length; i++) {
 		const ch = args[i];
-		if (ch === '"') {
-			inQuote = !inQuote;
-			hasToken = true; // `""` is an (empty) argument
+		if (ch === '\\') {
+			backslashes++;
+			hasToken = true;
 			continue;
 		}
-		if (!inQuote && ch === ' ') {
+		if (ch === '"') {
+			current += '\\'.repeat(Math.floor(backslashes / 2));
+			if (backslashes % 2 === 1) {
+				current += '"'; // escaped quote: literal, quoting state unchanged
+			} else {
+				inQuote = !inQuote;
+				hasToken = true;
+			}
+			backslashes = 0;
+			continue;
+		}
+		current += '\\'.repeat(backslashes);
+		backslashes = 0;
+		if (ch === ' ' && !inQuote) {
 			if (hasToken) {
 				out.push(current);
 				current = '';
@@ -215,15 +231,10 @@ export function splitCommandLineArgs(args: string): string[] {
 			}
 			continue;
 		}
-		if (ch === '\\' && args[i + 1] === '"') {
-			current += '"';
-			i++;
-			hasToken = true;
-			continue;
-		}
 		current += ch;
 		hasToken = true;
 	}
+	current += '\\'.repeat(backslashes);
 	if (hasToken) {
 		out.push(current);
 	}
