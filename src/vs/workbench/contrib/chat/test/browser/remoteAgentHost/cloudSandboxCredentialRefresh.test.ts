@@ -404,6 +404,71 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		assert.deepStrictEqual({ calls: credentials.callCount, tokenWhileRefreshing }, { calls: 1, tokenWhileRefreshing: initialToken });
 	}));
 
+	test('repairs connection setup with a scoped refresh despite a valid expiry', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, creds } = createRefresher(
+			tokenExpiringIn(40, START_TIME),
+			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'refreshed' }) }),
+		);
+		await refresher.refreshConnectionCredentials();
+		refresher.dispose();
+
+		assert.deepStrictEqual({
+			token: creds.token.access_token,
+			requests: credentials.requests.map(({ request, clientId }) => ({ request, clientId })),
+		}, {
+			token: 'refreshed',
+			requests: [{ request: { environmentId: 'env_1', sessionId: 'session-1' }, clientId: 'client-1' }],
+		});
+	}));
+
+	test('connection repair shares a background refresh even while cached credentials are valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(1, START_TIME), () => response.p);
+		await timeout(30_000);
+		const first = refresher.refreshConnectionCredentials();
+		const second = refresher.refreshConnectionCredentials();
+		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
+		await Promise.all([first, second]);
+		refresher.dispose();
+
+		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token.access_token }, { calls: 1, token: 'shared' });
+	}));
+
+	for (const { name, step } of [
+		{ name: 'transient rejection', step: () => Promise.reject(new CloudSandboxRequestError(503, 'unavailable')) },
+		{ name: 'permanent rejection', step: () => Promise.reject(new CloudSandboxRequestError(403, 'forbidden')) },
+		{ name: 'waking', step: () => ({ kind: 'waking', waking: { retryAfterSeconds: 5 } }) },
+		{ name: 'invalid expiry', step: () => ({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { expires_at: 'invalid' }) }) },
+		{ name: 'inconsistent host key', step: () => ({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { host_encryption_key: REPLACEMENT_HOST_KEY }) }) },
+	] satisfies { name: string; step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult> }[]) {
+		test(`does not mistake cached valid credentials for a successful connection repair after ${name}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const { refresher, credentials } = createRefresher(
+				tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
+				step,
+			);
+			await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed|usable future expiry/);
+			await assert.rejects(refresher.refreshConnectionCredentials(), /stopped or waiting to retry/);
+			refresher.dispose();
+			assert.strictEqual(credentials.callCount, 1);
+		}));
+	}
+
+	test('rate limits repeated successful connection repairs', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials } = createRefresher(
+			tokenExpiringIn(40, START_TIME),
+			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now()) }),
+		);
+		await refresher.refreshConnectionCredentials();
+		await timeout(29_999);
+		await assert.rejects(refresher.refreshConnectionCredentials(), /waiting to retry/);
+		const beforeDeadline = credentials.callCount;
+		await timeout(1);
+		await refresher.refreshConnectionCredentials();
+		refresher.dispose();
+
+		assert.deepStrictEqual({ beforeDeadline, calls: credentials.callCount }, { beforeDeadline: 1, calls: 2 });
+	}));
+
 	for (const expiresAt of [new Date(START_TIME).toISOString(), '', 'not-a-date']) {
 		test(`refreshes credentials immediately when expiry is ${expiresAt}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const refreshed = tokenExpiringIn(40, START_TIME, { access_token: 'fresh' });

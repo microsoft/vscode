@@ -17,7 +17,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -2813,7 +2813,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2822,7 +2822,7 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports };
 		}
@@ -2838,6 +2838,92 @@ suite('AgentHostProtocolClient', () => {
 				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [], _meta: meta },
 			});
 			await connectPromise;
+		}
+
+		test('retries initial authentication preparation on replay recovery without losing the initial root snapshot', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let preparations = 0;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+				prepareAuthentication: async () => {
+					if (++preparations === 1) {
+						throw new Error('credential service unavailable');
+					}
+				},
+				resolveInitialAuthentication: async () => ({ resource: 'https://api.example.com', token: 'fresh-credential' }),
+			});
+			const connecting = assert.rejects(client.connect(), /credential service unavailable/);
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transports[0], 'initialize', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id, result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 1,
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], activeSessions: 3 } }],
+				},
+			});
+			await connecting;
+			client.reconnectNow();
+			const retry = await waitForTransport(transports, 1);
+			retry.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(retry, 'reconnect', 0, 100);
+			retry.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			const authenticate = await waitForRequestAtWithin(retry, 'authenticate', 0, 100);
+			retry.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+			await waitForConnectedWithin(client, 100);
+			const root = client.rootState.value;
+			const activeSessions = root instanceof Error ? root : root?.activeSessions;
+			client.dispose();
+
+			assert.deepStrictEqual({ preparations, activeSessions }, { preparations: 2, activeSessions: 3 });
+		}));
+
+		for (const outcome of ['success', 'transient failure', 'disposed'] as const) {
+			test(`prepares initial authentication before sending credentials: ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const preparing = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				let resolutions = 0;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					prepareAuthentication: () => {
+						started.complete();
+						return preparing.p;
+					},
+					resolveInitialAuthentication: async () => {
+						resolutions++;
+						return { resource: 'https://api.example.com', token: 'fresh-credential' };
+					},
+				});
+				const transport = transports[0];
+				const connecting = client.connect();
+				const rejected = outcome === 'success' ? undefined : assert.rejects(connecting);
+				transport.connectDeferred.complete();
+				const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] },
+				});
+				await started.p;
+				const sentBeforePreparation = findRequest(transport, 'authenticate') !== undefined;
+				if (outcome === 'transient failure') {
+					await preparing.error(new Error('credential service unavailable'));
+					await rejected;
+				} else if (outcome === 'disposed') {
+					client.dispose();
+					await preparing.complete();
+					await rejected;
+				} else {
+					await preparing.complete();
+					const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+					transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+					await connecting;
+				}
+				const state = client.connectionState;
+				client.dispose();
+
+				assert.deepStrictEqual({ sentBeforePreparation, resolutions, state }, {
+					sentBeforePreparation: false,
+					resolutions: outcome === 'success' ? 1 : 0,
+					state: outcome === 'success' ? AgentHostClientState.Connected
+						: outcome === 'disposed' ? AgentHostClientState.Closed : AgentHostClientState.Reconnecting,
+				});
+			}));
 		}
 
 		for (const initiallyConnected of [false, true]) {

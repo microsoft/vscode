@@ -5,7 +5,7 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -50,6 +50,9 @@ interface IStagedCloudSandboxConnection {
 	readonly creds: ICloudSandboxCreds;
 	readonly clientId: string;
 	readonly refreshState: CloudSandboxCredentialRefreshState;
+	refresher: CloudSandboxCredentialRefresher | undefined;
+	reconnectRequiresRefresh: boolean;
+	lastAuthenticationToken: string | undefined;
 }
 
 /** Builds cloud sandbox protocol clients from credentials staged by the caller. */
@@ -101,6 +104,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	getConnectionObserver(entry: IRemoteAgentHostEntry): RemoteAgentHostConnectionObserver {
 		const address = getEntryAddress(entry);
+		const staged = this._stagedConnections.get(address);
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
 			telemetry = this._telemetryService.trackConnection('connection');
@@ -108,6 +112,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		}
 		const connectionTelemetry = telemetry;
 		return state => {
+			if (state === 'connected' && staged) {
+				staged.reconnectRequiresRefresh = false;
+			}
 			connectionTelemetry.onConnectionStateChange(state);
 			if (state === 'failed' || state === 'disposed') {
 				this.releaseTelemetry(address, connectionTelemetry);
@@ -132,6 +139,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			creds: { token: clientToken },
 			clientId: clientToken.client_id,
 			refreshState: new CloudSandboxCredentialRefreshState(),
+			refresher: undefined,
+			reconnectRequiresRefresh: true,
+			lastAuthenticationToken: undefined,
 		});
 		this._updateEntries();
 		return entry;
@@ -148,6 +158,20 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	getSealedGitHubToken(environmentId: string): string | undefined {
 		return this._stagedConnections.get(cloudSandboxAddress(environmentId))?.creds.token.encrypted_github_token;
+	}
+
+	async refreshSealedGitHubToken(environmentId: string): Promise<string | undefined> {
+		const address = cloudSandboxAddress(environmentId);
+		const staged = this._stagedConnections.get(address);
+		const refresher = staged?.refresher;
+		if (!staged || !refresher) {
+			throw new Error(`No active cloud sandbox credential refresher for ${address}.`);
+		}
+		const sealedToken = await refresher.refreshAuthenticationCredentials();
+		if (this._stagedConnections.get(address) !== staged || staged.refresher !== refresher) {
+			throw new CancellationError();
+		}
+		return sealedToken;
 	}
 
 	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -170,6 +194,12 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				staged.creds,
 				staged.refreshState,
 			));
+			staged.refresher = refresher;
+			store.add(toDisposable(() => {
+				if (staged.refresher === refresher) {
+					staged.refresher = undefined;
+				}
+			}));
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const telemetry = this._connectionTelemetry.get(address);
 			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
@@ -194,8 +224,20 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				{
 					clientId: staged.clientId,
 					clientInfo: editorWindowAgentHostClientInfo,
-					prepareReconnect: () => refresher.ensureUnexpiredCredentials(),
-					resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
+					prepareReconnect: async () => {
+						if (staged.reconnectRequiresRefresh) {
+							await refresher.refreshConnectionCredentials();
+						} else {
+							await refresher.ensureUnexpiredCredentials();
+						}
+						staged.reconnectRequiresRefresh = true;
+					},
+					prepareAuthentication: async () => {
+						if (staged.lastAuthenticationToken && staged.lastAuthenticationToken === staged.creds.token.encrypted_github_token) {
+							await refresher.refreshAuthenticationCredentials();
+						}
+					},
+					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged),
 				},
 			);
 			return { connection: client, transportDisposable: store };
@@ -205,18 +247,20 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		}
 	}
 
-	private async _resolveInitialAuthentication(address: string): Promise<{ readonly resource: string; readonly token: string } | undefined> {
+	private async _resolveInitialAuthentication(staged: IStagedCloudSandboxConnection): Promise<{ readonly resource: string; readonly token: string } | undefined> {
 		// Throw rather than returning `undefined`: an unusable token must fail
 		// the connection, not produce one that reports connected and then fails
 		// every authenticated request. The protocol client classifies this as an
 		// initial-authentication failure and surfaces it as incompatible.
-		const sealedToken = this._stagedConnections.get(address)?.creds.token.encrypted_github_token;
+		const address = getEntryAddress(staged.entry);
+		const sealedToken = staged.creds.token.encrypted_github_token;
 		if (!sealedToken) {
 			throw new Error(`Mission Control returned no sealed token for ${address}; the session cannot make authenticated requests.`);
 		}
 		if (!isCloudSandboxSealedToken(sealedToken)) {
 			throw new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
 		}
+		staged.lastAuthenticationToken = sealedToken;
 		return { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: sealedToken };
 	}
 
@@ -255,6 +299,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	getSealedGitHubToken(environmentId: string): string | undefined {
 		return this._connectionFactory.getSealedGitHubToken(environmentId);
+	}
+
+	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined> {
+		return this._connectionFactory.refreshSealedGitHubToken(environmentId);
 	}
 
 	async disconnect(address: string): Promise<void> {

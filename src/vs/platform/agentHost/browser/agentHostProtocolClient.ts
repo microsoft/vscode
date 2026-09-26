@@ -197,6 +197,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
 	/** Refresh connection prerequisites before constructing a replacement transport. */
 	readonly prepareReconnect?: () => Promise<void>;
+	/** Prepare credentials before initial authentication or restoration; transient failures remain reconnectable. */
+	readonly prepareAuthentication?: () => Promise<void>;
 	/** Resolves authentication to restore immediately after every fresh initialize. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 }
@@ -385,6 +387,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _clientInfo: Implementation | undefined;
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
+	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 
 	/**
@@ -451,6 +454,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._prepareReconnect = options?.prepareReconnect;
+		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 
 		if (typeof transportOrFactory === 'function') {
@@ -617,17 +621,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
 			this._applyInitializeResult(result);
+			// Keep the snapshot even if authentication must finish on a later replay reconnect.
+			for (const snapshot of result.snapshots ?? []) {
+				if (isAhpRootChannel(snapshot.resource)) {
+					this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
+				}
+			}
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
-				}
-			}
-
-			// Hydrate root state from the initial snapshot
-			for (const snapshot of result.snapshots ?? []) {
-				if (isAhpRootChannel(snapshot.resource)) {
-					this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
 				}
 			}
 
@@ -1075,6 +1078,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _restoreAuthenticationAfterFreshInitialize(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
 		this._authenticationRestorePending = true;
+		if (this._prepareAuthentication) {
+			await this._prepareAuthentication();
+			if (this._state.kind !== expectedState) {
+				return;
+			}
+		}
 		let initialAuthenticationKey: string | undefined;
 		if (this._resolveInitialAuthentication) {
 			try {

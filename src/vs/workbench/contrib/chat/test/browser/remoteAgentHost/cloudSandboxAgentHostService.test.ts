@@ -177,8 +177,10 @@ suite('CloudSandboxAgentHostService', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createRecoveryFixture(refresh?: () => Promise<CloudSandboxConnectResult>) {
-		const initialToken = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() };
+	async function createRecoveryFixture(
+		refresh?: () => Promise<CloudSandboxConnectResult>,
+		initialToken: ICloudSandboxClientToken = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() },
+	) {
 		const fixture = createService(store, [{ kind: 'token', token: initialToken }]);
 		fixture.service.connectThroughFactory = true;
 		const connecting = fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox' }, CancellationToken.None);
@@ -206,14 +208,20 @@ suite('CloudSandboxAgentHostService', () => {
 			store.add(created.connection);
 			const call = createInstance.getCalls().findLast(call => call.args[0] === AgentHostProtocolClient);
 			const options = call?.args[3] as IAgentHostProtocolClientOptions | undefined;
-			assert.ok(options?.prepareReconnect);
-			return { connection: created.connection, resources: created.transportDisposable, prepareReconnect: options.prepareReconnect };
+			assert.ok(options?.prepareReconnect && options.prepareAuthentication && options.resolveInitialAuthentication);
+			return {
+				connection: created.connection, resources: created.transportDisposable,
+				prepareReconnect: options.prepareReconnect, prepareAuthentication: options.prepareAuthentication,
+				resolveAuthentication: options.resolveInitialAuthentication,
+			};
 		}
 		let current = await createConnection(true);
 		return {
 			...fixture, response, initialToken, refreshTimes,
 			get resources() { return current.resources; },
 			prepareReconnect: () => current.prepareReconnect(),
+			prepareAuthentication: () => current.prepareAuthentication(),
+			resolveAuthentication: () => current.resolveAuthentication(),
 			refreshCalls: () => refreshCalls,
 			async redial(): Promise<void> {
 				current.connection.dispose();
@@ -229,6 +237,132 @@ suite('CloudSandboxAgentHostService', () => {
 			},
 		};
 	}
+
+	test('tries cached credentials after a brief interruption and repairs setup after that retry fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = await createRecoveryFixture(undefined, clientToken('copilot-sealed.v1.key.original'));
+		fixture.setState('connected');
+		await fixture.prepareReconnect();
+		const fastPathRequests = fixture.refreshCalls();
+		const repairing = fixture.prepareReconnect();
+		await fixture.response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') });
+		await repairing;
+		const sealed = fixture.service.getSealedGitHubToken('env-1');
+		await fixture.finish();
+
+		assert.deepStrictEqual({ fastPathRequests, repairRequests: fixture.refreshCalls(), sealed }, {
+			fastPathRequests: 0, repairRequests: 1, sealed: 'copilot-sealed.v1.key.refreshed',
+		});
+	}));
+
+	test('refreshes before authenticating a fresh host without refreshing the initial authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = await createRecoveryFixture(undefined, clientToken('copilot-sealed.v1.key.original'));
+		await fixture.prepareAuthentication();
+		const initial = await fixture.resolveAuthentication();
+		const initialRequests = fixture.refreshCalls();
+		fixture.setState('connected');
+		await fixture.prepareReconnect();
+		const preparing = fixture.prepareAuthentication();
+		await fixture.response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.new-key.refreshed') });
+		await preparing;
+		const restored = await fixture.resolveAuthentication();
+		await fixture.finish();
+
+		assert.deepStrictEqual({
+			initial: initial?.token, initialRequests, restored: restored?.token, refreshes: fixture.refreshCalls(),
+		}, {
+			initial: 'copilot-sealed.v1.key.original', initialRequests: 0,
+			restored: 'copilot-sealed.v1.new-key.refreshed', refreshes: 1,
+		});
+	}));
+
+	test('retains successful admission refresh pacing across protocol-client replacements', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const fixture = await createRecoveryFixture(
+			async () => ({ kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') }),
+			clientToken('copilot-sealed.v1.key.original'),
+		);
+		await fixture.prepareReconnect();
+		await fixture.redial();
+		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		await timeout(30_000);
+		await fixture.prepareReconnect();
+		await fixture.finish();
+
+		assert.deepStrictEqual(fixture.refreshTimes.map(time => time - start), [0, 30_000]);
+	}));
+
+	test('authentication challenges and reconnect preparation share credential renewal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = await createRecoveryFixture();
+		const authenticating = fixture.service.refreshSealedGitHubToken('env-1');
+		const reconnecting = fixture.prepareReconnect();
+		await fixture.response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') });
+		const [sealed] = await Promise.all([authenticating, reconnecting]);
+		await fixture.finish();
+
+		assert.deepStrictEqual({ sealed, requests: fixture.refreshCalls() }, {
+			sealed: 'copilot-sealed.v1.key.refreshed', requests: 1,
+		});
+	}));
+
+	for (const reason of ['expired challenge', 'fresh initialization']) {
+		for (const sealed of [undefined, '', 'copilot-sealed.v1.key.original', 'plaintext']) {
+			test(`requires a new sealed credential for ${reason}: ${sealed ?? 'omitted'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const fixture = await createRecoveryFixture(
+					async () => ({ kind: 'token', token: { ...clientToken(sealed), encrypted_github_token: sealed } }),
+					clientToken('copilot-sealed.v1.key.original'),
+				);
+				try {
+					if (reason === 'fresh initialization') {
+						await fixture.resolveAuthentication();
+					}
+					await assert.rejects(
+						reason === 'expired challenge' ? fixture.service.refreshSealedGitHubToken('env-1') : fixture.prepareAuthentication(),
+						/did not provide a new sealed token/,
+					);
+				} finally {
+					await fixture.finish();
+				}
+			}));
+		}
+	}
+
+	test('a relay-only refresh does not count as renewed authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let refreshes = 0;
+		const fixture = await createRecoveryFixture(
+			async () => ({ kind: 'token', token: clientToken(++refreshes === 1 ? undefined : 'copilot-sealed.v1.key.renewed') }),
+			clientToken('copilot-sealed.v1.key.original'),
+		);
+		try {
+			await fixture.resolveAuthentication();
+			fixture.setState('connected');
+			await fixture.prepareReconnect();
+			await fixture.prepareReconnect();
+			await assert.rejects(fixture.prepareAuthentication(), /waiting to retry/);
+			await timeout(30_000);
+			await fixture.prepareAuthentication();
+			const authentication = await fixture.resolveAuthentication();
+
+			assert.deepStrictEqual({ token: authentication?.token, refreshes }, {
+				token: 'copilot-sealed.v1.key.renewed', refreshes: 2,
+			});
+		} finally {
+			await fixture.finish();
+		}
+	}));
+
+	test('cancels an authentication renewal owned by a replaced protocol client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = await createRecoveryFixture(undefined, clientToken('copilot-sealed.v1.key.original'));
+		const cancelled = assert.rejects(fixture.service.refreshSealedGitHubToken('env-1'), isCancellationError);
+		await fixture.redial();
+		await cancelled;
+		await fixture.response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.late') });
+		const sealed = fixture.service.getSealedGitHubToken('env-1');
+		await fixture.finish();
+
+		assert.deepStrictEqual({ sealed, requests: fixture.refreshCalls() }, {
+			sealed: 'copilot-sealed.v1.key.original', requests: 1,
+		});
+	}));
 
 	test('refreshes expired credentials before reconnect even before the first successful connection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = await createRecoveryFixture();
