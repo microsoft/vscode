@@ -48,6 +48,7 @@ import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatIn
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -118,19 +119,29 @@ function isCopilotHarnessSessionType(chatSessionsService: IChatSessionsService, 
 }
 
 function getDraftHandoffOptions(accessor: ServicesAccessor, sessionResource?: URI, forceTransfer = false, inputUri?: URI): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
-	if (!forceTransfer && accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.OpenInAgentsWindowTransferDraft) !== true) {
-		return {};
-	}
 	const widgets = accessor.get(IChatWidgetService);
 	const widget = inputUri ? widgets.getWidgetByInputUri(inputUri) : sessionResource ? widgets.getWidgetBySessionResource(sessionResource) : widgets.lastFocusedWidget;
 	if (sessionResource && !isEqual(widget?.viewModel?.sessionResource, sessionResource)) {
 		return {};
 	}
+	if (!forceTransfer) {
+		// Transferring only changes the outcome for a draft with content.
+		if (canHandOffDraft(widget) && (widget.getInput().trim().length > 0 || widget.attachmentModel.attachments.length > 0)) {
+			logSettingExperimentTrigger(accessor.get(ITelemetryService), ChatConfiguration.OpenInAgentsWindowTransferDraft);
+		}
+		if (accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.OpenInAgentsWindowTransferDraft) !== true) {
+			return {};
+		}
+	}
 	return captureDraftHandoffOptions(accessor, widget);
 }
 
+function canHandOffDraft(widget: IChatWidget | undefined): widget is IChatWidget {
+	return isDraftWidget(widget) && widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled));
+}
+
 function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWidget | undefined): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
-	if (!isDraftWidget(widget) || !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))) {
+	if (!canHandOffDraft(widget)) {
 		return {};
 	}
 	try {
@@ -685,6 +696,8 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		if (lastMessageTime === undefined) {
 			return false;
 		}
+		// From here on the delay only decides when the tip appears, if at all.
+		logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.AgentsHandoffTipDelaySeconds);
 		const remaining = lastMessageTime + this._handoffDelayMs - Date.now();
 		if (remaining > 0) {
 			this._handoffTimer.value = disposableLongTimeout(() => this._update(), remaining);
@@ -733,11 +746,17 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		// the rendered banner, but we don't want to post-then-hide.
 		const widgetSessionType = widget?.scopedContextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
 		const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		const emptyWorkspaceEligible = preconditionMet
+		const emptyWorkspaceCandidate = preconditionMet
 			&& isEmptyWorkspace
 			&& (!sessionResource || isUntitledChatSession(sessionResource))
-			&& widgetSessionType === SessionType.AgentHostCopilot
-			&& !(this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) && hasRunningAgentHostSession(this._agentSessionsService));
+			&& widgetSessionType === SessionType.AgentHostCopilot;
+		// The parallel-work invitation replaces this tip while another session runs, whether or not it shows for the draft.
+		const parallelWorkReplacesTip = emptyWorkspaceCandidate && hasRunningAgentHostSession(this._agentSessionsService);
+		if (parallelWorkReplacesTip) {
+			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.AgentsParallelWorkBannerEnabled);
+		}
+		const emptyWorkspaceEligible = emptyWorkspaceCandidate
+			&& !(parallelWorkReplacesTip && this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled));
 
 		if (!eligible && !emptyWorkspaceEligible) {
 			if (this._lastPostedFor) {
@@ -785,6 +804,8 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		this._lastPostedDescription = description;
 		this._lastPostedSessionType = eligible ? resourceSessionType : widgetSessionType;
 
+		logExperimentTrigger(this._telemetryService, AgentsHandoffInputTipContribution.TITLE_TREATMENT);
+		logExperimentTrigger(this._telemetryService, AgentsHandoffInputTipContribution.DESCRIPTION_TREATMENT);
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
@@ -892,6 +913,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@ILogService logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.OPEN_COMMAND_ID, (accessor, inputUri: URI, resource: URI) => {
@@ -983,10 +1005,14 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		if (this._posted?.widget !== widget || this._posted.kind !== kind
 			|| !isEqual(this._posted.resource, resource) || !isEqual(widget.viewModel?.sessionResource, resource)
 			|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))
-			|| this._getNotificationKind(widget) !== kind) {
+			|| this._getNotificationKind(widget, this._isParallelWorkEnabled()) !== kind) {
 			return undefined;
 		}
 		return widget;
+	}
+
+	private _isParallelWorkEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true;
 	}
 
 	private _ignoreCopilotHarnessIntroduction(): void {
@@ -1074,14 +1100,14 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		});
 	}
 
-	private _getNotificationKind(widget: IChatWidget): AgentsParallelWorkNotificationKind | undefined {
+	private _getNotificationKind(widget: IChatWidget, parallelWorkEnabled: boolean): AgentsParallelWorkNotificationKind | undefined {
 		const resource = isAgentHostChatWidget(widget) ? widget.viewModel?.sessionResource : undefined;
 		if (!widget.visible || !resource || this._dismissed.has(resource)
 			|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))) {
 			return undefined;
 		}
 
-		const parallelWorkEligible = this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true
+		const parallelWorkEligible = parallelWorkEnabled
 			&& isAgentHostDraftWidget(widget)
 			&& this._eligible.has(resource)
 			&& hasRunningAgentHostSession(this._agentSessionsService);
@@ -1102,18 +1128,18 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 	}
 
-	private _getOwner(): { readonly widget: IChatWidget; readonly kind: AgentsParallelWorkNotificationKind } | undefined {
+	private _getOwner(parallelWorkEnabled: boolean): { readonly widget: IChatWidget; readonly kind: AgentsParallelWorkNotificationKind } | undefined {
 		const widgets = this._chatWidgetService.getAllWidgets();
 		const focused = this._chatWidgetService.lastFocusedWidget;
 		if (focused && widgets.includes(focused) && focused.visible) {
-			const kind = this._getNotificationKind(focused);
+			const kind = this._getNotificationKind(focused, parallelWorkEnabled);
 			return kind ? { widget: focused, kind } : undefined;
 		}
 		for (const widget of [...this._recentWidgets].reverse()) {
 			if (!widgets.includes(widget)) {
 				continue;
 			}
-			const kind = this._getNotificationKind(widget);
+			const kind = this._getNotificationKind(widget, parallelWorkEnabled);
 			if (kind) {
 				return { widget, kind };
 			}
@@ -1134,7 +1160,12 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	}
 
 	private _updateOwner(): void {
-		const owner = this._getOwner();
+		const parallelWorkEnabled = this._isParallelWorkEnabled();
+		const owner = this._getOwner(parallelWorkEnabled);
+		// Resolved as if enabled, so every experiment arm reports the invitation it would show.
+		if ((parallelWorkEnabled ? owner : this._getOwner(true))?.kind === AgentsParallelWorkNotificationKind.ParallelWork) {
+			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.AgentsParallelWorkBannerEnabled);
+		}
 		const widget = owner?.widget;
 		const kind = owner?.kind;
 		const resource = widget?.viewModel?.sessionResource;
@@ -1208,6 +1239,10 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			primary: false,
 			keepOpen: true,
 		}];
+		if (kind === AgentsParallelWorkNotificationKind.ParallelWork) {
+			logExperimentTrigger(this._telemetryService, AgentsParallelWorkContribution.TITLE_TREATMENT);
+			logExperimentTrigger(this._telemetryService, AgentsParallelWorkContribution.DESCRIPTION_TREATMENT);
+		}
 		this._notificationService.setNotification({
 			id: AgentsParallelWorkContribution.NOTIFICATION_ID,
 			inputUri: posted.inputUri,

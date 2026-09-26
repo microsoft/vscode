@@ -10,8 +10,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -187,7 +192,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean }) {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
@@ -248,6 +253,7 @@ suite('AgentHostGitStateService', () => {
 			new NullLogService(),
 			sessionDataService,
 			configurationService,
+			options?.telemetryService ?? NullTelemetryService,
 		));
 
 		const runEvents: string[] = [];
@@ -1043,6 +1049,60 @@ suite('AgentHostGitStateService', () => {
 					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
 					pullRequestBranchName: 'feature',
 				},
+			});
+		});
+	});
+
+	test('reports the automatic attachment experiment trigger where the modes diverge, in both modes', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const repository: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode' };
+			const cases = {
+				'feature branch': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: repository },
+				'base branch with an automatically attached PR': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' } },
+				'base branch': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: repository },
+			} satisfies Record<string, { gitState: ISessionGitState; gitHubState: ISessionGitHubState }>;
+			const triggers: Record<string, readonly string[]> = {};
+			for (const autoAttachPullRequests of [true, false]) {
+				for (const [name, { gitState, gitHubState }] of Object.entries(cases)) {
+					const telemetryService = new TestExperimentTriggerTelemetryService();
+					const h = createHarness({ autoAttachPullRequests, telemetryService });
+					h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+					seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState });
+					h.setGitResult(gitState);
+
+					await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+					triggers[`${autoAttachPullRequests ? 'automatic' : 'restricted'} ${name}`] = telemetryService.triggers;
+				}
+			}
+
+			const trigger = [`config.${AgentHostAutoAttachPullRequestsSettingId}`];
+			assert.deepStrictEqual(triggers, {
+				'automatic feature branch': trigger,
+				'automatic base branch with an automatically attached PR': trigger,
+				'automatic base branch': [],
+				'restricted feature branch': trigger,
+				'restricted base branch with an automatically attached PR': trigger,
+				'restricted base branch': [],
+			});
+		});
+	});
+
+	test('holds the automatic attachment experiment trigger until the assignment context arrives', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+			const h = createHarness({ telemetryService });
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+			h.setGitResult(gitState);
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+			const beforeContext = [...telemetryService.triggers];
+			h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+				beforeContext: [],
+				afterContext: [`config.${AgentHostAutoAttachPullRequestsSettingId}`],
 			});
 		});
 	});

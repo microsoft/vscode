@@ -32,7 +32,9 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -93,6 +95,7 @@ export function renderSessionsHeader(
 	instantiationService: IInstantiationService,
 	contextKeyService: IContextKeyService,
 	disposables: DisposableStore,
+	onDidShowFilters?: () => void,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -106,12 +109,35 @@ export function renderSessionsHeader(
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
 			toolbarOptions: { primaryGroup: () => true },
+			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === SessionsViewFilterSubMenu
+				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
+				: undefined,
 		}));
 	} else {
 		row.classList.add('phone-layout-empty');
 	}
 
 	return { row, label, actions, toolbar };
+}
+
+/** The Filter Sessions dropdown, which reports whenever it shows. */
+class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
+
+	constructor(
+		action: SubmenuItemAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
+		onDidShow: () => void,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(action, options, keybindingService, contextMenuService, themeService);
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				onDidShow();
+			}
+		}));
+	}
 }
 
 export class SessionsView extends ViewPane {
@@ -413,7 +439,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, treeHeader: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables);
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
 		const registeredHeader: IRegisteredSessionsHeader = { ...header, treeHeader };
 		this.sessionsHeaders.add(registeredHeader);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(registeredHeader)));
