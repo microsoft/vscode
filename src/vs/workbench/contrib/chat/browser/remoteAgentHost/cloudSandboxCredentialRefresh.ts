@@ -12,6 +12,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import {
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	ICloudSandboxApiService,
+	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
@@ -149,6 +150,17 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	/** Repair rejected or missing connection setup even when the cached ticket has not expired. */
 	refreshConnectionCredentials(): Promise<void> {
 		return this._ensureCredentials(true);
+	}
+
+	/** Renew authentication without falling back to the previously used sealed envelope. */
+	async refreshAuthenticationCredentials(): Promise<string> {
+		const previousToken = this._creds.token.encrypted_github_token;
+		await this.refreshConnectionCredentials();
+		const sealedToken = this._creds.token.encrypted_github_token;
+		if (!sealedToken || !isCloudSandboxSealedToken(sealedToken) || sealedToken === previousToken) {
+			throw new Error('Sandbox authentication refresh did not provide a new sealed token.');
+		}
+		return sealedToken;
 	}
 
 	private async _ensureCredentials(refreshConnection: boolean): Promise<void> {

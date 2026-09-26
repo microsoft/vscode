@@ -291,6 +291,52 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 	}));
 
+	for (const reason of ['expired challenge', 'fresh initialization']) {
+		for (const sealed of [undefined, '', 'copilot-sealed.v1.key.original', 'plaintext']) {
+			test(`requires a new sealed credential for ${reason}: ${sealed ?? 'omitted'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const fixture = await createRecoveryFixture(
+					async () => ({ kind: 'token', token: { ...clientToken(sealed), encrypted_github_token: sealed } }),
+					clientToken('copilot-sealed.v1.key.original'),
+				);
+				try {
+					if (reason === 'fresh initialization') {
+						await fixture.resolveAuthentication();
+					}
+					await assert.rejects(
+						reason === 'expired challenge' ? fixture.service.refreshSealedGitHubToken('env-1') : fixture.prepareAuthentication(),
+						/did not provide a new sealed token/,
+					);
+				} finally {
+					await fixture.finish();
+				}
+			}));
+		}
+	}
+
+	test('a relay-only refresh does not count as renewed authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let refreshes = 0;
+		const fixture = await createRecoveryFixture(
+			async () => ({ kind: 'token', token: clientToken(++refreshes === 1 ? undefined : 'copilot-sealed.v1.key.renewed') }),
+			clientToken('copilot-sealed.v1.key.original'),
+		);
+		try {
+			await fixture.resolveAuthentication();
+			fixture.setState('connected');
+			await fixture.prepareReconnect();
+			await fixture.prepareReconnect();
+			await assert.rejects(fixture.prepareAuthentication(), /waiting to retry/);
+			await timeout(30_000);
+			await fixture.prepareAuthentication();
+			const authentication = await fixture.resolveAuthentication();
+
+			assert.deepStrictEqual({ token: authentication?.token, refreshes }, {
+				token: 'copilot-sealed.v1.key.renewed', refreshes: 2,
+			});
+		} finally {
+			await fixture.finish();
+		}
+	}));
+
 	test('cancels an authentication renewal owned by a replaced protocol client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = await createRecoveryFixture(undefined, clientToken('copilot-sealed.v1.key.original'));
 		const cancelled = assert.rejects(fixture.service.refreshSealedGitHubToken('env-1'), isCancellationError);
