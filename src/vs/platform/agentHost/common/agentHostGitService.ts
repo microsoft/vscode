@@ -306,6 +306,9 @@ export interface IAgentHostGitService {
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
+	/** Fetches the latest refs from `remote` without changing the working tree. */
+	fetch(workingDirectory: URI, remote: string): Promise<void>;
+
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
 	 * {@link IPullOptions.remote} overrides it) and integrates them into the

@@ -108,9 +108,24 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
-		const ref = name.startsWith('refs/') ? name : `refs/heads/${name}`;
-		const refs = await this.getBranches(workingDirectory, { pattern: ref });
-		return refs.find(branch => branch.ref === ref);
+		const branchRefs = name.startsWith('refs/')
+			? [name]
+			: [`refs/heads/${name}`, `refs/remotes/${name}`];
+		const branches = await this.getBranches(workingDirectory, { pattern: branchRefs });
+		const branch = branchRefs
+			.map(ref => branches.find(branch => branch.ref === ref))
+			.find(branch => branch !== undefined);
+		if (branch?.kind !== GitRefType.RemoteHead) {
+			return branch;
+		}
+
+		const remotes = (await this._runGit(workingDirectory, ['remote']))
+			?.split(/\r?\n/)
+			.map(remote => remote.trim())
+			.filter(remote => remote.length > 0)
+			.sort((a, b) => b.length - a.length);
+		const remote = remotes?.find(remote => branch.name.startsWith(`${remote}/`));
+		return remote ? { ...branch, remote } : branch;
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -443,6 +458,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
 		return output !== undefined && output.trim().length > 0;
+	}
+
+	async fetch(workingDirectory: URI, remote: string): Promise<void> {
+		await this._runGit(workingDirectory, ['fetch', remote], { timeout: 180_000, throwOnError: true });
 	}
 
 	async pull(workingDirectory: URI, options?: IPullOptions): Promise<void> {
