@@ -11,7 +11,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
-import type { IShellInitScript } from './shellInitScripts.js';
+import type { IShellInitScript } from './agentShellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
 
@@ -302,7 +302,7 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 
 /**
  * Scripts the client generated for this session, sourced before every built-in
- * shell tool command (see `common/shellInitScripts.ts`). Written by the
+ * shell tool command (see `common/agentShellInitScript.ts`). Written by the
  * workbench and consumed by the Copilot provider; `readOnly` because no user
  * edits it directly, `sessionMutable` because the selected Python environment
  * can change while a session is live. The value is transient and omitted from
