@@ -5,7 +5,7 @@
 
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { dirname, joinPath } from '../../../../../base/common/resources.js';
-import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { splitLinesIncludeSeparators, stripUTF8BOM } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -16,6 +16,7 @@ export class PromptFileParser {
 	}
 
 	public parse(uri: URI, content: string): ParsedPromptFile {
+		content = stripUTF8BOM(content);
 		const linesWithEOL = splitLinesIncludeSeparators(content);
 		if (linesWithEOL.length === 0) {
 			return new ParsedPromptFile(uri, undefined, undefined);
