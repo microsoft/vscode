@@ -2357,13 +2357,42 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+		test('hides persisted connector state while the experiment is disabled', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
+			const disabled = {
+				recorded: fixture.service.getRecordedResources(),
+				state: fixture.service.getInstallState(candidate),
+			};
+
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
+
+			assert.deepStrictEqual({
+				disabled,
+				restoredRecords: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				restoredState: fixture.service.getInstallState(candidate),
+			}, {
+				disabled: {
+					recorded: [],
+					state: { kind: 'unavailable', message: 'Enable the Copilot connectors experiment to connect this resource.' },
+				},
+				restoredRecords: ['mail'],
+				restoredState: { kind: 'installed', target: connectorInstallationTarget },
+			});
+		});
+
 		test('is unavailable when the connector experiment is disabled', async () => {
 			const fixture = await createFixture();
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 
 			const state = fixture.service.getInstallState(connectorResource());
 
-			assert.deepStrictEqual(state, { kind: 'unavailable', message: 'Enable this resource\'s marketplace source to install it.' });
+			assert.deepStrictEqual(state, { kind: 'unavailable', message: 'Enable the Copilot connectors experiment to connect this resource.' });
 		});
 
 		test('connector-only enablement permits consent without public-feed or registry access', async () => {
@@ -2388,7 +2417,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const pending = fixture.service.install(connectorResource());
 			const cancelled = assert.rejects(pending, isCancellationError);
 			await setSourcesEnabled(fixture.configurationService, false, ['copilotConnectors']);
-			await assert.rejects(fixture.service.install(connectorResource()), /Enable this resource's marketplace source/);
+			await assert.rejects(fixture.service.install(connectorResource()), /Enable the Copilot connectors experiment/);
 			await consent.complete();
 			await cancelled;
 			const disabled = {

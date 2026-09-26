@@ -318,7 +318,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getApplicableConnectorRecords(): ICustomizationMarketplaceInstallationRecord[] {
-		return this.getRecordsByKind('copilotConnector').filter(record => this.isRecordApplicable(record));
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true
+			? this.getRecordsByKind('copilotConnector').filter(record => this.isRecordApplicable(record))
+			: [];
 	}
 
 	private getRelevantRecords(): ICustomizationMarketplaceInstallationRecord[] {
@@ -567,6 +569,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+		if (resource.installation?.kind === 'copilotConnector' &&
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
+		}
 		const record = this.findRecord(resource);
 		if (record) {
 			const target = this.toInstallationTarget(record);
