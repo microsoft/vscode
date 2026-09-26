@@ -3943,6 +3943,47 @@ export class CommandCenter {
 		await repository.fetch({ remote: branch.remote, ref: branch.name });
 	}
 
+	@command('git.fetchFrom', { repository: true })
+	async fetchFrom(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(l10n.t('Your repository has no remotes configured to fetch from.'));
+			return;
+		}
+
+		let remoteName = remotes[0].name;
+		if (remotes.length > 1) {
+			const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
+			const placeHolder = l10n.t('Pick a remote to fetch the branch from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
+
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.label;
+		}
+
+		const getBranchPicks = async (): Promise<RefItem[]> => {
+			const remoteRefs = await repository.getRefs({ pattern: `refs/remotes/${remoteName}/` });
+			return remoteRefs.map(r => new RefItem(r, commitShortHashLength));
+		};
+
+		const branchPlaceHolder = l10n.t('Pick a branch to fetch');
+		const branchPick = await this.pickRef(getBranchPicks(), branchPlaceHolder);
+
+		if (!branchPick || !branchPick.refName) {
+			return;
+		}
+
+		const remoteCharCnt = remoteName.length;
+		await repository.fetch({ remote: remoteName, ref: branchPick.refName.slice(remoteCharCnt + 1) });
+	}
+
 	@command('git.pullFrom', { repository: true })
 	async pullFrom(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
