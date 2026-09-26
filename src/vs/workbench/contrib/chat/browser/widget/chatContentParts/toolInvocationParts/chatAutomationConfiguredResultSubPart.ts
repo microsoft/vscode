@@ -11,7 +11,6 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatAutomationConfiguredData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../aiCustomization/aiCustomizationManagement.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -47,11 +46,9 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		}));
 		button.element.classList.add('chat-open-session-button');
 		button.label = label;
-		button.icon = Codicon.watch;
+		button.icon = Codicon.calendar;
 		this._register(button.onDidClick(() => this.commandService.executeCommand(
-			AICustomizationManagementCommands.OpenEditor,
-			AICustomizationManagementSection.Automations,
-			data.automationId,
+			'sessionsView.manageAutomations',
 		)));
 	}
 }

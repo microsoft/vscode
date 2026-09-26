@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from '../../base/browser/browser.js';
+import { getZoomFactor, isSafari, isMobileStandalone, onDidChangeZoomLevel, setFullscreen } from '../../base/browser/browser.js';
 import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
@@ -54,6 +54,19 @@ export abstract class BaseWindow extends Disposable {
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
 		this.registerContextMenuListeners(targetWindow);
+		this.registerWindowZoomFactor(targetWindow);
+	}
+
+	private registerWindowZoomFactor(targetWindow: CodeWindow): void {
+		// Auxiliary windows mirror document/body styles, but keep their own workbench styles.
+		const container = this.layoutService.getContainer(targetWindow);
+		const update = () => container.style.setProperty('--window-zoom-factor', String(getZoomFactor(targetWindow)));
+		update();
+		this._register(onDidChangeZoomLevel(windowId => {
+			if (windowId === targetWindow.vscodeWindowId) {
+				update();
+			}
+		}));
 	}
 
 	//#region focus handling in multi-window applications
@@ -355,7 +368,9 @@ export class BrowserWindow extends BaseWindow {
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					if (isSafari) {
+					// Both block popups opened outside a user gesture, so use the
+					// open-then-navigate path, which can pick up a reserved window.
+					if (isSafari || isMobileStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							await this.dialogService.prompt({

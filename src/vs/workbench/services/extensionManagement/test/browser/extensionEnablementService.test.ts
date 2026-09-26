@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1290,6 +1290,22 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual([withMain, nonThemeContrib, withBrowser].map(ext => testObject.getEnablementState(ext)), [
 			EnablementState.EnabledGlobally,
 			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
+		]);
+	});
+
+	test('test extensions declaring agents window support are enabled in sessions window', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const supported = aLocalExtension2('pub.supported', { main: 'main.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } } });
+		const unsupported = aLocalExtension2('pub.unsupported', { enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: aContributes('themes') });
+		const unsupportedWithoutProposal = aLocalExtension2('pub.unsupportedWithoutProposal', { main: 'main.js', capabilities: { agentsWindow: { supported: true } } });
+
+		assert.deepStrictEqual([supported, unsupported, unsupportedWithoutProposal].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
 			EnablementState.DisabledByEnvironment,
 		]);
 	});

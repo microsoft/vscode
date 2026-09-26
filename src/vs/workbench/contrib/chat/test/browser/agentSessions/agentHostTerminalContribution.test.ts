@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS, OperatingSystem } from '../../../../../../base/common/platform.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue, constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -21,6 +21,7 @@ import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TerminalSettingId, type ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
@@ -134,14 +135,14 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 	override readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
 	public enterprise = false;
-	public gitHubBaseUrl = 'https://github.com';
+	public gitHubBaseUrl: string | undefined = 'https://github.com';
 
 	override getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'github', name: 'GitHub', enterprise: this.enterprise };
 	}
 
-	override resolveGitHubUrl(path: string): string {
-		return `${this.gitHubBaseUrl}/${path}`;
+	override resolveGitHubUrl(path: string): string | undefined {
+		return this.gitHubBaseUrl ? `${this.gitHubBaseUrl}/${path}` : undefined;
 	}
 
 	fireChange(): void {
@@ -200,7 +201,7 @@ interface ITestSetup {
 	defaultAccountService: MockDefaultAccountService;
 }
 
-function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): ITestSetup {
+function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, remoteAuthority?: string): ITestSetup {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
@@ -215,7 +216,10 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+	instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+		override readonly remoteAuthority = remoteAuthority;
+	}());
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
@@ -245,11 +249,21 @@ suite('AgentHostTerminalContribution', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not dispatch when chat.agentHost.enabled is false', async () => {
+	test('does not dispatch when Agent Host is unavailable', async () => {
 		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ false);
 
 		// Even with a fully-hydrated rootState, nothing should fire because
 		// the contribution short-circuits in _updateEnabled.
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		agentHostService.fireAgentHostStart();
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
+	test('does not forward the local default shell to a remote agent host', async () => {
+		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ true, 'ssh-remote+test');
+
 		agentHostService.setRootState(rootStateWithDefaultShellKey());
 		agentHostService.fireAgentHostStart();
 		await flush();
@@ -525,4 +539,41 @@ suite('AgentHostTerminalContribution', () => {
 			[AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com',
 		});
 	});
+
+	test('forwards the selected second host and clears it when switching to github.com', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = 'https://second.ghe.com';
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+
+		defaultAccountService.gitHubBaseUrl = 'https://first.ghe.com';
+		defaultAccountService.fireChange();
+		await flush();
+		defaultAccountService.enterprise = false;
+		defaultAccountService.gitHubBaseUrl = 'https://github.com';
+		defaultAccountService.fireChange();
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://second.ghe.com' },
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://first.ghe.com' },
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: '' },
+		]);
+	});
+
+	test('an unresolved enterprise account does not forward github.com as its enterprise host', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = undefined;
+		const rootState = rootStateWithGithubEnterpriseUriKey();
+		rootState.config!.values[AgentHostConfigKey.GithubEnterpriseUri] = 'https://previous.ghe.com';
+		agentHostService.setRootState(rootState);
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: '' },
+		]);
+	});
+
 });

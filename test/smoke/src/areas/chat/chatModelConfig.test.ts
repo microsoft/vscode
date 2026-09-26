@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -106,28 +106,6 @@ function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, sc
 		}
 	}
 	return undefined;
-}
-
-/**
- * Whether the latest `user` item in a Responses API request's `input` array
- * contains `scenarioTag`. The item's `content` is either a plain string or an
- * array of `{ text }` parts (matching the mock server's own scenario parsing).
- */
-function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
-	const input = Array.isArray(body?.input) ? body.input : [];
-	for (let i = input.length - 1; i >= 0; i--) {
-		const item = input[i];
-		if (item?.role !== 'user') {
-			continue;
-		}
-		const content = typeof item.content === 'string'
-			? item.content
-			: Array.isArray(item.content)
-				? item.content.map((part: any) => part?.text ?? '').join('')
-				: '';
-		return content.includes(scenarioTag);
-	}
-	return false;
 }
 
 /**
@@ -234,7 +212,12 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('forwards the selected reasoning effort and context size to the server', async function () {
+		// Warm up and select the mock model once for the whole suite: cold-starting
+		// copilot-chat and registering the models is expensive, and both tests need
+		// the same starting point. Selecting the model does not touch its
+		// configuration, so the default-state test below still sees a pristine
+		// picker.
+		before(async function () {
 			const app = this.app as Application;
 			const chat = app.workbench.chat;
 
@@ -252,7 +235,53 @@ export function setup(logger: Logger) {
 
 				// Select the mock model that exposes both configuration pickers.
 				await chat.selectModel(MODEL_NAME);
+			} catch (error) {
+				logger.log(`[Chat Model Config] SETUP FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Chat Model Configuration');
+				throw error;
+			}
+		});
 
+		// Must run before any test selects an option: the per-editor model
+		// configuration is sticky, so the pristine defaults are only observable on
+		// the first test of the suite.
+		it('shows the schema defaults and every configured option in the model configuration picker', async function () {
+			const app = this.app as Application;
+			const chat = app.workbench.chat;
+
+			try {
+				// The button summarizes the *effective* configuration, which before any
+				// selection is the schema default of each group.
+				const defaultLabel = await chat.getModelConfigLabel();
+				assert.strictEqual(
+					defaultLabel.replace(/\s+/g, ' ').trim(),
+					MOCK_CONFIG_MODEL_DEFAULT_LABEL,
+					`Expected the untouched model-config button to show '${MOCK_CONFIG_MODEL_DEFAULT_LABEL}', got '${defaultLabel}'.`
+				);
+
+				await chat.openModelConfig();
+				const sections = await chat.getModelConfigSections();
+				await chat.closeModelConfig();
+
+				assert.deepStrictEqual(
+					sections,
+					MOCK_CONFIG_MODEL_DEFAULT_SECTIONS,
+					`Model configuration dropdown did not list every option declared by '${MODEL_NAME}' with its pristine defaults.`
+				);
+
+				logger.log(`[Chat Model Config] defaults verified: label='${defaultLabel}', sections=${JSON.stringify(sections)}`);
+			} catch (error) {
+				logger.log(`[Chat Model Config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Chat Model Configuration');
+				throw error;
+			}
+		});
+
+		it('forwards the selected reasoning effort and context size to the server', async function () {
+			const app = this.app as Application;
+			const chat = app.workbench.chat;
+
+			try {
 				for (const testCase of CONFIG_CASES) {
 					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel ?? '(default)'}', context='${testCase.contextLabel}'`);
 

@@ -194,6 +194,44 @@ suite('ChatModelsWidget', () => {
 			});
 		});
 
+		test('prepends GitHub Copilot sign-in when signed out', async () => {
+			const ran: string[] = [];
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				true,
+				vendor => { ran.push(vendor.vendor); },
+				() => { ran.push('copilot'); },
+			);
+
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				ran,
+			}, {
+				actions: ['signIn-github-copilot:GitHub Copilot', 'separator', 'enable-anthropic:Anthropic'],
+				ran: ['copilot', 'anthropic'],
+			});
+		});
+
+		test('offers GitHub Copilot sign-in when BYOK model addition is unavailable', () => {
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				false,
+				() => assert.fail('vendor action should not run'),
+				() => { },
+			);
+
+			assert.deepStrictEqual(
+				actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				['signIn-github-copilot:GitHub Copilot'],
+			);
+		});
+
 		test('with no configurable vendors: no actions are returned', async () => {
 			const actions = buildAddModelsDropdownActions(
 				[],
@@ -252,4 +290,3 @@ suite('ChatModelsWidget', () => {
 		});
 	});
 });
-

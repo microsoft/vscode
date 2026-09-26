@@ -15,7 +15,7 @@ import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/mod
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { INewChatVoiceComposer, isNewChatStandaloneDictationVisible, isNewChatVoiceInputModePillActive, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -97,5 +97,41 @@ suite('NewChatVoiceTargetService', () => {
 		const chatResource = URI.parse('agent-host-copilot:/session-1');
 		activeSession.set(makeActiveSession(true, chatResource), undefined);
 		assert.strictEqual(resource()!.toString(), chatResource.toString());
+	});
+
+	test('new-session composer does not show another session voice connection as active', () => {
+		assert.strictEqual(isNewChatVoiceSessionActive(true, false, undefined, true), true);
+		assert.strictEqual(isNewChatVoiceSessionActive(false, true, undefined, true), true);
+		assert.strictEqual(isNewChatVoiceSessionActive(true, false, URI.parse('agent-host-copilot:/session-1'), false), false);
+		assert.strictEqual(isNewChatVoiceSessionActive(true, false, undefined, false), false);
+		assert.strictEqual(isNewChatVoiceSessionActive(false, false, undefined, true), false);
+	});
+
+	test('new-session composer uses exactly one voice control for voice-only sessions', () => {
+		assert.deepStrictEqual([
+			isNewChatVoiceInputModePillActive(false, true, false),
+			isNewChatVoiceInputModePillActive(false, true, true),
+			isNewChatVoiceInputModePillActive(true, true, false),
+			isNewChatVoiceInputModePillActive(true, false, true),
+		], [
+			false,
+			true,
+			true,
+			false,
+		]);
+	});
+
+	test('new-session composer never shows standalone dictation with the segmented control', () => {
+		assert.deepStrictEqual([
+			isNewChatStandaloneDictationVisible(false, false),
+			isNewChatStandaloneDictationVisible(true, false),
+			isNewChatStandaloneDictationVisible(false, true),
+			isNewChatStandaloneDictationVisible(true, true),
+		], [
+			false,
+			true,
+			false,
+			false,
+		]);
 	});
 });

@@ -6,9 +6,9 @@ description: Create a pull request for the current session. Use when the user wa
 
 # Create Pull Request
 
-Use the GitHub MCP server to create a pull request — do NOT use the `gh` CLI.
+Use the GitHub MCP server to create a pull request if available, otherwise use `gh` CLI.
 
-1. Run the compile and hygiene tasks (fixing any errors)
+1. Run the compile task (fixing any errors)
 2. If there are any uncommitted changes, use the `/commit` skill to commit them
 3. Review all changes in the current session
 4. Write a clear, concise PR title with a short area prefix (e.g. "sessions: …", "editor: …")

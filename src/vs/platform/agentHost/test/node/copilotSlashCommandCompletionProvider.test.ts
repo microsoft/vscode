@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { Customization, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
+import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
 
 /**
  * The provider now also injects workbench-defined config-action items
@@ -122,6 +124,21 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			getSessionCustomizations: async () => [],
 		});
 		const session = 'copilotcli:/abc';
+		const sandboxCommand: ICopilotRuntimeSlashCommandInfo = {
+			name: 'sandbox',
+			description: 'Configure sandbox',
+			kind: 'builtin',
+			allowDuringAgentExecution: true,
+			input: {
+				hint: '[policy|on|off]',
+				choices: [
+					{ name: '', description: 'Show sandbox status' },
+					{ name: 'policy', description: 'Show sandbox policy' },
+					{ name: 'on', description: 'Enable sandbox' },
+					{ name: 'off', description: 'Disable sandbox' },
+				],
+			},
+		};
 
 		async function run(text: string, offset = text.length) {
 			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
@@ -135,6 +152,142 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				offset: 1,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(items, []);
+		});
+
+		test('offers /sandbox-policy while keeping SDK sandbox subcommands hidden', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
+				getSessionCustomizations: async () => [],
+			});
+
+			const items = await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(runtimeOnly(items), [{
+				insertText: '/sandbox-policy ',
+				rangeStart: 0,
+				rangeEnd: 5,
+				attachment: {
+					type: MessageAttachmentKind.Simple,
+					label: '/sandbox-policy ',
+					_meta: {
+						command: 'sandbox-policy',
+						description: 'Show the effective sandbox policy for this session',
+					},
+				},
+			}]);
+		});
+
+		test('does not offer /sandbox-policy for another provider or as an inline skill', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
+				getSessionCustomizations: async () => [],
+			});
+
+			for (const { channel, text } of [
+				{ channel: 'claude:/abc', text: '/sandbox' },
+				{ channel: session, text: 'Explain /sandbox' },
+			]) {
+				assert.deepStrictEqual(await provider.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage, channel, text, offset: text.length,
+				}, CancellationToken.None), []);
+			}
+		});
+
+		test('keeps /sandbox-policy available when runtime command discovery fails', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => {
+				throw new Error('Command discovery unavailable');
+			}, undefined, new NullLogService());
+
+			assert.deepStrictEqual({
+				names: (await commands.getSlashCommands()).map(command => command.name),
+				resolved: (await commands.resolveSlashCommand('sandbox-policy'))?.name,
+			}, {
+				names: ['sandbox-policy'],
+				resolved: 'sandbox-policy',
+			});
+		});
+
+		test('does not duplicate a runtime command with the same name', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [{
+				...sandboxCommand, name: 'sandbox-policy',
+			}], undefined, new NullLogService());
+			assert.deepStrictEqual((await commands.getSlashCommands()).map(command => ({
+				name: command.name, input: command.input,
+			})), [{ name: 'sandbox-policy', input: undefined }]);
+		});
+
+		test('keeps native /sandbox hidden even when the SDK only advertises configuration choices', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					...sandboxCommand,
+					input: { hint: '[on|off]', choices: [{ name: 'off', description: 'Disable sandbox' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+			assert.deepStrictEqual(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
+			}, CancellationToken.None), []);
+		});
+
+		test('offers runtime customization commands with their supported subcommands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'skills',
+						description: 'Manage skills',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List skills' },
+								{ name: 'reload', description: 'Reload skills' },
+							],
+						},
+					},
+					{
+						name: 'plugin',
+						description: 'Manage plugins',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
+					},
+					{
+						name: 'mcp',
+						description: 'Manage MCP servers',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List MCP servers' },
+								{ name: 'reload', description: 'Reload MCP servers' },
+							],
+						},
+					},
+				],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/',
+				offset: 1,
+			}, CancellationToken.None)).map(item => item.insertText), [
+				'/mcp ',
+				'/mcp list ',
+				'/mcp reload ',
+				'/plugin ',
+				'/plugin list ',
+				'/skills ',
+				'/skills list ',
+				'/skills reload ',
+			]);
 		});
 
 		test('returns all runtime items for lone "/" (config-action items filtered)', async () => {
@@ -439,13 +592,16 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 	suite('runtime skill completions', () => {
 		const session = 'copilotcli:/abc';
 
-		function skill(name: string, description?: string): SkillCustomization {
+		type SkillOptions = Pick<SkillCustomization, 'disableUserInvocation' | 'enabled'>;
+
+		function skill(name: string, description?: string, options?: SkillOptions): SkillCustomization {
 			return {
 				type: CustomizationType.Skill,
 				id: `file:///skills/${name}/SKILL.md`,
 				uri: `file:///skills/${name}/SKILL.md`,
 				name,
 				...(description !== undefined ? { description } : {}),
+				...options,
 			};
 		}
 
@@ -455,7 +611,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				id: `file:///plugins/${name}`,
 				uri: `file:///plugins/${name}`,
 				name,
-				enabled,
+				...(enabled ? {} : {
+					// TODO: Step 2 selects the persisted enablement scope.
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				}),
 				load: { kind: CustomizationLoadStatus.Loaded },
 				...(children ? { children: [...children] } : {}),
 			};
@@ -486,7 +645,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => ({
+				insertText: i.insertText,
+				isSkill: i.attachment?._meta?.isSkill,
+			})), [{ insertText: '/my-skill ', isSkill: true }]);
 		});
 
 		test('excludes runtime skills that match a known plugin skill (with plugin prefix)', async () => {
@@ -516,6 +678,54 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
+		test('excludes prefixed synced-bundle runtime skills (real runtime shape)', async () => {
+			// The CLI namespaces a bundled skill as `<bundleName>:<skill>`, while the
+			// generic provider lists it bare — so the prefixed runtime item is a
+			// duplicate and must be dropped.
+			const provider = createProvider(
+				[{ name: 'VS Code Synced Data:update-pr', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('update-pr')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
+		test('keeps a prefixed synced-bundle skill whose bare name is a config action', async () => {
+			// Bare `/plan` is a config action, so it would not reach the bundled
+			// `plan` skill; the prefixed item is kept so the skill stays reachable.
+			const provider = createProvider(
+				[{ name: 'VS Code Synced Data:plan', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('plan')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/VS Code Synced Data:plan ']);
+		});
+
+		test('keeps a prefixed synced-bundle skill whose bare name collides with a non-skill runtime command', async () => {
+			// Bare `/triage` would hit the built-in command, so the bundled skill is
+			// only reachable via the qualified name — keep it.
+			const provider = createProvider(
+				[
+					{ name: 'triage', description: 'Built-in', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'VS Code Synced Data:triage', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[syncedPlugin('VS Code Synced Data', [skill('triage')])],
+			);
+			const items = await run(provider, '/');
+			assert.ok(runtimeOnly(items).some(i => i.insertText === '/VS Code Synced Data:triage '), 'bundled triage skill should remain reachable');
+		});
+
+		test('does not strip real (non-synced) plugin prefixes when a synced bundle is present', async () => {
+			// A real plugin skill is known as `my-plugin:my-skill`; the synced-prefix
+			// strip must not apply to it. It is dropped only via the exact match.
+			const provider = createProvider(
+				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('update-pr')]), plugin('my-plugin', [skill('my-skill')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
 		test('includes runtime skills whose name differs from the prefixed known skill candidate', async () => {
 			// A non-synced plugin skill is known as `my-plugin:my-skill`, so a bare `my-skill` runtime skill is still surfaced.
 			const provider = createProvider(
@@ -535,13 +745,32 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-plugin:my-skill ']);
 		});
 
+		test('treats user-disabled and disabled skill children as unknown', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'my-plugin:user-disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'my-plugin:disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[plugin('my-plugin', [
+					skill('user-disabled', undefined, { disableUserInvocation: true }),
+					skill('disabled', undefined, { enabled: false }),
+				])],
+			);
+
+			const items = await run(provider, '/');
+
+			assert.deepStrictEqual(runtimeOnly(items).map(item => item.insertText), [
+				'/my-plugin:disabled ',
+				'/my-plugin:user-disabled ',
+			]);
+		});
+
 		test('ignores mcp server containers when computing known skills', async () => {
 			const mcpServer: Customization = {
 				type: CustomizationType.McpServer,
 				id: 'file:///mcp/my-skill',
 				uri: 'file:///mcp/my-skill',
 				name: 'my-skill',
-				enabled: true,
 				state: { kind: McpServerStatus.Ready },
 			};
 			const provider = createProvider(
@@ -563,6 +792,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'my-skill',
+						isSkill: true,
 						description: 'Runtime skill',
 						argumentHint: 'do stuff',
 					},

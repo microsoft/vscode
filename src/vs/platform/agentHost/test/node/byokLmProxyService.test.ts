@@ -138,6 +138,127 @@ suite('ByokLmProxyService', () => {
 		assert.deepStrictEqual(captured?.input, [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
 	});
 
+	test('forwards image input on the initial and subsequent turns', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const statuses: number[] = [];
+		const imageMessage = {
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'What is in this image?' },
+				{ type: 'input_image', image_url: 'data:image/png;base64,iVBORw0KGgo=' },
+			],
+		};
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return { output: [] };
+			},
+			async handle => {
+				for (const input of [
+					[imageMessage],
+					[imageMessage, { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Try again without a new image.' }] }],
+				]) {
+					const response = await fetch(responsesUrl(handle, 'gemini'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'gemini-3.6-flash', input }),
+					});
+					statuses.push(response.status);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({ statuses, input: captured.map(request => request.input) }, {
+			statuses: [200, 200],
+			input: [
+				[
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'What is in this image?' },
+							{ type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+						],
+					},
+				],
+				[
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'What is in this image?' },
+							{ type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+						],
+					},
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'Try again without a new image.' },
+						],
+					},
+				],
+			],
+		});
+	});
+
+	test('rejects image URLs that cannot be forwarded as inline data', async () => {
+		await withProxy(
+			async () => ({ output: [] }),
+			async handle => {
+				const responses: Array<{ status: number; body: unknown }> = [];
+				for (const imageUrl of ['https://example.com/image.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,not valid']) {
+					const response = await fetch(responsesUrl(handle, 'gemini'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({
+							model: 'gemini-3.6-flash',
+							input: [{
+								type: 'message',
+								role: 'user',
+								content: [{ type: 'input_image', image_url: imageUrl }],
+							}],
+						}),
+					});
+					responses.push({ status: response.status, body: await response.json() });
+				}
+
+				assert.deepStrictEqual(responses, [
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Unsupported input[0].content[0].image_url',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Unsupported input[0].content[0].image_url MIME type \'image/svg+xml\'',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Invalid input[0].content[0].image_url',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+				]);
+			},
+		);
+	});
+
 	test('forwards custom tool call history with freeform input', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(

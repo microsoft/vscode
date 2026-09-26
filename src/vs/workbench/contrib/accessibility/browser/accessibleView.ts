@@ -10,7 +10,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -32,7 +32,7 @@ import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -90,6 +90,15 @@ export class AccessibleView extends Disposable {
 	private _container: HTMLElement;
 	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
+	private readonly _toolbarMenu = this._register(new MutableDisposable<IMenu>());
+	/** Listeners tied to the provider of the current {@link show} call. */
+	private readonly _showDisposables = this._register(new MutableDisposable<DisposableStore>());
+	/** Listeners tied to the most recent {@link _render} call. */
+	private readonly _renderDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _lastProviderListener = this._register(new MutableDisposable());
+	private readonly _helpClearListener = this._register(new MutableDisposable());
+	private readonly _codeBlockContextProviderRegistration = this._register(new MutableDisposable());
+	private readonly _configureKeybindingsDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
@@ -286,22 +295,34 @@ export class AccessibleView extends Disposable {
 		this.show(this._lastProvider);
 	}
 
+	public getAccessibilityStatus(): { providerId: string | undefined; isInCodeBlock: boolean; onLastLine: boolean } {
+		return {
+			providerId: this._currentProvider?.id,
+			isInCodeBlock: this._accessibleViewInCodeBlock.get() ?? false,
+			onLastLine: this._onLastLine.get() ?? false
+		};
+	}
+
 	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
 		}
 		provider.onOpen?.();
+		const showDisposables = new DisposableStore();
+		this._showDisposables.value = showDisposables;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
-				return this._render(provider, container, showAccessibleViewHelp);
+				this._render(provider, container, showAccessibleViewHelp);
+				return toDisposable(() => this._renderDisposables.clear());
 			},
 			onHide: () => {
+				showDisposables.dispose();
+				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
-					this._updateLastProvider();
 					// Save cursor position before disposing so it can be restored on reopen
 					if (this._currentProvider) {
 						const currentPosition = this._editorWidget.getPosition();
@@ -328,29 +349,36 @@ export class AccessibleView extends Disposable {
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
-		if (provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider) {
-			this._register(provider.onDidRequestClearLastProvider((id: string) => {
-				if (this._lastProvider?.options.id === id) {
-					this._lastProvider = undefined;
-				}
-				this._lastProviderPosition.delete(id);
-			}));
-		}
 		if (provider.options.id) {
 			// only cache a provider with an ID so that it will eventually be cleared.
-			this._lastProvider = provider;
+			this._setLastProvider(provider);
 		}
 		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
-			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+			if (!this._codeBlockContextProviderRegistration.value) {
+				this._codeBlockContextProviderRegistration.value = this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView');
+			}
 		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
-		if (provider.onDidChangeContent) {
-			this._register(provider.onDidChangeContent(() => {
+		// `showSymbol` above can re-enter `show`, which releases the listeners of this call
+		if (provider.onDidChangeContent && !showDisposables.isDisposed) {
+			showDisposables.add(provider.onDidChangeContent(() => {
 				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
+	}
+
+	private _setLastProvider(provider: AccesibleViewContentProvider | undefined): void {
+		this._lastProvider = provider;
+		this._lastProviderListener.value = isIAccessibleViewContentProvider(provider) && provider.onDidRequestClearLastProvider
+			? provider.onDidRequestClearLastProvider((id: string) => {
+				if (this._lastProvider?.options.id === id) {
+					this._setLastProvider(undefined);
+				}
+				this._lastProviderPosition.delete(id);
+			})
+			: undefined;
 	}
 
 	previous(): void {
@@ -451,7 +479,8 @@ export class AccessibleView extends Disposable {
 		if (!items) {
 			return;
 		}
-		const disposables = this._register(new DisposableStore());
+		const disposables = new DisposableStore();
+		this._configureKeybindingsDisposables.value = disposables;
 		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
@@ -589,7 +618,7 @@ export class AccessibleView extends Disposable {
 		this._currentContent = content + configureKbHint + configureAssignedKbHint;
 	}
 
-	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): void {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
@@ -704,12 +733,13 @@ export class AccessibleView extends Disposable {
 			if (currentPosition) {
 				this._lastProviderPosition.set(provider.id, currentPosition);
 			}
-			this._lastProvider = undefined;
+			this._setLastProvider(undefined);
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
 			this._currentProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
+		this._renderDisposables.value = disposableStore;
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter) {
 				this._commandService.executeCommand('editor.action.openLink');
@@ -739,12 +769,12 @@ export class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
-		return disposableStore;
 	}
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
 		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
-		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
+		const toolbarMenu = this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService);
+		this._toolbarMenu.value = toolbarMenu;
 		const menuActions = getFlatActionBarActions(toolbarMenu.getActions({}));
 		if (providedActions) {
 			for (const providedAction of providedActions) {
@@ -786,7 +816,7 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		const lastProvider = provider instanceof AccessibleContentProvider ? new AccessibleContentProvider(
+		const lastProvider = isIAccessibleViewContentProvider(provider) ? new AccessibleContentProvider(
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
@@ -799,6 +829,7 @@ export class AccessibleView extends Disposable {
 			provider.onDidChangeContent?.bind(provider),
 			provider.onKeyDown?.bind(provider),
 			provider.getSymbols?.bind(provider),
+			provider.onDidRequestClearLastProvider,
 		) : new ExtensionContentProvider(
 			provider.id,
 			provider.options,
@@ -818,17 +849,30 @@ export class AccessibleView extends Disposable {
 		if (!lastProvider) {
 			return;
 		}
+		// The provider can request to be cleared (e.g. its terminal was killed) while help is open
+		let clearRequested = false;
+		this._helpClearListener.value = isIAccessibleViewContentProvider(lastProvider) ? lastProvider.onDidRequestClearLastProvider?.(id => {
+			if (lastProvider.options.id === id) {
+				clearRequested = true;
+			}
+		}) : undefined;
+		const restoreLastProvider = () => {
+			this._helpClearListener.clear();
+			this._contextViewService.hideContextView();
+			if (clearRequested) {
+				lastProvider.dispose();
+				return;
+			}
+			// HACK: Delay to allow the context view to hide #207638
+			queueMicrotask(() => this.show(lastProvider));
+		};
 		let accessibleViewHelpProvider;
 		if (lastProvider instanceof AccessibleContentProvider) {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 				lastProvider.verbositySettingKey
 			);
 		} else {
@@ -836,11 +880,7 @@ export class AccessibleView extends Disposable {
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 			);
 		}
 		this._contextViewService.hideContextView();

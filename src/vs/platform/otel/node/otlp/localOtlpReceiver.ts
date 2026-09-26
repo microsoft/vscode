@@ -18,6 +18,8 @@ const DEFAULT_MAX_BODY_BYTES = 64 * 1024 * 1024;
 
 /** Callbacks the receiver invokes for each accepted request. */
 export interface IOtlpReceiverHandlers {
+	/** Optionally rewrite an OTLP/JSON request before local decode and forwarding. */
+	transformBody?(body: Buffer): Buffer;
 	/** Invoked with the decoded spans for every successfully-parsed request. */
 	onSpans(result: IDecodeResult): void;
 	/**
@@ -152,8 +154,16 @@ async function handleRequest(
 		return;
 	}
 
+	if (handlers.transformBody) {
+		try {
+			body = handlers.transformBody(body);
+		} catch (err) {
+			logService.warn(`[agentHost-otel] transform callback threw: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
 	// Best-effort forward of raw bytes BEFORE decoding so the upstream
-	// collector sees an identical payload to what the SDK emitted. Failures
+	// collector sees the normalized payload. Failures
 	// here are isolated from the local-decode path.
 	if (handlers.onForward) {
 		try {

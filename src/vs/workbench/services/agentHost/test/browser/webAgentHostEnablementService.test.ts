@@ -12,6 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { WebAgentHostEnablementService } from '../../browser/webAgentHostEnablementService.js';
 
@@ -20,7 +21,6 @@ suite('WebAgentHostEnablementService', () => {
 
 	function getEnablement(options: {
 		readonly remoteAuthority?: string;
-		readonly configured?: boolean;
 		readonly aiDisabled?: boolean;
 	}): {
 		readonly enabled: boolean;
@@ -28,12 +28,12 @@ suite('WebAgentHostEnablementService', () => {
 	} {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService({
-			'chat.agentHost.enabled': options.configured ?? true,
 			[ChatAIDisabledSettingId]: options.aiDisabled ?? false,
 		});
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: options.remoteAuthority });
 
 		const service = disposables.add(instantiationService.createInstance(WebAgentHostEnablementService));
@@ -57,13 +57,10 @@ suite('WebAgentHostEnablementService', () => {
 		});
 	});
 
-	test('respects configuration and AI disablement in web with a remote extension host', () => {
-		assert.deepStrictEqual({
-			configuredOff: getEnablement({ remoteAuthority: 'ssh-remote+test', configured: false }),
-			aiDisabled: getEnablement({ remoteAuthority: 'ssh-remote+test', aiDisabled: true }),
-		}, {
-			configuredOff: { enabled: false, contextKey: false },
-			aiDisabled: { enabled: false, contextKey: false },
+	test('respects AI disablement in web with a remote extension host', () => {
+		assert.deepStrictEqual(getEnablement({ remoteAuthority: 'ssh-remote+test', aiDisabled: true }), {
+			enabled: false,
+			contextKey: false,
 		});
 	});
 });

@@ -7,9 +7,6 @@
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
 	},
-	"chat.tools.edits.autoApprove": {
-		".github/skills/azure-pipelines/azure-pipeline.ts": false
-	},
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
@@ -145,8 +142,8 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"product.overrides.json",
-		"**/node_modules/**",
+		"/product.overrides.json",
+		"node_modules",
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,

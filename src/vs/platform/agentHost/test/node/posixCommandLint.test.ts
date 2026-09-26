@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { findPosixOnlyCommands, type IRecordedCommand } from './e2e/harness/posixCommandLint.js';
+import { findPosixOnlyCommands, getRecordedShellCommand, type IRecordedCommand } from './e2e/harness/posixCommandLint.js';
 
 function check(commands: readonly string[]): string[] {
 	const recorded: IRecordedCommand[] = commands.map(command => ({ command, toolName: 'bash' }));
@@ -34,6 +34,20 @@ suite('posixCommandLint', () => {
 			`echo "$HOME"`,
 		];
 		assert.deepStrictEqual(check(flagged), flagged);
+	});
+
+	test('extracts provider shell command fields', () => {
+		assert.deepStrictEqual([
+			getRecordedShellCommand({ command: 'cat command.txt' }),
+			getRecordedShellCommand({ cmd: 'cat cmd.txt' }),
+			getRecordedShellCommand({ command: 1, cmd: 'cat fallback.txt' }),
+			getRecordedShellCommand(undefined),
+		], [
+			'cat command.txt',
+			'cat cmd.txt',
+			'cat fallback.txt',
+			undefined,
+		]);
 	});
 
 	test('accepts the portable forms the suite standardizes on', () => {

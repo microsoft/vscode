@@ -1,238 +1,171 @@
-# Agent Host Sessions Provider
+# Agent Host sessions provider
 
-**Folder:** `src/vs/sessions/contrib/providers/agentHost/`
+> **Specification change gate:** Do not update this document for provider bug fixes, metadata additions, races, or transport behavior. Update it only when provider ownership, identity, or the shared Agent Host lifecycle changes.
 
-The agent host provider family backs sessions run by an **agent host** — an out-of-process (or in-process) agent runtime that exposes one or more agents (Copilot, Codex, Claude, …) over the agent host protocol (`platform/agentHost`). It is the largest provider in the Agents window and is shared between the local window and remote hosts:
+## Scope
 
-| Class | File | Purpose |
-|-------|------|---------|
-| `BaseAgentHostSessionsProvider` | `browser/baseAgentHostSessionsProvider.ts` | Abstract base implementing the full `ISessionsProvider` surface against an `IAgentConnection`. ~2700 lines; contains `AgentHostSessionAdapter` (the `ISession` impl) and `NewSession` (pre-creation draft). |
-| `LocalAgentHostSessionsProvider` | `browser/localAgentHostSessionsProvider.ts` | Concrete local-window provider backed by the in-process `IAgentHostService`. |
-| `RemoteAgentHostSessionsProvider` | `../remoteAgentHost/` | Concrete remote provider (one per connection). Documented separately in [`REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md`](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md). |
+The Agent Host provider family adapts Agent Host Protocol sessions into the provider-neutral Sessions model. The shared implementation supports local and remote hosts; this document covers the shared base and local registration.
 
-This document covers the shared base and the **local** concrete provider. For the remote variant, read the remote doc — it extends the same base.
+Remote connection-specific behavior is specified in [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md).
 
-## Extended Provider Interface
+## Implementations
 
-Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
+| Implementation | Responsibility |
+|----------------|----------------|
+| `BaseAgentHostSessionsProvider` | Shared `ISessionsProvider` adaptation over an `IAgentConnection` |
+| `LocalAgentHostSessionsProvider` | Local provider backed by `IAgentHostService` |
+| `RemoteAgentHostSessionsProvider` | Per-connection remote specialization |
 
-- **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
-- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema). When the host reports only read-only `folder` isolation because the workspace has no usable Git repository, the picker omits the isolation control rather than showing a disabled `Folder` label. This availability filter runs before presentation-specific `_shouldRenderProperty` overrides so the mobile-aware picker cannot reintroduce the unavailable control on desktop.
+The shared base owns session adaptation, draft creation, catalog publication, request routing, and provider operations. Concrete providers own connection lifetime and environment-specific capabilities.
 
-`isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
+## Extended contract
+
+Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISessionsProvider` with:
+
+- optional remote connection state and connect/disconnect operations;
+- observable host-declared session configuration;
+- observable Agent Merge state for committed sessions;
+- configuration mutation and completion APIs;
+- optional local-draft Dev Container availability and selection.
+
+Consumers use the extended type guard rather than matching provider IDs. Provider-neutral features continue to depend on `ISessionsProvider`.
+
+## Dev Container handoff
+
+The desktop-only Dev Container target is local draft state rather than host-declared session configuration. Before the first request, the local provider starts or reuses the container Agent Host, trusts the mapped workspace only after the source folder passes trust, and replaces the local draft with an equivalent draft owned by the dynamic remote provider. Compatible configuration, model, and custom-agent selections transfer to the replacement.
 
 ## Registration
 
-Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
+`LocalAgentHostContribution` registers the local provider only when the Agent Host runtime is available for the current environment. Agent discovery populates session types dynamically from host root state.
 
-- **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
-- In web, Agent Host enablement additionally requires a remote authority. Web windows with a remote extension host use that server's Agent Host; serverless web keeps Agent Host disabled.
-- The local Codex session type is additionally gated directly on `chat.agentHost.codexAgent.enabled`. The Agents window does not register the OpenAI extension's Codex session type, so it has no separate Codex `preferAgentHost` setting.
-- The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
-- Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
-- Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
-- The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:
-  - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
-  - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
-  - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
-- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `true`, startup experiment).
+The contribution also registers the content and working-directory adapters needed by advertised session types. Runtime startup and shutdown rebind or dispose connection-scoped listeners; consumers must not assume registration means the backend has finished discovery.
 
-The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
+## Automations
+
+The cross-provider ownership, routing, persistence, and run-lifecycle contract is specified in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
+
+Within that contract, Agent Host providers expose the host's `ahp-automations://` channel when negotiated capabilities include Automations. `AgentHostAutomationStore` projects AHP state and maps host session resources into the local or remote Sessions resource scheme. `ReconnectableAgentHostAutomationStore` owns connection and capability transitions. The Agent Host owns execution, scheduling, and recovery without a renderer activation handshake; this provider owns only adaptation and connection-specific identity. Disconnected or unsupported hosts cannot fall back to a browser store or executor.
+
+Imported prompts retain Automation provenance through `MessageKind.Automation`. The projection converts editor-qualified model identifiers to provider-native `ModelSelection.id` values at the AHP boundary while preserving the editor identity exposed to Sessions. The provider also mirrors `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` into host configuration; disabling Automations removes new run authority without deleting definitions or terminating sessions already running.
+
+`AutomationDefinition.session` is authoritative for host-owned model, custom-agent, and provider configuration. The projection removes target-owned working directory, isolation, and branch values from the editor-facing template and restores them only at the AHP boundary. Unknown provider values remain opaque and survive same-target edits.
+
+The host-owned executor creates run sessions from this template. The Automation editor's configuration draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved, without dispatching an Automation prompt. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
 ## Identity
 
-`LocalAgentHostSessionsProvider`:
+The local provider uses:
 
-| Property | Value |
-|----------|-------|
-| `id` | `'local-agent-host'` (`LOCAL_AGENT_HOST_PROVIDER_ID`) |
-| `label` | `"Local Agent Host"` |
-| `icon` | `Codicon.vm` |
-| `supportsLocalWorkspaces` | `true` |
-| `supportsQuickChats` | snapshots agent-host enablement at construction — `true` when `chat.agentHost.enabled` was on then, else `false` |
-| `browseActions` | `[]` (local folders are browsed through the shared workspace picker) |
-| `order` | `-1` when `chat.agentHost.defaultSessionsProvider` is enabled (sorts before all other providers), else `1` |
-| `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
+| Property | Contract |
+|----------|----------|
+| Provider ID | `local-agent-host` |
+| Workspace support | Local workspaces |
+| Quick chats | Supported while the provider is available |
+| Session types | Dynamically derived from advertised agents |
 
-When the default-provider setting flips, the provider re-fires `onDidChangeSessionTypes` so the management service re-collects and re-sorts session types with the new `order`.
+Agent provider names form logical session-type identifiers. Resource URI schemes remain the routing identity for content and model providers. Consumers must not derive one identifier by parsing another.
 
-These session-type icons are specific to the Agents window provider. In the editor window, `agentSessions.ts` maps local Agent Host Copilot to the Local harness's `Codicon.vm` picker icon, while `agentSessionsViewer.ts` uses the same session-list status dot as the Local harness.
+## Session adaptation
 
-## IDs and URI Schemes
+`AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:
 
-A single agent host session uses several distinct identifiers:
+- preserves provider resource identity;
+- projects host metadata into observables;
+- exposes chats through stable `IChat` facades;
+- derives capabilities from the advertised agent and live host state;
+- updates observable state without replacing the facade when identity is stable.
 
-| Purpose | Value | Example |
-|---------|-------|---------|
-| `ISession.sessionType` | Logical type — the agent provider name, shared across hosts | `copilotcli` |
-| `resource.scheme` | `agent-host-${sessionType.id}` (`resourceSchemeForProvider`) | `agent-host-copilotcli` |
-| LM vendor / `targetChatSessionType` | Same as the resource scheme | `agent-host-copilotcli` |
-| `rawId` | Session-local id parsed from the resource path; key in `_sessionCache` | `abc123` |
-| `sessionId` | `{providerId}:{resource}` via `toSessionId` | `local-agent-host:agent-host-copilotcli:///abc123` |
-| `providerId` | The provider instance id | `local-agent-host` |
+The provider cache owns adapter identity. Catalog notifications describe membership; adapter observables describe mutable state.
 
-`ISession.sessionType` is intentionally the agent name (not the scheme) so a logical type like `copilotcli` covers local agent host, remote agent host, and extension-host Copilot CLI sessions in the filter menu and new-session picker. Routing (`registerChatSessionContentProvider`, model registration) is keyed off the per-provider `resource.scheme` instead.
+Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-`getModelsSnapshot(sessionId, desiredModelId)` returns the current models for `session.resource.scheme` and reports that scheme as the snapshot's `modelTarget`, which keys the shared remembered-model preference. Its `desiredModelResolution` field reports whether the desired identifier is pending, available, or unavailable based on that scheme's language-model vendor readiness; it reports `notRequested` when no identifier is supplied. For compatibility with automations saved before the exact model target was preserved, an identifier from the matching logical session type (for example, `copilotcli/gpt-5.6-sol`) is resolved into this provider's concrete namespace (`agent-host-copilotcli:gpt-5.6-sol`) by the model's metadata id; identifiers for unrelated session types remain unavailable. `getModelPickerOptions` returns grouped/featured models and whether Auto is supported. Desktop and phone picker surfaces both consume these provider APIs.
+Selectable Agent Host changesets have one catalogue owner for each scope. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization. After materialization, the session continues publishing its cumulative Session Changes entry while each chat owns its repository and turn catalogue. The client projects the session-owned Session Changes entry into every chat catalogue, so all chats share the same cumulative summary while retaining chat-scoped Branch, Uncommitted, This Turn, and Compare entries.
 
-## Architecture
+Session workflow operations such as pull-request creation and Agent Merge are advertised by Branch Changes sourced from the default chat. Changesets from other scopes, along with Uncommitted, This Turn, and Compare entries, keep those operations filtered out.
 
-- **`AgentHostSessionAdapter`** (`baseAgentHostSessionsProvider.ts`) is the `ISession` implementation. It wraps an `IAgentSessionMetadata` from the backend and exposes the observable session surface (`status`, `title`, `workspace`, `mainChat`, `mode`, …). The base provider keeps a `_sessionCache` of adapters keyed by `rawId`. Adapter capabilities derive from a shared provider-to-capabilities lookup, so one root-state event listener and one catalog scan serve the entire cache; root-state errors and disconnects clear the lookup so stale capabilities are not retained.
-- **`NewSession`** is a disposable draft (pre-creation) session. Several can be in flight simultaneously; the management layer tears down superseded drafts via `deleteNewSession`. A draft eagerly creates its backend session once authentication settles, then **graduates** into a committed `AgentHostSessionAdapter` on first send.
-- The base provider is abstract; concrete providers supply: `connection`, `authenticationPending`, `resourceSchemeForProvider`, `_formatSessionTypeLabel`, `_adapterOptions` (workspace builder), `resolveWorkspace`, and optionally `_diffUriMapper`.
+Chat catalogues with the same normalized effective working directories reference one session-scoped folder Branch Changes resource using the `ahp-folder-changeset:` scheme. The resource belongs to the folder/worktree scope rather than to a particular chat, so the default chat and matching peers advertise the same stable URI while chats in different folders or worktrees advertise different URIs. A multi-root workspace forms one composite scope, including when its folders contain multiple Git repositories, while distinct worktree paths remain separate scopes even when they come from the same repository. The selected base branch affects the diff computed for the resource but not its identity. The Agent Host resolves a representative chat as the folder scope's computation and persistence context, allowing matching chats to share branch computation, review state, monitoring, and picker content without making that chat the resource owner.
 
-`notify/sessionAdded` is an authoritative upsert rather than create-only. An active provisional session can already have entered `_sessionCache` through `listSessions()` with its original checkout; when materialization publishes the final project and worktree working directory, the provider updates that adapter in place and reports it as changed.
+The containing session persists the latest Git state for each normalized effective-working-directory scope. Matching chats reuse that state when their catalogues are first published after restore, while separate sessions retain independent snapshots and live Git discovery remains authoritative.
 
-### Startup session caching (persistence)
+The compact session summary covers every chat workspace without copying chat-owned selectable catalogues onto the session. Folder isolation computes one Session Changes aggregate over the ordered union of session and chat roots. Worktree isolation combines one ready Branch Changes state per unique workspace scope, deduplicating files that overlap between multi-root scopes. Scopes known not to contain a Git repository are skipped. An incomplete restored scope or a transient Git lookup/diff failure preserves the last persisted complete summary until every Git-backed contributing state is ready.
 
-To avoid an empty list on window startup — before the agent host has started, authentication has settled, and the first `listSessions()` round-trip returns — the base provider persists a lightweight snapshot of each session summary to `IStorageService` and re-hydrates it on the next launch. This machinery lives in `BaseAgentHostSessionsProvider` and is **shared by both the local and remote providers**:
+Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them for presentation (dedicated pill vs. reference collection) only, not for removability. Shared GitHub surfaces resolve recorded pull requests and issues independently of workspace availability; the provider also promotes matching entries into the session folder's GitHub metadata only, without assigning unrelated links to its repository. Recorded entries carry no folder, so other folders of a multi-folder session report only the associations discovered for their own working directory. Promoted entries retain their stable recorded-reference ID regardless of `isArtifact`, and presentation uses that ID for session-only removal; a git-/session-discovered GitHub association that was never recorded through `add_artifact_or_reference` has no recorded-reference ID and stays non-removable, even if it reappears after a recorded duplicate is removed. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
-- A subclass opts in by calling `_enableSessionCachePersistence(storageKey)` at the end of its constructor (once the identity fields that `createAdapter` depends on are set). This hydrates persisted summaries into `_sessionCache` immediately, so `getSessions()` returns cached sessions before any live list.
-- `createAdapter`/`updateAdapter` capture the source `IAgentSessionMetadata` in `_metaByRawId`; `onWillSaveState` lazily serializes the cache (overlaying mutable fields — title, `updatedAt`, `isRead`, `isArchived` — read from each adapter's observables), capped at the 100 most-recently-modified entries under `StorageScope.APPLICATION`.
-- Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
-- `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
+## Draft and send lifecycle
 
-The **only** per-provider difference is the storage key: local uses the fixed `localAgentHost.cachedSessions` (single machine-wide host); remote uses `remoteAgentHost.cachedSessions.${authority}` (one key per connection).
+`NewSession` represents an untitled draft before the backend session is committed.
 
-## How Chat Content Loads & Sends (no `IChatSessionItemController`)
+```text
+create draft
+    -> resolve host configuration
+    -> create or select the chat
+    -> send through the owning agent connection
+    -> publish or replace the committed session facade
+```
 
-A common point of confusion is whether the Agents window needs to register an
-`IChatSessionItemController` for agent host sessions. **It does not.** The item
-controller and the chat-content path are two unrelated APIs:
+The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
 
-| API | Responsibility | Used by the Agents window? |
-|-----|----------------|----------------------------|
-| `IChatSessionItemController` (`registerChatSessionItemController`) | Enumerate session **items** (`.items`, `onDidChangeChatSessionItems`) for the **classic** chat sidebar list. | **No.** The agent host `ISessionsProvider` builds its own list via `getSessions()` straight from the connection (`listSessions()` / `notify/sessionAdded` / `rootState`). The workbench `AgentHostSessionListController` is registered only for classic chat surfaces in the editor window; the Agents window neither loads nor consumes it. |
-| `IChatSessionContentProvider` (`registerChatSessionContentProvider`) | Load a session's **chat content** (history/turns) for a resource, provide input completions, and handle the request stream. | **Yes — this is the only API on the chat path.** |
+The host returns the complete ordered local branch list for branch completions; clients filter and limit it. For workspace-bound drafts, the provider starts loading branches when the draft is created and serves the result through its existing configuration-completions API. The new-session pickers search it locally on desktop and phone; load errors are reported rather than treated as an empty list. Replacing or disposing the draft discards the loaded list. Running sessions request a fresh list when their picker opens.
 
-The classic `ChatWidget` is generic: it renders whatever `IChatModel` it is
-handed and sends through `IChatService`. The agent host plugs into chat through
-**two registrations**, neither of which is the item controller — both wired by
-`AgentHostContribution` (workbench) / the remote `*.contribution.ts` at startup:
+Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
 
-1. **`registerChatSessionContentProvider(sessionType, AgentHostSessionHandler)`** —
-   binds the per-provider `resource.scheme` (e.g. `agent-host-copilotcli`) to a
-   content provider. `AgentHostSessionHandler.provideChatSessionContent()`
-   hydrates the model from the backend session state (turns → history) and owns
-   the request stream.
-2. **`AgentHostLanguageModelProvider`** — publishes language models under
-   `targetChatSessionType` = the same resource scheme so
-   `BaseAgentHostSessionsProvider.getModelsSnapshot` resolves the right models.
+Existing-session requests route by the provider resource and chat resource. Host notifications update adapters and catalog membership reactively.
 
-End-to-end in the Agents window:
+## Persistence and discovery
 
-- **List** — `getSessions()` reads from the agent host connection. *(no widget, no item controller)*
-- **Open / load content** — `ChatView.setChat(chat)` → `IChatService.acquireOrLoadSession(chat.resource, …)` → `ChatWidget.setModel(ref.object)`. `IChatService` routes the resource scheme to `AgentHostSessionHandler.provideChatSessionContent()`. `ChatView` first **locks** the widget to the contributed chat session type so follow-up turns keep routing to the same handler.
-- **Send** — `ISessionsManagementService.sendNewChatRequest` → `provider.createNewChat()` → `provider.sendRequest()` → `IChatService.sendRequest(chatResource, …)`, which the bound `AgentHostSessionHandler` forwards to the backend over the agent host protocol.
+Startup metadata may seed lightweight session facades before a live connection finishes discovery. Live host state remains authoritative and upgrades or replaces cached state through the normal catalog lifecycle.
 
-When an existing Agent Host session becomes active, `BaseAgentHostSessionsProvider` publishes the current Agents-window client through `session/activeClientSet`. This lets the host include the window's current customizations and tool definitions before a request is sent; the chat handler continues to update that active-client entry as customizations or tools change.
+The provider remembers isolation per workspace after the first request is accepted. A new draft for that workspace inherits the choice from its last started session; a workspace without a remembered choice falls back to `sessions.useWorktree`. Explicitly removing a workspace from the workspace picker forgets its isolation preference; generic recent-workspace updates do not. Draft-only changes, rejected requests, quick chats, and Automation drafts do not update this workspace preference.
 
-The Agents window thus depends on the classic `ChatWidget` for rendering and on
-the `IChatSessionContentProvider` for content/send, but **not** on
-`IChatSessionItemController` — that API exists only to feed the classic chat
-sidebar list.
+An Agent Host session may own additional detached worktrees for repositories beyond its primary workspace. The host persists each worktree's opaque handle, checkout path, and source repository root with the session. Archive, unarchive, automatic-deletion eligibility, and permanent deletion apply to every owned worktree; deleting session data resolves repository cleanup against source roots before removing the checkouts.
 
-User-input requests are unresolved `InputRequest` response parts on the active
-turn, not a separate chat-level queue. `AgentHostSessionHandler` renders and
-settles the question, plan-review, or URL elicitation directly from that part as
-its `response` and `request.answers` change. Replacing an unresolved request with
-the same id recreates the UI when its structure changes; completed turns restore
-the settled interaction and answers at the part's original stream position.
-Agent implementations decline or cancel requests raised without an active turn
-because there is no response stream in which to represent them.
+Before assigning an additional repository or folder to a chat, the host prepares its effective working directory. Folder isolation uses the requested directory directly. Worktree isolation resolves the primary repository through Git, reuses a session-owned checkout unless a fresh worktree is requested, or creates and claims a detached worktree. Before expanding the aggregate session workspace, the host pins chats that still inherit the complete workspace to their previous effective directories. The preparation operation returns the effective directory for the caller to assign explicitly to the target chat; tool argument parsing and relationship semantics remain separate from this lifecycle contract.
 
-## New Session Flow
+External sessions remain provider-owned domain objects. Visibility and interactivity fields determine whether shared Sessions surfaces present them; shared code does not infer visibility from Agent Host URI formats.
 
-`createNewSession(workspaceUri, sessionTypeId)`:
+Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
 
-1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
-2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`. New-session model/mode selection is seeded by the existing model/agent pickers and sent on the first message.
-3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+### Host session catalog
 
-Portable string config picks are remembered in profile storage and seed later drafts. `branch` is deliberately excluded because it is repository-scoped; each new workspace instead gets the default branch for worktree isolation or the current branch for folder isolation from the host's Git-backed config resolution. Branch config and completions use local names such as `main`; when that local name denotes the repository default, worktree creation still uses its remote-tracking ref such as `origin/main` as the start point.
+The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and catalog. Each row contains a small indexed registry and synchronization envelope plus one bounded, versioned payload for list-visible session and chat metadata. The payload's structural validator is also its TypeScript type authority and normalizes all data before canonical serialization and hashing.
 
-The eager session-state subscription does not compute Git metadata while the host session lifecycle is `Creating`: its initial working directory is the selected checkout, not the final isolated worktree. Materialization publishes the resolved working directory through `notify/sessionAdded` and starts the first Git-state refresh against that path; the later `session/metaChanged` / `notify/sessionSummaryChanged` updates rebuild the adapter workspace with the resolved branch.
+The row has two different ownership contracts. Registry identity and provenance (`session_uri`, provider, start time, external state, and registration source) remain authoritative. The list payload is a derived, rebuildable aggregate: central session/chat identity, provider state, and member-chat metadata can reproduce its canonical bytes and hash. Ordinary session-list reads use this stored aggregate rather than opening every member-chat database.
 
-`createQuickChat(sessionTypeId)` is the **workspace-less** counterpart of `createNewSession` (declared via `supportsQuickChats`). It reuses the same `ISessionType` as a normal session — a quick chat is "identical minus exclusions", not a separate stack — but skips `resolveWorkspace` and builds the `NewSession` draft with `workspace === undefined` and `quickChat === true`. Both paths funnel through the shared `_createDraftSession` helper, so tracking, eager backend creation, and config resolution are otherwise identical. The draft's `session.workspace` resolves to `undefined`, and its eager `connection.createSession` call simply **omits `workingDirectory`** — there is no explicit quick-chat input flag on the wire. The agent host **infers workspace-less at create from the absent `workingDirectory`**, tags the session (`_meta.workspaceless` + the persisted `agentHost.workspaceless` session-database key) and runs it in a stable per-session scratch cwd, with a **repo-less system prompt** (`COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS` appended) that tells the agent its cwd is a throwaway scratch directory, to stay read-only on real repos, and to delegate code changes to a dedicated session. The workspace-trust gate in `_startNewSessionBackend` is naturally skipped because a workspace-less draft has no folder to trust. Forks are **excluded** from this inference: `isWorkspaceless = !sessionConfig.fork && !sessionConfig.workingDirectory`, so a fork without an explicit `workingDirectory` inherits the source session's context rather than being tagged workspace-less.
+Peer-chat membership and routing data are authoritative in the central `session_chat_catalogs` and `session_chats` tables. The default chat is implicit in session identity; ordered peer rows retain their URI, provider backing, origin, and inherited-turn identity. A chat database owns its conversation content and chat-local metadata, including its durable provider backing and title. Central chat rows and the list payload retain only the copies needed to enumerate, route, and present the containing session.
 
-**Restore (persistence).** Quick chats survive reloads via the normal catalog round-trip: `listSessions()` re-advertises them with the `_meta.workspaceless` tag (carried on the session summary) — but also with the throwaway scratch cwd the host assigned. `AgentHostSessionAdapter` **seeds** its session-kind at construction from `readSessionWorkspaceless(metadata._meta)` (`QuickChatSessionKind` vs `WorkspaceSessionKind`); `_computeWorkspace()` delegates to that kind, so a quick chat returns `undefined` regardless of the scratch working directory, and `ISession.isQuickChat` mirrors it. The kind is **monotonically promotable**: `_promoteToQuickChatIfWorkspaceless` (called from both `update()` and `setMeta()`) flips a session to a quick chat the first time an authoritative `_meta` reports it workspace-less, and never demotes it back — an absent marker means "not included", never "cleared". So a session born mis-classified (stale persisted cache, an older host that dropped `_meta` from its listing) heals as soon as any `_meta`-bearing metadata arrives, rather than leaking the scratch dir as a workspace forever. The tag should still ride on **every** adapter-construction path — `_refreshSessions()`/`listSessions` **and** the live `_handleSessionAdded(summary)` notification (which carries `summary._meta`) — because promotion only removes the *permanence* of the mis-classification, not the transient wrong grouping before the first heal. `_persistCache` overlays the adapter's live quick-chat state onto the serialized snapshot so a healed kind survives a reload instead of being resurrected from a stale `_metaByRawId` entry. On the host side, `AgentService.listSessions()` overlays `_meta.workspaceless` onto the provider listing from the persisted `agentHost.workspaceless` session-database key (`AH_META_WORKSPACELESS_DB_KEY`) (the providers themselves, e.g. `CopilotAgent.listSessions()`, do not emit it) so restored sessions carry the tag even after the state manager's live summary is gone. `restoreVisibleSessions` itself is workspace-agnostic — it resolves persisted slots by `sessionResource`, so a quick chat re-hydrates like any other session once the provider re-lists it.
+During the downgrade-compatibility window, a revisioned participant mirrors central peer membership into the legacy `peerChats` session-metadata value. Current runtime reads remain central. A startup/restore importer may read that legacy value to incorporate chats created by an older build; after import, central membership wins and the compatibility mirror is regenerated. Failed mirror writes do not roll back central authority and remain unacknowledged for retry.
 
-A quick chat is a **single-chat session** (`supportsMultipleChats: false`, forced by the `QuickChatSessionKind`), so it has no peer chats; `applyChatCatalog` collapses any state-advertised chats to the default chat. The agents-window core consumes `ISession.isQuickChat` (via `isQuickChatSession(session)`) for list grouping and context keys, rather than inferring quick-chat from `workspace === undefined`. A later `SessionState._meta` **can** promote the kind (and `setMeta` reports the change so the list regroups even when the workspace was already `undefined`), and the host guarantees the tag rides on **both** the summary `_meta` and the subscribed `SessionState._meta` (`createSessionState(summary)` copies `summary._meta` onto the restored state), keeping the two channels consistent.
+Catalog persistence is legacy-first during the compatibility window: one per-session transaction updates downgrade-compatible metadata and a durable pending catalog snapshot before the host-wide catalog is updated. Catalog updates are serialized per session, guarded by session incarnation and source revision, and acknowledged only after the central transaction succeeds. Background reconciliation replays interrupted writes and detects metadata written by older builds. A central monotonic dirty marker lets periodic passes skip clean rows before opening their per-session databases. A persisted verification version marks every payload dirty once when compatibility rules change, so writes made by older builds that do not know about the marker are rechecked without repeating the scan on every startup. Repair clears only the marker it observed; a concurrent mutation leaves the row dirty for another pass. Because provider state has no complete change signal, an infrequent safety sweep advances a persisted cursor through bounded clean-row samples; ordinary periodic passes remain central-only.
 
-`createNewChat(chatId)` creates the chat session model (`IChatSessionsService.getOrCreateChatSession`) so the management service can open the widget, and returns the draft's main chat. For a committed multi-chat session, it asks the host to add a peer chat, waits for that chat to surface in the catalog, seeds its input state, and presents it as `Untitled` until its first request is sent.
+The per-session snapshot retains the canonical payload only while the central write is pending. Exact acknowledgement promotes its hash to the compact receipt and clears the pending payload/hash, so synchronized sessions do not permanently store a third copy of their list metadata.
 
-## Send Flow
+`sessions_v2` is independent of the predecessor `sessions` registry. The current-version importer unions existing v2 identities, optional predecessor registry rows, and provider discovery by session URI, then writes complete rows directly to v2. Payload-versioned per-provider markers record successful current enumeration without changing predecessor migration markers. Partial imports resume per session; durable exclusions make permanently ineligible candidates terminal and revivable by later discovery.
 
-`sendRequest(chatId, chatResource, options)` for a draft session:
+Normal current-runtime mutations are authoritative in v2 and atomically mirror identity/provenance into `sessions` during the compatibility window so an intermediate build can see newly-created sessions. Direct migration remains v2-only. On returning from an intermediate build, the importer reconciles legacy-only additions and resolved legacy identity changes; legacy-row absence alone is never interpreted as deletion. Shared tombstones are the durable cross-version delete signal.
 
-1. Requires the draft and an active connection.
-2. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
-3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
-4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
-5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session. If commit detection times out or the connection is lost, the provisional skeleton is cleaned up and `sendRequest` rejects rather than returning an `InProgress` session that has no remaining lifecycle owner.
+An upsert atomically replaces the verified payload and its synchronization envelope while preserving the registered identity. It is guarded by the session incarnation and source revision. Concurrent first writers converge on the winning incarnation through a serialized retry. Older builds continue to read the mirrored predecessor metadata; no retained central generation is required.
 
-For an already-committed session (including a newly-created peer chat), `sendRequest` loads and holds the target chat model through `IChatService.sendRequest`, applies the cached model/agent input state before dispatch, clears the draft afterwards, then clears the provider-side "new chat" flag so status returns to the host-reported value. Holding the model reference is required for peer chats opened by the lightweight new-chat composer, because no `ChatWidget` owns that model while the first message is dispatched.
+The indexed envelope also carries payload-derived top-level eligibility. Chat-backing sessions therefore remain hidden after restart without decoding their payload or opening their per-session database. For worktree sessions, both legacy metadata and the central payload derive the displayed project from the persisted repository root rather than the worktree checkout.
 
-Running-chat `setModel` / `setAgent` calls update the active chat's cached selection and the loaded chat model's input state. `AgentHostSessionHandler` debounces `IChatModel.inputModel.state` changes back into `chat/draftChanged`, so text/attachment/model/mode drafts survive reloads and restore from `ChatState.draft` when the chat is re-opened. The agent host persists drafts in the per-session database's `chat_drafts` table, keyed by chat URI.
+Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
 
-When restoring Copilot SDK history, `mapSessionEvents` best-effort reconstructs each user message's model, launch/resume custom-agent fallback, and SDK-persisted attachments. Model selection is inferred from `session/model_change` events plus the launch fallback; SDK `subagent.selected` agent names are not treated as AHP agent URIs. Attachments come from the SDK `user.message` attachment payload.
+The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Observing a peer chat's transient details acquires the existing session-state subscription; the subscription reconciles volatile status and activity onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy.
 
-The Agents-window subagent transcript pill surfaces the child turn's current model as quiet inline metadata and shows only the newest child tool on an attached single-line row. Terminal tools prefer `ToolCallBase.intention` over the raw invocation message/command; other tools use the SDK/provider-authored invocation message with the display name as fallback. The view uses shared chat markdown/file-widget rendering for editor-quality file chips and inline commands, animates replacements with the rotating-placeholder wipe/shimmer, and snaps immediately for reduced motion.
+## Local and remote boundary
 
-## CRUD & Stubbed Operations
+The local provider owns local runtime availability and local workspace access. Remote providers own:
 
-- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
-- `renameChat` — renames a single chat independently of the session title. For an additional peer chat it dispatches `SessionTitleChanged` on that chat's channel; for the default/main chat it dispatches on the default chat channel (`setDefaultChatTitle`). The host persists the new title under `customChatTitle:<chatUri>` and re-applies it on restore — the default chat's title is seeded back through `restoreSession`/`_ensureDefaultChat`, peer chats through `_restorePeerChats` — so an independently-renamed main/peer chat survives a process restart or idle eviction instead of reverting to the session title.
-- `renameSession` — updates the session-level title.
-- `deleteChat` — no-op (agent host sessions don't model individually deletable chats).
-- `forkChat(sessionId, sourceChat, turnId)` — multi-chat only. Mints a peer chat URI and calls `connection.createChat(sessionUri, chatUri, { fork: { source, turnId } })`, where `source` is the backend chat URI (a `chatId` fragment addresses a peer chat, otherwise the session's default chat). The host seeds the new chat with the forked history; the provider waits for it to surface in `cached.chats` and returns it. Routed from the **Fork Conversation** gesture via `ISessionsManagementService.forkChatInSession`; single-chat sessions instead fork into a new session (the workbench `AgentHostSessionHandler.forkSession`).
-- `createSideChat(sessionId, sourceChat, turnId)` — gated on `capabilities.supportsSideChat` (currently Claude and Copilot), mirroring `forkChat`'s multi-chat gating and backend-URI resolution. Calls `connection.createChat(sessionUri, chatUri, { model, sideChat: { source, turnId } })`. The anchor may be the source chat's completed or active turn. The node host validates and persists the `SideChat` origin, then passes the source handle to the provider. Claude/Copilot use their SDK fork primitives for hidden context, locking creation on the new chat so they can snapshot provider context accumulated during an active source turn, and filter the inherited prefix from restored turns. The provider wraps the first SDK prompt with a private instruction to prefer explanation over action and to avoid doing work unless explicitly requested. When the active turn has streamed user-visible markdown that the native fork has not persisted, a bounded snapshot is included in the same wrapper. Provider reconstruction strips the wrapper from visible history. The source chat's model/agent selection is re-applied to the new chat once it surfaces, after which the Agents window treats it like any other user-created peer chat tab/menu entry; only tool-origin subagents remain hidden by default.
+- connection establishment and recovery;
+- remote filesystem browsing;
+- remote authentication transport;
+- per-host routing identity.
 
-## Picker & Action Contributions
+Behavior shared by both belongs in the base provider. Connection policy stays in the remote contribution.
 
-The provider ships a rich set of session-scoped UI in `browser/`:
+## Testing
 
-| File | Responsibility |
-|------|----------------|
-| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. On desktop the `isolation` property renders as a "Worktree" checkbox (checked = worktree, unchecked = folder) instead of a dropdown; the phone layout keeps the chip so it can route to the unified repo sheet. |
-| `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
-| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`), rendered immediately before approvals in the secondary toolbar for new and active sessions. |
-| `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
-| `agentHostCodexApprovalsPicker.ts` | Codex-specific permissions-preset picker with Default Permissions, Auto-Review, and Full Access choices. Its bounded, wrapped action-list layout is shared with the editor composer through `vs/platform/agentHost/browser/codexApprovalsPicker.ts`. |
-| `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |
-| `agentHostSkillButtons.ts` | Built-in skill toolbar buttons; defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key bound to the active session's provider. |
-| `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
-| `agentHostSessionBranchActions.ts` | Branch-related session actions. |
-| `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
-| `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
-| `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, the scoped-model-backed `mobileChatInputConfigPicker.ts`, and the provider-backed `mobileChatPhoneInputPresenter.ts`. |
+Focused tests live under `test/browser/*.test.ts` beside this provider. Tests own concrete behavior, hydration races, metadata translation, and regressions; this document owns only stable provider boundaries.
 
-Skill buttons and the `openSessionEventsFile` action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
+## Change policy
 
-## Settings
-
-Two synthetic filesystem providers expose JSONC settings editors:
-
-| Scheme | URI shape | Scope |
-|--------|-----------|-------|
-| `agent-host-settings` | `agent-host-settings://{providerId}/settings.jsonc` | Host-wide settings for a provider (`agentHostSettingsFileSystemProvider.ts`, registered by `agentHostSettings.contribution.ts`). |
-| `agent-session-settings` | `agent-session-settings://{providerId}/{resourceScheme}{path}.jsonc` | Per-session settings, parseable back to a `sessionId` (`agentSessionSettingsFileSystemProvider.ts`, registered by `agentSessionSettings.contribution.ts`). |
-
-`agentHostSettingsShared.ts` provides the shared schema/serialization helpers (`buildAgentHostConfigJsonSchema`, `convertPropertySchema`, `serializeAgentHostConfigDocument`) used by both providers.
-
-## Local vs Remote Differences
-
-| Aspect | Local (`LocalAgentHostSessionsProvider`) | Remote (`RemoteAgentHostSessionsProvider`) |
-|--------|------------------------------------------|--------------------------------------------|
-| Connection | In-process `IAgentHostService` (always present) | One live `IAgentConnection` per remote host |
-| Instances | One | One per connection (created/disposed dynamically) |
-| Resource scheme | `agent-host-${sessionType.id}` | `remote-${authority}-${agent.provider}` |
-| Browse actions | none | host-filesystem "Folders" picker |
-| Diff URIs | `toAgentHostUri(uri, 'local')` | host-scoped mapper |
-| Startup session cache | Shared base persistence; fixed key `localAgentHost.cachedSessions` | Shared base persistence; key `remoteAgentHost.cachedSessions.${authority}` + `unpublishCachedSessions()` offline gate |
-| Extra interface members | — | `connectionStatus`, `remoteAddress`, `connect`/`disconnect` |
-
-## Tests
-
-`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
+Update this specification only when provider ownership, the extended contract, identity rules, or the draft/catalog lifecycle changes. Do not append feature walkthroughs, race analyses, test-file inventories, or incident narratives.

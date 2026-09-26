@@ -3,101 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BranchPicker } from './branchPicker.js';
-import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
-import { ModePicker, ModePickerModel } from './modePicker.js';
-import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
-import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
+import { SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext, NewSessionCreationProviderIdContext } from '../../../../common/contextkeys.js';
+import { COPILOT_PROVIDER_ID, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
+import { SandboxPicker } from './sandboxPicker.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
-const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
-const IsActiveSessionLocal = ContextKeyExpr.equals(SessionTypeContext.key, LocalSessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
-const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionClaudeCode = ContextKeyExpr.equals(SessionTypeContext.key, ClaudeCodeSessionType.id);
-const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(ContextKeyExpr.equals(SessionTypeContext.key, CopilotCloudSessionType.id), IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.defaultCopilot.branchPicker',
-			title: localize2('branchPicker', "Branch"),
-			f1: false,
-			menu: [{
-				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCLI, SessionHasGitRepositoryContext),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.defaultCopilot.modePicker',
-			title: localize2('modePicker', "Mode"),
-			f1: false,
+			id: 'sessions.sandbox.agentDefaultModel',
+			title: localize2('sandbox.agentDefaultModel', "Agent Default"),
+			precondition: ContextKeyExpr.false(),
 			menu: [{
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
+				order: 1,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, ChatContextKeys.enabled, ContextKeyExpr.or(
+					SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
+					NewSessionCreationProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
+				)),
 			}],
 		});
 	}
-	override async run(): Promise<void> { /* handled by action view item */ }
+	override run(): void { }
 });
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.defaultCopilot.permissionPicker',
-			title: localize2('permissionPicker', "Permissions"),
+			id: 'sessions.defaultCopilot.sandboxPicker',
+			title: localize2('sandboxPicker', "Sandbox"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionControl,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.defaultCopilot.claudePermissionModePicker',
-			title: localize2('claudePermissionModePicker', "Permission Mode"),
-			f1: false,
-			menu: [{
-				id: Menus.NewSessionControl,
-				group: 'navigation',
-				order: 1,
-				when: IsActiveSessionCopilotChatClaudeCode,
+				id: Menus.NewSessionRepositoryConfig,
+				group: getNewSessionRepositoryConfigGroup(3, 'sessions.defaultCopilot.sandboxPicker'),
+				order: 3,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
 			}],
 		});
 	}
@@ -109,17 +65,10 @@ registerAction2(class extends Action2 {
 /**
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
- *
- * Exported so the web-only `CopilotPermissionPickerWebContribution`
- * (in `mobilePermissionPicker.contribution.ts`) can reuse the same
- * wrapper for its `MobilePermissionPicker` registration.
  */
-export class PickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: IDisposable) {
+class PickerActionViewItem extends BaseActionViewItem {
+	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
-		if (disposable) {
-			this._register(disposable);
-		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -140,80 +89,21 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@ISessionsService sessionsService: ISessionsService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
-		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
-			if (session) {
-				const provider = sessionsProvidersService.getProvider(session.providerId);
-				if (provider instanceof CopilotChatSessionsProvider) {
-					const selectedModeId = session.mode.read(reader)?.id;
-					modePickerModel.setSession(session, selectedModeId);
-					return;
-				}
-			}
-			modePickerModel.setSession(undefined, undefined);
-		}));
-
 		this._register(actionViewItemService.register(
-			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(BranchPicker, session);
-				return new PickerActionViewItem(picker);
-			},
+			Menus.NewSessionConfig, 'sessions.sandbox.agentDefaultModel',
+			action => new ActionViewItem(undefined, action, { icon: false, label: true }),
 		));
 		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
-			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
-				const disposableStore = new DisposableStore();
-				disposableStore.add(picker.onDidSelect(mode => {
-					const session = sessionsService.activeSession.get();
-					if (!session) {
-						return;
-					}
-					const provider = sessionsProvidersService.getProvider(session.providerId);
-					if (provider instanceof CopilotChatSessionsProvider) {
-						provider.getSession(session.sessionId)?.setMode(mode);
-					}
-				}));
-				return new PickerActionViewItem(picker, disposableStore);
-			},
-		));
-		// Permission picker registration is skipped on web so the
-		// web-only `CopilotPermissionPickerWebContribution` (registered
-		// from `sessions.web.main.ts`) can install the mobile-aware
-		// {@link MobilePermissionPicker} variant instead. On Electron
-		// desktop, register the standard {@link PermissionPicker}
-		// directly — the mobile-only sheet rendering never runs there
-		// and importing the mobile picker would needlessly drag
-		// `mobilePickerSheet.ts` into the desktop bundle.
-		if (!isWeb) {
-			this._register(actionViewItemService.register(
-				Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
-				(_action, _options, scopedInstantiationService) => {
-					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-					const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
-					const picker = scopedInstantiationService.createInstance(PermissionPicker, delegate);
-					return new PickerActionViewItem(picker, delegate);
-				},
-			));
-		}
-		this._register(actionViewItemService.register(
-			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
+			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.sandboxPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(ClaudePermissionModePicker, session);
+				const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
 				return new PickerActionViewItem(picker);
 			},
 		));
 	}
 }
-
 
 registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.AfterRestored);

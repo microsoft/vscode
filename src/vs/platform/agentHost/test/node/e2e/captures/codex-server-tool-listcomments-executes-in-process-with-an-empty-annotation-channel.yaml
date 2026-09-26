@@ -1,0 +1,42 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the listComments tool exactly once, then reply with exactly "listed".
+    response:
+      content:
+        - type: text
+          text: Checking existing session comments now.
+        - type: tool_use
+          id: toolcall_0
+          name: listComments
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the listComments tool exactly once, then reply with exactly "listed".
+        - role: assistant
+          content: Checking existing session comments now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: listComments
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                {
+                  "comments": []
+                }
+    response:
+      content: listed
+      stopReason: end_turn

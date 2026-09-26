@@ -16,11 +16,10 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
-import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
  * Renders an {@link IChatExternalEdit} progress part as a static "edit pill".
@@ -40,17 +39,20 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
  */
 export class ChatExternalEditContentPart extends ChatEditPillElement implements IChatContentPart {
 
-	private readonly _onDidChangeDiff = this._register(new Emitter<IEditSessionDiffStats>());
+	private readonly _onDidChangeDiff = this._register(new Emitter<IChatContentPartDiffData>());
 	/**
-	 * Fires once with the static diff stats from the part data. Wired up by
+	 * Fires once with the static diff data from the part data. Wired up by
 	 * the list renderer so {@link ChatThinkingContentPart} can aggregate
-	 * per-file stats into the thinking title.
+	 * per-file changes into the thinking title.
 	 *
 	 * The fire is deferred to the next microtask so that consumers
 	 * subscribing immediately after construction (e.g. via
 	 * `ChatThinkingContentPart.appendItem`) still receive the initial value.
 	 */
-	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
+	private _diffData: IChatContentPartDiffData | undefined;
+	/** The static diff data, readable before the deferred change event fires. */
+	get diffData(): IChatContentPartDiffData | undefined { return this._diffData; }
 
 	get domNode(): HTMLElement { return this.element; }
 
@@ -88,18 +90,23 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 				? localize('chat.codeblock.deletions.one', "1 deletion")
 				: localize('chat.codeblock.deletions', "{0} deletions", edit.diff.removed);
 			this.setAriaLabel(localize('summary', 'Edited {0}, {1}, {2}', fileName, insertionsFragment, deletionsFragment));
-			// Fire the aggregated stats event on the next microtask so
-			// listeners attached immediately after construction (the
-			// `ChatThinkingContentPart.appendItem` path subscribes after
-			// `createInstance` returns) still observe the value. The
-			// `Emitter` is not replayable on subscribe, so a synchronous
-			// fire would drop the initial stats on the floor.
+			// The stats are readable via `diffData` right away; the event is still fired on the next
+			// microtask so listeners attached immediately after construction observe the value too.
 			const diff = edit.diff;
+			this._diffData = {
+				added: diff.added,
+				removed: diff.removed,
+				resources: [{
+					resource: edit.uri,
+					originalURI: edit.beforeContentUri,
+					modifiedURI: edit.editKind === 'delete' ? undefined : edit.afterContentUri ?? edit.uri,
+				}],
+			};
 			queueMicrotask(() => {
-				if (this._store.isDisposed) {
+				if (this._store.isDisposed || !this._diffData) {
 					return;
 				}
-				this._onDidChangeDiff.fire({ added: diff.added, removed: diff.removed });
+				this._onDidChangeDiff.fire(this._diffData);
 			});
 		} else {
 			this.setDiff(undefined);
@@ -156,4 +163,3 @@ function describeEdit(edit: IChatExternalEdit): { icon: ThemeIcon; label: string
 			return { icon: Codicon.check, label: localize('chat.codeblock.edited', 'Edited') };
 	}
 }
-

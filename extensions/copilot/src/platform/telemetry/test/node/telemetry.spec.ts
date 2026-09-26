@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, Mock, suite, test, vi } from 'vitest';
 import type { TelemetryLogger } from 'vscode';
 import * as zlib from 'zlib';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
-import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
+import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IEnvService } from '../../../env/common/envService';
@@ -41,11 +41,28 @@ function pseudoRandomString(length: number): string {
 	return out;
 }
 
+const internalOrganizations = [
+	{ name: 'GitHub', organization: '4535c7beffc844b46bb1ed4aa04d759a' },
+	{ name: 'Microsoft 1', organization: 'a5db0bcaae94032fe715fb34a5e4bce2' },
+	{ name: 'Microsoft 2', organization: '7184f66dfcee98cb5f08a1cb936d5225' },
+	{ name: 'Microsoft 3', organization: '1cb18ac6eedd49b43d74a1c5beb0b955' },
+	{ name: 'Microsoft 4', organization: 'ea9395b9a9248c05ee6847cbd24355ed' },
+	{ name: 'VS Code', organization: '551cca60ce19654d894e786220822482' },
+];
+
+function createInternalToken(organization: string): CopilotToken {
+	return new CopilotToken(createTestExtendedTokenInfo({
+		token: `rt=1;tid=${organization}`,
+		organization_list: [organization],
+	}));
+}
+
 suite('Microsoft Telemetry Sender', function () {
 	let mockExternalReporter: ITelemetryReporter;
 	let mockInternalReporter: ITelemetryReporter;
-	let mockTokenStore: ICopilotTokenStore;
+	let mockTokenStore: CopilotTokenStore;
 	let mockToken: CopilotToken;
+	let mockReporterFactory: Mock<(internal: boolean) => ITelemetryReporter>;
 	let sender: BaseMsftTelemetrySender;
 
 	beforeEach(() => {
@@ -75,27 +92,22 @@ suite('Microsoft Telemetry Sender', function () {
 			copilot_plan: 'unknown',
 		}));
 
-		mockTokenStore = {
-			_serviceBrand: undefined,
-			copilotToken: mockToken,
-			onDidStoreUpdate: vi.fn((callback) => {
-				callback();
-				return { dispose: vi.fn() };
-			}),
-		};
+		mockTokenStore = new CopilotTokenStore();
+		mockTokenStore.copilotToken = mockToken;
 
-		const mockReporterFactory = (internal: boolean) => {
+		mockReporterFactory = vi.fn((internal: boolean) => {
 			if (internal) {
 				return mockInternalReporter;
 			} else {
 				return mockExternalReporter;
 			}
-		};
+		});
 		sender = new BaseMsftTelemetrySender(mockTokenStore, mockReporterFactory);
 	});
 
 	afterEach(() => {
 		sender.dispose();
+		mockTokenStore.dispose();
 	});
 
 	test('should send telemetry event', () => {
@@ -120,22 +132,40 @@ suite('Microsoft Telemetry Sender', function () {
 		);
 	});
 
-	test('should send internal telemetry event', () => {
-		sender.sendInternalTelemetryEvent('testInternalEvent', { foo: 'bar' }, { 'testMeasure': 1 });
+	test.each(internalOrganizations)('should not create or send restricted telemetry for $name members', ({ organization }) => {
+		mockTokenStore.copilotToken = createInternalToken(organization);
+		sender.sendInternalTelemetryEvent('testInternalEvent', { prompt: 'user code' });
 
-		expect(mockInternalReporter.sendRawTelemetryEvent).toHaveBeenCalledOnce();
-		expect(mockInternalReporter.sendRawTelemetryEvent).toHaveBeenCalledWith(
-			'testInternalEvent',
-			{ foo: 'bar', 'common.tid': 'testTid', 'common.userName': 'testUser' },
-			{ 'common.isVscodeTeamMember': 1, 'testMeasure': 1 },
-		);
+		expect({
+			reportersCreated: mockReporterFactory.mock.calls,
+			restrictedSends: vi.mocked(mockInternalReporter.sendRawTelemetryEvent).mock.calls,
+			standardSends: vi.mocked(mockExternalReporter.sendTelemetryEvent).mock.calls,
+			rawStandardSends: vi.mocked(mockExternalReporter.sendRawTelemetryEvent).mock.calls,
+		}).toEqual({
+			reportersCreated: [[false]],
+			restrictedSends: [],
+			standardSends: [],
+			rawStandardSends: [],
+		});
+	});
+
+	test('should not send restricted telemetry after switching to an external user or signing out', () => {
+		mockTokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'rt=1;tid=external', organization_list: [] }));
+		sender.sendInternalTelemetryEvent('external', { prompt: 'user code' });
+		mockTokenStore.copilotToken = undefined;
+		sender.sendInternalTelemetryEvent('signedOut', { prompt: 'user code' });
+
+		expect(mockReporterFactory.mock.calls).toEqual([[false]]);
+		expect(mockInternalReporter.sendRawTelemetryEvent).not.toHaveBeenCalled();
+		expect(mockExternalReporter.sendTelemetryEvent).not.toHaveBeenCalled();
+		expect(mockExternalReporter.sendRawTelemetryEvent).not.toHaveBeenCalled();
 	});
 
 	test('should dispose reporters', () => {
 		sender.dispose();
 
 		expect(mockExternalReporter.dispose).toHaveBeenCalledOnce();
-		expect(mockInternalReporter.dispose).toHaveBeenCalledOnce();
+		expect(mockInternalReporter.dispose).not.toHaveBeenCalled();
 	});
 
 });
@@ -144,9 +174,10 @@ suite('GitHub Telemetry Sender', function () {
 	let accessor: ITestingServicesAccessor;
 	let sender: BaseGHTelemetrySender;
 	let mockLogger: TelemetryLogger;
-	let mockTokenStore: ICopilotTokenStore;
+	let mockTokenStore: CopilotTokenStore;
 	let mockToken: CopilotToken;
 	let mockEnhancedLogger: TelemetryLogger;
+	let mockLoggerFactory: Mock<(enhanced: boolean) => TelemetryLogger>;
 
 	// These are all common properties & measurements that the telemetry sender will add to every event
 	const commonTelemetryData = {
@@ -171,21 +202,14 @@ suite('GitHub Telemetry Sender', function () {
 			sku: 'testSku',
 			expires_at: 9999999999,
 			refresh_in: 180000,
-			// Make the token part of the GH org so it works for internal people
-			organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'],
-			isVscodeTeamMember: true,
+			organization_list: [],
+			isVscodeTeamMember: false,
 			username: 'testUser',
 			copilot_plan: 'unknown',
 		}));
 
-		mockTokenStore = {
-			_serviceBrand: undefined,
-			copilotToken: mockToken,
-			onDidStoreUpdate: vi.fn((callback) => {
-				callback();
-				return { dispose: vi.fn() };
-			}),
-		};
+		mockTokenStore = new CopilotTokenStore();
+		mockTokenStore.copilotToken = mockToken;
 
 		mockLogger = {
 			isUsageEnabled: true,
@@ -211,6 +235,11 @@ suite('GitHub Telemetry Sender', function () {
 			dispose: vi.fn()
 		};
 
+		mockLoggerFactory = vi.fn((enhanced: boolean) => enhanced ? mockEnhancedLogger : mockLogger);
+		sender = createSender();
+	});
+
+	function createSender(): BaseGHTelemetrySender {
 		const telemetryConfig: ITelemetryUserConfig = {
 			_serviceBrand: undefined,
 			optedIn: true,
@@ -218,14 +247,7 @@ suite('GitHub Telemetry Sender', function () {
 			enterpriseList: undefined,
 			trackingId: 'testId'
 		};
-		const mockLoggerFactory = (enhanced: boolean) => {
-			if (enhanced) {
-				return mockEnhancedLogger;
-			} else {
-				return mockLogger;
-			}
-		};
-		sender = new BaseGHTelemetrySender(
+		return new BaseGHTelemetrySender(
 			mockTokenStore,
 			mockLoggerFactory,
 			accessor.get(IConfigurationService),
@@ -233,11 +255,12 @@ suite('GitHub Telemetry Sender', function () {
 			accessor.get(IEnvService),
 			accessor.get(IDomainService),
 		);
-	});
+	}
 
 	afterEach(() => {
 		accessor.dispose();
 		sender.dispose();
+		mockTokenStore.dispose();
 	});
 
 	test('should send telemetry event', () => {
@@ -347,6 +370,95 @@ suite('GitHub Telemetry Sender', function () {
 		expect(mockEnhancedLogger.logError).toHaveBeenCalledOnce();
 	});
 
+	test.each(internalOrganizations)('should not create restricted loggers for $name members at startup', ({ organization }) => {
+		sender.dispose();
+		mockTokenStore.copilotToken = createInternalToken(organization);
+		vi.clearAllMocks();
+		sender = createSender();
+
+		sender.sendEnhancedTelemetryEvent('restrictedEvent', { prompt: 'user code' });
+		sender.sendEnhancedTelemetryErrorEvent('restrictedError', { prompt: 'user code' });
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		sender.sendTelemetryEvent('standardEvent');
+		sender.sendTelemetryErrorEvent('standardError');
+
+		expect({
+			loggersCreated: mockLoggerFactory.mock.calls,
+			restrictedEvents: vi.mocked(mockEnhancedLogger.logUsage).mock.calls,
+			restrictedErrors: vi.mocked(mockEnhancedLogger.logError).mock.calls,
+			standardEvents: vi.mocked(mockLogger.logUsage).mock.calls.map(([name]) => name),
+			standardErrors: vi.mocked(mockLogger.logError).mock.calls.map(([name]) => name),
+		}).toEqual({
+			loggersCreated: [[false]],
+			restrictedEvents: [],
+			restrictedErrors: [],
+			standardEvents: ['exception', 'standardEvent'],
+			standardErrors: ['standardError'],
+		});
+	});
+
+	test.each(internalOrganizations)('should update restricted telemetry eligibility when switching to and from $name', ({ organization }) => {
+		mockTokenStore.copilotToken = createInternalToken(organization);
+		sender.sendEnhancedTelemetryEvent('internalEvent', { prompt: 'user code' });
+		sender.sendEnhancedTelemetryErrorEvent('internalError', { prompt: 'user code' });
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+
+		expect(mockEnhancedLogger.dispose).toHaveBeenCalledOnce();
+		expect(mockEnhancedLogger.logUsage).not.toHaveBeenCalled();
+		expect(mockEnhancedLogger.logError).not.toHaveBeenCalled();
+
+		mockTokenStore.copilotToken = mockToken;
+		sender.sendEnhancedTelemetryEvent('externalEvent');
+		sender.sendEnhancedTelemetryErrorEvent('externalError');
+
+		expect(vi.mocked(mockEnhancedLogger.logUsage).mock.calls.map(([name]) => name)).toEqual(['externalEvent']);
+		expect(vi.mocked(mockEnhancedLogger.logError).mock.calls.map(([name]) => name)).toEqual(['externalError']);
+	});
+
+	test.each(['rt=0;tid=external', 'tid=external', undefined])('should stop restricted telemetry without opt-in or a token (%s)', token => {
+		mockTokenStore.copilotToken = token ? new CopilotToken(createTestExtendedTokenInfo({ token, organization_list: [] })) : undefined;
+		sender.sendEnhancedTelemetryEvent('restrictedEvent', { prompt: 'user code' });
+		sender.sendEnhancedTelemetryErrorEvent('restrictedError', { prompt: 'user code' });
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+
+		expect(mockEnhancedLogger.dispose).toHaveBeenCalledOnce();
+		expect(mockEnhancedLogger.logUsage).not.toHaveBeenCalled();
+		expect(mockEnhancedLogger.logError).not.toHaveBeenCalled();
+		expect(mockLogger.logUsage).toHaveBeenCalledOnce();
+	});
+
+	test('should not send restricted telemetry for VS Code team members', () => {
+		mockTokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'rt=1;tid=vscodeTeam', organization_list: [], isVscodeTeamMember: true }));
+		sender.sendEnhancedTelemetryEvent('restrictedEvent', { prompt: 'user code' });
+		sender.sendEnhancedTelemetryErrorEvent('restrictedError', { prompt: 'user code' });
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+
+		expect(mockEnhancedLogger.dispose).toHaveBeenCalledOnce();
+		expect(mockEnhancedLogger.logUsage).not.toHaveBeenCalled();
+		expect(mockEnhancedLogger.logError).not.toHaveBeenCalled();
+	});
+
+	test('should explain in the exception placeholder why the real error was not sent', () => {
+		const lastExceptionReason = () => vi.mocked(mockLogger.logUsage).mock.lastCall![1]!.properties.reason.value;
+
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const optedIn = lastExceptionReason();
+
+		mockTokenStore.copilotToken = createInternalToken('4535c7beffc844b46bb1ed4aa04d759a');
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const internal = lastExceptionReason();
+
+		mockTokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'rt=0;tid=external', organization_list: [] }));
+		sender.sendExceptionTelemetry(new Error('user code'), 'testOrigin');
+		const optedOut = lastExceptionReason();
+
+		expect({ optedIn, internal, optedOut }).toEqual({
+			optedIn: 'Exception logged to enhanced telemetry',
+			internal: 'Exception, not logged for internal user',
+			optedOut: 'Exception, not logged due to opt-out',
+		});
+	});
+
 	test('should dispose loggers and disposables', () => {
 		sender.dispose();
 		expect(mockLogger.dispose).toHaveBeenCalledOnce();
@@ -379,20 +491,47 @@ suite('multiplexProperties compression', function () {
 		expect(result).toEqual({ someField: 'small', other: 'x' });
 	});
 
+	test.each([0, 100, 8192, 8193, 20000])('always compresses a prompt of length %i while preserving its raw prefix', async length => {
+		const prompt = 'x'.repeat(length);
+		const result = await multiplexProperties({ prompt }, gzipBase64);
+
+		expect(result).toEqual({
+			prompt: prompt.slice(0, 8192),
+			promptChunk: await gzipBase64(prompt),
+		});
+	});
+
 	test('always emits a compressed chunk family for known-large fields even when they fit', async () => {
 		const result = await multiplexProperties({ diffsJSON: 'small', messagesJson: 'tiny', other: 'x' }, gzipBase64) as { [key: string]: string };
 
 		// Known-large fields are always chunked in compressed form for backend uniformity.
 		expect(result.diffsJSONChunk).toBeDefined();
-		expect(result.messagesJsonChunk).toBeDefined();
+		// messagesJson uses the uppercase-JSON chunk family name expected by the backend.
+		expect(result.messagesJSONChunk).toBeDefined();
+		expect(result.messagesJsonChunk).toBeUndefined();
 		expect(gunzipFromBase64(joinCompressedChunks(result, 'diffsJSONChunk'))).toBe('small');
-		expect(gunzipFromBase64(joinCompressedChunks(result, 'messagesJsonChunk'))).toBe('tiny');
+		expect(gunzipFromBase64(joinCompressedChunks(result, 'messagesJSONChunk'))).toBe('tiny');
 		// The original columns still carry the (short) uncompressed value.
 		expect(result.diffsJSON).toBe('small');
 		expect(result.messagesJson).toBe('tiny');
 		// Other short fields are left untouched.
 		expect(result.other).toBe('x');
 		expect(result.otherChunk).toBeUndefined();
+	});
+
+	test('emits the messagesJSONChunk family (with numbered suffixes) for large messagesJson', async () => {
+		const original = pseudoRandomString(60000); // Poorly compressible -> compressed base64 > 8192.
+		const result = await multiplexProperties({ messagesJson: original }, gzipBase64) as { [key: string]: string };
+
+		// The original column carries just the first uncompressed chunk; no plain continuation family.
+		expect(result.messagesJson).toBe(original.slice(0, 8192));
+		expect(result.messagesJson_02).toBeUndefined();
+		// Compressed family uses the uppercase-JSON name, including numbered suffixes.
+		expect(result.messagesJSONChunk).toBeDefined();
+		expect(result.messagesJSONChunk_2).toBeDefined();
+		expect(result.messagesJsonChunk).toBeUndefined();
+		expect(result.messagesJsonChunk_2).toBeUndefined();
+		expect(gunzipFromBase64(joinCompressedChunks(result, 'messagesJSONChunk'))).toBe(original);
 	});
 
 	test('falls back to the plain continuation family when no compressor is provided', async () => {

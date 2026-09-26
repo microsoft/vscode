@@ -11,9 +11,8 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
+import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
-import cp from 'child_process';
-import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
@@ -279,40 +278,6 @@ function getThumbprint(input: string, algorithm: string): Buffer {
 	return crypto.createHash(algorithm).update(buffer).digest();
 }
 
-function getKeyFromPFX(pfx: string): string {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemKeyPath = path.join(os.tmpdir(), 'key.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nocerts -nodes -out "${pemKeyPath}" -passin pass:`);
-		const raw = fs.readFileSync(pemKeyPath, 'utf-8');
-		const result = raw.match(/-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----/g)![0];
-		return result;
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemKeyPath, { force: true });
-	}
-}
-
-function getCertificatesFromPFX(pfx: string): string[] {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemCertificatePath = path.join(os.tmpdir(), 'cert.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nokeys -out "${pemCertificatePath}" -passin pass:`);
-		const raw = fs.readFileSync(pemCertificatePath, 'utf-8');
-		const matches = raw.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
-		return matches ? matches.reverse() : [];
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemCertificatePath, { force: true });
-	}
-}
-
 class ESRPReleaseService {
 
 	static async create(
@@ -435,10 +400,10 @@ class ESRPReleaseService {
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
 			esrpCorrelationId: correlationId,
-			driEmail: ['joao.moreno@microsoft.com'],
-			createdBy: { userPrincipalName: 'jomo@microsoft.com' },
-			owners: [{ owner: { userPrincipalName: 'jomo@microsoft.com' } }],
-			approvers: [{ approver: { userPrincipalName: 'jomo@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
+			driEmail: ['lszomoru@microsoft.com'],
+			createdBy: { userPrincipalName: 'lszomoru@microsoft.com' },
+			owners: [{ owner: { userPrincipalName: 'lszomoru@microsoft.com' } }],
+			approvers: [{ approver: { userPrincipalName: 'lszomoru@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
 			releaseInfo: {
 				title: 'VS Code',
 				properties: {

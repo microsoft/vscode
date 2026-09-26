@@ -1,9 +1,14 @@
+parameters:
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
+
 jobs:
   - job: Web
     displayName: Web
     timeoutInMinutes: 45
     pool:
-      name: 1es-ubuntu-22.04-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       VSCODE_ARCH: x64
@@ -68,11 +73,19 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+
       - script: |
           set -e
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
         displayName: Setup system services
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: node build/npm/preinstall.ts
+        displayName: Install Electron headers
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
@@ -93,6 +106,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        displayName: Verify native optional dependency binaries
+
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
@@ -109,6 +129,9 @@ jobs:
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
 
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
@@ -165,7 +188,7 @@ jobs:
           AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
           AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
         displayName: Upload sourcemaps (Web)
 
       - script: |

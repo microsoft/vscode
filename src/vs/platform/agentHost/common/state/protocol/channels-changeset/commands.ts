@@ -17,6 +17,7 @@ import type { BaseParams } from '../common/commands.js';
  * `Changeset` scope has no target.
  *
  * @category Commands
+ * @nonexhaustive
  */
 export const enum ChangesetOperationTargetKind {
 	/** Operation acts on a single file. */

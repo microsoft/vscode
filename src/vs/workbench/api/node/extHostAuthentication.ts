@@ -14,6 +14,7 @@ import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
 import { ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse, AuthorizationErrorType, AuthorizationDeviceCodeErrorType } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
 import { raceCancellationError } from '../../../base/common/async.js';
@@ -31,7 +32,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		initData: IExtHostInitDataService,
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
-		proxy: MainThreadAuthenticationShape,
+		proxy: Proxied<MainThreadAuthenticationShape>,
 		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,

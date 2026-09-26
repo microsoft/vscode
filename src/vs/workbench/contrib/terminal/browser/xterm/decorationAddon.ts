@@ -24,7 +24,6 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { terminalDecorationMark } from '../terminalIcons.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalDecorationHoverContent, updateLayout } from './decorationStyles.js';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatContextPickService } from '../../../chat/browser/attachments/chatContextPickService.js';
@@ -61,7 +60,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -86,7 +84,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._updateDecorationVisibility();
 		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
 		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
-		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {

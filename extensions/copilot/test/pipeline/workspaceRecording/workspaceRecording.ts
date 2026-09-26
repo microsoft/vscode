@@ -6,23 +6,23 @@
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
+import { DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT } from '../../base/simulationOptions';
 import { deserializeStringEdit, serializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
 import { RecordingData, ResolvedRecording } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/resolvedRecording';
 import { OperationKind, type Operation } from '../../../src/platform/workspaceRecorder/common/resolvedRecording/operation';
 import type { HeaderLogEntry, ISerializedEdit, ISerializedOffsetRange, LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { ErrorUtils } from '../../../src/util/common/errors';
 import { StringText } from '../../../src/util/vs/editor/common/core/text/abstractText';
+import { composeAndLimitSerializedEdits, doesSerializedEditContinueOracle, ORACLE_CURSOR_CONTINUATION_LINE_GAP, ORACLE_CURSOR_SUPPRESSION_MS, ORACLE_EDIT_IDLE_MS } from '../oracleEdits';
 import type { IWorkspaceRecordingSampleProvenance } from '../replayRecording';
 
 const WORKSPACE_RECORDING_CONTEXT_WINDOW_MS = 5 * 60 * 1000;
-const WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS = 200;
-const WORKSPACE_RECORDING_ORACLE_IDLE_MS = 5 * 1000;
-export const WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT = 10;
 const WORKSPACE_RECORDING_SYNTHETIC_TIME_BASE = 3_000_000;
 
-type EditClassification = 'user' | 'generated' | 'ambiguous';
+type EditClassification = 'user' | 'accepted' | 'partially-accepted' | 'generated' | 'ambiguous';
 type WorkspacePivotKind = IWorkspaceRecordingSampleProvenance['pivotKind'];
 type WorkspaceOracleStopReason = IWorkspaceRecordingSampleProvenance['oracleStopReason'];
+type WorkspaceOracleCollectionStopReason = WorkspaceOracleStopReason | 'end-of-recording' | 'touching-boundary';
 
 export interface IWorkspaceRecording {
 	readonly entries: LogEntry[];
@@ -34,6 +34,7 @@ export interface IWorkspaceRecordingSampleDescriptor {
 	readonly pivotOperationIndex: number;
 	readonly pivotKind: WorkspacePivotKind;
 	readonly oracleOperationIndices: readonly number[];
+	readonly oracleEdits: ISerializedEdit;
 	readonly cursorBoundaryOperationIndex: number | undefined;
 	readonly oracleStopReason: WorkspaceOracleStopReason;
 }
@@ -55,8 +56,6 @@ const userCursorKinds = new Set([
 ]);
 
 const generatedEditSources = new Set([
-	'inlineCompletionAccept',
-	'inlineCompletionPartialAccept',
 	'Chat.applyEdits',
 	'inlineChat.applyEdits',
 	'reloadFromDisk',
@@ -128,7 +127,12 @@ export async function loadWorkspaceRecording(inputPath: string): Promise<IWorksp
 export function selectWorkspaceRecordingSamples(
 	recording: IWorkspaceRecording,
 	maxSamples: number,
+	maxOracleEdits = DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 ): IWorkspaceRecordingSampleDescriptor[] {
+	if (!Number.isInteger(maxOracleEdits) || maxOracleEdits <= 0) {
+		throw new Error(`Workspace recording oracle edit limit must be a positive integer, but got: ${maxOracleEdits}`);
+	}
+
 	const classifications = createEditClassifications(recording);
 	const deliberateCursorOperations = findDeliberateCursorOperations(recording);
 	const candidates: IWorkspaceRecordingSampleDescriptor[] = [];
@@ -145,7 +149,11 @@ export function selectWorkspaceRecordingSamples(
 		}
 
 		const oracle = collectOracle(recording, operation, classifications, deliberateCursorOperations);
-		if (oracle.operationIndices.length === 0) {
+		if (oracle.operationIndices.length === 0 || oracle.stopReason === 'end-of-recording' || oracle.stopReason === 'touching-boundary') {
+			continue;
+		}
+		const oracleEdits = composeOracleEdits(recording, oracle.operationIndices, maxOracleEdits);
+		if (oracleEdits.length === 0) {
 			continue;
 		}
 
@@ -153,6 +161,7 @@ export function selectWorkspaceRecordingSamples(
 			pivotOperationIndex: operation.operationIdx,
 			pivotKind,
 			oracleOperationIndices: oracle.operationIndices,
+			oracleEdits,
 			cursorBoundaryOperationIndex: oracle.cursorBoundaryOperationIndex,
 			oracleStopReason: oracle.stopReason,
 		});
@@ -286,7 +295,7 @@ export function materializeWorkspaceRecordingSample(
 		provenance: {
 			sourceFormat: 'workspace-recording',
 			recordingRevision: recording.revision,
-			policyVersion: 1,
+			policyVersion: 2,
 			pivotKind: descriptor.pivotKind,
 			pivotOperationIndex: descriptor.pivotOperationIndex,
 			oracleOperationCount: descriptor.oracleOperationIndices.length,
@@ -532,10 +541,17 @@ function classifyMetadata(metadata: Record<string, unknown> | undefined): EditCl
 		const kind = metadata['kind'];
 		return typeof kind === 'string' && userCursorKinds.has(kind) ? 'user' : 'ambiguous';
 	}
-	if (generatedEditSources.has(source)) {
-		return 'generated';
+	return classifyNonCursorSource(source);
+}
+
+function classifyNonCursorSource(source: string): EditClassification {
+	if (source === 'inlineCompletionAccept') {
+		return 'accepted';
 	}
-	return 'ambiguous';
+	if (source === 'inlineCompletionPartialAccept') {
+		return 'partially-accepted';
+	}
+	return generatedEditSources.has(source) ? 'generated' : 'ambiguous';
 }
 
 function collectLegacyClassifications(entries: readonly LogEntry[]): ReadonlyMap<string, EditClassification> {
@@ -552,9 +568,7 @@ function collectLegacyClassifications(entries: readonly LogEntry[]): ReadonlyMap
 		if (typeof version !== 'number' || !Number.isInteger(version) || typeof source !== 'string') {
 			continue;
 		}
-		const classification = source === 'cursor'
-			? 'user'
-			: generatedEditSources.has(source) ? 'generated' : 'ambiguous';
+		const classification = source === 'cursor' ? 'user' : classifyNonCursorSource(source);
 		const key = documentVersionKey(entry.id, version);
 		const previous = result.get(key);
 		result.set(key, previous !== undefined && previous !== classification ? 'ambiguous' : classification);
@@ -585,7 +599,7 @@ function findDeliberateCursorOperations(recording: IWorkspaceRecording): Readonl
 
 		const lastEditTime = lastEditTimeByDocument.get(operation.documentId);
 		const delta = lastEditTime === undefined ? undefined : operation.time - lastEditTime;
-		const followsSameDocumentEdit = delta !== undefined && delta >= 0 && delta <= WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS;
+		const followsSameDocumentEdit = delta !== undefined && delta >= 0 && delta <= ORACLE_CURSOR_SUPPRESSION_MS;
 		if (changedLocation && !followsSameDocumentEdit) {
 			result.add(operation.operationIdx);
 		}
@@ -603,7 +617,7 @@ function collectOracle(
 ): {
 	operationIndices: number[];
 	cursorBoundaryOperationIndex: number | undefined;
-	stopReason: WorkspaceOracleStopReason;
+	stopReason: WorkspaceOracleCollectionStopReason;
 } {
 	const operationIndices: number[] = [];
 	let previousEditTime = pivot.time;
@@ -611,6 +625,40 @@ function collectOracle(
 	for (let i = pivot.operationIdx + 1; i < recording.resolved.operations.length; i++) {
 		const operation = recording.resolved.operations[i];
 		if (deliberateCursorOperations.has(i)) {
+			const nextChangeOperationIndex = findNextDocumentChangeOperationIndex(recording, i + 1, pivot.documentId);
+			if (
+				operationIndices.length > 0
+				&& nextChangeOperationIndex !== undefined
+			) {
+				const nextChangeOperation = recording.resolved.operations[nextChangeOperationIndex];
+				const nextClassification = classifications.get(nextChangeOperationIndex) ?? 'ambiguous';
+				const nextDelta = nextChangeOperation.time - previousEditTime;
+				const continuesNearbyUserIntent = (
+					nextClassification === 'accepted'
+					|| nextClassification === 'partially-accepted'
+					|| (nextClassification === 'user' && nextDelta > 0 && nextDelta < ORACLE_EDIT_IDLE_MS)
+				) && areDocumentChangesWithinLineGap(
+					recording,
+					operationIndices[operationIndices.length - 1],
+					nextChangeOperationIndex,
+					ORACLE_CURSOR_CONTINUATION_LINE_GAP,
+				);
+				if (continuesNearbyUserIntent) {
+					continue;
+				}
+				if (!doesOperationContinueOracle(recording, operationIndices, nextChangeOperationIndex)) {
+					return {
+						operationIndices,
+						cursorBoundaryOperationIndex: i,
+						stopReason: 'cursor-move',
+					};
+				}
+				return {
+					operationIndices,
+					cursorBoundaryOperationIndex: undefined,
+					stopReason: 'touching-boundary',
+				};
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: i,
@@ -619,13 +667,24 @@ function collectOracle(
 		}
 
 		if (operation.kind === OperationKind.SetContent || operation.kind === OperationKind.Restore) {
+			let stopReason: WorkspaceOracleCollectionStopReason;
+			if (operation.documentId !== pivot.documentId) {
+				stopReason = 'other-document-edit';
+			} else if (operationIndices.length > 0) {
+				stopReason = 'touching-boundary';
+			} else {
+				stopReason = 'ambiguous-edit';
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: undefined,
-				stopReason: operation.documentId === pivot.documentId ? 'ambiguous-edit' : 'other-document-edit',
+				stopReason,
 			};
 		}
 		if (operation.kind !== OperationKind.Changed) {
+			continue;
+		}
+		if (isNoOpDocumentChange(recording, operation)) {
 			continue;
 		}
 		if (operation.documentId !== pivot.documentId) {
@@ -633,7 +692,14 @@ function collectOracle(
 		}
 
 		const classification = classifications.get(operation.operationIdx) ?? 'ambiguous';
-		if (classification !== 'user') {
+		if (classification !== 'user' && classification !== 'accepted' && classification !== 'partially-accepted') {
+			if (operationIndices.length > 0 && doesOperationContinueOracle(recording, operationIndices, operation.operationIdx)) {
+				return {
+					operationIndices,
+					cursorBoundaryOperationIndex: undefined,
+					stopReason: 'touching-boundary',
+				};
+			}
 			return {
 				operationIndices,
 				cursorBoundaryOperationIndex: undefined,
@@ -641,19 +707,126 @@ function collectOracle(
 			};
 		}
 
-		const delta = operation.time - previousEditTime;
-		if (delta <= 0 || delta >= WORKSPACE_RECORDING_ORACLE_IDLE_MS) {
-			return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'idle-gap' };
+		if (classification === 'user') {
+			const delta = operation.time - previousEditTime;
+			if (delta <= 0 || delta >= ORACLE_EDIT_IDLE_MS) {
+				if (operationIndices.length > 0 && doesOperationContinueOracle(recording, operationIndices, operation.operationIdx)) {
+					return {
+						operationIndices,
+						cursorBoundaryOperationIndex: undefined,
+						stopReason: 'touching-boundary',
+					};
+				}
+				return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'idle-gap' };
+			}
 		}
 
 		operationIndices.push(operation.operationIdx);
 		previousEditTime = operation.time;
-		if (operationIndices.length === WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT) {
-			return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'edit-limit' };
-		}
 	}
 
 	return { operationIndices, cursorBoundaryOperationIndex: undefined, stopReason: 'end-of-recording' };
+}
+
+function findNextDocumentChangeOperationIndex(
+	recording: IWorkspaceRecording,
+	startOperationIndex: number,
+	documentId: number,
+): number | undefined {
+	for (let i = startOperationIndex; i < recording.resolved.operations.length; i++) {
+		const operation = recording.resolved.operations[i];
+		if (operation.kind === OperationKind.SetContent || operation.kind === OperationKind.Restore) {
+			return undefined;
+		}
+		if (operation.kind !== OperationKind.Changed || isNoOpDocumentChange(recording, operation)) {
+			continue;
+		}
+		return operation.documentId === documentId ? operation.operationIdx : undefined;
+	}
+	return undefined;
+}
+
+function areDocumentChangesWithinLineGap(
+	recording: IWorkspaceRecording,
+	firstOperationIndex: number,
+	secondOperationIndex: number,
+	maxLineGap: number,
+): boolean {
+	const first = getDocumentChangeLineRange(recording, firstOperationIndex);
+	const second = getDocumentChangeLineRange(recording, secondOperationIndex);
+	if (!first || !second || first.documentId !== second.documentId) {
+		return false;
+	}
+	if (first.endLine < second.startLine) {
+		return second.startLine - first.endLine - 1 <= maxLineGap;
+	}
+	if (second.endLine < first.startLine) {
+		return first.startLine - second.endLine - 1 <= maxLineGap;
+	}
+	return true;
+}
+
+function getDocumentChangeLineRange(
+	recording: IWorkspaceRecording,
+	operationIndex: number,
+): { documentId: number; startLine: number; endLine: number } | undefined {
+	const operation = recording.resolved.operations[operationIndex];
+	if (!operation || operation.kind !== OperationKind.Changed || operation.edit.replacements.length === 0) {
+		return undefined;
+	}
+	const state = recording.resolved.getDocument(operation.documentId).getState(operation.documentStateIdBefore);
+	const transformer = new StringText(state.value).getTransformer();
+	let startLine = Number.POSITIVE_INFINITY;
+	let endLine = Number.NEGATIVE_INFINITY;
+	for (const replacement of operation.edit.replacements) {
+		startLine = Math.min(startLine, transformer.getPosition(replacement.replaceRange.start).lineNumber - 1);
+		endLine = Math.max(endLine, transformer.getPosition(replacement.replaceRange.endExclusive).lineNumber - 1);
+	}
+	return { documentId: operation.documentId, startLine, endLine };
+}
+
+function isNoOpDocumentChange(recording: IWorkspaceRecording, operation: Operation): boolean {
+	if (operation.kind !== OperationKind.Changed) {
+		return false;
+	}
+	const document = recording.resolved.getDocument(operation.documentId);
+	return document.getState(operation.documentStateIdBefore).value === document.getState(operation.documentStateIdAfter).value;
+}
+
+function composeOracleEdits(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+	maxOracleEdits: number,
+): ISerializedEdit {
+	return composeAndLimitSerializedEdits(getSerializedOperationEdits(recording, operationIndices), maxOracleEdits);
+}
+
+function getSerializedOperationEdits(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+): ISerializedEdit[] {
+	return operationIndices.map(operationIndex => {
+		const operation = recording.resolved.operations[operationIndex];
+		if (!operation || operation.kind !== OperationKind.Changed) {
+			throw new Error(`Workspace recording oracle operation ${operationIndex} is not a document change`);
+		}
+		return serializeStringEdit(operation.edit);
+	});
+}
+
+function doesOperationContinueOracle(
+	recording: IWorkspaceRecording,
+	operationIndices: readonly number[],
+	nextOperationIndex: number,
+): boolean {
+	const operation = recording.resolved.operations[nextOperationIndex];
+	if (!operation || operation.kind !== OperationKind.Changed) {
+		return false;
+	}
+	return doesSerializedEditContinueOracle(
+		getSerializedOperationEdits(recording, operationIndices),
+		serializeStringEdit(operation.edit),
+	);
 }
 
 function deduplicateCandidates(
@@ -669,7 +842,12 @@ function deduplicateCandidates(
 	for (const candidate of candidates) {
 		const sample = materializeWorkspaceRecordingSample(recording, candidate);
 		const inputDigest = digest(sample.entries.slice(0, sample.pivotEntryIndex + 1));
-		const labelDigest = digest(sample.entries.slice(sample.pivotEntryIndex + 1));
+		const labelDigest = digest({
+			oracleEdits: candidate.oracleEdits,
+			cursorBoundaries: sample.entries
+				.slice(sample.pivotEntryIndex + 1)
+				.filter(entry => entry.kind === 'selectionChanged'),
+		});
 		const group = groups.get(inputDigest);
 		if (!group) {
 			groups.set(inputDigest, { labelDigest, candidate, conflicting: false });

@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
-import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../node/copilot/prompts/allPrompts.js';
 
@@ -33,22 +36,38 @@ suite('AgentHostPromptRegistry', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const withFileLinkInstructions = (config: SystemMessageConfig): SystemMessageConfig => ({
-		...config,
-		content: config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS,
-	});
+	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`;
+
+	const withUniversalAgentHostInstructions = (config: SystemMessageConfig): SystemMessageConfig => {
+		const configWithToolInstructions = config.mode === 'replace'
+			? { ...config, content: `${config.content}\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` }
+			: config;
+		const content = configWithToolInstructions.content ? `${configWithToolInstructions.content}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : AGENT_HOST_FILE_LINK_INSTRUCTIONS;
+		if (configWithToolInstructions.mode !== 'customize' || configWithToolInstructions.sections?.tool_instructions) {
+			return { ...configWithToolInstructions, content };
+		}
+		return {
+			...configWithToolInstructions,
+			sections: {
+				...configWithToolInstructions.sections,
+				tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` } satisfies SectionOverride,
+			},
+			content,
+		};
+	};
 
 	test('falls back to the default system message when no model is provided', () => {
 		const registry = new AgentHostPromptRegistry();
-		assert.deepStrictEqual(registry.resolveSystemMessageConfig(undefined, context()), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+		assert.deepStrictEqual(registry.resolveSystemMessageConfig(undefined, context()), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 	});
 
 	test('falls back to the default when no contributor matches the model', () => {
 		const registry = new AgentHostPromptRegistry();
-		assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'unknown-model' }, context()), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+		assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'unknown-model' }, context()), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 	});
 
-	test('a contributor can fully replace the system prompt (replace mode)', () => {
+	test('a contributor can fully replace the system prompt (replace mode, universal appends survive)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['gpt-5'];
@@ -58,11 +77,27 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context()),
-			{ mode: 'replace', content: 'FULL PROMPT' }
+			withUniversalAgentHostInstructions({ mode: 'replace', content: 'FULL PROMPT' })
 		);
 	});
 
-	test('a contributor can override individual sections (customize mode)', () => {
+	test('a replacement prompt retains active tool-search guidance', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['gpt-5'];
+			resolveFullSystemPrompt(): string {
+				return 'FULL PROMPT';
+			}
+		});
+		const resolved = registry.resolveSystemMessageConfig(
+			{ id: 'gpt-5-mini' },
+			context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)
+		);
+		assert.strictEqual(resolved.mode, 'replace');
+		assert.ok(resolved.content.includes('Most tools are deferred and hidden until you search for them.'));
+	});
+
+	test('a contributor can override individual sections (customize mode, default identity composed underneath)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
@@ -72,7 +107,27 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
-			withFileLinkInstructions({ mode: 'customize', sections: { guidelines: { action: 'append', content: 'Be concise.' } } })
+			withUniversalAgentHostInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					guidelines: { action: 'append', content: 'Be concise.' },
+				},
+			})
+		);
+	});
+
+	test('a contributor identity override wins over the composed default identity', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['claude'];
+			resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+				return { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } };
+			}
+		});
+		assert.deepStrictEqual(
+			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
+			withUniversalAgentHostInstructions({ mode: 'customize', sections: { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } } })
 		);
 	});
 
@@ -86,7 +141,7 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
-			withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 		);
 	});
 
@@ -103,7 +158,7 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-codex' }, context()),
-			{ mode: 'replace', content: 'CODEX' }
+			withUniversalAgentHostInstructions({ mode: 'replace', content: 'CODEX' })
 		);
 	});
 
@@ -117,11 +172,17 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
-			withFileLinkInstructions({ mode: 'customize', sections: { tone: { action: 'append', content: 'GATED' } } })
+			withUniversalAgentHostInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					tone: { action: 'append', content: 'GATED' },
+				},
+			})
 		);
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context()),
-			withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 		);
 	});
 
@@ -133,21 +194,84 @@ suite('AgentHostPromptRegistry', () => {
 		}
 
 		test('applies customize overrides only when enabled', () => {
-			assert.deepStrictEqual(resolveOpus(undefined), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-			assert.deepStrictEqual(resolveOpus(false), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+			assert.deepStrictEqual(resolveOpus(undefined), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+			assert.deepStrictEqual(resolveOpus(false), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 			assert.strictEqual(resolveOpus(true).mode, 'customize');
 		});
 	});
 
-	suite('model capability overrides (family alias)', () => {
-		// The launcher composes `applyModelFamilyAlias` with the registry (see
-		// `_buildSessionConfig`); this guards that composition end-to-end using
-		// the real Opus contributor, whose custom `matchesModel` checks the id.
-		// The alias helper's own behavior is covered in copilotCliConfig.test.ts.
-		test('an aliased preview model routes to the family contributor', () => {
-			const overrides = { 'preview-model-x': { family: 'claude-opus-4-8' } };
+	suite('OpenAI contributor (registered via allPrompts)', () => {
+		const guidance = '\n' + [
+			'Do not automatically reread edited files or review the full diff after a successful edit.',
+			'When a check fails, tool output is ambiguous, or a concrete correctness question remains, inspect only the relevant code or diff hunks.',
+			'Still perform required validation, and honor explicit requests for a broader review.',
+		].join('\n');
+
+		for (const id of [
+			'gpt-3.5-turbo', 'gpt-4o', 'gpt-4.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-codex',
+			'gpt-5.1', 'gpt-5.2', 'gpt-5.3-codex', 'gpt-5.4', 'gpt-5.5',
+			'gpt-5.6-sol', 'gpt-5.6-sol-high', 'gpt-5.6-sol-2026-09-22', 'gpt-5.6-luna', 'gpt-5.6-terra',
+			'gpt-6', 'gpt-6-astra', 'gpt-6-astra-high', 'gpt-6-astra-2026-09-22', 'gpt-6-codex', 'gpt-7-preview',
+			'o1', 'o1-preview', 'o3', 'o3-mini', 'o4-mini', 'openai', 'GPT-6', 'OpenAI',
+		]) {
+			test(`${id} appends only targeted review guidance without a setting`, () => {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions({
+						mode: 'customize',
+						sections: {
+							identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+							code_change_rules: { action: 'append', content: guidance },
+						},
+					})
+				);
+			});
+		}
+
+		test('does not affect unrelated models or prefix collisions', () => {
+			for (const id of ['claude-opus-4-8', 'claude-sonnet-5', 'gemini-3-pro', 'grok-code-fast-1', 'gptcustom', 'o1custom', 'o3custom', 'openai-compatible', 'unknown']) {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				);
+			}
+			assert.deepStrictEqual(
+				agentHostPromptRegistry.resolveSystemMessageConfig(undefined, context()),
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			);
+		});
+
+		test('routes custom OpenAI model IDs through the existing family override', () => {
+			const overrides = { 'preview-model-x': { family: 'gpt-6' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
-				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
+				context()
+			);
+			assert.ok(result.mode === 'customize');
+			assert.deepStrictEqual(result.sections?.code_change_rules, { action: 'append', content: guidance });
+		});
+
+		test('preserves tool-gated, tool-search and workspaceless layers', () => {
+			const model = { id: 'gpt-5.6-sol' };
+			const tools = [BrowserChatToolReferenceName.OpenBrowserPage, CLIENT_TOOL_SEARCH_REFERENCE_NAME];
+			const baseline = new AgentHostPromptRegistry().resolveSystemMessageConfig(model, context({}, tools, true, true));
+			const enabled = agentHostPromptRegistry.resolveSystemMessageConfig(model, context({}, tools, true, true));
+			assert.ok(enabled.mode === 'customize');
+			const { code_change_rules, ...sections } = enabled.sections ?? {};
+			assert.deepStrictEqual(code_change_rules, { action: 'append', content: guidance });
+			assert.deepStrictEqual({ ...enabled, sections }, baseline);
+		});
+	});
+
+	suite('model capability overrides (family alias)', () => {
+		// Mirrors the launcher's composition in `_buildSessionConfig`: the
+		// resolved family becomes the effective model id handed to the registry.
+		test('an aliased preview model routes to the family contributor', () => {
+			const overrides = { 'preview-model-x': { family: 'claude-opus-4.8' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
+			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
 				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
 			);
 			assert.strictEqual(result.mode, 'customize');
@@ -155,14 +279,39 @@ suite('AgentHostPromptRegistry', () => {
 	});
 
 	suite('workspace-less scratch/repoless wiring', () => {
+		test('prefers attaching a workspace over creating a replacement session', () => {
+			assert.deepStrictEqual({
+				usesSetWorkspace: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Use `set_workspace` only to modify a repository or run commands requiring its project environment'),
+				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('do not create a replacement session'),
+				allowsScratchArtifacts: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('scratch changes alone do not require a workspace'),
+				keepsAttachmentWorkWorkspaceless: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Keep attachment-, pasted-, or generated-content work here'),
+				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('ask exactly one single-select question'),
+				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` (Codex) or `ask_user` (Copilot)'),
+				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Each choice must pair an exact workspace with isolation'),
+				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split the question'),
+			}, {
+				usesSetWorkspace: true,
+				avoidsReplacementSession: true,
+				allowsScratchArtifacts: true,
+				keepsAttachmentWorkWorkspaceless: true,
+				requiresConfirmation: true,
+				namesProviderTools: true,
+				combinesWorkspaceAndIsolation: true,
+				forbidsSplitQuestions: true,
+			});
+		});
+
 		test('appends the scratch instructions to the default config for a workspace-less chat', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig(undefined, context({}, [], true)),
 				{
 					mode: 'customize',
-					sections: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
-					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					sections: {
+						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
+						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
+					},
+					content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
@@ -171,7 +320,7 @@ suite('AgentHostPromptRegistry', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig(undefined, context({}, [], false)),
-				withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 			);
 		});
 
@@ -187,13 +336,17 @@ suite('AgentHostPromptRegistry', () => {
 				registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context({}, [], true)),
 				{
 					mode: 'customize',
-					sections: { guidelines: { action: 'append', content: 'Be concise.' } },
-					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						guidelines: { action: 'append', content: 'Be concise.' },
+						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
+					},
+					content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
 
-		test('does not append scratch instructions to a full replace prompt', () => {
+		test('appends scratch instructions after a full replace prompt', () => {
 			const registry = new AgentHostPromptRegistry();
 			registry.registerPrompt(class {
 				static readonly familyPrefixes = ['gpt-5'];
@@ -203,32 +356,31 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, [], true)),
-				{ mode: 'replace', content: 'FULL PROMPT' }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n\n${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
 
 	suite('universal tool instructions wiring', () => {
-		// The browser line is the registered universal tool-instruction (see
-		// toolInstructions.ts). These guard that the registry layers it end-to-end;
-		// the composition/gating itself is covered in toolInstructions.test.ts.
+		// These guard that the registry layers the registered universal instructions
+		// end-to-end; composition and gating are covered in toolInstructions.test.ts.
 		const BROWSER_LINE = 'Use the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.';
 		const browserTools = [BrowserChatToolReferenceName.OpenBrowserPage, BrowserChatToolReferenceName.ReadPage];
 
-		test('is a no-op when the session exposes no matching tools', () => {
+		test('layers the unconditional tool instructions onto the default config', () => {
 			const registry = new AgentHostPromptRegistry();
-			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 		});
 
 		test('layers the browser tool_instructions onto the default config when browser tools are present', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, browserTools)),
-				withFileLinkInstructions({
+				withUniversalAgentHostInstructions({
 					mode: 'customize',
 					sections: {
 						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
-						tool_instructions: { action: 'append', content: `\n${BROWSER_LINE}` },
+						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${BROWSER_LINE}` },
 					},
 				})
 			);
@@ -244,11 +396,17 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, browserTools)),
-				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${BROWSER_LINE}` } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${BROWSER_LINE}` },
+					},
+				})
 			);
 		});
 
-		test('leaves a per-model tool_instructions override untouched when no browser tools are present', () => {
+		test('composes the unconditional tool instructions with a per-model override', () => {
 			const registry = new AgentHostPromptRegistry();
 			registry.registerPrompt(class {
 				static readonly familyPrefixes = ['claude'];
@@ -258,7 +416,27 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
-				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
+					},
+				})
+			);
+		});
+
+		test('appends the browser line after a full replace prompt', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['gpt-5'];
+				resolveFullSystemPrompt(): string {
+					return 'FULL PROMPT';
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, browserTools)),
+				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${BROWSER_LINE}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
@@ -268,35 +446,35 @@ suite('AgentHostPromptRegistry', () => {
 		// when `toolSearchActive` AND the client tool-search tool are both
 		// present; the composition/gating itself is covered in
 		// toolInstructions.test.ts.
-		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
 
 		test('layers the tool-search line onto the default config when active and the tool-search tool is present', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)),
-				withFileLinkInstructions({
+				withUniversalAgentHostInstructions({
 					mode: 'customize',
 					sections: {
 						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
-						tool_instructions: { action: 'append', content: `\n${TOOL_SEARCH_LINE}` },
+						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${TOOL_SEARCH_LINE}` },
 					},
 				})
 			);
 		});
 
-		test('is a no-op when tool search is inactive even if the tool-search tool is present', () => {
+		test('does not add the tool-search instruction when tool search is inactive', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, false)),
-				withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 			);
 		});
 
-		test('is a no-op when active but the client does not expose the tool-search tool', () => {
+		test('does not add the tool-search instruction when the client tool is unavailable', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'], false, true)),
-				withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 			);
 		});
 
@@ -310,7 +488,13 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)),
-				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${TOOL_SEARCH_LINE}` } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${TOOL_SEARCH_LINE}` },
+					},
+				})
 			);
 		});
 	});

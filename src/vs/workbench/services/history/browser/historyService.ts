@@ -2181,7 +2181,10 @@ class EditorHelper {
 	}
 
 	onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: DisposableMap<EditorInput, DisposableStore>): void {
-		const toDispose = Event.once(editor.onWillDispose)(() => listener());
+		const toDispose = Event.once(editor.onWillDispose)(() => {
+			mapEditorToDispose.deleteAndDispose(editor);
+			listener();
+		});
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {

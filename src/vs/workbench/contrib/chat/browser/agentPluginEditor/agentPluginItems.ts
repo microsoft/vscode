@@ -26,6 +26,7 @@ export interface IMarketplacePluginItem {
 	readonly kind: AgentPluginItemKind.Marketplace;
 	readonly name: string;
 	readonly description: string;
+	readonly version?: string;
 	readonly source: string;
 	readonly sourceDescriptor: IPluginSourceDescriptor;
 	readonly marketplace: string;

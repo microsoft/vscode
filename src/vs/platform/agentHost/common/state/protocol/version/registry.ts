@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.7.0';
+export const PROTOCOL_VERSION = '0.9.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,6 +35,8 @@ export const PROTOCOL_VERSION = '0.7.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+	'0.9.0',
+	'0.8.0',
 	'0.7.0',
 	'0.6.0',
 	'0.5.2',
@@ -93,6 +95,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionActiveClientRemoved]: '0.5.0',
 	[ActionType.SessionWorkingDirectorySet]: '0.7.0',
 	[ActionType.SessionWorkingDirectoryRemoved]: '0.7.0',
+	[ActionType.SessionWorkingDirectoryReplaced]: '0.8.0',
 	[ActionType.SessionInputNeededSet]: '0.5.1',
 	[ActionType.SessionInputNeededRemoved]: '0.5.1',
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
@@ -102,6 +105,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionMcpServerStateChanged]: '0.3.0',
 	[ActionType.SessionMcpServerStartRequested]: '0.5.2',
 	[ActionType.SessionMcpServerStopRequested]: '0.5.2',
+	[ActionType.SessionMcpServerBackgroundRequested]: '0.9.0',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',
 	[ActionType.SessionActivityChanged]: '0.1.0',
@@ -123,7 +127,9 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatTurnComplete]: '0.4.0',
 	[ActionType.ChatTurnCancelled]: '0.4.0',
 	[ActionType.ChatError]: '0.4.0',
+	[ActionType.ChatTurnResume]: '0.9.0',
 	[ActionType.ChatActivityChanged]: '0.5.0',
+	[ActionType.ChatChangesetsChanged]: '0.9.0',
 	[ActionType.ChatWorkingDirectorySet]: '0.7.0',
 	[ActionType.ChatWorkingDirectoryRemoved]: '0.7.0',
 	[ActionType.ChatUsage]: '0.4.0',
@@ -132,6 +138,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
 	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
 	[ActionType.ChatDraftChanged]: '0.5.0',
+	[ActionType.ChatIsArchivedChanged]: '0.9.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
 	[ActionType.ChatInputCompleted]: '0.4.0',
@@ -164,6 +171,15 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
 	[ActionType.ResourceWatchChanged]: '0.2.0',
+	[ActionType.AutomationCreateRequested]: '0.8.0',
+	[ActionType.AutomationUpdateRequested]: '0.8.0',
+	[ActionType.AutomationSet]: '0.8.0',
+	[ActionType.AutomationRemoved]: '0.8.0',
+	[ActionType.AutomationRunLifecycleChanged]: '0.8.0',
+	[ActionType.AutomationRunSessionSet]: '0.8.0',
+	[ActionType.AutomationRunSessionRemoved]: '0.8.0',
+	[ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
+	[ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
 /**

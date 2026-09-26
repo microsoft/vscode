@@ -245,7 +245,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			const message = this.extension
+				? localize('fatalErrorMessageWithExtension', "Error loading webview provided by '{0}': {1}", this.extension.id.value, e.message)
+				: localize('fatalErrorMessage', "Error loading webview: {0}", e.message);
+			notificationService.error(message);
 			this._onFatalError.fire({ message: e.message });
 		}));
 
@@ -841,7 +844,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 									onData: (chunk) => {
 										if (!closed) {
 											try {
-												controller?.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
+												controller?.enqueue(new Uint8Array(chunk.buffer));
 											} catch {
 												close();
 											}
@@ -895,7 +898,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 								// deserialize pipeline); transferring its underlying ArrayBuffer would
 								// detach every sibling view. WebKit detaches synchronously, which
 								// previously broke webview resource loading in Safari.
-								const data = chunk.buffer.slice();
+								const data = new Uint8Array(chunk.buffer);
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

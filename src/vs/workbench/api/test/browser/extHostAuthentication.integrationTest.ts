@@ -4,6 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -14,45 +23,53 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { MainThreadAuthentication } from '../../browser/mainThreadAuthentication.js';
-import { ExtHostContext, MainContext } from '../../common/extHost.protocol.js';
-import { ExtHostAuthentication } from '../../common/extHostAuthentication.js';
+import { ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
+import { DynamicAuthProvider, ExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IActivityService } from '../../../services/activity/common/activity.js';
 import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
-import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAuthenticationExtensionsService, IAuthenticationProviderSessionOptions, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestEnvironmentService, TestHostService, TestQuickInputService, TestRemoteAgentService } from '../../../test/browser/workbenchTestServices.js';
 import { TestActivityService, TestExtensionService, TestLoggerService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
-import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
+import type { AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationSession } from 'vscode';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { IAccountUsage, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
-import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { AuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
-import { ExtHostWindow } from '../../common/extHostWindow.js';
+import { ExtHostWindow, IExtHostWindow } from '../../common/extHostWindow.js';
 import { MainThreadWindow } from '../../browser/mainThreadWindow.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUserActivityService, UserActivityService } from '../../../services/userActivity/common/userActivityService.js';
-import { ExtHostUrls } from '../../common/extHostUrls.js';
+import { ExtHostUrls, IExtHostUrlsService } from '../../common/extHostUrls.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { DynamicAuthenticationProviderStorageService } from '../../../services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
-import { ExtHostProgress } from '../../common/extHostProgress.js';
+import { ExtHostProgress, IExtHostProgress } from '../../common/extHostProgress.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
 
 class AuthQuickPick {
 	private accept: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
 	private hide: ((e: IQuickInputHideEvent) => any) | undefined;
-	public items = [];
+	public items: IQuickPickItem[] = [];
+
+	constructor(private readonly selectedItemIndex = 0) { }
+
 	public get selectedItems(): IQuickPickItem[] {
-		return this.items;
+		const selected = this.items.at(this.selectedItemIndex);
+		return selected ? [selected] : [];
 	}
 
 	onDidAccept(listener: (e: IQuickPickDidAcceptEvent) => any) {
@@ -71,9 +88,11 @@ class AuthQuickPick {
 	}
 }
 class AuthTestQuickInputService extends TestQuickInputService {
+	selectedItemIndex = 0;
+
 	override createQuickPick() {
 		// eslint-disable-next-line local/code-no-any-casts
-		return <any>new AuthQuickPick();
+		return <any>new AuthQuickPick(this.selectedItemIndex);
 	}
 }
 
@@ -121,6 +140,47 @@ class TestAuthProvider implements AuthenticationProvider {
 		this.sessions.delete(sessionId);
 	}
 
+}
+
+class ContextAuthProvider extends Disposable implements AuthenticationProvider {
+	private readonly sessionChanges = this._register(new Emitter<AuthenticationProviderAuthenticationSessionsChangeEvent>());
+	readonly onDidChangeSessions = this.sessionChanges.event;
+	readonly requests: { operation: 'get' | 'create'; options: IAuthenticationProviderSessionOptions }[] = [];
+	private readonly sessions: { session: AuthenticationSession; context: string }[] = [];
+	private nextSessionId = 1;
+
+	private contextKey(options: IAuthenticationProviderSessionOptions): string {
+		return JSON.stringify([options.authorizationServer?.toString(true), options.clientId, options.resource, options.audience]);
+	}
+
+	async getSessions(scopes: readonly string[] | undefined, options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession[]> {
+		this.requests.push({ operation: 'get', options });
+		return this.sessions
+			.filter(entry => (!options.account || entry.session.account.id === options.account.id)
+				&& (!scopes || (entry.context === this.contextKey(options) && scopes.every(scope => entry.session.scopes.includes(scope)))))
+			.map(entry => entry.session);
+	}
+
+	async createSession(scopes: readonly string[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
+		this.requests.push({ operation: 'create', options });
+		const id = `session-${this.nextSessionId++}`;
+		const session: AuthenticationSession = {
+			id,
+			accessToken: `token-${id}`,
+			account: options.account ?? { id: 'context-account', label: 'Context Account' },
+			scopes: [...scopes]
+		};
+		this.sessions.push({ session, context: this.contextKey(options) });
+		this.sessionChanges.fire({ added: [session], removed: [], changed: [] });
+		return session;
+	}
+
+	async removeSession(sessionId: string): Promise<void> {
+		const index = this.sessions.findIndex(entry => entry.session.id === sessionId);
+		assert.notStrictEqual(index, -1);
+		const [removed] = this.sessions.splice(index, 1);
+		this.sessionChanges.fire({ added: [], removed: [removed.session], changed: [] });
+	}
 }
 
 suite('ExtHostAuthentication', () => {
@@ -190,6 +250,745 @@ suite('ExtHostAuthentication', () => {
 			'test multiple provider',
 			new TestAuthProvider('test-multiple'),
 			{ supportsMultipleAccounts: true }));
+	});
+
+	suite('request context', () => {
+		const registrations: { id: string; disposable: IDisposable }[] = [];
+		const authorizationServer = URI.parse('https://issuer.example/tenant-a');
+		const otherAuthorizationServer = URI.parse('https://issuer.example/tenant-b');
+		const context = {
+			authorizationServer,
+			clientId: 'client-a',
+			resource: 'https://resource.example/a',
+			audience: 'audience-a'
+		};
+
+		function registerProvider(id: string, provider: AuthenticationProvider, supportsMultipleAccounts = false, supportsChallenges = false): void {
+			const disposable = disposables.add(extHostAuthentication.registerAuthenticationProvider(id, id, provider, {
+				supportsMultipleAccounts,
+				supportsChallenges,
+				supportedAuthorizationServers: [authorizationServer, otherAuthorizationServer]
+			}));
+			registrations.push({ id, disposable });
+		}
+
+		teardown(async () => {
+			for (const { id, disposable } of registrations.splice(0)) {
+				disposable.dispose();
+				await extHostAuthentication.$onDidUnregisterAuthenticationProvider(id);
+			}
+		});
+
+		function getRequests(providerId: string, group: string): string[] {
+			return MenuRegistry.getMenuItems(MenuId.AccountsContext)
+				.filter(isIMenuItem)
+				.filter(item => item.group === group && item.command.id.startsWith(providerId))
+				.map(item => item.command.id);
+		}
+
+		async function runRequest(commandId: string): Promise<void> {
+			const command = CommandsRegistry.getCommand(commandId);
+			assert.ok(command);
+			await mainInstantiationService.invokeFunction(command.handler);
+		}
+
+		suite('multi-server sessions', () => {
+			const sessions: AuthenticationSession[] = [authorizationServer, otherAuthorizationServer].map((server, index) => ({
+				id: `host-${index}:session`,
+				accessToken: `host-${index}-token`,
+				account: {
+					id: `host-${index}:account`,
+					label: `octocat (${server.toString()})`,
+					icon: URI.joinPath(server, 'avatar.png')
+				},
+				scopes: ['read'],
+				authorizationServer: server,
+				idToken: `host-${index}-id-token`,
+				expiresAfter: 3600
+			}));
+
+			async function registerSessionProvider(initialSessions = sessions, supportsChallenges = false) {
+				const storedSessions = [...initialSessions];
+				const changes = disposables.add(new Emitter<AuthenticationProviderAuthenticationSessionsChangeEvent>());
+				const lookups: IAuthenticationProviderSessionOptions[] = [];
+				const creations: IAuthenticationProviderSessionOptions[] = [];
+				const provider: AuthenticationProvider = {
+					onDidChangeSessions: changes.event,
+					getSessions: async (scopes, options = {}) => {
+						lookups.push(options);
+						return storedSessions.filter(session =>
+							(!scopes || scopes.every(scope => session.scopes.includes(scope)))
+							&& (!options.account || options.account.id === session.account.id)
+							&& (!options.authorizationServer || isEqual(options.authorizationServer, session.authorizationServer)));
+					},
+					createSession: async (scopes, options = {}) => {
+						creations.push(options);
+						const session = { ...sessions[1], scopes: [...scopes] };
+						storedSessions.push(session);
+						changes.fire({ added: [session], changed: [], removed: [] });
+						return session;
+					},
+					getSessionsFromChallenges: (constraint, options) => provider.getSessions(constraint.fallbackScopes, options),
+					createSessionFromChallenges: (constraint, options) => provider.createSession(constraint.fallbackScopes ?? [], options),
+					removeSession: async sessionId => {
+						const index = storedSessions.findIndex(session => session.id === sessionId);
+						assert.notStrictEqual(index, -1);
+						const removed = storedSessions.splice(index, 1);
+						changes.fire({ added: [], changed: [], removed });
+					}
+				};
+				registerProvider('multi-server-provider', provider, true, supportsChallenges);
+				await extHostAuthentication.$getSessions('multi-server-provider', undefined, {});
+				return { provider, changes, lookups, creations };
+			}
+
+			for (const challenges of [false, true]) {
+				test(`revives session provenance across ${challenges ? 'challenge' : 'scope'} creation, lookup and change events`, async () => {
+					const { changes } = await registerSessionProvider([], challenges);
+					const authenticationService = mainInstantiationService.get(IAuthenticationService);
+					const events = Event.filter(authenticationService.onDidChangeSessions, e => e.providerId === 'multi-server-provider');
+					const added = Event.toPromise(Event.filter(events, e => !!e.event.added?.length));
+					const request = challenges ? { wwwAuthenticate: 'Bearer realm="enterprise"', fallbackScopes: ['read'] } : ['read'];
+					const options = { authorizationServer: otherAuthorizationServer };
+					const created = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', request, { ...options, createIfNone: true });
+					const retrieved = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', request, { ...options, silent: true });
+					const mainThreadSessions = await authenticationService.getSessions('multi-server-provider', request, options);
+
+					const changed = Event.toPromise(Event.filter(events, e => !!e.event.changed?.length));
+					changes.fire({ added: [], changed: [sessions[1]], removed: [] });
+					const changedEvent = await changed;
+					const removed = Event.toPromise(Event.filter(events, e => !!e.event.removed?.length));
+					await authenticationService.removeSession('multi-server-provider', sessions[1].id);
+
+					assert.deepStrictEqual({
+						created,
+						retrieved,
+						mainThreadSessions,
+						added: (await added).event.added,
+						changed: changedEvent.event.changed,
+						removed: (await removed).event.removed
+					}, {
+						created: sessions[1],
+						retrieved: sessions[1],
+						mainThreadSessions: [sessions[1]],
+						added: [sessions[1]],
+						changed: [sessions[1]],
+						removed: [sessions[1]]
+					});
+				});
+			}
+
+			for (const silent of [false, true]) {
+				test(`preserves all candidates, preferences and ${silent ? 'silent' : 'passive'} access-request behavior`, async () => {
+					const { lookups } = await registerSessionProvider();
+					const accessService = mainInstantiationService.get(IAuthenticationAccessService);
+					const preferences = mainInstantiationService.get(IAuthenticationExtensionsService);
+					const extensionId = extensionDescription.identifier.value;
+					const allow = (session: AuthenticationSession) => accessService.updateAllowedExtensions('multi-server-provider', session.account.label, [{ id: extensionId, name: extensionId, allowed: true }]);
+					allow(sessions[1]);
+
+					const accounts = await extHostAuthentication.getAccounts('multi-server-provider');
+					const soleAuthorized = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent });
+					allow(sessions[0]);
+					const ambiguous = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent });
+					const accessRequests = getRequests('multi-server-provider', '3_accessRequests').length;
+					preferences.updateAccountPreference(extensionId, 'multi-server-provider', sessions[0].account);
+					const preferred = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent });
+					preferences.updateAccountPreference(extensionId, 'multi-server-provider', sessions[1].account);
+					const switched = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent });
+
+					assert.deepStrictEqual({
+						accounts,
+						soleAuthorized,
+						ambiguous,
+						accessRequests,
+						preferred,
+						switched,
+						pinnedLookups: lookups.filter(options => options.authorizationServer || options.account)
+					}, {
+						accounts: sessions.map(session => session.account),
+						soleAuthorized: sessions[1],
+						ambiguous: undefined,
+						accessRequests: silent ? 0 : 1,
+						preferred: sessions[0],
+						switched: sessions[1],
+						pinnedLookups: []
+					});
+				});
+			}
+
+			test('uses provider-filtered server and account hints without changing the account preference', async () => {
+				await registerSessionProvider();
+				const preferences = mainInstantiationService.get(IAuthenticationExtensionsService);
+				const accessService = mainInstantiationService.get(IAuthenticationAccessService);
+				const extensionId = extensionDescription.identifier.value;
+				for (const session of sessions) {
+					accessService.updateAllowedExtensions('multi-server-provider', session.account.label, [{ id: extensionId, name: extensionId, allowed: true }]);
+				}
+				preferences.updateAccountPreference(extensionId, 'multi-server-provider', sessions[0].account);
+
+				const byServer = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { authorizationServer: otherAuthorizationServer, silent: true });
+				const byAccount = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { account: sessions[1].account, silent: true });
+				const conflicting = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { authorizationServer, account: sessions[1].account, silent: true });
+				const preferred = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent: true });
+
+				assert.deepStrictEqual({ byServer, byAccount, conflicting, preferred }, {
+					byServer: sessions[1], byAccount: sessions[1], conflicting: undefined, preferred: sessions[0]
+				});
+			});
+
+			test('delegates new-account creation without guessing an authorization server', async () => {
+				const { creations } = await registerSessionProvider([sessions[0]]);
+				const quickInput = mainInstantiationService.get(IQuickInputService);
+				assert.ok(quickInput instanceof AuthTestQuickInputService);
+				quickInput.selectedItemIndex = -1;
+
+				const created = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { createIfNone: true });
+				const preferred = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { silent: true });
+
+				assert.deepStrictEqual({
+					created,
+					preferred,
+					hints: creations.map(options => ({ account: options.account, authorizationServer: options.authorizationServer }))
+				}, {
+					created: sessions[1],
+					preferred: sessions[1],
+					hints: [{ account: undefined, authorizationServer: undefined }]
+				});
+			});
+
+			test('retains the preferred host account when forcing a new session', async () => {
+				const { creations } = await registerSessionProvider();
+				const preferences = mainInstantiationService.get(IAuthenticationExtensionsService);
+				preferences.updateAccountPreference(extensionDescription.identifier.value, 'multi-server-provider', sessions[1].account);
+
+				const created = await extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { forceNewSession: true });
+
+				assert.deepStrictEqual({
+					created,
+					hints: creations.map(options => ({ account: options.account, authorizationServer: options.authorizationServer }))
+				}, {
+					created: sessions[1],
+					hints: [{ account: sessions[1].account, authorizationServer: undefined }]
+				});
+			});
+
+			test('provider cancellation preserves the previous account preference', async () => {
+				const { provider } = await registerSessionProvider();
+				provider.createSession = async () => { throw new CancellationError(); };
+				const preferences = mainInstantiationService.get(IAuthenticationExtensionsService);
+				const extensionId = extensionDescription.identifier.value;
+				preferences.updateAccountPreference(extensionId, 'multi-server-provider', sessions[1].account);
+
+				await assert.rejects(
+					extHostAuthentication.getSession(extensionDescription, 'multi-server-provider', ['read'], { forceNewSession: true }),
+					CancellationError
+				);
+				assert.strictEqual(preferences.getAccountPreference(extensionId, 'multi-server-provider'), sessions[1].account.label);
+			});
+
+		});
+
+		const distinctContexts: { name: string; first: AuthenticationGetSessionOptions; second: AuthenticationGetSessionOptions }[] = [
+			{ name: 'resource', first: { resource: 'https://resource.example/a' }, second: { resource: 'https://resource.example/b' } },
+			{ name: 'client ID', first: { clientId: 'client-a' }, second: { clientId: 'client-b' } },
+			{ name: 'audience', first: { audience: 'audience-a' }, second: { audience: 'audience-b' } },
+			{ name: 'authorization server', first: { authorizationServer }, second: { authorizationServer: otherAuthorizationServer } },
+			{ name: 'account', first: { account: { id: 'account-a', label: 'Account' } }, second: { account: { id: 'account-b', label: 'Account' } } }
+		];
+
+		for (const { name, first, second } of distinctContexts) {
+			test(`does not coalesce requests for different ${name} values`, async () => {
+				const provider = disposables.add(new ContextAuthProvider());
+				registerProvider('context-provider', provider);
+
+				await Promise.all([
+					extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...first, silent: true }),
+					extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...second, silent: true })
+				]);
+
+				assert.strictEqual(provider.requests.length, 2);
+			});
+		}
+
+		test('coalesces equivalent requests regardless of scope and option property order', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+
+			await Promise.all([
+				extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read', 'write'], { ...context, silent: true }),
+				extHostAuthentication.getSession(extensionDescription, 'context-provider', ['write', 'read'], {
+					silent: true, audience: context.audience, resource: context.resource, clientId: context.clientId, authorizationServer
+				})
+			]);
+
+			assert.strictEqual(provider.requests.length, 1);
+		});
+
+		test('does not conflate opaque scope strings with separate scopes', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+
+			await Promise.all([
+				extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read write'], { silent: true }),
+				extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read', 'write'], { silent: true })
+			]);
+
+			assert.strictEqual(provider.requests.length, 2);
+		});
+
+		for (const mode of ['createIfNone', 'forceNewSession'] as const) {
+			test(`forwards context through lookup and ${mode}`, async () => {
+				const provider = disposables.add(new ContextAuthProvider());
+				registerProvider('context-provider', provider);
+				const account = { id: 'selected-account', label: 'Selected Account' };
+
+				await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], {
+					...context, account, [mode]: true
+				});
+
+				assert.deepStrictEqual(provider.requests.map(({ operation, options }) => ({
+					operation,
+					authorizationServer: options.authorizationServer?.toString(true),
+					clientId: options.clientId,
+					resource: options.resource,
+					audience: options.audience,
+					accountId: options.account?.id,
+					silent: options.silent,
+					createIfNone: options.createIfNone,
+					forceNewSession: options.forceNewSession
+				})), ['get', 'create'].map(operation => ({
+					operation,
+					authorizationServer: authorizationServer.toString(true),
+					clientId: context.clientId,
+					resource: context.resource,
+					audience: context.audience,
+					accountId: account.id,
+					silent: operation === 'get' ? false : undefined,
+					createIfNone: undefined,
+					forceNewSession: undefined
+				})));
+			});
+		}
+
+		test('retains context when selecting a new account', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			await provider.createSession(['read'], context);
+			provider.requests.length = 0;
+			registerProvider('context-provider', provider, true);
+			const quickInput = mainInstantiationService.get(IQuickInputService);
+			assert.ok(quickInput instanceof AuthTestQuickInputService);
+			quickInput.selectedItemIndex = -1;
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, createIfNone: true });
+
+			const creates = provider.requests.filter(request => request.operation === 'create');
+			assert.deepStrictEqual(creates.map(({ options }) => [options.authorizationServer?.toString(true), options.clientId, options.resource, options.audience]), [
+				[authorizationServer.toString(true), context.clientId, context.resource, context.audience]
+			]);
+		});
+
+		test('forwards context through challenge lookup and creation', async () => {
+			const constraints: AuthenticationConstraint[] = [];
+			const provider = disposables.add(new class extends ContextAuthProvider {
+				async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession[]> {
+					constraints.push(constraint);
+					return this.getSessions(constraint.fallbackScopes, options);
+				}
+
+				async createSessionFromChallenges(constraint: AuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+					constraints.push(constraint);
+					return this.createSession([...(constraint.fallbackScopes ?? [])], options);
+				}
+			}());
+			registerProvider('context-provider', provider, false, true);
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', {
+				wwwAuthenticate: 'Bearer realm="resource"',
+				fallbackScopes: ['read']
+			}, { ...context, createIfNone: true });
+
+			assert.deepStrictEqual({
+				constraints,
+				contexts: provider.requests.map(({ operation, options }) => [operation, options.authorizationServer?.toString(true), options.clientId, options.resource, options.audience])
+			}, {
+				constraints: [
+					{ challenges: [{ scheme: 'Bearer', params: { realm: 'resource' } }], fallbackScopes: ['read'] },
+					{ challenges: [{ scheme: 'Bearer', params: { realm: 'resource' } }], fallbackScopes: ['read'] }
+				],
+				contexts: ['get', 'create'].map(operation => [operation, authorizationServer.toString(true), context.clientId, context.resource, context.audience])
+			});
+		});
+
+		test('rejects incompatible interaction options before calling the provider', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+
+			await assert.rejects(
+				() => extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, silent: true, createIfNone: true }),
+				/Invalid combination of options/
+			);
+
+			assert.deepStrictEqual(provider.requests, []);
+		});
+
+		test('keeps deferred sign-in requests for different resources separate', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, resource: 'https://resource.example/b' });
+
+			const requests = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(requests.length, 2);
+			await runRequest(requests[0]);
+			assert.deepStrictEqual(getRequests('context-provider', '2_signInRequests'), [requests[1]]);
+			await runRequest(requests[1]);
+
+			assert.deepStrictEqual({
+				createdResources: provider.requests.filter(request => request.operation === 'create').map(request => request.options.resource),
+				pending: getRequests('context-provider', '2_signInRequests')
+			}, {
+				createdResources: [context.resource, 'https://resource.example/b'],
+				pending: []
+			});
+		});
+
+		test('keeps a default-context request when only a resource-bound session exists', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			const boundSession = await provider.createSession(['read'], context);
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], {});
+			const pending = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(pending.length, 1);
+
+			await mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests('context-provider', [boundSession]);
+
+			assert.deepStrictEqual(getRequests('context-provider', '2_signInRequests'), pending);
+		});
+
+		test('queued revalidation cannot acquire a replacement provider request', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			const extensionsService = mainInstantiationService.get(IAuthenticationExtensionsService);
+			const authenticationService = mainInstantiationService.get(IAuthenticationService);
+			const lookupStarted = new DeferredPromise<void>();
+			const lookupResult = new DeferredPromise<readonly AuthenticationSession[]>();
+			disposables.add(toDisposable(() => lookupResult.complete([])));
+			let lookups = 0;
+			authenticationService.getSessions = async () => {
+				lookups++;
+				lookupStarted.complete();
+				return lookupResult.p;
+			};
+			const session: AuthenticationSession = {
+				id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+			};
+			const firstUpdate = extensionsService.updateNewSessionRequests('context-provider', [session]);
+			await lookupStarted.p;
+			const queuedUpdate = extensionsService.updateNewSessionRequests('context-provider', [session]);
+
+			authenticationService.unregisterAuthenticationProvider('context-provider');
+			await extHostAuthentication.$onDidUnregisterAuthenticationProvider('context-provider');
+			registerProvider('context-provider', disposables.add(new ContextAuthProvider()));
+			await extHostAuthentication.$getSessions('context-provider', undefined, {});
+			await extensionsService.requestNewSession('context-provider', ['read'], 'replacement-extension', 'Replacement Extension', context);
+			const pending = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(pending.length, 1);
+			lookupResult.complete([session]);
+			await Promise.all([firstUpdate, queuedUpdate]);
+
+			assert.deepStrictEqual({
+				lookups,
+				pending: getRequests('context-provider', '2_signInRequests')
+			}, { lookups: 1, pending });
+		});
+
+		for (const invalidate of ['unregister', 'dispose'] as const) {
+			test(`stops revalidating contexts after ${invalidate}`, async () => {
+				const provider = disposables.add(new ContextAuthProvider());
+				registerProvider('context-provider', provider);
+				await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+				await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, resource: 'https://resource.example/b' });
+				const extensionsService = mainInstantiationService.get(IAuthenticationExtensionsService);
+				const authenticationService = mainInstantiationService.get(IAuthenticationService);
+				const lookupStarted = new DeferredPromise<void>();
+				const lookupResult = new DeferredPromise<readonly AuthenticationSession[]>();
+				disposables.add(toDisposable(() => lookupResult.complete([])));
+				let lookups = 0;
+				authenticationService.getSessions = async () => {
+					lookups++;
+					lookupStarted.complete();
+					return lookupResult.p;
+				};
+				const session: AuthenticationSession = {
+					id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+				};
+				const update = extensionsService.updateNewSessionRequests('context-provider', [session]);
+				await lookupStarted.p;
+
+				if (invalidate === 'unregister') {
+					authenticationService.unregisterAuthenticationProvider('context-provider');
+				} else {
+					assert.ok(extensionsService instanceof AuthenticationExtensionsService);
+					extensionsService.dispose();
+				}
+				lookupResult.complete([session]);
+				await update;
+
+				assert.deepStrictEqual({ lookups, pending: getRequests('context-provider', '2_signInRequests') }, { lookups: 1, pending: [] });
+			});
+		}
+
+		test('completes requests for extensions joining an in-flight revalidation', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.$getSessions('context-provider', undefined, {});
+			const extensionsService = mainInstantiationService.get(IAuthenticationExtensionsService);
+			await extensionsService.requestNewSession('context-provider', ['read'], 'first-extension', 'First Extension', context);
+			const lookupStarted = new DeferredPromise<void>();
+			const lookupResult = new DeferredPromise<readonly AuthenticationSession[]>();
+			disposables.add(toDisposable(() => lookupResult.complete([])));
+			mainInstantiationService.get(IAuthenticationService).getSessions = async () => {
+				lookupStarted.complete();
+				return lookupResult.p;
+			};
+			const session: AuthenticationSession = {
+				id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+			};
+			const update = extensionsService.updateNewSessionRequests('context-provider', [session]);
+			await lookupStarted.p;
+			await extensionsService.requestNewSession('context-provider', ['read'], 'second-extension', 'Second Extension', context);
+			assert.strictEqual(getRequests('context-provider', '2_signInRequests').length, 2);
+
+			lookupResult.complete([session]);
+			await update;
+
+			assert.deepStrictEqual(getRequests('context-provider', '2_signInRequests'), []);
+		});
+
+		test('completes an Accounts-menu sign-in while another context lookup is pending', async () => {
+			const lookupStarted = new DeferredPromise<void>();
+			const lookupResult = new DeferredPromise<void>();
+			disposables.add(toDisposable(() => lookupResult.complete()));
+			const otherResource = 'https://resource.example/b';
+			const provider = disposables.add(new class extends ContextAuthProvider {
+				holdLookups = false;
+
+				override async getSessions(scopes: readonly string[] | undefined, options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession[]> {
+					if (this.holdLookups && options.resource === otherResource) {
+						lookupStarted.complete();
+						await lookupResult.p;
+					}
+					return super.getSessions(scopes, options);
+				}
+			}());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, resource: otherResource });
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			const requests = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(requests.length, 2);
+			provider.holdLookups = true;
+
+			const command = runRequest(requests[1]);
+			await lookupStarted.p;
+			await command;
+
+			assert.deepStrictEqual(getRequests('context-provider', '2_signInRequests'), [requests[0]]);
+			lookupResult.complete();
+		});
+
+		test('retains context when granting deferred access with a new account', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			await provider.createSession(['read'], context);
+			provider.requests.length = 0;
+			registerProvider('context-provider', provider, true);
+			const quickInput = mainInstantiationService.get(IQuickInputService);
+			assert.ok(quickInput instanceof AuthTestQuickInputService);
+			quickInput.selectedItemIndex = -1;
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			const requests = getRequests('context-provider', '3_accessRequests');
+			assert.strictEqual(requests.length, 1);
+			await runRequest(requests[0]);
+
+			assert.deepStrictEqual({
+				createdContexts: provider.requests.filter(request => request.operation === 'create').map(({ options }) => [
+					options.authorizationServer?.toString(true), options.clientId, options.resource, options.audience
+				]),
+				pending: getRequests('context-provider', '3_accessRequests')
+			}, {
+				createdContexts: [[authorizationServer.toString(true), context.clientId, context.resource, context.audience]],
+				pending: []
+			});
+		});
+
+		test('retains context when selecting a new MCP account', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			const existing = await provider.createSession(['read'], context);
+			registerProvider('context-provider', provider, true);
+			await extHostAuthentication.$getSessions('context-provider', undefined, {});
+			mainInstantiationService.stub(IAuthenticationMcpAccessService, new class extends mock<IAuthenticationMcpAccessService>() {
+				override updateAllowedMcpServers(): void { }
+			}());
+			mainInstantiationService.stub(IAuthenticationMcpUsageService, new class extends mock<IAuthenticationMcpUsageService>() { }());
+			const mcpAuthentication = disposables.add(mainInstantiationService.createInstance(AuthenticationMcpService));
+			const quickInput = mainInstantiationService.get(IQuickInputService);
+			assert.ok(quickInput instanceof AuthTestQuickInputService);
+			quickInput.selectedItemIndex = -1;
+			provider.requests.length = 0;
+
+			await mcpAuthentication.selectSession('context-provider', 'mcp-server', 'MCP Server', ['read'], [existing], context);
+
+			assert.deepStrictEqual(provider.requests.filter(request => request.operation === 'create').map(({ options }) => [
+				options.authorizationServer?.toString(true), options.clientId, options.resource, options.audience
+			]), [
+				[authorizationServer.toString(true), context.clientId, context.resource, context.audience]
+			]);
+		});
+
+		test('account-wide consent clears access requests but preserves another resource sign-in', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			const otherContext = { ...context, resource: 'https://resource.example/b' };
+			await provider.createSession(['read'], context);
+			await provider.createSession(['read'], otherContext);
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], otherContext);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, resource: 'https://resource.example/c' });
+
+			const accessRequests = getRequests('context-provider', '3_accessRequests');
+			const signInRequests = getRequests('context-provider', '2_signInRequests');
+			assert.deepStrictEqual([accessRequests.length, signInRequests.length], [2, 1]);
+			await runRequest(accessRequests[0]);
+
+			assert.deepStrictEqual({
+				access: getRequests('context-provider', '3_accessRequests'),
+				signIn: getRequests('context-provider', '2_signInRequests')
+			}, {
+				access: [],
+				signIn: signInRequests
+			});
+		});
+
+		test('surfaces provider failures from deferred account selection', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			await provider.createSession(['read'], context);
+			registerProvider('context-provider', provider, true);
+			const quickInput = mainInstantiationService.get(IQuickInputService);
+			assert.ok(quickInput instanceof AuthTestQuickInputService);
+			quickInput.selectedItemIndex = -1;
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+			const requests = getRequests('context-provider', '3_accessRequests');
+			assert.strictEqual(requests.length, 1);
+			provider.createSession = async () => {
+				throw new Error('Account creation failed');
+			};
+
+			await assert.rejects(() => runRequest(requests[0]), /Account creation failed/);
+			assert.deepStrictEqual(getRequests('context-provider', '3_accessRequests'), requests);
+		});
+
+		test('removes deferred requests when their provider is unregistered', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], context);
+
+			const requests = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(requests.length, 1);
+			mainInstantiationService.get(IAuthenticationService).unregisterAuthenticationProvider('context-provider');
+
+			assert.deepStrictEqual({
+				pending: getRequests('context-provider', '2_signInRequests'),
+				command: CommandsRegistry.getCommand(requests[0])
+			}, {
+				pending: [],
+				command: undefined
+			});
+		});
+
+		test('an unrelated deferred lookup failure does not fail a completed sign-in', async () => {
+			const otherResource = 'https://resource.example/b';
+			const provider = disposables.add(new class extends ContextAuthProvider {
+				failLookup = false;
+
+				override async getSessions(scopes: readonly string[] | undefined, options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession[]> {
+					if (this.failLookup && options.resource === otherResource) {
+						throw new Error('Resource B is temporarily unavailable');
+					}
+					return super.getSessions(scopes, options);
+				}
+			}());
+			registerProvider('context-provider', provider);
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, resource: otherResource });
+			const pending = getRequests('context-provider', '2_signInRequests');
+			assert.strictEqual(pending.length, 1);
+			provider.failLookup = true;
+
+			const session = await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, createIfNone: true });
+
+			assert.deepStrictEqual({
+				accessToken: session.accessToken,
+				pending: getRequests('context-provider', '2_signInRequests')
+			}, {
+				accessToken: 'token-session-1',
+				pending
+			});
+		});
+
+		test('does not wait for pending request revalidation before returning a session', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+			const revalidation = new DeferredPromise<void>();
+			disposables.add(toDisposable(() => revalidation.complete()));
+			mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests = () => revalidation.p;
+
+			const session = await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { ...context, createIfNone: true });
+
+			assert.strictEqual(session.accessToken, 'token-session-1');
+		});
+
+		for (const silent of [true, undefined]) {
+			test(`does not request interactive client recovery during a ${silent ? 'silent' : 'passive'} lookup`, async () => {
+				let registrationPrompts = 0;
+				let refreshRequests = 0;
+				const loggerService = new class extends mock<ILoggerService>() {
+					override createLogger(): ILogger { return new NullLogger(); }
+				}();
+				const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
+					override $setSessionsForDynamicAuthProvider = async (): Promise<void> => { };
+					override $promptForClientRegistration = async (): Promise<{ clientId: string }> => {
+						registrationPrompts++;
+						return { clientId: 'replacement-client' };
+					};
+				}();
+				const provider = disposables.add(new DynamicAuthProvider(
+					new class extends mock<IExtHostWindow>() { }(),
+					new class extends mock<IExtHostUrlsService>() { }(),
+					new class extends mock<IExtHostInitDataService>() {
+						override readonly environment = new class extends mock<IExtHostInitDataService['environment']>() {
+							override readonly appName = 'Test';
+						}();
+					}(),
+					new class extends mock<IExtHostProgress>() { }(),
+					loggerService, proxy, authorizationServer,
+					{ issuer: authorizationServer.toString(true), response_types_supported: ['code'], token_endpoint: 'https://issuer.example/token' },
+					undefined, 'original-client', undefined, disposables.add(new Emitter()),
+					[{ access_token: 'expired-token', token_type: 'Bearer', scope: 'read', refresh_token: 'refresh-token', expires_in: 1, created_at: 0 }],
+					async () => {
+						refreshRequests++;
+						return new Response(JSON.stringify({ error: 'invalid_client' }), { status: 400 });
+					}
+				));
+				registerProvider('context-provider', provider);
+
+				const session = await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { silent });
+
+				assert.deepStrictEqual({ session, registrationPrompts, refreshRequests, clientId: provider.clientId }, {
+					session: undefined, registrationPrompts: 0, refreshRequests: 1, clientId: 'original-client'
+				});
+			});
+		}
 	});
 
 	test('createIfNone - true', async () => {
@@ -427,51 +1226,45 @@ suite('ExtHostAuthentication', () => {
 	//#region error cases
 
 	test('createIfNone and forceNewSession', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					createIfNone: true,
 					forceNewSession: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('forceNewSession and silent', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					forceNewSession: true,
 					silent: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('createIfNone and silent', async () => {
-		try {
-			await extHostAuthentication.getSession(
+		await assert.rejects(
+			() => extHostAuthentication.getSession(
 				extensionDescription,
 				'test',
 				['foo'],
 				{
 					createIfNone: true,
 					silent: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.ok(e);
-		}
+				}),
+			/Invalid combination of options/
+		);
 	});
 
 	test('Can get multiple sessions (with different scopes) in one extension', async () => {
@@ -652,6 +1445,32 @@ suite('ExtHostAuthentication', () => {
 		assert.ok(operationOrder.includes('get-end-scope1'), 'Should have completed getSessions for existing scope1 session');
 	});
 
+	test('session lookup can be retried after a provider failure', async () => {
+		const provider = new TestAuthProvider('retry-test');
+		const expectedSession = await provider.createSession(['scope']);
+		const expectedError = new Error('Session lookup failed');
+		let lookupAttempts = 0;
+
+		provider.getSessions = async () => {
+			lookupAttempts++;
+			if (lookupAttempts === 1) {
+				throw expectedError;
+			}
+			return [expectedSession];
+		};
+
+		disposables.add(extHostAuthentication.registerAuthenticationProvider('retry-test', 'Retry Test', provider));
+		const getSession = () => extHostAuthentication.getSession(extensionDescription, 'retry-test', ['scope'], { createIfNone: true });
+
+		await assert.rejects(getSession, expectedError);
+
+		const session = await getSession();
+		assert.deepStrictEqual(
+			{ lookupAttempts, accessToken: session.accessToken },
+			{ lookupAttempts: 2, accessToken: expectedSession.accessToken }
+		);
+	});
+
 	test('provider registration and immediate disposal race condition', async () => {
 		const provider = new TestAuthProvider('race-test');
 
@@ -660,13 +1479,10 @@ suite('ExtHostAuthentication', () => {
 		disposable.dispose();
 
 		// Try to use the provider after disposal - should fail gracefully
-		try {
-			await extHostAuthentication.getSession(extensionDescription, 'race-test', ['scope'], { createIfNone: true });
-			assert.fail('Should have thrown an error for non-existent provider');
-		} catch (error) {
-			// Expected - provider should be unavailable
-			assert.ok(error);
-		}
+		await assert.rejects(
+			() => extHostAuthentication.getSession(extensionDescription, 'race-test', ['scope'], { createIfNone: true }),
+			/authentication provider.*race-test/
+		);
 	});
 
 	test('provider re-registration after proper disposal', async () => {

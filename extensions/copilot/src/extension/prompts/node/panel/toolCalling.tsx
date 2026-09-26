@@ -15,7 +15,7 @@ import { CompactionDataContainer } from '../../../../platform/endpoint/common/co
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CacheType } from '../../../../platform/endpoint/common/endpointTypes';
 import { PhaseDataContainer } from '../../../../platform/endpoint/common/phaseDataContainer';
-import { StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
+import { MISSING_STATEFUL_TOOL_RESULT, StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../../platform/endpoint/common/thinkingDataContainer';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
@@ -104,8 +104,13 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	 */
 	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, token?: CancellationToken): PromptElement[] {
 		let fixedNameToolCalls = round.toolCalls.map(tc => ({ ...tc, name: this.toolsService.validateToolName(tc.name) ?? tc.name }));
+		// A Responses marker retains every function call server-side. Close calls whose local
+		// results were lost so the next request can safely reuse previous_response_id.
+		const shouldSynthesizeMissingToolResults = this.props.isHistorical
+			&& this.promptEndpoint.apiType === 'responses'
+			&& !!round.statefulMarker;
 		if (this.props.isHistorical) {
-			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && this.props.toolCallResults?.[tc.id]);
+			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && (this.props.toolCallResults?.[tc.id] || shouldSynthesizeMissingToolResults));
 		}
 
 		if (round.toolCalls.length && !fixedNameToolCalls.length) {
@@ -136,7 +141,9 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
-		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+		// Record which API produced this round so the request builders can tell replayable
+		// reasoning from foreign state without guessing from the payload's id.
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} originApi={round.originApi} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(
@@ -160,7 +167,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 					{hydratedInstantiationService.invokeFunction(buildToolResultElement, {
 						toolCall: toolCall,
 						toolInvocationToken: this.props.promptContext.tools!.toolInvocationToken,
-						toolCallResult: this.props.toolCallResults?.[toolCall.id!],
+						toolCallResult: this.props.toolCallResults?.[toolCall.id!]
+							?? (shouldSynthesizeMissingToolResults ? textToolResult(MISSING_STATEFUL_TOOL_RESULT) : undefined),
 						allowInvokingTool: !this.props.isHistorical,
 						validateInput: round.toolInputRetry < MAX_INPUT_VALIDATION_RETRIES,
 						requestId: this.props.promptContext.requestId,
@@ -305,6 +313,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						toolInvocationToken: props.toolInvocationToken,
 						tokenizationOptions,
 						chatRequestId: props.requestId,
+						chatSessionResource: promptContext.request?.sessionResource,
 						subAgentInvocationId,
 						// Split on `__vscode` so it's the chat stream id
 						// TODO @lramos15 - This is a gross hack

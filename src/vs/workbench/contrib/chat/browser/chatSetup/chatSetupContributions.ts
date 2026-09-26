@@ -49,6 +49,7 @@ import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -56,7 +57,7 @@ import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTIO
 import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupStrategy, IChatSetupCommandOptions, IChatSetupResult, refreshTokens } from './chatSetup.js';
+import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupSource, ChatSetupStrategy, IChatSetupCommandOptions, IChatSetupResult, refreshTokens } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
@@ -269,7 +270,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
-				const result = await setup.run(options);
+				const result = await setup.run({ telemetrySource: ChatSetupSource.Command, ...options });
 				if (options?.returnResult) {
 					return result;
 				}
@@ -311,7 +312,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<unknown> {
+			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy; telemetrySource?: ChatSetupSource }): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const chatEntitlementService = accessor.get(IChatEntitlementService);
@@ -319,6 +320,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, {
+					telemetrySource: ChatSetupSource.AnonymousCommand,
 					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined,
 					...options
 				});
@@ -340,7 +342,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceSignInDialog: true });
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceSignInDialog: true, telemetrySource: ChatSetupSource.ForcedSignInCommand });
 			}
 		}
 
@@ -389,7 +391,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'accounts' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { telemetrySource: ChatSetupSource.Accounts });
 			}
 		}
 
@@ -404,7 +406,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: false,
 					menu: [{
 						id: MenuId.TitleBarAdjacentCenter,
-						order: 0, // same position as the update button
+						order: 0,
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
@@ -413,7 +415,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),
-							ContextKeyExpr.has('updateTitleBar').negate(),
+							UpdateTitleBarEditorVisibleContext.negate(),
 							InEditorZenModeContext.negate(),
 						),
 					}]
@@ -426,7 +428,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'titlebar' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { telemetrySource: ChatSetupSource.TitleBar });
 			}
 		}
 
@@ -489,6 +491,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.upgradePlan', from: 'command' });
 
 				const baseUrl = defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotUpgrade);
+				if (!baseUrl) {
+					throw new Error(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."));
+				}
 				const upgradeUrl = buildUpgradeUrlWithRedirect(baseUrl, productService.urlProtocol, productService.quality);
 				openerService.open(upgradeUrl);
 
@@ -555,7 +560,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const telemetryService = accessor.get(ITelemetryService);
 				const defaultAccountService = accessor.get(IDefaultAccountService);
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'command' });
-				openerService.open(URI.parse(defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets)));
+				const budgetsUrl = defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets);
+				if (!budgetsUrl) {
+					throw new Error(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."));
+				}
+				openerService.open(URI.parse(budgetsUrl));
 			}
 		}
 
@@ -601,7 +610,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						break;
 					}
 					case 'chat.internal.review': {
-						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, { telemetrySource: ChatSetupSource.CodeReview });
 						if (result) {
 							await commandService.executeCommand(actualCommand);
 						}
@@ -743,7 +752,7 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 			return false;
 		}
 
-		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentParam, inputParam ? { inputValue: inputParam } : undefined);
+		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentParam, { inputValue: inputParam || undefined, telemetrySource: ChatSetupSource.Url });
 		return true;
 	}
 

@@ -25,22 +25,23 @@
  * (`/chat/completions`), Responses (`/responses`) and Anthropic Messages
  * (`/v1/messages`) SSE dialects without needing per-dialect adapters.
  *
- * Matching is **sequence-based per `(method, path)`**: the Nth request to a
- * given endpoint replays the Nth recorded response. In replay the agent's
- * behavior is driven entirely by the recorded responses, so the sequence of
- * calls it makes is reproduced exactly — making exact-body matching (which is
- * brittle against volatile fields like dates or request ids) unnecessary. The
- * normalized request body is still stored in the fixture for reviewability.
+ * Matching is **sequence-based per `(method, path)`** by default: the Nth
+ * request to a given endpoint replays the Nth recorded response. Tests whose
+ * parent and subagent can issue concurrent model requests may opt into matching
+ * the remaining responses by the normalized request projection instead.
  */
 
 import type * as http from 'http';
 import type * as https from 'https';
 import { createRequire } from 'module';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { basename, dirname } from '../../../../../../base/common/path.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
-import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
 import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
@@ -57,11 +58,19 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
+const STORED_RESPONSE_HEADERS = new Set(['content-type', 'x-should-retry']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
+const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
+const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\{1,2})user-data(?:\/|\\{1,2})agentPlugins(?:\/|\\{1,2})(?<directory>[^\/\\"]+)/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
+const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
+const GENERATED_VALUE_PLACEHOLDER_RE = /\$\{(?<kind>uuid|shell_output)_\d+\}/g;
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const SHELL_OUTPUT_PATH_PATTERN = '(?:[A-Za-z]:[\\\\/]|/|\\$\\{(?:homedir|workdir)\\}[\\\\/])[^"\\r\\n<>]*?[\\\\/]original-output-\\d+-[a-f0-9]{32}\\.txt';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -104,7 +113,7 @@ const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_re
 
 export type CapiReplayMode = 'record' | 'replay';
 
-interface IRecordedResponse {
+export interface ICapiReplayResponse {
 	readonly status: number;
 	readonly headers: Readonly<Record<string, string>>;
 	readonly body: string;
@@ -115,7 +124,7 @@ interface IRecordedExchange {
 	readonly path: string;
 	/** Normalized request body, stored for human review of fixture diffs. */
 	readonly requestBody: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 /** Wire dialect the fixture's model turns were captured in. Drives SSE
@@ -160,7 +169,7 @@ interface ITurnExchange {
 interface IRawFixtureExchange {
 	readonly method: string;
 	readonly path: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 type IFixtureExchange = ITurnExchange | IRawFixtureExchange;
@@ -218,11 +227,15 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Match concurrent model requests to remaining responses by their normalized request projection. */
+	readonly matchModelRequestsByProjection?: boolean;
+	/** Synthetic first model response used by deterministic provider-error recordings. */
+	readonly recordingModelResponse?: ICapiReplayResponse;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
-	| { readonly kind: 'raw'; readonly response: IRecordedResponse }
+	| { readonly kind: 'raw'; readonly response: ICapiReplayResponse }
 	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
@@ -247,8 +260,11 @@ export class CapiReplayProxy {
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
+	private readonly _replayPlaceholderValues = new Map<string, string>();
+	private readonly _replayPluginDirectories = new Set<string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
+	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -264,14 +280,17 @@ export class CapiReplayProxy {
 	 * serves every test in the suite.
 	 */
 	private _allowStaleRecordedRequest: boolean;
+	private _matchModelRequestsByProjection: boolean;
 
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
 		this._allowStaleRecordedRequest = _options.allowStaleRecordedRequest ?? false;
+		this._matchModelRequestsByProjection = _options.matchModelRequestsByProjection ?? false;
 		this._fixturePath = _options.fixturePath;
 		this._workingDirectory = _options.workDir;
 		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
+		this._recordingModelResponse = _options.recordingModelResponse ? { response: _options.recordingModelResponse } : undefined;
 
 		if (this._mode === 'replay' && !fixtureExists) {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${this._fixturePath}`);
@@ -343,7 +362,10 @@ export class CapiReplayProxy {
 	 * valid). Clears the previous fixture's replay buckets and cache-miss log.
 	 * Replay-only: recording keeps one fixture per proxy.
 	 */
-	resetForReplay(fixturePath: string, allowStaleRecordedRequest = false): void {
+	resetForReplay(
+		fixturePath: string,
+		options: Pick<ICapiReplayProxyOptions, 'allowStaleRecordedRequest' | 'matchModelRequestsByProjection'> = {},
+	): void {
 		if (!this._isReplaying) {
 			throw new Error('[capi-replay] resetForReplay is only valid in replay mode');
 		}
@@ -351,18 +373,28 @@ export class CapiReplayProxy {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
 		}
 		this._fixturePath = fixturePath;
-		this._allowStaleRecordedRequest = allowStaleRecordedRequest;
+		this._allowStaleRecordedRequest = options.allowStaleRecordedRequest ?? false;
+		this._matchModelRequestsByProjection = options.matchModelRequestsByProjection ?? false;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
 		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
 		this._requestMismatches.length = 0;
+		this._replayPlaceholderValues.clear();
+		this._replayPluginDirectories.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
+		if (this._isReplaying) {
+			throw new Error('[capi-replay] setRecordingModelResponse is only valid in record mode');
+		}
+		this._recordingModelResponse = { response, path };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -400,6 +432,11 @@ export class CapiReplayProxy {
 		}
 		if (this._requestMismatches.length > 0) {
 			sections.push(`[capi-replay] ${this._requestMismatches.length} model request mismatch(es):\n${this._requestMismatches.join('\n')}`);
+		}
+		const unconsumed = Array.from(this._replayBuckets.entries())
+			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
+		if (unconsumed.length > 0) {
+			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
 		}
 		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;
 	}
@@ -453,7 +490,7 @@ export class CapiReplayProxy {
 
 		// Ancillary bootstrap endpoints are never recorded — serve them from
 		// hardcoded stubs (keeps identity/model-catalog out of fixtures).
-		const stub = getAncillaryStub(method, path);
+		const stub = getAncillaryStub(method, path, body);
 		if (stub) {
 			res.writeHead(stub.status, { ...stub.headers });
 			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
@@ -469,6 +506,12 @@ export class CapiReplayProxy {
 		let item: IReplayItem | undefined;
 		if (bucket) {
 			if (bucket.index < bucket.items.length) {
+				if (this._matchModelRequestsByProjection && MODEL_ENDPOINTS.has(path)) {
+					const matchingIndex = this._findMatchingTurnIndex(bucket, body);
+					if (matchingIndex !== undefined && matchingIndex !== bucket.index) {
+						[bucket.items[bucket.index], bucket.items[matchingIndex]] = [bucket.items[matchingIndex], bucket.items[bucket.index]];
+					}
+				}
 				item = bucket.items[bucket.index++];
 			} else if (!MODEL_ENDPOINTS.has(path)) {
 				// Idempotent endpoint called more often than recorded — re-serve
@@ -501,6 +544,28 @@ export class CapiReplayProxy {
 		res.end(this._expandReplayPlaceholders(item.response.body));
 	}
 
+	private _findMatchingTurnIndex(bucket: IReplayBucket, body: string): number | undefined {
+		const next = bucket.items[bucket.index];
+		if (next?.kind !== 'turn') {
+			return undefined;
+		}
+		const summarize = next.dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
+		const observed = summarize(this._normalizeReplayPlaceholderValues(this._normalize(body)));
+		if (!observed) {
+			return undefined;
+		}
+		const actual = projectModelRequest(observed);
+		for (let index = bucket.index; index < bucket.items.length; index++) {
+			const candidate = bucket.items[index];
+			if (candidate.kind === 'turn'
+				&& candidate.dialect === next.dialect
+				&& modelRequestsMatch(projectModelRequest(candidate.request), actual)) {
+				return index;
+			}
+		}
+		return undefined;
+	}
+
 	/**
 	 * Compare the live request against the one recorded for this turn.
 	 *
@@ -510,26 +575,64 @@ export class CapiReplayProxy {
 	 */
 	private _assertRecordedRequest(dialect: TurnDialect, recorded: IReadableAnthropicRequest, body: string): void {
 		const turnIndex = this._modelTurnCount++;
-		if (this._allowStaleRecordedRequest) {
-			return;
-		}
 		const summarize = dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
-		const observed = summarize(this._normalize(body));
+		const normalizedBody = this._normalize(body);
+		const observed = summarize(normalizedBody);
 		if (!observed) {
 			return;
 		}
+		captureReplayPlaceholderValues(recorded, observed, this._replayPlaceholderValues);
+		if (this._allowStaleRecordedRequest) {
+			return;
+		}
+		const normalizedObserved = summarize(this._normalizeReplayPlaceholderValues(normalizedBody));
+		if (!normalizedObserved) {
+			return;
+		}
 		const expected = projectModelRequest(recorded);
-		const actual = projectModelRequest(observed);
+		const actual = projectModelRequest(normalizedObserved);
 		if (!modelRequestsMatch(expected, actual)) {
 			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
 		}
 	}
 
+	private _normalizeReplayPlaceholderValues(text: string): string {
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, escapeJsonString(value), placeholder);
+			result = replaceAll(result, value, placeholder);
+		}
+		return result;
+	}
+
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		const stub = getAncillaryStub(method, path, body);
+		if (stub) {
+			res.writeHead(stub.status, { ...stub.headers });
+			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
+			return;
+		}
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
+		}
+		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse && (!this._recordingModelResponse.path || this._recordingModelResponse.path === path)) {
+			const response = this._recordingModelResponse.response;
+			this._recordingModelResponse = undefined;
+			res.writeHead(response.status, response.headers);
+			res.end(response.body);
+			this._recorded.push({
+				method,
+				path,
+				requestBody: this._normalize(body),
+				response: {
+					...response,
+					headers: filterRecordedResponseHeaders(response.headers),
+					body: this._normalize(response.body),
+				},
+			});
+			return;
 		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);
@@ -562,15 +665,14 @@ export class CapiReplayProxy {
 					res.end();
 					// Ancillary bootstrap endpoints are forwarded (so the live run
 					// works) but never stored — they are served from stubs on replay.
-					if (getAncillaryStub(method, path)) {
+					if (getAncillaryStub(method, path, body)) {
 						return;
 					}
 					// Decompress so stored bodies are readable text and the model
 					// filters / codecs can parse them. The live client already
 					// received the original (compressed) chunks above.
 					const decoded = decodeBody(Buffer.concat(respChunks), headers['content-encoding']);
-					const storedHeaders = { ...headers };
-					delete storedHeaders['content-encoding'];
+					const storedHeaders = filterRecordedResponseHeaders(headers);
 					// Rewrite the CAPI origin to a placeholder (so replay re-points
 					// discovery at the proxy), normalize local paths, and redact
 					// response-side secrets.
@@ -658,7 +760,8 @@ export class CapiReplayProxy {
 		const built = this._recorded.map(exchange => this._toFixtureExchange(exchange));
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
-		this._normalizeUuids(exchanges);
+		this._normalizeGeneratedValues(exchanges, new RegExp(SHELL_OUTPUT_PATH_PATTERN, 'gi'), 'shell_output');
+		this._normalizeGeneratedValues(exchanges, new RegExp(UUID_PATTERN, 'gi'), 'uuid');
 		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
@@ -666,7 +769,12 @@ export class CapiReplayProxy {
 		const dialect = built.find(b => b.dialect !== undefined)?.dialect;
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
-		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+		const dumpOptions = { lineWidth: -1, noRefs: true };
+		let serializedFixture = yamlModule.dump(fixture, dumpOptions);
+		if (/^[\t ]+$/m.test(serializedFixture)) {
+			serializedFixture = yamlModule.dump(fixture, { ...dumpOptions, forceQuotes: true, quotingType: '"' });
+		}
+		writeFileSync(this._fixturePath, serializedFixture);
 	}
 
 	/**
@@ -693,8 +801,8 @@ export class CapiReplayProxy {
 				if (block.type !== 'tool_use') {
 					continue;
 				}
-				const command = (block.input as { command?: unknown } | undefined)?.command;
-				if (typeof command === 'string' && command) {
+				const command = getRecordedShellCommand(block.input as { command?: unknown; cmd?: unknown } | undefined);
+				if (command) {
 					commands.push({ command, toolName: block.name });
 				}
 			}
@@ -754,27 +862,20 @@ export class CapiReplayProxy {
 		}
 	}
 
-	/**
-	 * Replace ephemeral UUIDs (shell ids, session-state ids, ...) that appear in
-	 * captured request/response content with stable ordinal placeholders
-	 * (`${uuid_0}`, `${uuid_1}`, ...). They change on every re-record, so
-	 * normalizing them keeps committed fixtures diff-clean. Distinct UUIDs get
-	 * distinct placeholders; repeats of the same UUID reuse its placeholder.
-	 */
-	private _normalizeUuids(exchanges: IFixtureExchange[]): void {
+	/** Replaces generated identifiers and paths with stable, rebindable ordinal placeholders. */
+	private _normalizeGeneratedValues(exchanges: IFixtureExchange[], expression: RegExp, prefix: string): void {
 		const idMap = new Map<string, string>();
-		const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-		const mapUuid = (uuid: string): string => {
-			let mapped = idMap.get(uuid);
+		const mapValue = (value: string): string => {
+			let mapped = idMap.get(value);
 			if (mapped === undefined) {
-				mapped = `\${uuid_${idMap.size}}`;
-				idMap.set(uuid, mapped);
+				mapped = `\${${prefix}_${idMap.size}}`;
+				idMap.set(value, mapped);
 			}
 			return mapped;
 		};
 		const walk = (value: unknown): unknown => {
 			if (typeof value === 'string') {
-				return value.replace(uuidRe, mapUuid);
+				return value.replace(expression, mapValue);
 			}
 			if (Array.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
@@ -808,7 +909,7 @@ export class CapiReplayProxy {
 			const message = aggregateAnthropicSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
+				return { exchange: { request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
 			}
 		}
 		if (exchange.method === 'POST' && exchange.path === RESPONSES_PATH) {
@@ -816,7 +917,7 @@ export class CapiReplayProxy {
 			const message = aggregateResponsesSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
+				return { exchange: { request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
 			}
 		}
 		return { exchange: { method: exchange.method, path: exchange.path, response: exchange.response } };
@@ -831,16 +932,35 @@ export class CapiReplayProxy {
 	private _normalizeMessageContent(content: AnthropicContentBlock[]): AnthropicContentBlock[] {
 		return content.map((block): AnthropicContentBlock => {
 			if (block.type === 'text') {
-				return { type: 'text', text: this._normalize(block.text) };
+				return { type: 'text', text: this._normalizeValue(block.text) as string };
 			}
-			let input = block.input;
-			try {
-				input = JSON.parse(this._normalize(JSON.stringify(block.input ?? {})));
-			} catch {
-				// non-serializable input; keep as-is
-			}
-			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
+			return { ...block, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
 		});
+	}
+
+	private _normalizeRequest(request: IReadableAnthropicRequest): IReadableAnthropicRequest {
+		return {
+			...request,
+			system: this._normalize(request.system),
+			messages: request.messages.map(message => ({
+				...message,
+				content: this._normalizeValue(message.content),
+			})),
+		};
+	}
+
+	private _normalizeValue(value: unknown): unknown {
+		if (typeof value === 'string') {
+			const normalized = this._normalize(value);
+			return isSerializedJson(normalized) ? normalized : normalizePlaceholderPathSeparators(normalized);
+		}
+		if (Array.isArray(value)) {
+			return value.map(item => this._normalizeValue(item));
+		}
+		if (value && typeof value === 'object') {
+			return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this._normalizeValue(item)]));
+		}
+		return value;
 	}
 
 	private _normalize(text: string): string {
@@ -853,17 +973,30 @@ export class CapiReplayProxy {
 				// The recording work directory can disappear during teardown.
 			}
 			for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
-				result = replaceAll(result, escapeJsonString(workDir), WORKDIR_PLACEHOLDER);
-				result = replaceAll(result, workDir, WORKDIR_PLACEHOLDER);
+				result = replacePath(result, workDir, WORKDIR_PLACEHOLDER, this._options.userName);
 			}
 		}
+		const tempDirectories = new Set([tmpdir()]);
+		try {
+			tempDirectories.add(realpathSync.native(tmpdir()));
+		} catch {
+			// The platform temp directory can disappear during teardown.
+		}
+		for (const tempDirectory of [...tempDirectories].sort((a, b) => b.length - a.length)) {
+			result = replaceTemporaryWorkspacePaths(result, tempDirectory, WORKDIR_PLACEHOLDER, this._options.userName);
+		}
 		if (this._options.homeDir) {
-			result = replaceAll(result, escapeJsonString(this._options.homeDir), HOMEDIR_PLACEHOLDER);
-			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
+			result = replacePath(result, this._options.homeDir, HOMEDIR_PLACEHOLDER, this._options.userName);
 		}
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
 		}
+		result = result.replace(COPIED_PLUGIN_DIR_RE, (_match: string, directory: string) => {
+			if (this._isReplaying && directory !== COPIED_PLUGIN_DIR_PLACEHOLDER) {
+				this._replayPluginDirectories.add(directory);
+			}
+			return `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`;
+		});
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
 		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');
@@ -905,7 +1038,18 @@ export class CapiReplayProxy {
 	}
 
 	private _expandReplayPlaceholders(text: string): string {
-		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
+		result = replaceAll(result, CAPI_PLACEHOLDER, this.url);
+		if (result.includes(COPIED_PLUGIN_DIR_PLACEHOLDER)) {
+			const directories = [...this._replayPluginDirectories];
+			if (directories.length !== 1) {
+				throw new Error(`[capi-replay] cannot resolve ${COPIED_PLUGIN_DIR_PLACEHOLDER}: expected one observed plugin directory, found ${directories.length}`);
+			}
+			result = replaceAll(result, COPIED_PLUGIN_DIR_PLACEHOLDER, directories[0]);
+		}
 		if (this._workingDirectory) {
 			const workspaceName = basename(this._workingDirectory);
 			const suffix = /-(?<suffix>[A-Za-z0-9]{6})$/.exec(workspaceName)?.groups?.suffix;
@@ -942,11 +1086,130 @@ export class CapiReplayProxy {
 	}
 }
 
+function captureReplayPlaceholderValues(recorded: unknown, observed: unknown, values: Map<string, string>): void {
+	if (typeof recorded === 'string' && typeof observed === 'string') {
+		captureReplayPlaceholderValuesFromString(recorded, observed, values);
+		return;
+	}
+	if (Array.isArray(recorded) && Array.isArray(observed)) {
+		for (let index = 0; index < Math.min(recorded.length, observed.length); index++) {
+			captureReplayPlaceholderValues(recorded[index], observed[index], values);
+		}
+		return;
+	}
+	if (!isRecord(recorded) || !isRecord(observed)) {
+		return;
+	}
+	for (const [key, value] of Object.entries(recorded)) {
+		captureReplayPlaceholderValues(value, observed[key], values);
+	}
+}
+
+function captureReplayPlaceholderValuesFromString(recorded: string, observed: string, values: Map<string, string>): void {
+	const placeholders: string[] = [];
+	let pattern = '^';
+	let offset = 0;
+	for (const match of recorded.matchAll(GENERATED_VALUE_PLACEHOLDER_RE)) {
+		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
+		pattern += `(${match.groups?.kind === 'shell_output' ? SHELL_OUTPUT_PATH_PATTERN : UUID_PATTERN})`;
+		placeholders.push(match[0]);
+		offset = match.index + match[0].length;
+	}
+	if (placeholders.length === 0) {
+		return;
+	}
+	pattern += `${escapeRegExpCharacters(recorded.slice(offset))}$`;
+	const match = new RegExp(pattern, 'i').exec(observed);
+	if (!match) {
+		return;
+	}
+	const captured = new Map<string, string>();
+	for (let index = 0; index < placeholders.length; index++) {
+		const placeholder = placeholders[index];
+		const value = match[index + 1];
+		if ((captured.has(placeholder) && captured.get(placeholder) !== value)
+			|| (values.has(placeholder) && values.get(placeholder) !== value)) {
+			return;
+		}
+		captured.set(placeholder, value);
+	}
+	for (const [placeholder, value] of captured) {
+		values.set(placeholder, value);
+	}
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function replaceAll(text: string, search: string, replacement: string): string {
 	if (!search) {
 		return text;
 	}
 	return text.split(search).join(replacement);
+}
+
+function pathVariants(search: string, replacement: string, userName: string | undefined): ReadonlyMap<string, string> {
+	const variants = new Map<string, string>([
+		[search, replacement],
+		[escapeJsonString(search), replacement],
+	]);
+	const fileUriReplacement = `file://${replacement}`;
+	for (const fileUri of [URI.file(search).toString(), URI.file(search).toString(true)]) {
+		variants.set(fileUri, fileUriReplacement);
+		variants.set(escapeJsonString(fileUri), fileUriReplacement);
+	}
+	if (isWindows) {
+		const forwardSlashPath = search.replaceAll('\\', '/');
+		const backslashPath = search.replaceAll('/', '\\');
+		variants.set(forwardSlashPath, replacement);
+		variants.set(escapeJsonString(forwardSlashPath), replacement);
+		variants.set(backslashPath, replacement);
+		variants.set(escapeJsonString(backslashPath), replacement);
+	}
+	if (userName) {
+		for (const [variant, variantReplacement] of [...variants]) {
+			variants.set(scrubUserName(variant, userName), variantReplacement);
+		}
+	}
+	return variants;
+}
+
+function replacePath(text: string, search: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(search, replacement, userName);
+	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
+		text = isWindows
+			? text.replace(new RegExp(escapeRegExpCharacters(variant), 'gi'), variantReplacement)
+			: replaceAll(text, variant, variantReplacement);
+	}
+	return text;
+}
+
+/** Normalize harness temp workspaces even when a session title contains only a truncated path. */
+function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(tempDirectory, replacement, userName);
+	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
+		const pattern = `${escapeRegExpCharacters(variant)}${PATH_SEPARATOR_PATTERN}${TEMP_WORKSPACE_COMPONENT_PATTERN}`;
+		text = text.replace(new RegExp(pattern, isWindows ? 'gi' : 'g'), variantReplacement);
+	}
+	return text;
+}
+
+function normalizePlaceholderPathSeparators(text: string): string {
+	return text.replace(/\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g, path => path.replaceAll('\\', '/'));
+}
+
+function isSerializedJson(value: string): boolean {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+		return false;
+	}
+	try {
+		JSON.parse(trimmed);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function escapeJsonString(value: string): string {
@@ -982,4 +1245,11 @@ function flattenHeaders(headers: http.IncomingHttpHeaders): Record<string, strin
 		result[key] = Array.isArray(value) ? value.join(', ') : value;
 	}
 	return result;
+}
+
+function filterRecordedResponseHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+	return Object.fromEntries(Object.entries(headers).filter(([key, value]) =>
+		STORED_RESPONSE_HEADERS.has(key.toLowerCase())
+		// Absolute Retry-After dates expire; relative delays preserve replay behavior.
+		|| (key.toLowerCase() === 'retry-after' && /^\d+$/.test(value))));
 }

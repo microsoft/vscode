@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
+import { hasToolInvocationError } from './chatToolPartUtilities.js';
 
 export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	protected static idPool = 0;
@@ -18,6 +19,12 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	public readonly onNeedsRerender = this._onNeedsRerender.event;
 
 	public abstract codeblocks: IChatCodeBlockInfo[];
+
+	protected primaryAction?: () => void;
+
+	public acceptConfirmation(): void {
+		this.primaryAction?.();
+	}
 
 	private readonly _codeBlocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
 
@@ -39,9 +46,18 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 			return Codicon.circleSlash;
 		}
 
-		return confirmState?.type === ToolConfirmKind.Denied ?
+		return confirmState?.type === ToolConfirmKind.Denied || hasToolInvocationError(toolInvocation) ?
 			Codicon.error :
 			IChatToolInvocation.isComplete(toolInvocation) ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
+	}
+
+	/**
+	 * Like {@link getIcon} but never returns the looping loading spinner — progress rows convey
+	 * activity via shimmer instead, so an in-progress row uses a (hidden) check rather than a spinner.
+	 */
+	protected getProgressIcon(): ThemeIcon {
+		const icon = this.getIcon();
+		return ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin')) ? Codicon.check : icon;
 	}
 }

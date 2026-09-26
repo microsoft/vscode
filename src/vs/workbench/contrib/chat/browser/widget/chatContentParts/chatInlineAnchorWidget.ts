@@ -38,13 +38,14 @@ import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
-import { globMatchesResource } from '../../../../../services/editor/common/editorResolverService.js';
 import { INotebookDocumentService } from '../../../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { ChatPetAchievementIds } from '../../chatPetAchievements.js';
+import { IChatPetService } from '../../chatPetService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -54,22 +55,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
-
-/**
- * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
- * `chat.editorAssociations` setting. Returns undefined if no association matches.
- */
-export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
-	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
-	// Sort patterns by length (longer patterns are more specific)
-	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
-	for (const pattern of sortedPatterns) {
-		if (globMatchesResource(pattern, resource)) {
-			return associations[pattern];
-		}
-	}
-	return undefined;
-}
+import { getEditorOverrideForChatResource } from '../chatEditorAssociations.js';
 
 type ContentRefData =
 	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
@@ -86,6 +72,8 @@ type InlineAnchorWidgetMetadata = {
 
 export interface IRenderFileWidgetsOptions {
 	readonly openResource?: (resource: URI, editorOptions: ITextEditorOptions) => Promise<boolean>;
+	/** When provided, only render links carrying one of these metadata types. */
+	readonly linkTypes?: readonly string[];
 
 	/**
 	 * Wraps opening the resource so that callers can observe which editors a click on the
@@ -98,48 +86,55 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
-		// Empty link text -> render file widget
-		// Also support metadata format: [linkText](file:///...uri?vscodeLinkType=...)
-		const linkText = a.textContent?.trim();
-		let shouldRenderWidget = false;
-		let metadata: InlineAnchorWidgetMetadata | undefined;
-
-		const href = a.getAttribute('data-href');
-		let uri: URI | undefined;
-		if (href) {
-			try {
-				uri = URI.parse(href);
-			} catch {
-				// Invalid URI, skip rendering widget
-			}
-		}
-
-		if (!linkText) {
-			shouldRenderWidget = true;
-		} else if (uri) {
-			// Check for vscodeLinkType in query parameters
-			const searchParams = new URLSearchParams(uri.query);
-			const vscodeLinkType = searchParams.get('vscodeLinkType');
-			if (vscodeLinkType) {
-				metadata = {
-					vscodeLinkType,
-					linkText
-				};
-				shouldRenderWidget = true;
-
-				// Strip vscodeLinkType from the URI once we've extracted the metadata for better compatibility with different FS
-				searchParams.delete('vscodeLinkType');
-				const remainingQuery = searchParams.toString();
-				uri = uri.with({ query: remainingQuery });
-			}
-		}
-
-		if (shouldRenderWidget && uri?.scheme) {
-			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata, options);
-			disposables.add(chatMarkdownAnchorService.register(widget));
-			disposables.add(widget);
-		}
+		renderFileAnchor(a, instantiationService, chatMarkdownAnchorService, disposables, options);
 	});
+}
+
+/** Returns whether the anchor is handled by a file widget, including an already-rendered widget. */
+export function renderFileAnchor(anchor: HTMLAnchorElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions): boolean {
+	if (anchor.classList.contains(InlineAnchorWidget.className)) {
+		return true;
+	}
+
+	const href = anchor.getAttribute('data-href');
+	if (!href || (options?.linkTypes && !href.includes('?'))) {
+		return false;
+	}
+
+	let uri: URI;
+	try {
+		uri = URI.parse(href);
+	} catch {
+		return false;
+	}
+	if (!uri.scheme) {
+		return false;
+	}
+
+	const linkText = anchor.textContent?.trim();
+	let metadata: InlineAnchorWidgetMetadata | undefined;
+	if (linkText && uri.query) {
+		const searchParams = new URLSearchParams(uri.query);
+		const vscodeLinkType = searchParams.get('vscodeLinkType');
+		if (vscodeLinkType) {
+			metadata = { vscodeLinkType, linkText };
+
+			// Presentation metadata must not reach the filesystem provider.
+			searchParams.delete('vscodeLinkType');
+			uri = uri.with({ query: searchParams.toString() });
+		}
+	}
+
+	if (options?.linkTypes && (!metadata || !options.linkTypes.includes(metadata.vscodeLinkType))) {
+		return false;
+	}
+	if (linkText && !metadata) {
+		return false;
+	}
+
+	const widget = disposables.add(instantiationService.createInstance(InlineAnchorWidget, anchor, { kind: 'inlineReference', inlineReference: uri }, metadata, options));
+	disposables.add(chatMarkdownAnchorService.register(widget));
+	return true;
 }
 
 export class InlineAnchorWidget extends Disposable {
@@ -169,6 +164,7 @@ export class InlineAnchorWidget extends Disposable {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -179,6 +175,7 @@ export class InlineAnchorWidget extends Disposable {
 				: { uri: inlineReference.inlineReference };
 
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
+		element.classList.toggle('chat-markdown-preview-link', metadata?.vscodeLinkType === 'markdown-preview');
 
 		let iconText: Array<string | HTMLElement>;
 		let iconClasses: string[];
@@ -318,14 +315,18 @@ export class InlineAnchorWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 
-			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
+			const editorOverride = this.metadata?.vscodeLinkType === 'markdown-preview'
+				? 'vscode.markdown.preview.editor'
+				: getEditorOverrideForChatResource(location.uri, this.configurationService);
 			const editorOptions: ITextEditorOptions = {
 				override: editorOverride,
 				selection: location.range,
 			};
 
+			let opened = false;
 			const open = async () => {
 				if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+					opened = true;
 					return;
 				}
 
@@ -333,10 +334,11 @@ export class InlineAnchorWidget extends Disposable {
 				const mimeType = getMediaMime(location.uri.path);
 				if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 					await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+					opened = true;
 					return;
 				}
 
-				await this.openerService.open(location.uri, {
+				opened = await this.openerService.open(location.uri, {
 					fromUserGesture: true,
 					editorOptions
 				});
@@ -347,7 +349,19 @@ export class InlineAnchorWidget extends Disposable {
 			} else {
 				await open();
 			}
+			if (opened) {
+				this.chatPetService.unlockAchievement(ChatPetAchievementIds.ChatReferenceOpened);
+			}
 		}));
+
+		if (this.metadata?.vscodeLinkType === 'markdown-preview') {
+			this._register(dom.addStandardDisposableListener(element, 'keydown', event => {
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					dom.EventHelper.stop(event, true);
+					element.click();
+				}
+			}));
+		}
 	}
 
 	getHTMLElement(): HTMLElement {

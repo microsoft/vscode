@@ -15,6 +15,13 @@ import { scanClaudeDiskCustomizations } from '../../../node/claude/customization
 import { scanClaudeNativePlugins } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
+class CapturingLogService extends NullLogService {
+	readonly warns: string[] = [];
+	override warn(message: string, ...args: unknown[]): void {
+		this.warns.push([message, ...args.map(a => String(a))].join(' '));
+	}
+}
+
 suite('claudeMultiRootCustomizationDiscovery', () => {
 	const disposables = new DisposableStore();
 	const rootA = URI.from({ scheme: Schemas.inMemory, path: '/a' });
@@ -82,6 +89,23 @@ suite('claudeMultiRootCustomizationDiscovery', () => {
 				{ name: 'user-only', description: 'from user', path: '/home/.claude/skills/user-only/SKILL.md' },
 			],
 		});
+	});
+
+	test('warns when a workspace folder skill or agent is shadowed by another folder', async () => {
+		const agentA = await seed('/a/.claude/agents/reviewer.md', '---\nname: reviewer\ndescription: from a\n---');
+		const agentB = await seed('/b/.claude/agents/reviewer.md', '---\nname: reviewer\ndescription: from b\n---');
+		const skillA = await seed('/a/.claude/skills/deploy/SKILL.md', '---\nname: deploy\ndescription: from a\n---');
+		const skillB = await seed('/b/.claude/skills/deploy/SKILL.md', '---\nname: deploy\ndescription: from b\n---');
+		// A same-named user-scope skill is an expected override, not a cross-folder collision.
+		await seed('/home/.claude/skills/deploy/SKILL.md', '---\nname: deploy\ndescription: from user\n---');
+		const logService = new CapturingLogService();
+
+		await discoverClaudeMultiRootCustomizations([rootA, rootB], userHome, fileService, logService);
+
+		assert.deepStrictEqual(logService.warns.sort(), [
+			`[claudeMultiRootCustomizationDiscovery] agent 'reviewer' at '${agentB.toString()}' is shadowed by '${agentA.toString()}' from another workspace folder and is unreachable by name`,
+			`[claudeMultiRootCustomizationDiscovery] skill 'deploy' at '${skillB.toString()}' is shadowed by '${skillA.toString()}' from another workspace folder and is unreachable by name`,
+		].sort());
 	});
 
 	test('deduplicates equivalent roots without changing precedence', async () => {

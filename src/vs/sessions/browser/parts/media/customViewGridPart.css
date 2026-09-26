@@ -41,11 +41,7 @@
 	box-sizing: border-box;
 	margin: 0 auto;
 	padding: 6px 10px;
-	border-bottom: 1px solid transparent;
-}
-
-.custom-view-header.scrolled .custom-view-header-band {
-	border-bottom-color: color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
 }
 
 .custom-view-header-title-row {
@@ -61,8 +57,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-heading3, 13px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 }
 
 .custom-view-header-actions {
@@ -77,7 +73,7 @@
 
 .custom-view-header-description {
 	margin-top: 2px;
-	font-size: var(--vscode-agents-fontSize-body2, 12px);
+	font-size: var(--vscode-fontSize-body2, 12px);
 	opacity: 0.8;
 }
 

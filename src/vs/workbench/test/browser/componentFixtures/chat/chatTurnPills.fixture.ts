@@ -6,14 +6,10 @@
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
-import { ChatTurnStatusPillsSetting } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatTurnPillsPart } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -48,7 +44,6 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 
 interface IRenderTurnPillsOptions {
 	readonly diffs: readonly IEditSessionEntryDiff[];
-	readonly setting?: ChatTurnStatusPillsSetting;
 	/** When `true`, the changed-files disclosure is expanded. */
 	readonly expanded?: boolean;
 }
@@ -59,19 +54,16 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			// Broad chat service graph: IContextMenuService, IEditorService and the
-			// ResourceLabels dependencies the preview action needs.
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(options.diffs));
 		},
 	});
 
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options.setting ?? true);
-
 	const content: IChatTurnPillsPart = {
 		kind: 'turnPills',
 		requestId: 'request-1',
 		sessionResource: URI.parse('vscode-chat-session://agent-host/session-1'),
+		isLastTurn: true,
 	};
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
@@ -124,44 +116,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview_Markdown: defineComponentFixture({
+		WorkspaceMarkdown: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
-				diffs: [
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('app.ts', 8, 3, false),
-				],
-			}),
-		}),
-
-		// Expanded list showing the per-row "Preview" action on the markdown row
-		// (edited `.ts`/`.css` and HTML rows have no preview action).
-		ChangesAndPreview_Expanded: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				expanded: true,
-				diffs: [
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('index.html', 30, 4, true),
-					fileDiff('app.ts', 8, 3, false),
-					fileDiff('styles.css', 4, 1, false),
-				],
-			}),
-		}),
-
-		// With several previewable files only the first is offered.
-		ChangesAndPreview_MultiplePreviewable: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				diffs: [
-					fileDiff('app.ts', 8, 3, false),
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('index.html', 30, 4, true),
-					fileDiff('CHANGELOG.md', 6, 1, false),
-				],
-			}),
-		}),
-
-		LegacyPreviewOptionEnablesAll: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				setting: { preview: true },
 				diffs: [
 					fileDiff('README.md', 20, 0, true),
 					fileDiff('app.ts', 8, 3, false),
@@ -179,7 +135,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	inChat: defineThemedFixtureGroup({
 		Changes: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: true,
+				agentHostSession: true,
 				messages: [
 					{
 						user: 'Refactor the fibonacci helper to be iterative',
@@ -195,18 +151,18 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview: defineComponentFixture({
+		ChangesWithExternalFileIgnored: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: true,
+				agentHostSession: true,
 				messages: [
 					{
-						user: 'Add a README describing the project',
+						user: 'Create a Markdown handoff note in my home folder',
 						assistant: [
-							{ kind: 'markdown', text: 'I added a `README.md` with an overview, setup steps, and usage notes, and linked it from the docs index.' },
+							{ kind: 'markdown', text: 'I added `/home/user/session-notes.md` with the handoff details and updated `app.ts` in the workspace.' },
 						],
 						fileChanges: [
-							{ name: 'README.md', added: 42, removed: 0, created: true },
-							{ name: 'docs/index.md', added: 4, removed: 1, created: false },
+							{ name: 'session-notes.md', added: 42, removed: 0, created: true, isOutsideWorkspace: true },
+							{ name: 'app.ts', added: 4, removed: 1, created: false },
 						],
 					},
 				],

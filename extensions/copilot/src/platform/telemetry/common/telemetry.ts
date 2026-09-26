@@ -112,11 +112,8 @@ export type TelemetryDestination = {
 export interface ITelemetryService extends IExperimentationTelemetry, IDisposable {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Send a Microsoft internal telemetry event.
-	 *
-	 * @remark This is a no-op if the user is not part of an allowed organization.
-	 * @remark This event does not require GDPR comments due to being classified in a special manner for internal use only.
-
+	 * Legacy restricted Microsoft telemetry entry point. Sending is disabled;
+	 * retained so existing callers do not route restricted content through standard telemetry.
 	 */
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
@@ -124,7 +121,15 @@ export interface ITelemetryService extends IExperimentationTelemetry, IDisposabl
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryException(maybeError: unknown, origin: string): void;
+	/**
+	 * Send restricted GitHub telemetry only for opted-in external users.
+	 * Microsoft and GitHub organization members are excluded.
+	 */
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
+	/**
+	 * Send restricted GitHub error telemetry only for opted-in external users.
+	 * Microsoft and GitHub organization members are excluded.
+	 */
 	sendEnhancedGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendTelemetryEvent(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendTelemetryEvent<TTelemetryEvent extends ITelemetryEvent>(eventName: TTelemetryEvent['eventName'], destination: TelemetryDestination, properties?: TTelemetryEvent['properties'], measurements?: TTelemetryEvent['measurements']): void;
@@ -150,10 +155,7 @@ export interface ITelemetrySender extends IDisposable {
 export const ITelemetryService = createServiceIdentifier<ITelemetryService>('ITelemetryService');
 export interface IMSFTTelemetrySender extends ITelemetrySender {
 	/**
-	 * Send a Microsoft internal telemetry event.
-	 *
-	 * @remark This is a no-op if the user is not part of an allowed organization.
-	 * @remark This event does not require GDPR comments due to be classified in a special manner for internal use only.
+	 * Legacy restricted Microsoft telemetry entry point. Sending is disabled.
 	 */
 	sendInternalTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 }
@@ -217,7 +219,12 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // regardless of their length. These are known to frequently exceed the per-property limit, so
 // always producing the `<key>Chunk` family gives the backend a single, uniform place to read the
 // value from instead of having to branch on whether the value happened to be chunked.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON', 'prompt']);
+
+// Overrides for the base name of the compressed chunk family. By default the chunk family is named
+// `<key>Chunk`, but some backend mappings expect a different casing. For `messagesJson` the backend
+// expects `messagesJSONChunk` (uppercased JSON), while the original `<key>` column keeps its casing.
+const COMPRESSED_CHUNK_KEY_OVERRIDES: { readonly [key: string]: string } = { messagesJson: 'messagesJSON' };
 
 // Compressor used by multiplexProperties to gzip + base64 encode oversized property values. It is
 // registered once by the Node layer (via setTelemetryPropertyCompressor) because Node's `zlib` is
@@ -273,8 +280,9 @@ export async function multiplexProperties(
 			// padding). No redundant plain continuation family is produced.
 			newProperties[key] = value!.slice(0, MAX_PROPERTY_LENGTH);
 			const compressed = await compress(value!);
+			const chunkKey = COMPRESSED_CHUNK_KEY_OVERRIDES[key] ?? key;
 			for (let offset = 0, index = 1; offset < compressed.length && index <= MAX_CONCATENATED_PROPERTIES; offset += MAX_PROPERTY_LENGTH, index++) {
-				const columnName = index === 1 ? `${key}${COMPRESSED_CHUNK_SUFFIX}` : `${key}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
+				const columnName = index === 1 ? `${chunkKey}${COMPRESSED_CHUNK_SUFFIX}` : `${chunkKey}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
 				newProperties[columnName] = compressed.slice(offset, offset + MAX_PROPERTY_LENGTH);
 			}
 			continue;

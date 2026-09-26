@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getMxcExcludeFilter, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getMxcExcludeFilter, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 /**
  * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
@@ -32,133 +32,138 @@ function createPinnedCopilotWin32Tarball(dir: string): { tarball: string; integr
 }
 
 suite('copilot', () => {
-	test('keeps the public copilot platform package include list scoped to the selected package', () => {
+	test('reads the runtime version owned by the SDK', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-version-test-'));
+		try {
+			const sdkDir = path.join(repoRoot, 'node_modules', '@github', 'copilot-sdk');
+			fs.mkdirSync(sdkDir, { recursive: true });
+			fs.writeFileSync(path.join(sdkDir, 'package.json'), JSON.stringify({ copilotCliVersion: '1.2.3' }));
+
+			assert.strictEqual(getCopilotRuntimeVersion(path.join(repoRoot, 'node_modules')), '1.2.3');
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps the SDK runtime package include list scoped to the selected platform', () => {
 		const files = getCopilotRuntimePrebuildFiles('linux', 'x64');
 
 		assert.deepStrictEqual(files, [
-			'node_modules/@github/copilot-linux-x64/**',
-			'!node_modules/@github/copilot-linux-x64/copilot',
-			'!node_modules/@github/copilot-linux-x64/copilot.exe',
-			'!node_modules/@github/copilot-linux-x64/clipboard/**',
-			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
-			'!node_modules/@github/copilot-linux-x64/pvrecorder/**',
-			'!node_modules/@github/copilot-linux-x64/webview/**',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp.exe',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/Copilot Computer Use.app/**',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/CopilotComputerUse.exe',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/keytar.node',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/mediaremote-adapter/**',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/cli-native.node',
+			'node_modules/@github/copilot-sdk-linux-x64/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/builtin/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/builtin-skills/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/clipboard/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/foundry-local-sdk/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/mxc-bin/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/webview/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/plugins/computer-use/**',
+			'!node_modules/@github/copilot-sdk-linux-x64/prebuilds/*/computer.node',
+			'!node_modules/@github/copilot-sdk-linux-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-sdk-linux-x64/prebuilds/*/mediaremote-adapter/**',
 		]);
-		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linux-x64', [
-			'index.js',
-			'app.js',
+		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-sdk-linux-x64', [
 			'prebuilds/linux-x64/runtime.node',
-			'prebuilds/linux-x64/pty.node',
+			'prebuilds/linux-x64/copilot-runtime',
+			'copilot-sdk/index.js',
+			'definitions/task.agent.yaml',
+			'ripgrep/bin/linux-x64/rg',
+			'tgrep/bin/linux-x64/tgrep',
 		]);
-		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linux-x64');
-		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linux-x64');
+		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-sdk-linux-x64');
 	});
 
 	test('uses the linuxmusl package runtime for alpine builds', () => {
 		const files = getCopilotRuntimePrebuildFiles('alpine', 'x64');
 
 		assert.deepStrictEqual(files, [
-			'node_modules/@github/copilot-linuxmusl-x64/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/copilot',
-			'!node_modules/@github/copilot-linuxmusl-x64/copilot.exe',
-			'!node_modules/@github/copilot-linuxmusl-x64/clipboard/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/pvrecorder/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/webview/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp.exe',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/Copilot Computer Use.app/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/CopilotComputerUse.exe',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/keytar.node',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/mediaremote-adapter/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/cli-native.node',
+			'node_modules/@github/copilot-sdk-linuxmusl-x64/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/builtin/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/builtin-skills/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/clipboard/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/foundry-local-sdk/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/mxc-bin/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/webview/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/computer-use/**',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/prebuilds/*/computer.node',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-sdk-linuxmusl-x64/prebuilds/*/mediaremote-adapter/**',
 		]);
-		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linuxmusl-x64', [
-			'index.js',
-			'app.js',
+		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-sdk-linuxmusl-x64', [
 			'prebuilds/linuxmusl-x64/runtime.node',
+			'prebuilds/linuxmusl-x64/copilot-runtime',
+			'copilot-sdk/index.js',
 		]);
-		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
-		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
+		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-sdk-linuxmusl-x64');
 	});
 
 	test('uses the .exe package runtime for windows builds', () => {
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'x64'), [
-			'node_modules/@github/copilot-win32-x64/**',
-			'!node_modules/@github/copilot-win32-x64/copilot',
-			'!node_modules/@github/copilot-win32-x64/copilot.exe',
-			'!node_modules/@github/copilot-win32-x64/clipboard/**',
-			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
-			'!node_modules/@github/copilot-win32-x64/pvrecorder/**',
-			'!node_modules/@github/copilot-win32-x64/webview/**',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer.node',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp.exe',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/Copilot Computer Use.app/**',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/CopilotComputerUse.exe',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/keytar.node',
-			'!node_modules/@github/copilot-win32-x64/prebuilds/*/mediaremote-adapter/**',
+			'node_modules/@github/copilot-sdk-win32-x64/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/builtin/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/builtin-skills/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/clipboard/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/foundry-local-sdk/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/mxc-bin/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/webview/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/plugins/computer-use/**',
+			'!node_modules/@github/copilot-sdk-win32-x64/prebuilds/*/computer.node',
+			'!node_modules/@github/copilot-sdk-win32-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-sdk-win32-x64/prebuilds/*/mediaremote-adapter/**',
 		]);
-		assertCopilotPlatformPackageIncludes(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64', [
-			'index.js',
-			'app.js',
-			'prebuilds/win32-x64/cli-native.node',
+		assertCopilotPlatformPackageIncludes(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-sdk-win32-x64', [
 			'prebuilds/win32-x64/runtime.node',
-			'prebuilds/win32-x64/conpty.node',
-			'prebuilds/win32-x64/conpty_console_list.node',
-			'prebuilds/win32-x64/conpty/OpenConsole.exe',
-			'prebuilds/win32-x64/conpty/conpty.dll',
+			'prebuilds/win32-x64/copilot-runtime.exe',
+			'copilot-sdk/index.js',
 		]);
-		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
-
-		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'arm64'), [
-			'node_modules/@github/copilot-win32-arm64/**',
-			'!node_modules/@github/copilot-win32-arm64/copilot',
-			'!node_modules/@github/copilot-win32-arm64/copilot.exe',
-			'!node_modules/@github/copilot-win32-arm64/clipboard/**',
-			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
-			'!node_modules/@github/copilot-win32-arm64/pvrecorder/**',
-			'!node_modules/@github/copilot-win32-arm64/webview/**',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer.node',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp.exe',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/Copilot Computer Use.app/**',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/CopilotComputerUse.exe',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/keytar.node',
-			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/mediaremote-adapter/**',
-		]);
-		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
-		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
+		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-sdk-win32-x64');
 	});
 
 	test('keeps macOS runtime prebuilds in the selected platform package', () => {
 		const files = getCopilotRuntimePrebuildFiles('darwin', 'arm64');
 
-		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-darwin-arm64', [
-			'index.js',
-			'app.js',
-			'sdk/index.js',
-			'sea-loader.js',
+		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-sdk-darwin-arm64', [
+			'copilot-sdk/index.js',
 			'prebuilds/darwin-arm64/runtime.node',
-			'prebuilds/darwin-arm64/pty.node',
-			'prebuilds/darwin-arm64/spawn-helper',
+			'prebuilds/darwin-arm64/copilot-runtime',
 		]);
-		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
-		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
+		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-sdk-darwin-arm64');
 	});
+
+	for (const { platform, arch, packagePlatformArch } of [
+		{ platform: 'darwin', arch: 'arm64', packagePlatformArch: 'darwin-arm64' },
+		{ platform: 'darwin', arch: 'x64', packagePlatformArch: 'darwin-x64' },
+		{ platform: 'linux', arch: 'arm64', packagePlatformArch: 'linux-arm64' },
+		{ platform: 'linux', arch: 'x64', packagePlatformArch: 'linux-x64' },
+		{ platform: 'alpine', arch: 'arm64', packagePlatformArch: 'linuxmusl-arm64' },
+		{ platform: 'alpine', arch: 'x64', packagePlatformArch: 'linuxmusl-x64' },
+		{ platform: 'linux', arch: 'alpine', packagePlatformArch: 'linuxmusl-x64' },
+		{ platform: 'win32', arch: 'arm64', packagePlatformArch: 'win32-arm64' },
+		{ platform: 'win32', arch: 'x64', packagePlatformArch: 'win32-x64' },
+	]) {
+		test(`keeps the SDK runtime in desktop and remote packages for ${platform}-${arch}`, () => {
+			for (const nodeModulesRoot of ['node_modules', 'remote/node_modules']) {
+				const sdkPackageDir = `${nodeModulesRoot}/@github/copilot-sdk-${packagePlatformArch}`;
+				const executable = `${sdkPackageDir}/prebuilds/${packagePlatformArch}/${platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'}`;
+				const sdk = `${sdkPackageDir}/copilot-sdk/index.js`;
+				assert.deepStrictEqual({
+					runtimeExecutable: matchesGlob(executable, getCopilotRuntimePrebuildFiles(platform, arch, nodeModulesRoot)),
+					runtimeSdk: matchesGlob(sdk, getCopilotRuntimePrebuildFiles(platform, arch, nodeModulesRoot)),
+					dependenciesExecutable: matchesGlob(executable, getCopilotExcludeFilter(platform, arch)),
+					dependenciesSdk: matchesGlob(sdk, getCopilotExcludeFilter(platform, arch)),
+					standaloneCli: matchesGlob(`product/${nodeModulesRoot}/@github/copilot-${packagePlatformArch}/copilot`, getCopilotExcludeFilter(platform, arch)),
+				}, {
+					runtimeExecutable: true,
+					runtimeSdk: true,
+					dependenciesExecutable: true,
+					dependenciesSdk: true,
+					standaloneCli: false,
+				}, sdkPackageDir);
+			}
+		});
+	}
 
 	test('materializes missing target platform packages from the lockfile', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-platform-test-'));
@@ -167,37 +172,83 @@ suite('copilot', () => {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
 			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
 				packages: {
-					'node_modules/@github/copilot-darwin-x64': {
+					'node_modules/@github/copilot-sdk-darwin-x64': {
 						version: '1.0.64-1',
 					}
 				}
 			}));
 
 			ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
-				packPackage: (_packageName, _version, tempDir) => {
+				packPackage: (packageName, _version, tempDir) => {
+					assert.strictEqual(packageName, '@github/copilot-sdk-darwin-x64');
 					const packageRoot = path.join(tempDir, 'package');
 					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
-					fs.writeFileSync(path.join(packageRoot, 'index.js'), '');
+					fs.mkdirSync(path.join(packageRoot, 'copilot-sdk'), { recursive: true });
+					fs.writeFileSync(path.join(packageRoot, 'copilot-sdk', 'index.js'), '');
+					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'copilot-runtime'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
-					const tarball = path.join(tempDir, 'copilot-darwin-x64.tgz');
+					const tarball = path.join(tempDir, 'copilot-sdk-darwin-x64.tgz');
 					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
 					return tarball;
 				}
 			});
 
-			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'index.js')));
-			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')));
+			assert.deepStrictEqual({
+				sdk: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'copilot-sdk', 'index.js')),
+				runtime: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'copilot-runtime')),
+				native: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')),
+			}, {
+				sdk: true,
+				runtime: true,
+				native: true,
+			});
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
 		}
 	});
 
-	test('excludes standalone copilot executables from the platform package dependency stream', () => {
+	test('rejects a target SDK platform package with missing runtime files', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-runtime-test-'));
+		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
+		try {
+			fs.mkdirSync(nodeModulesRoot, { recursive: true });
+			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
+				packages: {
+					'node_modules/@github/copilot-sdk-darwin-x64': {
+						version: '1.0.14',
+					}
+				}
+			}));
+
+			assert.throws(() => ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
+				packPackage: (_packageName, _version, tempDir) => {
+					const packageRoot = path.join(tempDir, 'package');
+					fs.mkdirSync(packageRoot, { recursive: true });
+					fs.writeFileSync(path.join(packageRoot, 'package.json'), '{}');
+					const tarball = path.join(tempDir, 'copilot-sdk-darwin-x64.tgz');
+					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
+					return tarball;
+				}
+			}), /is missing SDK runtime files/);
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('excludes legacy and non-target Copilot platform packages from the dependency stream', () => {
 		const files = getCopilotExcludeFilter('linux', 'x64');
 
-		assert(files.includes('**'));
-		assert(files.includes('!**/node_modules/@github/copilot-*/copilot'));
-		assert(files.includes('!**/node_modules/@github/copilot-*/copilot.exe'));
+		assert.deepStrictEqual({
+			standaloneCliRuntime: matchesGlob('product/node_modules/@github/copilot-linux-x64/copilot', files),
+			targetSdkEntrypoint: matchesGlob('product/node_modules/@github/copilot-sdk-linux-x64/copilot-sdk/index.js', files),
+			nonTargetSdkRuntime: matchesGlob('product/node_modules/@github/copilot-sdk-darwin-arm64/prebuilds/darwin-arm64/copilot-runtime', files),
+			nonTargetCliRuntime: matchesGlob('product/node_modules/@github/copilot-darwin-arm64/copilot', files),
+		}, {
+			standaloneCliRuntime: false,
+			targetSdkEntrypoint: true,
+			nonTargetSdkRuntime: false,
+			nonTargetCliRuntime: false,
+		});
 	});
 
 	test('materializes target Copilot SDK prebuilds and tgrep for the built-in extension', () => {
@@ -215,6 +266,9 @@ suite('copilot', () => {
 			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime.exe'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'OneAuthInterop.dll'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty.node'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'mediaremote-adapter.pl'), '');
@@ -227,6 +281,9 @@ suite('copilot', () => {
 			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir);
 
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node')));
+			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime.exe')));
+			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe')));
+			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'OneAuthInterop.dll')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty.node')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe')));
 			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'mediaremote-adapter')));
@@ -326,8 +383,7 @@ suite('copilot', () => {
 			[
 				'**',
 				...copilotPlatforms.map(platform => `!**/node_modules/@github/copilot-${platform}/**`),
-				'!**/node_modules/@github/copilot-*/copilot',
-				'!**/node_modules/@github/copilot-*/copilot.exe',
+				...copilotPlatforms.map(platform => `!**/node_modules/@github/copilot-sdk-${platform}/**`),
 			]
 		);
 	});
@@ -368,37 +424,21 @@ function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: st
 	}
 }
 
-function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDir: string): void {
-	for (const executable of ['copilot', 'copilot.exe']) {
-		assert(patterns.includes(`!${packageDir}/${executable}`), executable);
-		assert(!matchesGlob(`${packageDir}/${executable}`, patterns), executable);
-	}
-}
-
 function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], packageDir: string): void {
 	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder', 'webview']) {
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}
+	assert(patterns.includes(`!${packageDir}/plugins/computer-use/**`), 'plugins/computer-use');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/computer-use-mcp.exe`, patterns), 'plugins/computer-use-mcp.exe');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/CopilotComputerUse.exe`, patterns), 'plugins/CopilotComputerUse.exe');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/Copilot Computer Use.app/Contents/MacOS/Copilot Computer Use`, patterns), 'plugins/Copilot Computer Use.app');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer.node`), 'computer.node');
 	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/computer.node`, patterns), 'computer.node');
-	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer-use-mcp`), 'computer-use-mcp');
-	assert(!matchesGlob(`${packageDir}/prebuilds/darwin-arm64/computer-use-mcp`, patterns), 'computer-use-mcp');
-	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer-use-mcp.exe`), 'computer-use-mcp.exe');
-	assert(!matchesGlob(`${packageDir}/prebuilds/win32-x64/computer-use-mcp.exe`, patterns), 'computer-use-mcp.exe');
-	assert(patterns.includes(`!${packageDir}/prebuilds/*/Copilot Computer Use.app/**`), 'Copilot Computer Use.app');
-	assert(!matchesGlob(`${packageDir}/prebuilds/darwin-arm64/Copilot Computer Use.app/Contents/MacOS/Copilot Computer Use`, patterns), 'Copilot Computer Use.app');
-	assert(patterns.includes(`!${packageDir}/prebuilds/*/CopilotComputerUse.exe`), 'CopilotComputerUse.exe');
-	assert(!matchesGlob(`${packageDir}/prebuilds/win32-x64/CopilotComputerUse.exe`, patterns), 'CopilotComputerUse.exe');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/keytar.node`), 'keytar.node');
 	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/keytar.node`, patterns), 'keytar.node');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/mediaremote-adapter/**`), 'mediaremote-adapter');
 	assert(!matchesGlob(`${packageDir}/prebuilds/darwin-arm64/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter`, patterns), 'mediaremote-adapter');
-
-	if (!packageDir.includes('win32')) {
-		assert(patterns.includes(`!${packageDir}/prebuilds/*/cli-native.node`), 'cli-native.node');
-		assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/cli-native.node`, patterns), 'cli-native.node');
-	}
 }
 
 function matchesGlob(file: string, patterns: string[]): boolean {

@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IPolicyData } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
@@ -59,6 +61,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 }
 
+class MockDefaultAccountService extends mock<IDefaultAccountService>() {
+	private readonly _onDidChangePolicyData = new Emitter<IPolicyData | null>();
+	override readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+
+	constructor(override policyData: IPolicyData | null) {
+		super();
+	}
+
+	setPreviewFeaturesEnabled(enabled: boolean): void {
+		this.policyData = { chat_preview_features_enabled: enabled };
+		this._onDidChangePolicyData.fire(this.policyData);
+	}
+
+	dispose(): void {
+		this._onDidChangePolicyData.dispose();
+	}
+}
+
 function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema>, values: Record<string, unknown> = {}): RootState {
 	return {
 		agents: [],
@@ -73,9 +93,15 @@ function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema
 const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: { type: 'string', title: 'Copilot SDK Log Level' },
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
+	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
+	[CopilotCliConfigKey.Tgrep]: { type: 'boolean', title: 'Indexed Search (tgrep)' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
-	[CopilotCliConfigKey.ReasoningEffortOverride]: { type: 'string', title: 'Reasoning Effort Override' },
+	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
+	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
+	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
+	[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: { type: 'string', title: 'Claude Default Thinking Level' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
+	[CopilotCliConfigKey.EnableShellInitScript]: { type: 'boolean', title: 'Shell Init Script' },
 };
 
 /** Two microtask hops: one for the await on computeValue, one for the dispatch. */
@@ -84,16 +110,20 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
+	const defaultAccountService = new MockDefaultAccountService(policyData);
 	disposables.add({ dispose: () => agentHostService.dispose() });
+	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService(settings);
+	disposables.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
-	return { agentHostService };
+	return { agentHostService, defaultAccountService };
 }
 
 suite('AgentHostCopilotCliSettingsContribution', () => {
@@ -104,26 +134,45 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('forwards the experimentation settings into root config once the schema advertises them', async () => {
+		// The capability-overrides value exercises the whole per-entry surface
+		// (family, effort, tool filters) plus the '*' wildcard — the forwarder
+		// must pass the object through structurally unchanged.
+		const capabilityOverrides = {
+			'preview-model-x': { family: 'claude-opus-4-8', reasoningEffort: 'high', availableTools: ['builtin:*'], excludedTools: ['mcp:*'], promptOverrideFile: '/prompts/evaluation.yaml' },
+			'*': { reasoningEffort: 'medium' },
+		};
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
+			[CopilotClaudeAdvisorEnabledSettingId]: true,
+			[CopilotTgrepEnabledSettingId]: true,
 			[AgentHostToolSearchEnabledSettingId]: true,
-			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
-			[AgentHostModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
+			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
+			[AgentHostHydraFusionEnabledSettingId]: true,
+			'github.copilot.chat.autoModeTierOverride': 'intelligence',
+			[CopilotClaudeDefaultReasoningEffortSettingId]: 'medium',
+			[AgentHostShellToolInitScriptEnabledSettingId]: true,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema));
 		await flush();
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 5);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 11);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
+			[CopilotCliConfigKey.ClaudeAdvisor]: true,
+			[CopilotCliConfigKey.Tgrep]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
-			[CopilotCliConfigKey.ReasoningEffortOverride]: 'xhigh',
-			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
+			[CopilotCliConfigKey.HydraFusion]: true,
+			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
+			[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: 'medium',
+			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
+			[CopilotCliConfigKey.EnableShellInitScript]: true,
 		});
 	});
 
@@ -131,7 +180,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
-			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
 		});
 		agentHostService.setRootState(makeRootStateWithSchema({
 			[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
@@ -141,6 +189,28 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
+		});
+	});
+
+	test('disables HydraFusion when preview features are disabled', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables, {
+			[AgentHostHydraFusionEnabledSettingId]: true,
+		}, { chat_preview_features_enabled: false });
+		agentHostService.setRootState(makeRootStateWithSchema({
+			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
+		}));
+		await flush();
+
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[CopilotCliConfigKey.HydraFusion]: false,
+		});
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setPreviewFeaturesEnabled(true);
+		await flush();
+
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[CopilotCliConfigKey.HydraFusion]: true,
 		});
 	});
 
@@ -159,15 +229,20 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
-			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
-			[AgentHostModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[AgentHostCopilotModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
+			[CopilotCliConfigKey.ClaudeAdvisor]: false,
+			[CopilotCliConfigKey.Tgrep]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
-			[CopilotCliConfigKey.ReasoningEffortOverride]: 'xhigh',
+			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
+			[CopilotCliConfigKey.HydraFusion]: false,
+			[CopilotCliConfigKey.AutoModeTierOverride]: '',
+			[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: '',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[CopilotCliConfigKey.EnableShellInitScript]: false,
 		}));
 		await flush();
 

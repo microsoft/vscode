@@ -79,7 +79,8 @@ export class LayoutController extends BaseLayoutController {
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
+			const activeChat = activeSession?.activeChat.read(reader);
+			return activeChat?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
 		const editorMaximizedObs = observableFromEvent(this,
@@ -274,6 +275,9 @@ export class LayoutController extends BaseLayoutController {
 
 	/** [D10] Hide the aux-bar part when it has no active view containers; never reveals it. */
 	private _syncAuxiliaryBarPartVisibility(): void {
+		if (this._layoutService.isSinglePaneLayoutEnabled) {
+			return;
+		}
 		if (this._hasActiveAuxViewContainers()) {
 			return;
 		}
@@ -470,11 +474,8 @@ export class LayoutController extends BaseLayoutController {
 	 * outcome just captures the resulting state, preserving an explicit aux-bar
 	 * hide. See `desktopSessionLayoutController.md`.
 	 */
-	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
+	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
 		if (this.multipleSessionsVisibleObs.get()) {
-			return;
-		}
-		if (this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -482,7 +483,7 @@ export class LayoutController extends BaseLayoutController {
 			return;
 		}
 		if (!activeSession.isCreated.get()) {
-			this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+			this._setNewSessionViewState({ auxiliaryBarVisible });
 			return;
 		}
 		if (collapsed && previousAuxiliaryBarVisible) {

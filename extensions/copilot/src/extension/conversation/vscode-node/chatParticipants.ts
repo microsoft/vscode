@@ -10,6 +10,8 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpoint/node/automodeService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
@@ -69,6 +71,7 @@ class ChatAgents implements IDisposable {
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IPromptCategorizerService private readonly promptCategorizerService: IPromptCategorizerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatSessionService chatSessionService: IChatSessionService,
@@ -204,10 +207,18 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
+			// Tier attribution is needed even when the routing row is hidden.
+			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
+			stream = autoRouting.stream;
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
-				request = await this.switchToBaseModel(request, stream);
+				const switched = await this.switchToBaseModel(request, stream);
+				if (switched !== request) {
+					// The turn no longer runs on Auto, so its edits are not Auto's to attribute.
+					autoRouting.clearTier();
+				}
+				request = switched;
 
 				// Handle switch-to-auto confirmation button clicks from rate limit errors
 				const switchToAutoConfirmation = getSwitchToAutoOnRateLimitConfirmation(request);
@@ -269,6 +280,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
+				autoRouting.dispose();
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}
@@ -289,9 +301,12 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (!baseLmModel) {
 			return request;
 		}
-		await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: baseLmModel.vendor, id: baseLmModel.id, family: baseLmModel.family });
-		// Switch to the base model and show a warning
 		request = { ...request, model: baseLmModel };
+		if (request.subAgentInvocationId === undefined) {
+			// A subagent runs inside the main request; changing the picker there would flip every widget mid-turn.
+			await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: baseLmModel.vendor, id: baseLmModel.id, family: baseLmModel.family });
+		}
+		// Switch to the base model and show a warning
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
@@ -313,8 +328,10 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (!autoModel) {
 			return request;
 		}
-		await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: autoModel.vendor, id: autoModel.id, family: autoModel.family });
 		request = { ...request, model: autoModel };
+		if (request.subAgentInvocationId === undefined) {
+			await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: autoModel.vendor, id: autoModel.id, family: autoModel.family });
+		}
 		if (alwaysSwitchToAuto) {
 			await vscode.workspace.getConfiguration('github.copilot').update('chat.rateLimitAutoSwitchToAuto', true, vscode.ConfigurationTarget.Global);
 		}

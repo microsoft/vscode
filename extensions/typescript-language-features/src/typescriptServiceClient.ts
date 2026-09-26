@@ -30,6 +30,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
+import { createGenerationGuardedHandler } from './utils/generation';
 import { hash } from './utils/hash';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
@@ -99,7 +100,7 @@ export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
 
-const copilotChatExtensionId = 'github.copilot-chat';
+export const copilotChatExtensionId = 'github.copilot-chat';
 
 interface WatchEvent {
 	updated?: Set<string>;
@@ -516,7 +517,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.isRestarting = false;
 		});
 
-		handle.onEvent(event => this.dispatchEvent(event));
+		handle.onEvent(createGenerationGuardedHandler(
+			mytoken,
+			() => this.token,
+			() => !this.isDisposed && this.serverState.type === ServerState.Type.Running && this.serverState.server === handle,
+			event => this.dispatchEvent(event),
+		));
 
 		this.serviceStarted(resendModels);
 
@@ -1184,13 +1190,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (telemetryData.telemetryEventName) {
 			case 'typingsInstalled': {
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+				properties.installedPackages = typingsInstalledPayload.installedPackages;
 
 				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
-					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+					properties.installSuccess = typingsInstalledPayload.installSuccess.toString();
 				}
 				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
-					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+					properties.typingsInstallerVersion = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
 			}
@@ -1214,7 +1220,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		// Add plugin data here
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState.updateTsserverVersion(properties['version']);
+				this.serverState.updateTsserverVersion(properties.version);
 			}
 		}
 
@@ -1305,7 +1311,7 @@ class ServerInitializingIndicator extends Disposable {
 	}
 
 	public finishedLoadingProject(projectName: string): void {
-		if (this._task && this._task.project === projectName) {
+		if (this._task?.project === projectName) {
 			this._task.resolve();
 			this._task = undefined;
 		}

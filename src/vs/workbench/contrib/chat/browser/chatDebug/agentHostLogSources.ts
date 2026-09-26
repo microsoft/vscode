@@ -7,9 +7,10 @@ import { VSBuffer, type VSBufferReadableStream } from '../../../../../base/commo
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -26,13 +27,14 @@ const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
 /** Bound the best-effort scan of Copilot SDK process logs. */
-export const MAX_COPILOT_LOG_SCAN_FILES = 20;
-export const MAX_COPILOT_LOG_FILE_SIZE = 10 * 1024 * 1024;
+export const MAX_COPILOT_LOG_SCAN_FILES = 10;
+export const MAX_COPILOT_LOG_SCAN_FILE_SIZE = 1024 * 1024 * 1024;
+const MAX_COPILOT_LOG_VIEW_FILE_SIZE = 10 * 1024 * 1024;
 /** Default cap for the amount of text loaded into the inline raw-log viewer. */
 export const DEFAULT_RAW_LOG_VIEW_CAP_BYTES = 2 * 1024 * 1024;
 
 /**
- * A matching Copilot process log that can be read lazily.
+ * A selected Copilot process log that can be read lazily.
  */
 export interface ICopilotLogFile {
 	readonly path: string;
@@ -71,7 +73,7 @@ export interface IAgentHostLogSource {
 	readonly resource?: URI;
 	/** Output channel id for channel-backed sources. */
 	readonly channelId?: string;
-	/** Copilot logs directory + session id, for the lazy content-filtered CLI log read. */
+	/** Copilot logs directory + session id, for the lazy session-matched CLI log read. */
 	readonly cliLogs?: { readonly dir: URI; readonly rawSessionId: string };
 	/** Remote connection for lazily downloading `agenthost.log`. */
 	readonly remoteConnection?: IRemoteAgentHostConnectionInfo;
@@ -123,11 +125,6 @@ export function getRemoteConnectionForSession(sessionResource: URI, connections:
 	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
 }
 
-/** Sanitizes a value for use as (part of) a file name. */
-export function sanitizeFilePart(value: string): string {
-	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
-}
-
 /**
  * Enumerates the raw log sources available for a given agent-host session.
  * Cheap: performs at most a couple of directory stats and never reads file
@@ -141,7 +138,7 @@ export async function enumerateAgentHostLogSources(
 		return [];
 	}
 
-	const { pathService, agentHostService, remoteAgentHostService, outputService, fileService, configurationService, environmentService } = services;
+	const { pathService, agentHostService, remoteAgentHostService, outputService, fileService, environmentService } = services;
 	const userHome = pathService.userHome({ preferLocal: true });
 	const isLocal = sessionResource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME;
 	const remoteConnection = isLocal ? undefined : getRemoteConnectionForSession(sessionResource, remoteAgentHostService.connections);
@@ -164,24 +161,20 @@ export async function enumerateAgentHostLogSources(
 		});
 	}
 
-	// 2. AHP wire log(s) — only when wire logging is enabled.
-	if (configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)) {
-		const nameToken = isLocal
-			? sanitizeFilePart(agentHostService.clientId)
-			: remoteConnection ? sanitizeFilePart(remoteConnection.address) : undefined;
-		const wireFiles = await listWireLogFiles(fileService, environmentService, nameToken);
-		wireFiles.forEach((file, index) => {
-			sources.push({
-				id: `wire:${file.resource.toString()}`,
-				label: index === 0
-					? localize('agentHostLogs.wire', "AHP Log")
-					: localize('agentHostLogs.wireN', "AHP Log — {0}", file.name),
-				kind: AgentHostLogSourceKind.WireLog,
-				isRemote: !isLocal,
-				resource: file.resource,
-			});
+	// 2. Existing AHP wire log(s). The setting controls logger creation, not whether historical files remain discoverable.
+	const ahpLogId = isLocal ? agentHostService.clientId : remoteConnection?.address;
+	const wireFiles = await listWireLogFiles(fileService, environmentService, ahpLogId);
+	wireFiles.forEach((file, index) => {
+		sources.push({
+			id: `wire:${file.resource.toString()}`,
+			label: index === 0
+				? localize('agentHostLogs.wire', "AHP Log")
+				: localize('agentHostLogs.wireN', "AHP Log — {0}", file.name),
+			kind: AgentHostLogSourceKind.WireLog,
+			isRemote: !isLocal,
+			resource: file.resource,
 		});
-	}
+	});
 
 	// 3. Agent host process log (output channel) + window/shared logs.
 	const channelIds: string[] = [];
@@ -216,7 +209,7 @@ export async function enumerateAgentHostLogSources(
 		});
 	}
 
-	// 5. Copilot SDK process logs (<COPILOT_HOME>/logs), content-filtered lazily by session id.
+	// 5. Copilot SDK process logs (<COPILOT_HOME>/logs), matched lazily by session id with a newest-log fallback.
 	const rawSessionId = getCopilotCliSessionRawId(sessionResource);
 	if (rawSessionId) {
 		const copilotLogsDir = isLocal
@@ -225,7 +218,7 @@ export async function enumerateAgentHostLogSources(
 		if (copilotLogsDir) {
 			sources.push({
 				id: 'cliLog',
-				label: localize('agentHostLogs.cliLog', "Copilot CLI Logs"),
+				label: localize('agentHostLogs.cliLog', "Copilot Logs"),
 				kind: AgentHostLogSourceKind.CliLog,
 				isRemote: !isLocal,
 				cliLogs: { dir: copilotLogsDir, rawSessionId },
@@ -296,17 +289,18 @@ export async function readAgentHostLogSourceContent(
 /**
  * Lists AHP wire log files for a session's connection.
  *
- * When `nameToken` identifies the session's connection (its filenames embed
- * `ahp-<timestamp>-<connectionId>.jsonl`), only matching files are returned —
- * so unrelated connections' logs are not surfaced as spurious "rotated"
- * sources. Falls back to all AHP logs (newest first) when the token is absent
- * or matches nothing.
+ * `logId` is the same stable logical-host identity supplied to the logger, so
+ * reconnect-created files and rotated segments are selected without including
+ * unrelated connections.
  */
 async function listWireLogFiles(
 	fileService: IFileService,
 	environmentService: IEnvironmentService,
-	nameToken: string | undefined,
+	logId: string | undefined,
 ): Promise<{ resource: URI; name: string; mtime: number }[]> {
+	if (!logId) {
+		return [];
+	}
 	const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 	let children: IFileStatWithMetadata[] | undefined;
 	try {
@@ -315,16 +309,11 @@ async function listWireLogFiles(
 		return [];
 	}
 	const files = (children ?? [])
-		.filter(child => !child.isDirectory && child.name.endsWith('.jsonl'))
+		.filter(child => !child.isDirectory && isAhpLogFileFor(logId, child.name))
 		.map(child => ({ resource: child.resource, name: child.name, mtime: child.mtime ?? 0 }));
 
-	// Restrict to the session's connection when it can be identified; otherwise
-	// fall back to all files so a session is never left without any log.
-	const matching = nameToken ? files.filter(file => file.name.includes(nameToken)) : [];
-	const selected = matching.length > 0 ? matching : files;
-
 	// Newest first.
-	return selected.sort((a, b) => b.mtime - a.mtime);
+	return files.sort((a, b) => b.mtime - a.mtime);
 }
 
 /** Reads at most `capBytes` from the tail of a file. */
@@ -365,9 +354,9 @@ function tailString(value: string, capBytes: number): IAgentHostLogContent {
 }
 
 /**
- * Scans a Copilot logs directory for `.log` files whose content mentions the
- * given session id, returning their contents. Bounded by
- * {@link MAX_COPILOT_LOG_SCAN_FILES} and {@link MAX_COPILOT_LOG_FILE_SIZE}.
+ * Reads Copilot process logs selected for a session, or the newest log when
+ * none mention the session id. Bounded by
+ * {@link MAX_COPILOT_LOG_SCAN_FILES} and {@link MAX_COPILOT_LOG_SCAN_FILE_SIZE}.
  */
 export async function readCopilotLogsForSession(
 	logsDir: URI,
@@ -375,11 +364,13 @@ export async function readCopilotLogsForSession(
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<{ path: string; contents: string }[]> {
-	const matchingLogs = await findCopilotLogsForSession(logsDir, rawSessionId, fileService, logService);
+	const matchingLogs = await findRelevantCopilotLogs(logsDir, rawSessionId, fileService, logService);
 	const files: { path: string; contents: string }[] = [];
 	for (const log of matchingLogs) {
 		try {
-			const content = await fileService.readFile(log.resource, { limits: { size: MAX_COPILOT_LOG_FILE_SIZE } });
+			const content = log.size > MAX_COPILOT_LOG_VIEW_FILE_SIZE
+				? await fileService.readFile(log.resource, { position: log.size - MAX_COPILOT_LOG_VIEW_FILE_SIZE, length: MAX_COPILOT_LOG_VIEW_FILE_SIZE })
+				: await fileService.readFile(log.resource, { limits: { size: MAX_COPILOT_LOG_VIEW_FILE_SIZE } });
 			files.push({ path: log.path, contents: content.value.toString() });
 		} catch (error) {
 			logService.warn(`[AgentHostLogSources] Failed to read Copilot log '${log.resource.path}': ${error instanceof Error ? error.message : String(error)}`);
@@ -389,11 +380,12 @@ export async function readCopilotLogsForSession(
 }
 
 /**
- * Finds bounded Copilot process logs whose contents mention the session id.
+ * Scans a bounded set of Copilot process logs for the session id, falling back
+ * to the newest process log when no match can be found.
  */
-export async function findCopilotLogsForSession(
+export async function findRelevantCopilotLogs(
 	logsDir: URI,
-	rawSessionId: string,
+	rawSessionId: string | undefined,
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<ICopilotLogFile[]> {
@@ -404,21 +396,26 @@ export async function findCopilotLogsForSession(
 		return [];
 	}
 
-	const files: ICopilotLogFile[] = [];
-	const candidateLogs = (children ?? [])
-		.filter(child => !child.isDirectory && child.name.endsWith('.log') && child.size <= MAX_COPILOT_LOG_FILE_SIZE)
+	const processLogs = (children ?? [])
+		.filter(child => !child.isDirectory && child.name.endsWith('.log'))
 		.sort((a, b) => b.mtime - a.mtime)
-		.slice(0, MAX_COPILOT_LOG_SCAN_FILES);
-	for (const child of candidateLogs) {
-		try {
-			if (await logStreamContains(child.resource, rawSessionId, fileService)) {
-				files.push({ path: `copilot-logs/${child.name}`, resource: child.resource, size: child.size });
+		.map(child => ({ path: `copilot-logs/${child.name}`, resource: child.resource, size: child.size }));
+	const files: ICopilotLogFile[] = [];
+	const candidateLogs = processLogs
+		.slice(0, MAX_COPILOT_LOG_SCAN_FILES)
+		.filter(child => child.size <= MAX_COPILOT_LOG_SCAN_FILE_SIZE);
+	if (rawSessionId) {
+		for (const candidate of candidateLogs) {
+			try {
+				if (await logStreamContains(candidate.resource, rawSessionId, fileService)) {
+					files.push(candidate);
+				}
+			} catch (error) {
+				logService.warn(`[AgentHostLogSources] Failed to scan Copilot log '${candidate.path}': ${error instanceof Error ? error.message : String(error)}`);
 			}
-		} catch (error) {
-			logService.warn(`[AgentHostLogSources] Failed to scan Copilot log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
-	return files;
+	return files.length > 0 ? files : processLogs.slice(0, 1);
 }
 
 async function logStreamContains(
@@ -430,8 +427,8 @@ async function logStreamContains(
 	let stream: VSBufferReadableStream;
 	try {
 		stream = (await fileService.readFileStream(resource, {
-			length: MAX_COPILOT_LOG_FILE_SIZE,
-			limits: { size: MAX_COPILOT_LOG_FILE_SIZE },
+			length: MAX_COPILOT_LOG_SCAN_FILE_SIZE,
+			limits: { size: MAX_COPILOT_LOG_SCAN_FILE_SIZE },
 		}, tokenSource.token)).value;
 	} catch (error) {
 		tokenSource.dispose(true);

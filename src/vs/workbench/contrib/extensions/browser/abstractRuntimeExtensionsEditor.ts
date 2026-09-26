@@ -678,6 +678,11 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		}));
 	}
 
+	override focus(): void {
+		super.focus();
+		this._list?.domFocus();
+	}
+
 	public layout(dimension: Dimension): void {
 		const headerHeight = this._header ? getTotalHeight(this._header) : 0;
 		const listHeight = Math.max(0, dimension.height - headerHeight);

@@ -4,15 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
+import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
-/** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
+/** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
+export type AutomationCatalogueState = 'loading' | 'ready' | 'unavailable' | 'error';
+
+export function combineAutomationCatalogueStates(states: readonly AutomationCatalogueState[]): AutomationCatalogueState {
+	if (states.includes('error')) {
+		return 'error';
+	}
+	if (states.includes('loading')) {
+		return 'loading';
+	}
+	if (states.includes('unavailable')) {
+		return 'unavailable';
+	}
+	return 'ready';
+}
+
+/**
+ * A caller-supplied check immediately before a definition mutation is dispatched; throwing prevents dispatch.
+ * Rechecks transient client conditions, not host authorization or editable-state conflicts.
+ */
 export type AutomationMutationGuard = () => void;
+
+/** The selected Automation authority cannot currently accept the operation. */
+export class AutomationUnavailableError extends Error { }
+
+/** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
+export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
+	if (target !== undefined && target.providerId !== current.target.providerId) {
+		throw new AutomationUnavailableError(localize('automationHostChangeUnsupported', "An automation cannot move between Agent Hosts. Duplicate it on the new host to keep the original run history. The original continues scheduling until you disable it."));
+	}
+}
+
+/** Signals that deprecated configuration aliases cannot modify an explicit provider template. */
+export class AutomationSessionTemplateAuthorityError extends Error {
+	constructor() {
+		super('A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	}
+}
+
+export function assertAutomationSessionTemplateAuthority(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): void {
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	if (current.sessionTemplate && patch.sessionTemplate === undefined && !targetAuthorityChanged && legacyConfigurationPatched) {
+		throw new AutomationSessionTemplateAuthorityError();
+	}
+}
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
@@ -23,8 +71,12 @@ export interface ICreateAutomationOptions {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly target: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
 }
@@ -38,8 +90,12 @@ export interface IUpdateAutomationOptions {
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
 	readonly target?: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
 }
@@ -49,15 +105,15 @@ export interface IUpdateAutomationOptions {
  * `current` is absent when the automation was deleted before the update committed.
  */
 export type IGuardedAutomationUpdateResult =
-	| { readonly kind: 'updated'; readonly automation: IAutomation }
-	| { readonly kind: 'conflict'; readonly current: IAutomation | undefined };
+	| { readonly kind: 'updated'; readonly automation: IAutomationDescriptor }
+	| { readonly kind: 'conflict'; readonly current: IAutomationDescriptor | undefined };
 
 /**
  * Returns the canonical editable state used by optimistic automation updates.
  * Runtime-only timestamps are intentionally excluded. Workspace URIs use their
  * canonical serialized form so any mismatch fails closed as a conflict.
  */
-export function serializeAutomationEditableState(automation: IAutomation): string {
+export function serializeAutomationEditableState(automation: IAutomationDescriptor): string {
 	const target = automation.target.kind === 'quickChat'
 		? {
 			kind: automation.target.kind,
@@ -73,7 +129,7 @@ export function serializeAutomationEditableState(automation: IAutomation): strin
 				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
 				: { kind: automation.target.isolation.kind },
 		};
-	return JSON.stringify({
+	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: {
@@ -83,6 +139,7 @@ export function serializeAutomationEditableState(automation: IAutomation): strin
 			scheduleDay: automation.schedule.scheduleDay,
 		},
 		target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
@@ -90,69 +147,80 @@ export function serializeAutomationEditableState(automation: IAutomation): strin
 	});
 }
 
-/** Patch for `updateRun`. Absent fields are unchanged. */
-export interface IUpdateAutomationRunOptions {
-	readonly status?: IAutomationRun['status'];
-	readonly sessionResource?: string;
-	readonly completedAt?: string;
-	readonly errorMessage?: string;
-}
-
-/** Outcome of an attempt to claim an automation's single active-run slot. */
-export interface IAutomationRunClaim {
-	/** `false` when another run already held the slot, in which case nothing was recorded. */
-	readonly claimed: boolean;
-	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
-	readonly run: IAutomationRun;
-}
+/** Result of requesting a manual run from its host, never a claim authorizing client-side execution. */
+export type IAutomationRunRequestResult =
+	/** An existing run already occupies this Automation's active-run slot. */
+	| { readonly kind: 'alreadyRunning'; readonly run: IAutomationRun }
+	| {
+		/** The host handled the request, possibly failing before creating a session. */
+		readonly kind: 'dispatched';
+		readonly run: IAutomationRun;
+		/** Resolves on a terminal host outcome, not necessarily success; rejects if observation fails. */
+		readonly whenCompleted: Promise<void>;
+		/** Requests host cancellation when the negotiated capability supports it. */
+		cancel?(): void;
+	};
 
 /**
- * Persistent store for automations and their run history, and the single
- * mutation point. Scheduler, runner, and UI all flow through it to keep
- * cross-window propagation, persistence, and observables consistent.
+ * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
+ * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
-export interface IAutomationService {
-	readonly _serviceBrand: undefined;
+export interface IAutomationStore {
+	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	/** All defined automations, newest first. */
-	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 
 	/** All recorded runs across all automations, newest first. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	/** Snapshot accessor (no observable dependency). */
-	getAutomation(id: string): IAutomation | undefined;
+	getAutomation(id: string): IAutomationDescriptor | undefined;
 
 	/** Runs for a single automation, newest first. */
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]>;
-
 	/** Creates and persists an automation after validating the complete definition. */
-	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation>;
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor>;
 	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
-	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
+	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor>;
 	/**
 	 * Applies `patch` only when the current editable fields still match `expected`.
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
-	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
+	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
-	/**
-	 * Atomically claims the automation's single active-run slot, records the new run as
-	 * `pending`, and advances the schedule for scheduled/catch-up runs. The active-run check
-	 * runs inside the same compare-and-swap that writes the run, so concurrent callers -- the
-	 * scheduler, other windows, or agent tool invocations -- cannot both claim one automation.
-	 * Throws if the automation does not exist.
-	 */
-	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim>;
+	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
+	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;
 
-	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
-	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
-
-	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
+	/** Most recent `pending`/`running` run for an automation, or `undefined`. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
 
-	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
-	markStaleRunsFailed(reason: string): Promise<void>;
+	canRunAutomation(automationId: string): boolean;
+	canUpdateAutomation(automationId: string): boolean;
+	canDeleteAutomation(automationId: string): boolean;
+}
+
+/**
+ * Injectable, application-wide Automation facade combining registered providers' catalogues and availability.
+ * Routes creation by target provider and existing-definition operations by provider-scoped identity.
+ */
+export interface IAutomationService extends IAutomationStore {
+	readonly _serviceBrand: undefined;
+	/** Providers whose Automation catalogues are currently unavailable. */
+	readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
+	/** Creation-capable providers; existing definitions may allow edits on providers absent from this list. */
+	readonly availableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
+	/** Whether the specified provider currently accepts new definitions. */
+	canCreateAutomation(providerId: string | undefined): boolean;
+}
+
+/** Identity and optional unavailability explanation of a concrete Automation provider. */
+export interface IAutomationProviderDescriptor {
+	readonly id: string;
+	readonly label: string;
+	/** A provider-specific explanation, absent when none applies. */
+	readonly unavailableReason?: string;
 }

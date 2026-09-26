@@ -39,6 +39,11 @@ export const agentsPanelBackground = registerColor(
 	localize('agentsPanel.background', 'Background color of the card panels (chat, files, terminal) in the agent sessions window.')
 );
 
+export const agentsDetailBackground = registerColor(
+	'agentsDetail.background', editorBackground,
+	localize('agentsDetail.background', 'Background color of the docked details pane in the agent sessions window.')
+);
+
 export const agentsPanelForeground = registerColor(
 	'agentsPanel.foreground', SIDE_BAR_FOREGROUND,
 	localize('agentsPanel.foreground', 'Foreground color of the card panels (chat, files, terminal) in the agent sessions window.')
@@ -48,6 +53,16 @@ export const agentsPanelBorder = registerColor(
 	'agentsPanel.border',
 	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('agentsPanel.border', 'Border color of the card panels (chat, files, terminal) in the agent sessions window.')
+);
+
+export const agentsCardBorder = registerColor(
+	'agentsCard.border', agentsPanelBorder,
+	localize('agentsCard.border', 'Border color of the floating content card (sessions grid and custom view grid) in the agent sessions window.')
+);
+
+export const agentsBottomPanelBorder = registerColor(
+	'agentsBottomPanel.border', agentsPanelBorder,
+	localize('agentsBottomPanel.border', 'Border color of the bottom panel in the agent sessions window.')
 );
 
 // ============================================================================

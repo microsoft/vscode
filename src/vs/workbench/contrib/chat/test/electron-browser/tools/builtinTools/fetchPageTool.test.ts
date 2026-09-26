@@ -21,14 +21,18 @@ import { upcastDeepPartial } from '../../../../../../../base/test/common/mock.js
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { IAgentNetworkFilterService } from '../../../../../../../platform/networkFilter/common/networkFilterService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../../../../platform/networkFilter/common/networkFilterService.js';
+import { AgentNetworkDomainSettingId } from '../../../../../../../platform/networkFilter/common/settings.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
+	readonly requestedUris: URI[] = [];
 
 	constructor(private uriToContentMap: ResourceMap<string>) { }
 
 	async extract(uris: URI[]): Promise<WebContentExtractResult[]> {
+		this.requestedUris.push(...uris);
 		return uris.map(uri => {
 			const content = this.uriToContentMap.get(uri);
 			if (content === undefined) {
@@ -78,12 +82,13 @@ class ExtendedTestFileService extends TestFileService {
 class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
 	_serviceBrand: undefined;
 	onDidChange = Event.None;
+	isEnabled(): boolean { return true; }
 	isUriAllowed(_uri: URI): boolean { return true; }
 	formatError(uri: URI): string { return `Access to ${uri.authority} is blocked by network domain policy.`; }
 }
 
 suite('FetchWebPageTool', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should handle http/https via web content extractor and other schemes via file service', async () => {
 		const webContentMap = new ResourceMap<string>([
@@ -144,6 +149,140 @@ suite('FetchWebPageTool', () => {
 
 		// All successfully fetched URLs should be in toolResultDetails
 		assert.strictEqual(Array.isArray(result.toolResultDetails) ? result.toolResultDetails.length : 0, 4, 'Should have 4 valid URLs in toolResultDetails');
+	});
+
+	test('blocks reported parser-differential authorities before web content extraction', async () => {
+		const urls = [
+			'http://127.0.0.1/private',
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
+			'http://[::1]/private',
+			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const webContentExtractorService = new TestWebContentExtractorService(new ResourceMap<string>(
+			urls.map(url => [URI.parse(url), 'Blocked private content'] as const)
+		));
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
+		const networkFilterService = new AgentNetworkFilterService(configService);
+
+		try {
+			const tool = new FetchWebPageTool(
+				webContentExtractorService,
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+				new MockChatService(),
+				new TestContextService(),
+				networkFilterService,
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call-ipv6', toolId: 'fetch-page', parameters: { urls }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				content: result.content.map(part => part.value),
+				requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+			}, {
+				content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
+				requestedUris: [],
+			});
+		} finally {
+			networkFilterService.dispose();
+		}
+	});
+
+	test('blocks wildcard-denied mapped IPv6 before web content extraction', async () => {
+		const urls = [
+			'http://[::ffff:127.0.0.1]/private',
+			'http://[::127.0.0.1]/private',
+		];
+		const webContentExtractorService = new TestWebContentExtractorService(new ResourceMap<string>(
+			urls.map(url => [URI.parse(url), 'Blocked private content'] as const)
+		));
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.127.1']);
+		const networkFilterService = new AgentNetworkFilterService(configService);
+
+		try {
+			const tool = new FetchWebPageTool(
+				webContentExtractorService,
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+				new MockChatService(),
+				new TestContextService(),
+				networkFilterService,
+			);
+
+			const result = await tool.invoke(
+				{ callId: 'test-call-wildcard-ipv4', toolId: 'fetch-page', parameters: { urls }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				content: result.content.map(part => part.value),
+				requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+			}, {
+				content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
+				requestedUris: [],
+			});
+		} finally {
+			networkFilterService.dispose();
+		}
+	});
+
+	test('blocks Unicode wildcard denied URLs before web content extraction', async () => {
+		const deniedUrls = [
+			'https://xn--bcher-kva.de/',
+			'https://sub.xn--bcher-kva.de/',
+			'https://xn--bcher-kva.de/private',
+			'https://sub.xn--bcher-kva.de/private',
+		];
+		const allowedUrl = 'https://example.com/allowed';
+		const webContentMap = new ResourceMap<string>(
+			deniedUrls.map(url => [URI.parse(url), 'Denied content'] as const)
+		);
+		webContentMap.set(URI.parse(allowedUrl), 'Allowed content');
+		const webContentExtractorService = new TestWebContentExtractorService(webContentMap);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.de']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const tool = new FetchWebPageTool(
+			webContentExtractorService,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilterService,
+		);
+
+		const result = await tool.invoke(
+			{ callId: 'test-call-wildcard-idn', toolId: 'fetch-page', parameters: { urls: [...deniedUrls, allowedUrl] }, context: undefined },
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			content: result.content.map(part => part.value),
+			requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+		}, {
+			content: [...deniedUrls.map(url => networkFilterService.formatError(URI.parse(url))), 'Allowed content'],
+			requestedUris: [allowedUrl],
+		});
 	});
 
 	test('should handle empty and undefined URLs', async () => {
@@ -217,6 +356,93 @@ suite('FetchWebPageTool', () => {
 		const messageText = typeof preparation.pastTenseMessage === 'string' ? preparation.pastTenseMessage : preparation.pastTenseMessage!.value;
 		assert.ok(messageText.includes('Fetched'), 'Should mention fetched resources');
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
+	});
+
+	test('authorityless HTTPS URL with encoded user information requires confirmation', async () => {
+		const url = String.raw`https:\localhost%25%32%46@evil.example/resource`;
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: [url] }, toolCallId: 'test-authorityless-url', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			title: preparation?.confirmationMessages?.title,
+			confirmationNotNeededReason: preparation?.confirmationMessages?.confirmationNotNeededReason,
+		}, {
+			title: 'Fetch web page?',
+			confirmationNotNeededReason: undefined,
+		});
+	});
+
+	test('backslash URLs use the same destination for confirmation policy and extraction', async () => {
+		const urls = [
+			String.raw`https://evil.example\.github.com/collect?leak=<data>`,
+			String.raw`https://evil.example\\.github.com/collect?leak=<data>`,
+			String.raw`https://169.254.169.254\.github.com/latest/meta-data/`,
+			String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`,
+			String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`,
+			String.raw`https://github.com\.evil.example/resource`,
+			String.raw`https://api.github.com/path\resource?query=\value#\fragment`,
+			'https://api.github.com/resource',
+		];
+		const destinationUris = urls.map(url => URI.parse(new URL(URI.parse(url).toString(true)).href));
+		const contents = new ResourceMap<string>();
+		for (const uri of [...urls.map(url => URI.parse(url)), ...destinationUris]) {
+			contents.set(uri, 'Fixture content');
+		}
+		const extractor = new TestWebContentExtractorService(contents);
+		const policyUris: string[] = [];
+		const networkFilter = new MockAgentNetworkFilterService();
+		networkFilter.isEnabled = () => false;
+		networkFilter.isUriAllowed = uri => {
+			policyUris.push(uri.toString(true));
+			return true;
+		};
+		const tool = new FetchWebPageTool(
+			extractor,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilter,
+		);
+		const preparations: { message: string | undefined; requestsBeforeInvocation: number }[] = [];
+		for (const [index, url] of urls.entries()) {
+			const preparation = await tool.prepareToolInvocation(
+				{ parameters: { urls: [url] }, toolCallId: `backslash-${index}`, chatSessionResource: undefined },
+				CancellationToken.None
+			);
+			preparations.push({
+				message: typeof preparation?.invocationMessage === 'string' ? preparation.invocationMessage : preparation?.invocationMessage?.value,
+				requestsBeforeInvocation: extractor.requestedUris.length,
+			});
+			await tool.invoke(
+				{ callId: `backslash-${index}`, toolId: InternalFetchWebPageToolId, parameters: { urls: [url] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		}
+
+		const destinations = destinationUris.map(uri => uri.toString(true));
+		assert.deepStrictEqual({
+			preparations,
+			policyUris,
+			extractedUris: extractor.requestedUris.map(uri => uri.toString(true)),
+		}, {
+			preparations: destinations.map((url, index) => ({ message: `Fetching ${url}`, requestsBeforeInvocation: index })),
+			policyUris: destinations.flatMap(url => [url, url]),
+			extractedUris: destinations,
+		});
 	});
 
 	test('should not show confirmation dialog for file URIs inside the workspace', async () => {

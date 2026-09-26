@@ -21,6 +21,10 @@ import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
+import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -68,6 +72,30 @@ export interface ICustomizationItemAction {
 	run(): void | Promise<void>;
 }
 
+export type CustomizationMcpServerCompatibilityKind = 'supported' | 'partiallySupported' | 'unsupported' | 'unknown';
+
+export interface ICustomizationMcpServerCompatibility {
+	readonly id: string;
+	readonly kind: CustomizationMcpServerCompatibilityKind;
+	/** Localized reasons for non-supported compatibility states. */
+	readonly details?: readonly string[];
+}
+
+export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
+	readonly servers: IObservable<readonly ICustomizationMcpServerCompatibility[]>;
+	/** Whether the current server compatibility assessment has settled. */
+	readonly isResolved: IObservable<boolean>;
+}
+
+export interface ICustomizationMcpServerCompatibilityProvider {
+	acquire(sessionResource: URI): ICustomizationMcpServerCompatibilityScope | undefined;
+}
+
+export interface ICustomizationMcpServerMigrationProvider {
+	computeMigration(sessionResource: URI, token: CancellationToken): Promise<McpServerCustomizationMigration>;
+	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -92,8 +120,7 @@ export interface IHarnessDescriptor {
 	/**
 	 * Per-section overrides for the create button behavior.
 	 *
-	 * A `commandId` entry replaces the button entirely with a command
-	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 * A `commandId` entry replaces the button entirely with a command invocation.
 	 *
 	 * A `rootFile` entry makes the primary button create a specific file
 	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
@@ -132,6 +159,20 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/**
+	 * Local MCP collection identifiers that do not apply to this harness.
+	 * Host-published MCP servers remain visible even when their local counterpart
+	 * belongs to a hidden collection.
+	 */
+	readonly hiddenMcpServerCollectionIds?: readonly string[];
+	/**
+	 * Supplies harness-specific compatibility for MCP servers in the active session.
+	 */
+	readonly mcpServerCompatibilityProvider?: ICustomizationMcpServerCompatibilityProvider;
+	/**
+	 * Supplies harness-specific MCP server migration behavior.
+	 */
+	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
 }
 
 /**
@@ -158,6 +199,8 @@ export interface ICustomizationItem {
 	readonly statusMessage?: string;
 	/** Whether this customization is currently enabled. */
 	readonly enabled?: boolean;
+	/** Host-published reason for a disabled customization. */
+	readonly disabledReason?: CustomizationDisabledReason;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
@@ -185,6 +228,21 @@ export interface ICustomizationAgentRef {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'plugin') {
+		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
+	}
+	switch (reason?.scope) {
+		case CustomizationEnablementKind.Workspace:
+			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");
+		case CustomizationEnablementKind.Session:
+			return localize('customizationDisabledSession', "Disabled (Session)");
+		case CustomizationEnablementKind.Global:
+		case undefined:
+			return localize('customizationDisabled', "Disabled");
+	}
 }
 
 /**
@@ -237,6 +295,8 @@ export interface ICustomizationSourceFolder {
 	readonly label: string;
 	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
 	readonly source: AICustomizationSource;
+	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
+	readonly destinationGroupId?: string;
 }
 
 /**
@@ -617,6 +677,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
 				...command,

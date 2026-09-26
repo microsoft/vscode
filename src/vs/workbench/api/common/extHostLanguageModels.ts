@@ -238,6 +238,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					category: m.category,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
+					maxContextWindowTokens: m.maxContextWindowTokens,
 					auth,
 					isDefaultForLocation,
 					isUserSelectable: m.isUserSelectable,
@@ -245,6 +246,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					warningText: m.warningText,
+					infoText: m.infoText,
 					promo: m.promo,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,

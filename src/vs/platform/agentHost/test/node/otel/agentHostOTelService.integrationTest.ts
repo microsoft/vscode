@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -19,7 +19,7 @@ import {
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { AgentHostOTelService, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
+import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
 interface IPostResponse {
@@ -151,30 +151,75 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		strictEqual(cfg.dbSpanExporter, true);
 	});
 
-	test('readAgentHostOTelEnv: protocol=grpc downgrades to otlp-grpc exporter type', () => {
-		const cfg = readAgentHostOTelEnv({
-			COPILOT_OTEL_ENABLED: 'true',
-			COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
-			OTEL_EXPORTER_OTLP_PROTOCOL: 'grpc',
-		});
-		strictEqual(cfg.exporterType, 'otlp-grpc');
+	test('readAgentHostOTelEnv: grpc aliases select the gRPC exporter type', () => {
+		for (const protocol of ['grpc', 'http/grpc']) {
+			const cfg = readAgentHostOTelEnv({
+				COPILOT_OTEL_ENABLED: 'true',
+				COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
+				OTEL_EXPORTER_OTLP_PROTOCOL: protocol,
+			});
+			strictEqual(cfg.exporterType, 'otlp-grpc');
+		}
 	});
 
 	test('readAgentHostOTelEnv: parses headers and resource attributes', () => {
 		const cfg = readAgentHostOTelEnv({
 			COPILOT_OTEL_ENABLED: 'true',
-			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer xyz,x-tenant=acme',
-			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored',
+			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer%20xyz,x-tenant=acme%2Fprod',
+			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored,service.namespace=foreign',
 			OTEL_SERVICE_NAME: 'agent-host',
 		});
 		deepStrictEqual({ headers: cfg.headers, resourceAttributes: cfg.resourceAttributes }, {
-			headers: { authorization: 'Bearer xyz', 'x-tenant': 'acme' },
+			headers: { authorization: 'Bearer xyz', 'x-tenant': 'acme/prod' },
 			resourceAttributes: {
 				'deployment.environment.name': 'dev',
 				custom: 'value with spaces',
 				'service.name': 'agent-host',
+				'service.namespace': 'vscode.agent-host',
 			},
 		});
+	});
+
+	test('normalizes resources and narrowly filters Codex 0.142 auth polling spans', () => {
+		const payload = {
+			resourceSpans: [
+				{
+					resource: {
+						attributes: [
+							{ key: 'service.name', value: { stringValue: 'codex-app-server' } },
+							{ key: 'service.namespace', value: { stringValue: 'foreign' } },
+							{ key: 'deployment.environment.name', value: { stringValue: 'test' } },
+						]
+					},
+					scopeSpans: [
+						{
+							spans: [
+								{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] },
+								{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'other::module' } }] },
+								{ name: 'list_models', attributes: [] },
+							]
+						},
+						{ spans: [] },
+						{ spans: [{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] }] },
+					],
+				},
+				{
+					resource: { attributes: [{ key: 'service.name', value: { stringValue: 'another-service' } }] },
+					scopeSpans: [{ spans: [{ name: 'auth', attributes: [{ key: 'code.module.name', value: { stringValue: 'codex_login::auth::manager' } }] }] }],
+				},
+				{ resource: { attributes: [{ key: 'custom', value: { stringValue: 'kept' } }] }, scopeSpans: [] },
+			],
+		};
+
+		const normalized = normalizeAgentHostOtlpBody(Buffer.from(JSON.stringify(payload)));
+		const result = JSON.parse(normalized.body.toString('utf8')) as typeof payload;
+		strictEqual(normalized.filteredSpanCount, 2);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[0].spans.map(span => span.name), ['auth', 'list_models']);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[1].spans, []);
+		deepStrictEqual(result.resourceSpans[0].scopeSpans[2].spans, []);
+		strictEqual(result.resourceSpans[1].scopeSpans[0].spans.length, 1);
+		ok(result.resourceSpans[0].resource.attributes.some(attribute => attribute.key === 'deployment.environment.name' && attribute.value.stringValue === 'test'));
+		ok(result.resourceSpans.every(resourceSpan => resourceSpan.resource.attributes.some(attribute => attribute.key === 'service.namespace' && attribute.value.stringValue === 'vscode.agent-host')));
 	});
 
 	test('getSdkTelemetryConfig: returns undefined when fully disabled', async () => {
@@ -218,6 +263,137 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual(cfg!.sourceName, 'agent-host');
 			strictEqual(cfg!.captureContent, true);
 			strictEqual(svc.getSpansDbPath(), undefined);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	for (const protocol of ['http/json', 'http/protobuf', 'grpc'] as const) {
+		test(`native SDK config resolves trace endpoints without changing other signals (${protocol})`, async () => {
+			const saved = saveEnv();
+			try {
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				process.env.OTEL_EXPORTER_OTLP_HEADERS = 'Authorization=Bearer%20test-token';
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmpdir()));
+
+				const endpoints = [
+					['http://collector:4318', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/', 'http://collector:4318/v1/traces'],
+					['https://collector/?tenant=test', 'https://collector/v1/traces?tenant=test'],
+					['http://collector:4318/v1/traces', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/custom/path', 'http://collector:4318/custom/path'],
+					['not a url', 'not a url'],
+				];
+				const actual = [];
+				const expected = [];
+				for (const [endpoint, tracesEndpoint] of endpoints) {
+					process.env.OTEL_EXPORTER_OTLP_ENDPOINT = endpoint;
+					const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+					const native = await svc.getNativeSdkTelemetryConfig();
+					const sdk = await svc.getSdkTelemetryConfig();
+					actual.push({ traces: native?.traces, external: native?.external, sdkEndpoint: sdk?.otlpEndpoint });
+					expected.push({
+						traces: { endpoint: protocol === 'grpc' ? endpoint : tracesEndpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						external: { endpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						sdkEndpoint: endpoint,
+					});
+				}
+				deepStrictEqual(actual, expected);
+			} finally {
+				restoreEnv(saved);
+			}
+		});
+	}
+
+	test('external-only unsupported synthetic protocols do not propagate a missing anchor', async () => {
+		const saved = saveEnv();
+		try {
+			for (const protocol of ['http/protobuf', 'grpc', 'http/grpc']) {
+				process.env.COPILOT_OTEL_ENABLED = 'true';
+				process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+				store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmp));
+				const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+				const config = await svc.getNativeSdkTelemetryConfig();
+				strictEqual(config?.external?.protocol, protocol === 'http/grpc' ? 'grpc' : protocol);
+				strictEqual(svc.getSessionTraceContext('conversation', `claude:/${protocol}`), undefined);
+			}
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('session trace contexts are stable until permanent release', () => {
+		const saved = saveEnv();
+		try {
+			process.env.COPILOT_OTEL_ENABLED = 'true';
+			process.env.COPILOT_OTEL_EXPORTER_TYPE = 'console';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmpdir()));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+			const first = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			strictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
+			svc.releaseSessionTraceContext('claude:/conversation');
+			notStrictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('native SDK config splits DB traces from direct external signals', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+			process.env.OTEL_EXPORTER_OTLP_PROTOCOL = 'http/protobuf';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const config = await svc.getNativeSdkTelemetryConfig();
+			ok(config?.traces?.endpoint.startsWith('http://127.0.0.1:'));
+			strictEqual(config?.traces?.protocol, 'http/json');
+			deepStrictEqual(config?.external, { endpoint: 'http://collector:4318', protocol: 'http/protobuf' });
+			deepStrictEqual(config?.resourceAttributes, { 'service.namespace': 'vscode.agent-host' });
+			const context = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			ok(context);
+			strictEqual(context.traceparent, `00-${context.traceId}-${context.spanId}-01`);
+			strictEqual(svc.withTraceContext(context, () => svc.getCurrentTraceContext()), context);
+			strictEqual(svc.getCurrentTraceContext(), undefined);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('DB startup failure falls back to a signal-specific native trace endpoint', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		try {
+			const userDataPath = join(tmp, 'not-a-directory');
+			await writeFile(userDataPath, '');
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(userDataPath));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const config = await svc.getNativeSdkTelemetryConfig();
+			deepStrictEqual({ traces: config?.traces, external: config?.external }, {
+				traces: { endpoint: 'http://collector:4318/v1/traces', protocol: 'http/json' },
+				external: { endpoint: 'http://collector:4318', protocol: 'http/json' },
+			});
 		} finally {
 			restoreEnv(saved);
 		}
@@ -304,17 +480,48 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const reader = new OTelSqliteStore(dbPath!.fsPath);
 			try {
 				const spans = reader.getSpansByConversationId('conv-title');
-				strictEqual(spans.length, 1);
-				strictEqual(spans[0].name, AgentHostSessionTitleSpanName);
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionTitleAttribute)?.length, 200);
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, 'service.name'), 'agent-host-test');
+				strictEqual(spans.length, 2);
+				const titleSpan = spans.find(span => span.name === AgentHostSessionTitleSpanName);
+				ok(titleSpan);
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionTitleAttribute)?.length, 200);
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, 'service.name'), 'agent-host-test');
+				strictEqual(reader.getSpanAttribute(titleSpan.span_id, 'service.namespace'), 'vscode.agent-host');
 			} finally {
 				reader.close();
 			}
 		} finally {
 			restoreEnv(saved);
 			await cleanup();
+		}
+	});
+
+	test('DB mode keeps protobuf and gRPC traces local instead of HTTP-posting the wrong wire format', async () => {
+		const saved = saveEnv();
+		try {
+			for (const protocol of ['http/protobuf', 'grpc']) {
+				process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+				process.env.COPILOT_OTEL_EXPORTER_TYPE = protocol === 'grpc' ? 'otlp-grpc' : 'otlp-http';
+				process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				let fetchCalls = 0;
+				const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+				store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmp));
+				const svc = store.add(di.createInstance(AgentHostOTelService, async () => {
+					fetchCalls++;
+					return new Response(null, { status: 200 });
+				}));
+				const config = await svc.getSdkTelemetryConfig();
+				const res = await postOtlp(config!.otlpEndpoint!, makeOtlpRequest('ffeeddccbbaa99887766554433221100', '00000000000000aa'));
+				strictEqual(res.statusCode, 200);
+				await svc.flush();
+				strictEqual(fetchCalls, 0);
+			}
+		} finally {
+			restoreEnv(saved);
 		}
 	});
 

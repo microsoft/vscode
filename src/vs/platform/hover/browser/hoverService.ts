@@ -443,6 +443,11 @@ export class HoverService extends Disposable implements IHoverService {
 	private _hideHoverAndDescendants(hover: HoverWidget): void {
 		const stackIndex = this._hoverStack.findIndex(entry => entry.hover === hover);
 		if (stackIndex < 0) {
+			// The hover is not on the stack, so it may still be waiting for its delay to
+			// elapse. Cancel it, otherwise it would show up after this dismiss request.
+			if (hover === this._currentDelayedHover) {
+				this._cancelPendingDelayedHover();
+			}
 			return;
 		}
 
@@ -451,6 +456,20 @@ export class HoverService extends Disposable implements IHoverService {
 			this._hoverStack[i].hover.dispose();
 		}
 		this._hoverStack.length = stackIndex;
+	}
+
+	/**
+	 * Cancels a delayed hover that was created but whose delay has not elapsed yet, so it
+	 * never gets shown.
+	 */
+	private _cancelPendingDelayedHover(): void {
+		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
+			return;
+		}
+
+		this._currentDelayedHover.dispose();
+		this._currentDelayedHover = undefined;
+		this._currentDelayedHoverGroupId = undefined;
 	}
 
 	/**
@@ -464,17 +483,28 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	hideHover(force?: boolean): void {
-		if (this._hoverStack.length === 0) {
-			return;
-		}
-
 		// If not forcing and the topmost hover is locked, don't hide
 		if (!force && this._currentHover?.isLocked) {
 			return;
 		}
 
+		// A delayed hover that has not been shown yet is not part of the stack, so it has to
+		// be cancelled explicitly. Otherwise it pops up once its delay elapses, on top of
+		// whatever took over in the meantime such as a context menu.
+		this._cancelPendingDelayedHover();
+
+		if (this._hoverStack.length === 0) {
+			return;
+		}
+
 		// Hide only the topmost hover (pop from stack)
 		this.doHideHover();
+	}
+
+	getStickyHover(targetElement: HTMLElement): IHoverWidget | undefined {
+		return this._hoverStack.find(({ options }) => options.persistence?.sticky && (isHTMLElement(options.target)
+			? options.target === targetElement
+			: options.target.targetElements.includes(targetElement)))?.hover;
 	}
 
 	private doHideHover(): void {
@@ -588,7 +618,6 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 			if (hadHover) {
 				hoverDelegate.onDidHideHover?.();
-				hoverWidget = undefined;
 			}
 		};
 
@@ -686,7 +715,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const hover: IManagedHover = {
 			show: focus => {
-				hideHover(false, true); // terminate a ongoing mouse over preparation
+				hideHover(true, true); // terminate an ongoing mouse over preparation and recreate the hover with the requested focus
 				triggerShowHover(0, focus, undefined, focus); // show hover immediately
 			},
 			hide: () => {
@@ -694,7 +723,10 @@ export class HoverService extends Disposable implements IHoverService {
 			},
 			update: async (newContent, hoverOptions) => {
 				content = newContent;
-				await hoverWidget?.update(content, undefined, hoverOptions);
+				// Keep the options for the next time the hover is shown, so an updated
+				// tooltip does not keep rendering the actions it was created with.
+				options = hoverOptions;
+				await hoverWidget?.update(content, undefined, options);
 			},
 			dispose: () => {
 				this._managedHovers.delete(targetElement);

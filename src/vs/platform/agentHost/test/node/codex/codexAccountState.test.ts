@@ -5,57 +5,170 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexAccountStateForUsageSource, codexAccountStateFromResponse, codexProtectedResourcesForUsageSource, resolveCodexUsageSourceAfterAccountRead } from '../../../node/codex/codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import type { RateLimitWindow } from '../../../node/codex/protocol/generated/v2/RateLimitWindow.js';
 
 suite('CodexAccountState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-	test('maps signed-out, ChatGPT, API-key, and other accounts', () => {
-		assert.deepStrictEqual([
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true }),
+
+	test('maps ChatGPT identities as human accounts', () => {
+		assert.deepStrictEqual(
 			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true }),
+			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'private@example.com', planType: 'plus', requiresOpenaiAuth: true },
+		);
+		assert.deepStrictEqual(
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true }),
+			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: undefined, planType: 'team', requiresOpenaiAuth: true },
+		);
+	});
+
+	test('distinguishes required sign-in from providers without OpenAI auth', () => {
+		assert.deepStrictEqual(
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true }),
+			{ usageSource: 'openai', status: 'signedOut', requiresOpenaiAuth: true },
+		);
+		assert.deepStrictEqual(
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false }),
+			{ usageSource: 'openai', status: 'unavailable', requiresOpenaiAuth: false },
+		);
+	});
+
+	test('does not classify API key or Bedrock credentials as human accounts', () => {
+		assert.deepStrictEqual(
 			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true }),
-			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', credentialSource: 'awsManaged' }, requiresOpenaiAuth: false }),
-		], [
-			{ usageSource: 'openai', status: 'signedOut' },
-			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' },
-			{ usageSource: 'openai', status: 'signedIn', authType: 'apiKey' },
-			{ usageSource: 'openai', status: 'signedIn', authType: 'other' },
-		]);
+			{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey', requiresOpenaiAuth: true },
+		);
+		assert.deepStrictEqual(
+			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false }),
+			{ usageSource: 'openai', status: 'unavailable', authType: 'other', requiresOpenaiAuth: false },
+		);
 	});
 
-	test('falls back to Copilot only when OpenAI is confirmed signed out', () => {
-		assert.deepStrictEqual([
-			resolveCodexUsageSourceAfterAccountRead('openai', { usageSource: 'openai', status: 'signedOut' }),
-			resolveCodexUsageSourceAfterAccountRead('openai', { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt' }),
-			resolveCodexUsageSourceAfterAccountRead('openai', { usageSource: 'openai', status: 'error', error: 'temporarily unavailable' }),
-			resolveCodexUsageSourceAfterAccountRead('copilot', { usageSource: 'copilot', status: 'signedOut' }),
-		], [
-			'copilot',
-			'openai',
-			'openai',
-			'copilot',
-		]);
+	test('preserves both Codex rate-limit windows with the weekly summary first', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
+				secondary: null,
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: {
+				codex: {
+					limitId: 'codex',
+					limitName: 'Codex',
+					primary: { usedPercent: 21, windowDurationMins: 300, resetsAt: 200 },
+					secondary: { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: 300 },
+					credits: null,
+					individualLimit: null,
+					spendControlReached: null,
+					planType: null,
+					rateLimitReachedType: null,
+				},
+			},
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{
+			usedPercent: 42.4,
+			windowDurationMins: 7 * 24 * 60,
+			resetsAt: 300,
+		}, {
+			usedPercent: 21,
+			windowDurationMins: 300,
+			resetsAt: 200,
+		}]);
 	});
 
-	test('keeps OpenAI authentication separate from the active usage source', () => {
-		assert.deepStrictEqual([
-			codexAccountStateForUsageSource('copilot', { usageSource: 'openai', status: 'signedOut' }),
-			codexAccountStateForUsageSource('copilot', { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }),
-			codexAccountStateForUsageSource('openai', { usageSource: 'openai', status: 'signedIn', authType: 'apiKey' }),
-		], [
-			{ usageSource: 'copilot', status: 'signedOut' },
-			{ usageSource: 'copilot', status: 'signedIn', authType: 'chatgpt', planType: 'plus' },
-			{ usageSource: 'openai', status: 'signedIn', authType: 'apiKey' },
-		]);
+	test('falls back to available rate-limit data', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
+				secondary: null,
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{ usedPercent: 42.4, windowDurationMins: undefined, resetsAt: undefined }]);
 	});
 
-	test('preloads an optional Copilot token while OpenAI is active', () => {
-		const copilot = { resource: 'https://api.github.com', required: true };
-		const repo = { resource: 'https://api.github.com/repos', required: false };
-		assert.deepStrictEqual(codexProtectedResourcesForUsageSource('openai', copilot, repo), [
-			{ resource: 'https://api.github.com', required: false },
-			repo,
-		]);
-		assert.deepStrictEqual(codexProtectedResourcesForUsageSource('copilot', copilot, repo), [copilot, repo]);
+	test('rejects invalid rate-limit samples before caching', () => {
+		const window: RateLimitWindow = { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 400 };
+		const invalidWindows = [
+			...[-1, 101, NaN, Infinity].map(usedPercent => ({ ...window, usedPercent })),
+			...[-1, 0, NaN, Infinity].map(windowDurationMins => ({ ...window, windowDurationMins })),
+			...[-1, 0, NaN, Infinity].map(resetsAt => ({ ...window, resetsAt })),
+		];
+		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
+		})), invalidWindows.map(() => []));
+	});
+
+	test('falls back when the Codex bucket has no windows', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				primary: { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 },
+				secondary: null,
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: {
+				codex: {
+					limitId: 'codex',
+					limitName: 'Codex',
+					primary: null,
+					secondary: null,
+					credits: null,
+					individualLimit: null,
+					spendControlReached: null,
+					planType: null,
+					rateLimitReachedType: null,
+				},
+			},
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		}), [{ usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 }]);
+	});
+
+	test('omits missing or invalid windows without losing a valid five-hour limit', () => {
+		assert.deepStrictEqual([null, { usedPercent: 0, windowDurationMins: 300, resetsAt: null }].map(primary => codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				primary,
+				secondary: { usedPercent: NaN, windowDurationMins: 10080, resetsAt: 400 },
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		})), [[], [{ usedPercent: 0, windowDurationMins: 300, resetsAt: undefined }]]);
 	});
 });

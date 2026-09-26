@@ -6,17 +6,18 @@
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
  * Forwards Copilot-CLI settings into the **local** agent host's root config so
  * `CopilotAgent` and `CopilotSessionLauncher` can read them. Gated on
- * `chat.agentHost.enabled`. The schema-gate / hydration-retry / loop-guard
+ * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
  * machinery lives in the shared
  * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
  */
@@ -29,6 +30,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		@IAgentHostService agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -44,26 +46,64 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostOpus48PromptEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.ClaudeAdvisor,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotClaudeAdvisorEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotClaudeAdvisorEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.Tgrep,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotTgrepEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotTgrepEnabledSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.ToolSearchEnabled,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostToolSearchEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchEnabledSettingId),
 			},
 			{
-				key: CopilotCliConfigKey.ReasoningEffortOverride,
+				key: CopilotCliConfigKey.ToolSearchDeferThreshold,
+				computeValue: () => normalizeToolSearchDeferThreshold(this._configurationService.getValue<number>(AgentHostToolSearchDeferThresholdSettingId)),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchDeferThresholdSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.HydraFusion,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(AgentHostHydraFusionEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
+			},
+			{
+				key: CopilotCliConfigKey.AutoModeTierOverride,
+				computeValue: () => this._configurationService.getValue<string | null>(CopilotAutoModeTierOverrideSettingId) ?? '',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotAutoModeTierOverrideSettingId),
+			},
+			{
+				// Contributed by the Copilot extension with the `onExp` tag, so `getValue`
+				// already folds in any experiment treatment published under this id.
+				key: CopilotCliConfigKey.ClaudeDefaultReasoningEffort,
 				computeValue: () => {
-					const value = this._configurationService.getValue<string>(AgentHostReasoningEffortOverrideSettingId);
-					// '' is the schema's unset marker, so clearing the setting clears the override.
+					const value = this._configurationService.getValue<unknown>(CopilotClaudeDefaultReasoningEffortSettingId);
 					return typeof value === 'string' ? value : '';
 				},
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostReasoningEffortOverrideSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotClaudeDefaultReasoningEffortSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ModelCapabilityOverrides,
 				computeValue: () => {
-					const value = this._configurationService.getValue<CopilotCliModelCapabilityOverrides>(AgentHostModelCapabilityOverridesSettingId);
+					const value = this._configurationService.getValue<CopilotCliModelCapabilityOverrides>(AgentHostCopilotModelCapabilityOverridesSettingId);
 					return isObject(value) ? value : {};
 				},
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostModelCapabilityOverridesSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotModelCapabilityOverridesSettingId),
+			},
+			{
+				// The host applies a published shell init script only while this is
+				// true. Like every forwarded key it is client-writable root config,
+				// so it is the user's opt-in mirrored to the host, not authorization.
+				key: CopilotCliConfigKey.EnableShellInitScript,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
@@ -71,6 +111,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			if (this._agentHostEnablementService.enabled.read(reader)) {
 				this._forwarder.start();
+			} else {
+				this._forwarder.stop();
 			}
 		}));
 	}

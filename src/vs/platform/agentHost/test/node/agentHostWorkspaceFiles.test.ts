@@ -13,6 +13,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { resolveAgentHostFileCompletionRoots } from '../../node/agentHostFileCompletionUtils.js';
 import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
 
 suite('AgentHostWorkspaceFiles', () => {
@@ -60,10 +61,21 @@ suite('AgentHostWorkspaceFiles', () => {
 
 		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
 		const result = await files.getFiles(URI.file(dir), CancellationToken.None);
-		const names = result.map(uri => uri.path).sort();
+		const names = result.files.map(uri => uri.path).sort();
 
 		assert.ok(names.some(p => p.endsWith('/a.txt')), `expected a.txt in ${names.join(',')}`);
 		assert.ok(names.some(p => p.endsWith('/sub/b.txt')), `expected sub/b.txt in ${names.join(',')}`);
+	});
+
+	test('caches an empty directory as a successful result', async () => {
+		const dir = createTempDir();
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const workingDirectory = URI.file(dir);
+
+		const first = await files.getFiles(workingDirectory, CancellationToken.None);
+		const second = await files.getFiles(workingDirectory, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, cacheHit: first === second }, { first: { files: [], isTruncated: false }, cacheHit: true });
 	});
 
 	test('respects .gitignore', async () => {
@@ -74,10 +86,33 @@ suite('AgentHostWorkspaceFiles', () => {
 
 		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
 		const result = await files.getFiles(URI.file(dir), CancellationToken.None);
-		const names = result.map(uri => uri.path);
+		const names = result.files.map(uri => uri.path);
 
 		assert.ok(names.some(p => p.endsWith('/kept.txt')));
 		assert.ok(!names.some(p => p.endsWith('/ignored.txt')), `ignored.txt should not be listed: ${names.join(',')}`);
+	});
+
+	test('uses outer-root ignore semantics when a declared nested root is covered', async () => {
+		const dir = createTempDir();
+		const nestedDir = join(dir, 'sub');
+		mkdirSync(nestedDir);
+		writeFileSync(join(dir, '.gitignore'), 'sub/parent-ignored.txt\n');
+		writeFileSync(join(nestedDir, '.gitignore'), 'nested-ignored.txt\n');
+		writeFileSync(join(nestedDir, 'kept.txt'), 'kept');
+		writeFileSync(join(nestedDir, 'parent-ignored.txt'), 'ignored by parent');
+		writeFileSync(join(nestedDir, 'nested-ignored.txt'), 'ignored by nested');
+
+		const roots = resolveAgentHostFileCompletionRoots([URI.file(dir), URI.file(nestedDir)]);
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const results = await Promise.all(roots.enumerationRoots.map(root => files.getFiles(root, CancellationToken.None)));
+
+		assert.deepStrictEqual({
+			enumeratedRoots: roots.enumerationRoots.map(root => root.path),
+			files: results.flatMap(result => result.files).map(uri => uri.path.slice(URI.file(dir).path.length + 1)).sort(),
+		}, {
+			enumeratedRoots: [URI.file(dir).path],
+			files: ['.gitignore', 'sub/.gitignore', 'sub/kept.txt'],
+		});
 	});
 
 	test('excludes the .git directory', async () => {
@@ -88,7 +123,7 @@ suite('AgentHostWorkspaceFiles', () => {
 
 		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
 		const result = await files.getFiles(URI.file(dir), CancellationToken.None);
-		const names = result.map(uri => uri.path);
+		const names = result.files.map(uri => uri.path);
 
 		assert.ok(names.some(p => p.endsWith('/a.txt')));
 		assert.ok(!names.some(p => p.includes('/.git/')), `.git contents should be excluded: ${names.join(',')}`);
@@ -97,7 +132,7 @@ suite('AgentHostWorkspaceFiles', () => {
 	test('returns [] for non-file URIs', async () => {
 		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
 		const result = await files.getFiles(URI.parse('vscode-vfs://github/foo/bar'), CancellationToken.None);
-		assert.deepStrictEqual(result, []);
+		assert.deepStrictEqual(result, { files: [], isTruncated: false });
 	});
 
 	test('caches concurrent calls for the same working directory', async () => {
@@ -140,6 +175,6 @@ suite('AgentHostWorkspaceFiles', () => {
 
 		await assert.rejects(cancelled, (err: unknown) => err instanceof CancellationError);
 		const result = await survivor;
-		assert.ok(result.some(uri => uri.path.endsWith('/a.txt')), `survivor should resolve with files even when first caller cancelled: ${result.map(u => u.path).join(',')}`);
+		assert.ok(result.files.some(uri => uri.path.endsWith('/a.txt')), `survivor should resolve with files even when first caller cancelled: ${result.files.map(u => u.path).join(',')}`);
 	});
 });
