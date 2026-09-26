@@ -242,7 +242,7 @@ export class SCMViewService implements ISCMViewService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		this.menus = instantiationService.createInstance(SCMMenus);
+		this.menus = this.disposables.add(instantiationService.createInstance(SCMMenus));
 
 		const explorerEnabledConfig = observableConfigValue<boolean>('scm.repositories.explorer', false, this.configurationService);
 		this.graphShowIncomingChangesConfig = observableConfigValue<boolean>('scm.graph.showIncomingChanges', true, this.configurationService);
@@ -357,32 +357,34 @@ export class SCMViewService implements ISCMViewService {
 		} satisfies ISCMRepositoryView;
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
+		let newReposToReAdd: ISCMRepositoryView[] = [];
 
 		if (this.previousState && !this.didFinishLoadingRepositories.get()) {
+			// Hidden repositories are not part of the saved state, so skip
+			// the restoration logic for them. They are still added to the
+			// internal list but should not affect the visibility restoration.
+			if (repository.provider.isHidden) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
+
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) {
-				// This repository is not part of the previous state which means that it
-				// was either manually closed in the previous session, or the repository
-				// was added after the previous session. In this case, we should select
-				// all of the repositories.
-				const added: ISCMRepository[] = [];
-
-				this.insertRepositoryView(this._repositories, repositoryView);
-
+				// This repository is not part of the previous state which means
+				// it was added after the previous session. In multi-select mode
+				// (or if no repository is selected yet), add it as visible. In
+				// single-select mode with a selection, add it but not visible.
 				if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
-					// Multiple selection mode or single selection mode (select first repository)
-					this._repositories.forEach((repositoryView, index) => {
-						if (repositoryView.selectionIndex === -1) {
-							added.push(repositoryView.repository);
-						}
-						repositoryView.selectionIndex = index;
-					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
+					const maxSelectionIndex = this.getMaxSelectionIndex();
+					this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
+					this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed: Iterable.empty() });
+				} else {
+					this.insertRepositoryView(this._repositories, repositoryView);
+					this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
 				}
 
-				this.didSelectRepository = false;
 				return;
 			}
 
@@ -396,7 +398,15 @@ export class SCMViewService implements ISCMViewService {
 			} else {
 				// First visible repository
 				if (!this.didSelectRepository) {
-					removed = [...this.visibleRepositories];
+					newReposToReAdd = this._repositories.filter(r =>
+						r.selectionIndex !== -1 &&
+						this.previousState!.all.indexOf(getProviderStorageKey(r.repository.provider)) === -1
+					);
+
+					removed = [...this.visibleRepositories].filter(r =>
+						this.previousState!.all.indexOf(getProviderStorageKey(r.provider)) !== -1
+					);
+
 					this._repositories.forEach(r => {
 						r.focused = false;
 						r.selectionIndex = -1;
@@ -411,7 +421,17 @@ export class SCMViewService implements ISCMViewService {
 			// Multiple selection mode or single selection mode (select first repository)
 			const maxSelectionIndex = this.getMaxSelectionIndex();
 			this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
-			this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+
+			if (newReposToReAdd.length > 0 && this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple) {
+				const addedRepos: ISCMRepository[] = [repositoryView.repository];
+				for (const r of newReposToReAdd) {
+					r.selectionIndex = this.getMaxSelectionIndex() + 1;
+					addedRepos.push(r.repository);
+				}
+				this._onDidChangeRepositories.fire({ added: addedRepos, removed });
+			} else {
+				this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+			}
 		} else {
 			// Single selection mode (add subsequent repository)
 			this.insertRepositoryView(this._repositories, repositoryView);

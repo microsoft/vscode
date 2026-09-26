@@ -205,7 +205,9 @@ function createActionGroups(
 			const menuHide = createMenuHide(menuId, isMenuItem ? item.command : item, hiddenStates);
 			if (isMenuItem) {
 				const menuKeybinding = createConfigureKeybindingAction(commandService, keybindingService, item.command.id, item.when);
-				activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, contextKeyService, commandService));
+				const menuItemAction = new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, contextKeyService, commandService);
+				menuItemAction.keepOpen = !!item.keepOpen;
+				activeActions.push(menuItemAction);
 			} else {
 				const groups = createMenuActionGroups(item.submenu, options, hiddenStates, commandService, keybindingService, contextKeyService);
 				const submenuActions = Separator.join(...groups.map(g => g[1]));

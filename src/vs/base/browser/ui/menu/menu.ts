@@ -96,6 +96,20 @@ interface ISubMenuData {
 	submenu?: Menu;
 }
 
+/**
+ * Shape of an action that asks the menu to stay open after it runs.
+ */
+interface IKeepOpenAction {
+	keepOpen: boolean;
+}
+
+/**
+ * Shape of an action that can re-evaluate its own state from context keys.
+ */
+interface IRefreshableAction {
+	refreshState(): void;
+}
+
 export class Menu extends ActionBar {
 	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
 	private scrollableElement: DomScrollableElement;
@@ -246,6 +260,20 @@ export class Menu extends ActionBar {
 		const parentData: ISubMenuData = {
 			parent: this
 		};
+
+		// When a keepOpen action runs, refresh the checked/enabled state of all items
+		this._register(this.onDidRun(e => {
+			if ((e.action as Partial<IKeepOpenAction> | undefined)?.keepOpen) {
+				for (const item of this.viewItems) {
+					if (item instanceof BaseMenuActionViewItem) {
+						// Re-evaluate the action's state from context keys
+						(item.action as Partial<IRefreshableAction>).refreshState?.();
+						// Update the visual state
+						item.refreshState();
+					}
+				}
+			}
+		}));
 
 		this.mnemonics = new Map<string, Array<BaseMenuActionViewItem>>();
 
@@ -706,6 +734,15 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 	getMnemonic(): string | undefined {
 		return this.mnemonic;
+	}
+
+	/**
+	 * Refreshes the checked and enabled visual state of this menu item.
+	 * Used when a keepOpen action runs and the menu stays visible.
+	 */
+	refreshState(): void {
+		this.updateChecked();
+		this.updateEnabled();
 	}
 
 	protected applyStyle(): void {
