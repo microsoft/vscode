@@ -37,6 +37,7 @@ function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataT
 		version: 1,
 		id: generateUuid(),
 		isFromEmptySelection: dataToCopy.isFromEmptySelection,
+		isBlock: dataToCopy.isBlock,
 		multicursorText: dataToCopy.multicursorText,
 		mode: dataToCopy.mode
 	};
@@ -44,6 +45,7 @@ function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataT
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
+	const isBlock = viewModel.getCursorColumnSelectData().isReal;
 	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
@@ -62,6 +64,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	}
 	const dataToCopy: ClipboardDataToCopy = {
 		isFromEmptySelection,
+		isBlock,
 		sourceRanges,
 		multicursorText,
 		text,
@@ -101,6 +104,7 @@ export class InMemoryClipboardMetadataManager {
 
 export interface ClipboardDataToCopy {
 	isFromEmptySelection: boolean;
+	isBlock: boolean;
 	sourceRanges: Range[];
 	multicursorText: string[] | null | undefined;
 	text: string;
@@ -112,6 +116,7 @@ export interface ClipboardStoredMetadata {
 	version: 1;
 	id: string | undefined;
 	isFromEmptySelection: boolean | undefined;
+	isBlock: boolean;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }

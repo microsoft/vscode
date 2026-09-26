@@ -453,6 +453,11 @@ export interface IEditorOptions {
 	 */
 	columnSelection?: boolean;
 	/**
+	 * Paste copied column selections as a block, padding short destination lines with spaces, or using normal text pasting.
+	 * Defaults to 'text'.
+	 */
+	columnSelectionPaste?: 'block' | 'text';
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -5868,6 +5873,7 @@ export const enum EditorOption {
 	colorDecorators,
 	colorDecoratorsLimit,
 	columnSelection,
+	columnSelectionPaste,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -6232,6 +6238,18 @@ export const EditorOptions = {
 	columnSelection: register(new EditorBooleanOption(
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
+	)),
+	columnSelectionPaste: register(new EditorStringEnumOption(
+		EditorOption.columnSelectionPaste, 'columnSelectionPaste',
+		'text' as 'block' | 'text',
+		['block', 'text'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('columnSelectionPaste.block', "Paste rows of the column selection on successive destination lines of the single cursor, padding short lines with spaces to align with the cursor."),
+				nls.localize('columnSelectionPaste.text', "Paste rows of the column selection at the cursor position.")
+			],
+			markdownDescription: nls.localize('columnSelectionPaste', "Controls pasting of column selection rows into a single selection. Multi-cursor pasting is controlled by `#editor.multiCursorPaste#`.")
+		}
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
