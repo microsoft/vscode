@@ -475,10 +475,6 @@
 	pointer-events: auto;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-actions::before {
-	content: none;
-}
-
 /* Reserve terminal shoulder space independently of selection, never between adjacent tabs. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab:not(.connected-tab-upper-row):last-child {
 	margin-right: var(--modern-ui-connected-tab-shoulder-radius);
