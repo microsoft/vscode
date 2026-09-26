@@ -64,6 +64,7 @@ The remote Agent Host service owns protocol connection construction, handshake c
 
 Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
 their context by address, request an explicit reconnect, and wait for the service to report the connection.
+Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 

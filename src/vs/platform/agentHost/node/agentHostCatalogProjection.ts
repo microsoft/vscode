@@ -308,6 +308,10 @@ const artifactValidator = plainObject(vObj({
 	uri: vOptionalProp(boundedString()),
 	commitHash: vOptionalProp(boundedString()),
 	isGitHub: vOptionalProp(vBoolean()),
+	origin: vOptionalProp(plainObject(vObj({
+		chat: uriString(),
+		turnId: vOptionalProp(boundedString()),
+	}))),
 }));
 
 const artifactsValidator = new RefinedValidator(

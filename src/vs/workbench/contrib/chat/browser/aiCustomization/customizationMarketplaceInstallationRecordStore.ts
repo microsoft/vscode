@@ -23,7 +23,9 @@ const maxStoredStringLength = 8192;
 const maxStoredSkillFiles = 1000;
 const maxStoredSkillPathCharacters = 1024 * 1024;
 
-/** A durable association between one marketplace resource and its exact installed target. */
+type RecordedCustomizationMarketplaceInstallation = CustomizationMarketplaceInstallation;
+
+/** A durable association between one marketplace resource and its exact local or account-scoped target. */
 export interface ICustomizationMarketplaceInstallationRecord {
 	readonly id: string;
 	readonly sourceId: string;
@@ -32,7 +34,7 @@ export interface ICustomizationMarketplaceInstallationRecord {
 	readonly displayName: string;
 	readonly description: string;
 	readonly mediaType: string;
-	readonly installation: CustomizationMarketplaceInstallation;
+	readonly installation: RecordedCustomizationMarketplaceInstallation;
 	readonly target: CustomizationMarketplaceInstallationRecordTarget;
 }
 
@@ -49,8 +51,15 @@ export type CustomizationMarketplaceInstallationRecordTarget =
 		readonly project?: URI;
 		readonly session?: URI;
 	}
-	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision: string }
-	| { readonly kind: 'mcp'; readonly id: string };
+	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision?: string }
+	| { readonly kind: 'mcp'; readonly id: string }
+	| {
+		readonly kind: 'copilotConnector';
+		readonly name: string;
+		readonly providerId: string;
+		readonly accountName: string;
+		readonly enterprise: boolean;
+	};
 
 interface IStoredCustomizationMarketplaceInstallationRecord {
 	readonly version: number;
@@ -62,7 +71,7 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 		readonly displayName: string;
 		readonly description: string;
 		readonly mediaType: string;
-		readonly installation: CustomizationMarketplaceInstallation;
+		readonly installation: RecordedCustomizationMarketplaceInstallation;
 		readonly target:
 		| {
 			readonly kind: 'skill';
@@ -76,8 +85,15 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 			readonly project?: string;
 			readonly session?: string;
 		}
-		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision: string }
-		| { readonly kind: 'mcp'; readonly id: string };
+		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision?: string }
+		| { readonly kind: 'mcp'; readonly id: string }
+		| {
+			readonly kind: 'copilotConnector';
+			readonly name: string;
+			readonly providerId: string;
+			readonly accountName: string;
+			readonly enterprise: boolean;
+		};
 	};
 }
 
@@ -203,6 +219,14 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 		let target: CustomizationMarketplaceInstallationRecordTarget;
 		if (record.target.kind === 'mcp') {
 			target = { kind: 'mcp', id: record.target.id };
+		} else if (record.target.kind === 'copilotConnector') {
+			target = {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			};
 		} else if (record.target.kind === 'plugin') {
 			target = { kind: 'plugin', uri: URI.parse(record.target.uri), resolvedRevision: record.target.resolvedRevision };
 		} else {
@@ -244,20 +268,28 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 function serializeInstallationRecord(record: ICustomizationMarketplaceInstallationRecord): IStoredCustomizationMarketplaceInstallationRecord {
 	const target: IStoredCustomizationMarketplaceInstallationRecord['record']['target'] = record.target.kind === 'mcp'
 		? { kind: 'mcp', id: record.target.id }
-		: record.target.kind === 'plugin'
-			? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
-			: {
-				kind: 'skill',
-				uri: record.target.uri.toString(),
-				files: record.target.files,
-				resolvedRevision: record.target.resolvedRevision,
-				source: record.target.source,
-				harness: record.target.harness,
-				sourceFolder: record.target.sourceFolder.toString(),
-				destinationGroupId: record.target.destinationGroupId,
-				project: record.target.project?.toString(),
-				session: record.target.session?.toString(),
-			};
+		: record.target.kind === 'copilotConnector'
+			? {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			}
+			: record.target.kind === 'plugin'
+				? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
+				: {
+					kind: 'skill',
+					uri: record.target.uri.toString(),
+					files: record.target.files,
+					resolvedRevision: record.target.resolvedRevision,
+					source: record.target.source,
+					harness: record.target.harness,
+					sourceFolder: record.target.sourceFolder.toString(),
+					destinationGroupId: record.target.destinationGroupId,
+					project: record.target.project?.toString(),
+					session: record.target.session?.toString(),
+				};
 	return {
 		version: installationRecordSchemaVersion,
 		record: {
@@ -288,17 +320,27 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| !isBoundedString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
 		|| !isRecord(record.target)
-		|| record.target.kind !== record.installation.kind) {
+		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
 	}
 	if (record.target.kind === 'mcp') {
 		return record.mediaType === CustomizationMarketplaceMediaType.McpServer && isBoundedString(record.target.id);
 	}
+	if (record.target.kind === 'copilotConnector') {
+		return record.mediaType === CustomizationMarketplaceMediaType.McpServer
+			&& isBoundedString(record.target.name)
+			&& record.installation.kind === 'copilotConnector'
+			&& record.installation.name === record.target.name
+			&& isBoundedString(record.target.providerId)
+			&& isBoundedString(record.target.accountName)
+			&& typeof record.target.enterprise === 'boolean';
+	}
 	if (record.target.kind === 'plugin') {
 		return (record.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || record.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
 			&& isBoundedString(record.target.uri)
-			&& isBoundedString(record.target.resolvedRevision, 40, 40)
-			&& /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision);
+			&& (record.installation.kind === 'configuredPlugin'
+				? record.target.resolvedRevision === undefined
+				: isBoundedString(record.target.resolvedRevision, 40, 40) && /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision));
 	}
 	if (record.mediaType !== CustomizationMarketplaceMediaType.Skill) {
 		return false;
@@ -324,18 +366,35 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 	return true;
 }
 
-function isStoredInstallation(value: unknown): value is CustomizationMarketplaceInstallation {
+function isStoredInstallation(value: unknown): value is RecordedCustomizationMarketplaceInstallation {
 	if (!isRecord(value) || typeof value.kind !== 'string') {
 		return false;
 	}
 	if (value.kind === 'mcp') {
 		return isBoundedString(value.name) && isBoundedString(value.version);
 	}
+	if (value.kind === 'mcpGallery') {
+		return isBoundedString(value.name)
+			&& (value.registry === 'custom' || value.registry === 'default')
+			&& isBoundedString(value.registryUrl);
+	}
+	if (value.kind === 'copilotConnector') {
+		return isBoundedString(value.name);
+	}
+	if (value.kind === 'configuredPlugin') {
+		return Object.keys(value).length === 1;
+	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
 		&& isBoundedString(value.repository)
 		&& isBoundedString(value.ref)
 		&& typeof value.path === 'string'
 		&& value.path.length <= maxStoredStringLength;
+}
+
+function isStoredTargetKind(targetKind: unknown, installationKind: RecordedCustomizationMarketplaceInstallation['kind']): boolean {
+	return targetKind === installationKind
+		|| targetKind === 'mcp' && installationKind === 'mcpGallery'
+		|| targetKind === 'plugin' && installationKind === 'configuredPlugin';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

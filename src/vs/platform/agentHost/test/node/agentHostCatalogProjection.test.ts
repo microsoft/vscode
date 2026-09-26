@@ -217,6 +217,40 @@ suite('AgentHostCatalogProjection', () => {
 		});
 	});
 
+	test('round trips artifact provenance without inventing it for legacy records', () => {
+		const artifacts = [
+			undefined,
+			{ chat: 'agent-chat://test/session/default' },
+			{ chat: 'agent-chat://test/session/peer', turnId: 'turn-1' },
+		].map((origin, index) => ({
+			id: `artifact-${index}`,
+			type: 'file' as const,
+			label: `Artifact ${index}`,
+			uri: `file:///workspace/${index}`,
+			...(origin ? { origin } : {}),
+		}));
+		const encoded = encode({ ...createData(), _meta: { [SESSION_META_ARTIFACTS_KEY]: artifacts } });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+
+		assert.deepStrictEqual(decoded.ok && decoded.value.data._meta?.[SESSION_META_ARTIFACTS_KEY], artifacts);
+	});
+
+	test('rejects malformed artifact provenance', () => {
+		const data = createData();
+		const artifact = data._meta![SESSION_META_ARTIFACTS_KEY]![0];
+		const results = [
+			{},
+			{ chat: '' },
+			{ chat: 'not-a-uri' },
+			{ chat: 'agent-chat://test/session/peer', turnId: 42 },
+		].map(origin => decodeAgentHostCatalogPayload(JSON.stringify({
+			payloadVersion: 1,
+			data: { ...data, _meta: { [SESSION_META_ARTIFACTS_KEY]: [{ ...artifact, origin }] } },
+		})).ok);
+
+		assert.deepStrictEqual(results, [false, false, false, false]);
+	});
+
 	test('preserves Dev Container worktree and pull request state metadata', () => {
 		const data = createData();
 		const encoded = encode({

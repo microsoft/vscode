@@ -837,6 +837,28 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('lists only requested verified rows and skips empty requests', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const first = 'session://first';
+		const second = 'session://second';
+		for (const session of [first, second]) {
+			await database.registerSessionV2(session, {
+				provider: 'copilot',
+				startTime: 42,
+				source: 'restore',
+			}, { checkTombstone: false });
+			await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
+		}
+
+		assert.deepStrictEqual({
+			subset: (await database.listSessionsV2([second])).map(row => row.session),
+			empty: await database.listSessionsV2([]),
+		}, {
+			subset: [second],
+			empty: [],
+		});
+	});
+
 	test('derives is_chat_backing from the validated payload and rejects payloads the envelope does not describe', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://derived';

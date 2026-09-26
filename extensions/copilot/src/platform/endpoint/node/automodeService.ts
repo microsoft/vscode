@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatRequest, ChatResponseStream } from 'vscode';
+import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
 import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -66,28 +67,66 @@ export interface AutoModePickerMetadata {
 	discountRange: { low: number; high: number };
 }
 
-/** A routing state change for one request: `endpoint` is unset while the router is still deciding. */
-export interface IAutoModeRoutingState {
+/** Routing activity and per-caller outcomes, including cached and shared resolutions. */
+export type IAutoModeRoutingState = {
 	readonly requestId: string | undefined;
-	readonly endpoint: IChatEndpoint | undefined;
+} & (
+	| { readonly kind: 'started' }
+	| { readonly kind: 'failed' }
+	| {
+		readonly kind: 'resolved';
+		readonly endpoint: IChatEndpoint;
+		readonly tier: AutoModeTier;
+		/** This caller started a routing round rather than reusing a cached or in-flight result. */
+		readonly didRoute: boolean;
+	}
+);
+
+export interface IAutoModeRoutingReporter extends IDisposable {
+	/** Stamps the request's resolved tier onto the edits pushed through it. */
+	readonly stream: ChatResponseStream;
+	/** Stops attributing later edits to Auto, e.g. after the turn switched to another model. */
+	clearTier(): void;
 }
 
 /**
- * Reports Auto's routing rounds into a turn's response stream. Install this
- * before the turn resolves any endpoint — the first route happens during
- * endpoint resolution, and a route that already finished cannot be replayed.
+ * Reports Auto's routing rounds into a turn's response stream and attributes
+ * the turn's edits to the resolved tier. Install this before the turn resolves
+ * any endpoint — the first route happens during endpoint resolution, and a
+ * route that already finished cannot be replayed.
  */
 export function reportAutoModeRouting(
 	request: ChatRequest,
 	stream: ChatResponseStream,
 	automodeService: IAutomodeService,
-): IDisposable {
-	return automodeService.onDidRoute(e => {
-		if (e.requestId !== request.id) {
+	reportRouting = true,
+): IAutoModeRoutingReporter {
+	let tier: AutoModeTier | undefined;
+	const listener = automodeService.onDidRoute(e => {
+		if (e.requestId === undefined || e.requestId !== request.id) {
 			return;
 		}
-		stream.push(new ChatResponseAutoModeResolutionPart(e.endpoint && { id: e.endpoint.model, name: e.endpoint.name }));
+		if (e.kind === 'started' && reportRouting) {
+			stream.push(new ChatResponseAutoModeResolutionPart());
+		} else if (e.kind === 'resolved') {
+			tier = e.tier;
+			if (reportRouting && e.didRoute) {
+				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }));
+			}
+		} else if (e.kind === 'failed') {
+			tier = undefined;
+		}
 	});
+	return {
+		stream: ChatResponseStreamImpl.map(stream, part => {
+			if (part instanceof ChatResponseTextEditPart || part instanceof ChatResponseNotebookEditPart) {
+				part.autoTier = tier;
+			}
+			return part;
+		}),
+		clearTier: () => { tier = undefined; },
+		dispose: () => listener.dispose(),
+	};
 }
 
 export interface IAutomodeService {
@@ -113,9 +152,8 @@ export interface IAutomodeService {
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata;
 
 	/**
-	 * Fires when a request starts routing and again once it resolves. Only real
-	 * routing rounds fire — a cached endpoint is silent — and Auto can route
-	 * several times in a turn, e.g. after compaction.
+	 * Starts only for actual routing rounds; every caller receives a resolved
+	 * endpoint and tier before returning, or a failed state before rejecting.
 	 */
 	readonly onDidRoute: Event<IAutoModeRoutingState>;
 
@@ -132,7 +170,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _cache: Map<string, AutoModeCacheEntry> = new Map();
 	/** Coalesces concurrent routing calls that would answer a turn identically. */
 	private _routingSingler = new TaskSingler<IChatEndpoint>();
-	/** Bumped when the signed-in account changes; see {@link _routeAndCache}. */
+	/** Bumped when the signed-in account changes; see {@link _route}. */
 	private _authGeneration = 0;
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	/** Upper bound on live sessions. See {@link _evictOldestSessions}. */
@@ -197,12 +235,23 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * turn cannot be routed, leaving it to the caller to degrade.
 	 */
 	async resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		try {
+			const tier = this._resolveTier(chatRequest);
+			const { endpoint, didRoute } = await this._resolveAutoModeEndpoint(chatRequest, knownEndpoints, tier);
+			this._onDidRoute.fire({ kind: 'resolved', requestId: chatRequest?.id, endpoint, tier, didRoute });
+			return endpoint;
+		} catch (error) {
+			this._onDidRoute.fire({ kind: 'failed', requestId: chatRequest?.id });
+			throw error;
+		}
+	}
+
+	private async _resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[], tier: AutoModeTier): Promise<{ endpoint: IChatEndpoint; didRoute: boolean }> {
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
 		}
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
-		const tier = this._resolveTier(chatRequest);
 		// Sessions are keyed on the conversation, so a request that cannot be
 		// keyed always routes fresh and is never cached.
 		const entry = conversationId === 'unknown' ? undefined : this._cache.get(conversationId);
@@ -210,7 +259,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// of the conversation unless a re-evaluation was explicitly requested
 		// (e.g. after compaction).
 		if (entry && !entry.needsReEval && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
-			return entry.endpoint;
+			return { endpoint: entry.endpoint, didRoute: false };
 		}
 
 		// A bare slash command (`/tests`, `/fix`, …) carries no prompt, so route
@@ -218,7 +267,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const prompt = chatRequest?.prompt?.trim() || (chatRequest?.command ? `/${chatRequest.command}` : undefined);
 		if (!prompt) {
 			if (entry && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
-				return entry.endpoint;
+				return { endpoint: entry.endpoint, didRoute: false };
 			}
 			throw new Error('Auto mode needs a prompt or a command to route a request.');
 		}
@@ -227,34 +276,16 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// batch of `vscode.lm` requests) would otherwise each mint their own
 		// session and could land on different models. Share one routing call
 		// across every caller whose turn it would answer identically.
-		if (conversationId === 'unknown') {
-			return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
-		}
-		return this._routingSingler.getOrCreate(
-			`${conversationId}|${tier}|${hasImage(chatRequest)}`,
-			() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
-		);
-	}
-
-	/**
-	 * Performs the `POST /auto` round-trip and records the resulting session.
-	 * Callers dedupe on {@link _routingSingler} so this runs once per turn.
-	 */
-	private async _routeAndCache(
-		prompt: string,
-		tier: AutoModeTier,
-		chatRequest: IAutoModeRoutingRequest | undefined,
-		knownEndpoints: IChatEndpoint[],
-		conversationId: string,
-		entry: AutoModeCacheEntry | undefined,
-	): Promise<IChatEndpoint> {
-		// Brackets the round so every way of settling it — including the cached
-		// fallback below — reports the endpoint it settled on. A throw reports
-		// nothing, leaving the turn's row unresolved for the UI to drop.
-		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
-		const endpoint = await this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
-		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
-		return endpoint;
+		let didRoute = false;
+		const route = () => {
+			didRoute = true;
+			this._onDidRoute.fire({ kind: 'started', requestId: chatRequest?.id });
+			return this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
+		};
+		const endpoint = await (conversationId === 'unknown'
+			? route()
+			: this._routingSingler.getOrCreate(`${conversationId}|${tier}|${hasImage(chatRequest)}`, route));
+		return { endpoint, didRoute };
 	}
 
 	private async _route(

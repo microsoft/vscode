@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationError, ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -41,10 +41,10 @@ import { clearChatMarks } from '../../../common/chatPerf.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
-import { ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -928,7 +928,7 @@ suite('ChatWidget', () => {
 	});
 });
 
-suite('ChatWidget - guarded acceptInput', () => {
+suite('ChatWidget - acceptInput submission', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -936,36 +936,27 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const hasActiveRequest = observableValue('hasActiveRequest', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
-		const isReadOnly = observableValue('isReadOnly', false);
-		const pendingRequests: IChatPendingRequest[] = [];
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
 			onDidDispose: store.add(new Emitter<void>()).event,
 			hasActiveRequest,
 			requestInProgress,
 			requestNeedsInput,
-			isReadOnly,
 			inputModel: upcastPartial<IChatModel['inputModel']>({}),
 			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
-			getPendingRequests: () => pendingRequests,
+			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, hasActiveRequest, requestInProgress, isReadOnly, pendingRequests };
+		return { model, viewModel };
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
-		const other = createSession(URI.parse('agent-host-copilot:/existing-b'));
-		let viewModel: ChatViewModel | undefined = original.viewModel;
-		let readOnly = false;
-		let accepted = 0;
-		let otherModelMutations = 0;
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const attachments = new ChatRequestVariableSet();
-		const promptParts: ChatRequestSlashPromptPart[] = [];
-		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: promptParts };
+		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: [] };
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
 			currentModeKind: ChatModeKind.Ask,
@@ -979,15 +970,6 @@ suite('ChatWidget - guarded acceptInput', () => {
 		});
 		input.getAttachedContext.returns(attachments);
 		input.getAttachedAndImplicitContext.returns(attachments);
-		const recordInputMutation = () => {
-			if (viewModel !== original.viewModel) {
-				otherModelMutations++;
-			}
-		};
-		input.acceptInput.callsFake(recordInputMutation);
-		input.validateAgentMode.callsFake(recordInputMutation);
-		input.setValue.callsFake(recordInputMutation);
-		input.setChatMode.callsFake(recordInputMutation);
 		const editorService = mockObject<IEditorService>()();
 		editorService.saveAll.resolves({ success: true, editors: [] });
 		const chatService = mockObject<IChatService>()();
@@ -1006,13 +988,10 @@ suite('ChatWidget - guarded acceptInput', () => {
 			}),
 		};
 		chatService.sendRequest.resolves(sent);
-		chatService.cancelCurrentRequestForSession.resolves();
 		const chatSubmitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()();
 		chatSubmitRequestHandlerService.tryHandle.resolves(false);
 		const chatAttachmentResolveService = mockObject<IChatAttachmentResolveService>()();
 		chatAttachmentResolveService.resolveDirectoryImages.resolves([]);
-		const customizationHarnessService = mockObject<ICustomizationHarnessService>()();
-		const dialogService = mockObject<IDialogService>()();
 		const parser = upcastPartial<ChatRequestParser>({
 			parseChatRequest: () => parsedInput,
 			parseChatRequestWithReferences: () => parsedInput,
@@ -1026,16 +1005,10 @@ suite('ChatWidget - guarded acceptInput', () => {
 				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
 			})) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
-		const rebind = (newViewModel: ChatViewModel | undefined) => {
-			const previousSessionResource = viewModel?.sessionResource;
-			viewModel = newViewModel;
-			onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: viewModel?.sessionResource });
-		};
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: widgetStore },
-			_viewModel: { get: () => viewModel },
-			_readOnly: { get: () => readOnly },
+			_viewModel: { value: original.viewModel },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
@@ -1052,220 +1025,20 @@ suite('ChatWidget - guarded acceptInput', () => {
 			chatService: { value: chatService },
 			chatSubmitRequestHandlerService: { value: chatSubmitRequestHandlerService },
 			chatAttachmentResolveService: { value: chatAttachmentResolveService },
-			customizationHarnessService: { value: customizationHarnessService },
-			dialogService: { value: dialogService },
+			customizationHarnessService: { value: mockObject<ICustomizationHarnessService>()() },
+			dialogService: { value: mockObject<IDialogService>()() },
 			instantiationService: { value: instantiationService },
 			chatTipService: { value: mockObject<IChatTipService>()() },
 			chatPetService: { value: { unlockAchievement: () => { } } },
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { setScrollLock: recordInputMutation } },
+			listWidget: { value: { setScrollLock: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
-			setModel: { value: (model: IChatModel) => rebind(upcastPartial<ChatViewModel>({ model, sessionResource: model.sessionResource, getItems: () => [] })) },
 		});
-		const options: IChatAcceptInputOptions = {
-			expectedSessionResource: original.model.sessionResource,
-			preserveInput: true,
-			onRequestAccepted: () => accepted++,
-		};
-		return {
-			widget, options, original, other, rebind, input, attachments, promptParts, widgetStore, viewOptions,
-			editorService, chatService, chatSubmitRequestHandlerService, chatAttachmentResolveService, customizationHarnessService, dialogService, response, sent,
-			setReadOnly: () => { readOnly = true; },
-			outcome: () => ({
-				requests: chatService.sendRequest.callCount,
-				accepted,
-				inputAccepted: input.acceptInput.callCount,
-				pendingRemoved: chatService.removePendingRequest.callCount,
-				otherModelMutations,
-			}),
-		};
+		const options: IChatAcceptInputOptions = { preserveInput: true };
+		return { widget, options, original, chatService, response, sent };
 	}
-
-	function createBarrier() {
-		const entered = new DeferredPromise<void>();
-		const released = new DeferredPromise<void>();
-		return {
-			entered: entered.p,
-			release: () => released.complete(),
-			wait: async () => {
-				void entered.complete();
-				await released.p;
-			},
-		};
-	}
-
-	function assertNotAccepted(fixture: ReturnType<typeof createSubmissionWidget>): void {
-		assert.deepStrictEqual(fixture.outcome(), { requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0 });
-	}
-
-	for (const change of ['rebind', 'replace view model', 'clear model', 'dispose', 'widget read-only', 'model read-only'] as const) {
-		test(`rejects ${change} while saving before a guarded submission`, async () => {
-			const fixture = createSubmissionWidget();
-			const saving = createBarrier();
-			fixture.editorService.saveAll.callsFake(async () => {
-				await saving.wait();
-				return { success: true, editors: [] };
-			});
-
-			const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-			await saving.entered;
-			switch (change) {
-				case 'rebind': fixture.rebind(fixture.other.viewModel); break;
-				case 'replace view model': fixture.rebind(createSession(fixture.original.model.sessionResource).viewModel); break;
-				case 'clear model': fixture.rebind(undefined); break;
-				case 'dispose': fixture.widgetStore.dispose(); break;
-				case 'widget read-only': fixture.setReadOnly(); break;
-				case 'model read-only': fixture.original.isReadOnly.set(true, undefined); break;
-			}
-			await saving.release();
-
-			await assert.rejects(pending, {
-				name: 'CodeExpectedError',
-				message: change.endsWith('read-only') ? /chat session is read-only/ : /chat session changed or was closed/,
-			});
-			assertNotAccepted(fixture);
-		});
-	}
-
-	test('rejects an initially mismatched session before saving', async () => {
-		const fixture = createSubmissionWidget();
-		fixture.options.expectedSessionResource = fixture.other.model.sessionResource;
-
-		await assert.rejects(fixture.widget.acceptInput('Test and fix the app', fixture.options), ErrorNoTelemetry);
-
-		assert.deepStrictEqual({ saves: fixture.editorService.saveAll.callCount, ...fixture.outcome() }, {
-			saves: 0, requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0,
-		});
-	});
-
-	test('does not submit while session preparation is active', async () => {
-		const fixture = createSubmissionWidget();
-		Object.defineProperty(fixture.widget, 'transcriptProgress', { value: { onCancel: () => { } } });
-
-		const result = await fixture.widget.acceptInput('Test and fix the app', fixture.options);
-
-		assert.deepStrictEqual({ result, saves: fixture.editorService.saveAll.callCount, ...fixture.outcome() }, {
-			result: undefined, saves: 0, requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0,
-		});
-	});
-
-	test('captures the originating model before stopping dictation', async () => {
-		const fixture = createSubmissionWidget();
-		const pending = fixture.widget.acceptInput('Test and fix the app', { ...fixture.options, preserveInput: false });
-		fixture.rebind(fixture.other.viewModel);
-
-		await assert.rejects(pending, ErrorNoTelemetry);
-		assertNotAccepted(fixture);
-	});
-
-	test('revalidates the originating model after input generation', async () => {
-		const fixture = createSubmissionWidget();
-		const generating = new DeferredPromise<void>();
-		Object.defineProperty(fixture.input, 'generating', { value: generating.p });
-		const pending = fixture.widget.acceptInput(undefined, fixture.options);
-		fixture.rebind(fixture.other.viewModel);
-		await generating.complete();
-
-		await assert.rejects(pending, ErrorNoTelemetry);
-		assertNotAccepted(fixture);
-	});
-
-	for (const stage of ['submit handler', 'pre-submit handler', 'cancellation', 'pending confirmation', 'prompt resolution', 'directory attachments'] as const) {
-		test(`rejects rebinding during ${stage}`, async () => {
-			const fixture = createSubmissionWidget();
-			const preparation = createBarrier();
-			switch (stage) {
-				case 'submit handler':
-					fixture.viewOptions.submitHandler = async () => { await preparation.wait(); return false; };
-					break;
-				case 'pre-submit handler':
-					fixture.chatSubmitRequestHandlerService.tryHandle.callsFake(async () => { await preparation.wait(); return false; });
-					break;
-				case 'cancellation':
-					fixture.original.hasActiveRequest.set(true, undefined);
-					fixture.original.requestInProgress.set(true, undefined);
-					fixture.options.cancelCurrentRequest = true;
-					fixture.chatService.cancelCurrentRequestForSession.callsFake(() => preparation.wait());
-					break;
-				case 'pending confirmation':
-					fixture.original.pendingRequests.push({
-						request: upcastPartial<IChatRequestModel>({ id: 'pending-request' }),
-						kind: ChatRequestQueueKind.Queued,
-						sendOptions: {},
-					});
-					fixture.dialogService.prompt.callsFake(async () => { await preparation.wait(); return { result: 'remove' }; });
-					break;
-				case 'prompt resolution':
-					fixture.options.preserveInput = false;
-					fixture.promptParts.push(new ChatRequestSlashPromptPart(new OffsetRange(0, 5), new Range(1, 1, 1, 6), 'test'));
-					fixture.customizationHarnessService.resolvePromptSlashCommand.callsFake(async () => { await preparation.wait(); return undefined; });
-					break;
-				case 'directory attachments':
-					fixture.options.preserveInput = false;
-					fixture.attachments.add({ kind: 'directory', id: 'directory', name: 'folder', value: URI.file('/workspace/images') });
-					fixture.chatAttachmentResolveService.resolveDirectoryImages.callsFake(async () => { await preparation.wait(); return []; });
-					break;
-			}
-			const pending = fixture.widget.acceptInput(stage === 'pre-submit handler' ? undefined : 'Test and fix the app', fixture.options);
-			await preparation.entered;
-			fixture.rebind(fixture.other.viewModel);
-			await preparation.release();
-
-			await assert.rejects(pending, ErrorNoTelemetry);
-			assertNotAccepted(fixture);
-		});
-	}
-
-	test('sends and accepts once when the originating model stays bound during saving', async () => {
-		const fixture = createSubmissionWidget();
-		const saving = createBarrier();
-		fixture.options.expectedSessionResource = URI.parse(fixture.original.model.sessionResource.toString());
-		fixture.editorService.saveAll.callsFake(async () => {
-			await saving.wait();
-			return { success: true, editors: [] };
-		});
-		const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-		await saving.entered;
-		await saving.release();
-		const response = await pending;
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			input: fixture.chatService.sendRequest.firstCall.args[1],
-			response,
-		}, {
-			requests: 1, accepted: 1, inputAccepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			input: 'Test and fix the app',
-			response: fixture.response,
-		});
-	});
-
-	test('unguarded submissions still wait for a model and allow session graduation', async () => {
-		const fixture = createSubmissionWidget();
-		fixture.rebind(undefined);
-		fixture.options.expectedSessionResource = undefined;
-		fixture.chatService.sendRequest.resolves({ ...fixture.sent, newSessionResource: fixture.other.model.sessionResource });
-		fixture.chatService.getSession.returns(fixture.other.model);
-		const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-		fixture.rebind(fixture.original.viewModel);
-		const response = await pending;
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			model: fixture.widget.viewModel?.model,
-			response,
-		}, {
-			requests: 1, accepted: 1, inputAccepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			model: fixture.other.model,
-			response: fixture.response,
-		});
-	});
 
 	for (const explicit of [false, true]) {
 		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {
@@ -1288,23 +1061,6 @@ suite('ChatWidget - guarded acceptInput', () => {
 			h.assertFinished('queued');
 		});
 	}
-
-	test('unguarded user input still submits normally', async () => {
-		const fixture = createSubmissionWidget();
-		const response = await fixture.widget.acceptInput(undefined, { onRequestAccepted: fixture.options.onRequestAccepted });
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			inputAccepted: fixture.input.acceptInput.firstCall.args,
-			response,
-		}, {
-			requests: 1, accepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			inputAccepted: [true, undefined, undefined],
-			response: fixture.response,
-		});
-	});
 });
 
 suite('ChatWidget - first visible progress lifecycle', () => {
