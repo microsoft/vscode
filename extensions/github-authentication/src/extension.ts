@@ -4,81 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { GitHubAuthenticationProvider, UriEventHandler } from './github';
+import { GitHubAuthenticationProvider, GitHubAuthenticationProviderFactory, UriEventHandler } from './github';
+import { GitHubEnterpriseAuthenticationProvider } from './githubEnterprise';
 
-const settingNotSent = '"github-enterprise.uri" not set';
-const settingInvalid = '"github-enterprise.uri" invalid';
-
-class NullAuthProvider implements vscode.AuthenticationProvider {
-	private _onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	onDidChangeSessions = this._onDidChangeSessions.event;
-
-	private readonly _disposable: vscode.Disposable;
-
-	constructor(private readonly _errorMessage: string) {
-		this._disposable = vscode.authentication.registerAuthenticationProvider('github-enterprise', 'GitHub Enterprise', this);
-	}
-
-	createSession(): Thenable<vscode.AuthenticationSession> {
-		throw new Error(this._errorMessage);
-	}
-
-	getSessions(): Thenable<vscode.AuthenticationSession[]> {
-		return Promise.resolve([]);
-	}
-	removeSession(): Thenable<void> {
-		throw new Error(this._errorMessage);
-	}
-
-	dispose() {
-		this._onDidChangeSessions.dispose();
-		this._disposable.dispose();
-	}
-}
-
-function initGHES(context: vscode.ExtensionContext, uriHandler: UriEventHandler): vscode.Disposable {
-	const settingValue = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
-	if (!settingValue) {
-		const provider = new NullAuthProvider(settingNotSent);
-		context.subscriptions.push(provider);
-		return provider;
-	}
-
-	// validate user value
-	let uri: vscode.Uri;
-	try {
-		uri = vscode.Uri.parse(settingValue, true);
-	} catch (e) {
-		vscode.window.showErrorMessage(vscode.l10n.t('GitHub Enterprise Server URI is not a valid URI: {0}', e.message ?? e));
-		const provider = new NullAuthProvider(settingInvalid);
-		context.subscriptions.push(provider);
-		return provider;
-	}
-
-	const githubEnterpriseAuthProvider = new GitHubAuthenticationProvider(context, uriHandler, uri);
-	context.subscriptions.push(githubEnterpriseAuthProvider);
-	return githubEnterpriseAuthProvider;
-}
-
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
 	context.subscriptions.push(new GitHubAuthenticationProvider(context, uriHandler));
 
-	let before = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
-	let githubEnterpriseAuthProvider = initGHES(context, uriHandler);
+	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(new GitHubAuthenticationProviderFactory(context, uriHandler));
+	context.subscriptions.push(githubEnterpriseAuthProvider);
+	const updateEnterpriseConfiguration = async () => {
+		const setting = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
+		let uri: vscode.Uri | undefined;
+		try {
+			uri = setting ? vscode.Uri.parse(setting, true) : undefined;
+		} catch (error) {
+			const message = vscode.l10n.t('GitHub Enterprise Server URI is not a valid URI: {0}', error.message ?? error);
+			await githubEnterpriseAuthProvider.update(undefined, message);
+			void vscode.window.showErrorMessage(message);
+			return;
+		}
+		await githubEnterpriseAuthProvider.update(uri);
+	};
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration('github-enterprise.uri')) {
-			const after = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
-			if (before !== after) {
-				githubEnterpriseAuthProvider?.dispose();
-				before = after;
-				githubEnterpriseAuthProvider = initGHES(context, uriHandler);
-			}
+			void updateEnterpriseConfiguration().catch(error => vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error.message)));
 		}
 	}));
+	try {
+		await updateEnterpriseConfiguration();
+	} catch (error) {
+		const message = vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error));
+		await githubEnterpriseAuthProvider.update(undefined, message);
+		void vscode.window.showErrorMessage(message);
+	}
 
 	// Listener to prompt for reload when the fetch implementation setting changes
 	const beforeFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);
