@@ -298,7 +298,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this.editorModelReference && this.editorModelReference.object.isDirty()) {
+		if (this.editorModelReference) {
 			await this.editorModelReference.object.revert(options);
 		}
 	}
