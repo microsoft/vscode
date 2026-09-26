@@ -19,6 +19,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	type ResponsePart,
+	type ToolCallCompletedState,
 	type ToolCallResponsePart,
 	type ToolResultContent,
 	type Turn,
@@ -65,12 +66,14 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  *
  * Mirrors the live mapper's translation kernel — including the sandbox
  * pre-flight coalescing (see {@link codexMapAppServerEvents}) — so restored
- * sessions render identically to active ones.
+ * sessions render identically to active ones. Each restored shell tool call is
+ * also appended to `commands`, when given, with the output it shows.
  */
 export function replayThreadToTurns(
 	thread: Thread,
 	modelsByTurnId?: ReadonlyMap<string, ModelSelection>,
 	_threadCoordinationByTurnId?: ReadonlyMap<string, readonly ICodexThreadCoordinationCall[]>,
+	commands?: ICodexReplayedCommand[],
 ): Turn[] {
 	const turns: Turn[] = [];
 	for (const codexTurn of thread.turns ?? []) {
@@ -78,6 +81,7 @@ export function replayThreadToTurns(
 			codexTurn,
 			modelsByTurnId?.get(codexTurn.id),
 			_threadCoordinationByTurnId?.get(codexTurn.id),
+			commands,
 		);
 		if (turn) {
 			turns.push(turn);
@@ -89,7 +93,14 @@ export function replayThreadToTurns(
 /** A completed `commandExecution` item narrowed to its terminal fields. */
 type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 
-function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefined, rolloutCoordination: readonly ICodexThreadCoordinationCall[] | undefined): Turn | undefined {
+/** A restored shell tool call, with the output and exit code of the command it shows. */
+export interface ICodexReplayedCommand {
+	readonly toolCall: ToolCallCompletedState;
+	readonly output: string;
+	readonly exitCode: number | null;
+}
+
+function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefined, rolloutCoordination: readonly ICodexThreadCoordinationCall[] | undefined, commands: ICodexReplayedCommand[] | undefined): Turn | undefined {
 	let userText = '';
 	const userAttachments: MessageResourceAttachment[] = [];
 	const parts: ResponsePart[] = [];
@@ -111,9 +122,14 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 	// item). Defer emitting it so the re-run can coalesce into a single box —
 	// mirroring the live mapper's `pendingPreflight` state machine.
 	let pendingPreflight: { command: string; item: CommandExecutionItem } | undefined;
+	const pushShellToolCall = (item: CommandExecutionItem, command: string, toolCallId = item.id) => {
+		const toolCall = shellToolCall(item, command, toolCallId);
+		parts.push({ kind: ResponsePartKind.ToolCall, toolCall });
+		commands?.push({ toolCall, output: item.aggregatedOutput ?? '', exitCode: item.exitCode });
+	};
 	const flushPreflight = () => {
 		if (pendingPreflight) {
-			parts.push(shellToolCallPart(pendingPreflight.item, pendingPreflight.command));
+			pushShellToolCall(pendingPreflight.item, pendingPreflight.command);
 			pendingPreflight = undefined;
 		}
 	};
@@ -124,9 +140,11 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 			if (pendingPreflight && pendingPreflight.command === command) {
 				// Escalated re-run of the deferred pre-flight: render only this
 				// item (it carries the real output/approval), dropping the
-				// output-less pre-flight box.
+				// output-less pre-flight box. The box keeps the pre-flight's
+				// identity, as it does live.
+				const toolCallId = pendingPreflight.item.id;
 				pendingPreflight = undefined;
-				parts.push(shellToolCallPart(item, command));
+				pushShellToolCall(item, command, toolCallId);
 				continue;
 			}
 			flushPreflight();
@@ -136,7 +154,7 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 				pendingPreflight = { command, item };
 				continue;
 			}
-			parts.push(shellToolCallPart(item, command));
+			pushShellToolCall(item, command);
 			continue;
 		}
 
@@ -313,7 +331,7 @@ function textContent(output: string): ToolResultContent[] | undefined {
 	return output ? [{ type: ToolResultContentType.Text, text: output }] : undefined;
 }
 
-function shellToolCallPart(item: CommandExecutionItem, command: string): ToolCallResponsePart {
+function shellToolCall(item: CommandExecutionItem, command: string, toolCallId: string): ToolCallCompletedState {
 	const success = item.status === 'completed' && (item.exitCode === 0 || item.exitCode === null);
 	const output = item.aggregatedOutput ?? '';
 	const exit = item.exitCode;
@@ -323,21 +341,18 @@ function shellToolCallPart(item: CommandExecutionItem, command: string): ToolCal
 			? `Ran \`${command}\` (exit ${exit})`
 			: `Ran \`${command}\` (failed)`;
 	return {
-		kind: ResponsePartKind.ToolCall,
-		toolCall: {
-			status: ToolCallStatus.Completed,
-			toolCallId: generateUuid(),
-			toolName: 'shell',
-			displayName: 'Run shell command',
-			_meta: toToolCallMeta({ toolKind: 'terminal' }),
-			invocationMessage: command,
-			toolInput: command,
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-			success,
-			pastTenseMessage: pastTense,
-			content: textContent(output),
-			error: success ? undefined : { message: exit !== null ? `Exit code ${exit}` : 'Command failed' },
-		},
+		status: ToolCallStatus.Completed,
+		toolCallId,
+		toolName: 'shell',
+		displayName: 'Run shell command',
+		_meta: toToolCallMeta({ toolKind: 'terminal' }),
+		invocationMessage: command,
+		toolInput: command,
+		confirmed: ToolCallConfirmationReason.NotNeeded,
+		success,
+		pastTenseMessage: pastTense,
+		content: textContent(output),
+		error: success ? undefined : { message: exit !== null ? `Exit code ${exit}` : 'Command failed' },
 	};
 }
 

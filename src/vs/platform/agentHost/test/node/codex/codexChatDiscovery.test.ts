@@ -25,9 +25,10 @@ import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
+import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
-import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -465,6 +466,65 @@ suite('Codex chat discovery', () => {
 				afterCreation: ['First message', 'Sent later in ChatGPT'], afterBurst: ['First message', 'Sent later in ChatGPT', 'Trailing external turn'],
 				unchanged: true, maxConcurrent: 1, stopped: true,
 			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('observed history refresh preserves retained command output on changed turns', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const database = new TestSessionDatabase();
+		const output = `BEGIN\n${'x'.repeat(80_000)}\nEND\n`;
+		await database.createTurn('stored-turn');
+		await database.storeTerminalOutput('stored-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
+		const { agent, client, filesystem } = createHarness(store, createSessionDataService(database));
+		const turn = (answer: string): CodexTurn => ({
+			id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+			items: [
+				{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
+				{
+					type: 'commandExecution', id: 'cmd-retained', command: 'build', cwd: '/tmp',
+					processId: null, source: 'agent', status: 'completed', commandActions: [],
+					pluginId: null, scriptPath: null,
+					aggregatedOutput: output, exitCode: 0, durationMs: 5,
+				},
+				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+			],
+		});
+		const retainedContent = (turns: readonly import('../../../common/state/sessionState.js').Turn[]) => {
+			const part = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+			return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined;
+		};
+		try {
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			client.turns = [turn('Working')];
+			const initial = await agent.chats.getMessages(chat, session);
+			const observed = agent as import('../../../common/agent.js').IAgent;
+			let refreshed: ReturnType<typeof retainedContent>;
+			if (observed.onDidChangeChatHistory) {
+				store.add(observed.onDidChangeChatHistory(event => refreshed = retainedContent(event.turns)));
+			}
+			const watch = observed.watchChatHistory && store.add(observed.watchChatHistory(chat));
+			client.turns = [turn('Done')];
+			filesystem.changeHomeFile('state_5.sqlite-wal');
+			await timeout(1500);
+
+			const preview = output.slice(0, 400);
+			const expected = [
+				{ type: ToolResultContentType.Text, text: preview },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(session, session, chat, 'cmd-retained'),
+					title: 'Run shell command',
+					isPty: false,
+					result: { exitCode: 0, preview, truncated: true },
+				},
+			];
+			assert.deepStrictEqual({ initial: retainedContent(initial), refreshed }, { initial: expected, refreshed: expected });
+			watch?.dispose();
 		} finally {
 			store.dispose();
 		}

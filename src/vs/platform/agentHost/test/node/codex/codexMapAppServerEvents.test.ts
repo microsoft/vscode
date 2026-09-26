@@ -12,6 +12,7 @@ import { ActionType, type ChatAction, type SessionAction } from '../../../common
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../../../node/activeClientState.js';
+import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
 
 /** Extracts the content of a Markdown response part emitted by a mapper action. */
 function markdownPartContent(action: SessionAction | ChatAction | undefined): string | undefined {
@@ -624,6 +625,46 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(complete.result.success, true);
 		assert.deepStrictEqual(complete.result.content, [{ type: ToolResultContentType.Text, text: 'hi\n' }]);
 		assert.strictEqual(state.itemToToolCall.size, 0);
+	});
+
+	test('item/completed for commandExecution with retained output publishes a preview and its terminal resource', () => {
+		const state = createCodexSessionMapState();
+		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+		const item = {
+			type: 'commandExecution', id: 'cmd_large',
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'inProgress',
+			commandActions: [], aggregatedOutput: null,
+			exitCode: null, durationMs: null,
+		};
+		mapItemStarted(state, { item: item as never, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+
+		const actions = mapItemCompleted(state, {
+			item: { ...item, status: 'completed', aggregatedOutput: output, exitCode: 2, durationMs: 12 } as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		}, 'agenthost-terminal://shell/retained');
+
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId: 'cmd_large',
+			result: {
+				success: false,
+				pastTenseMessage: 'Ran `build` (exit 2)',
+				content: [
+					{ type: ToolResultContentType.Text, text: preview },
+					{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/retained',
+						title: 'Run shell command',
+						isPty: false,
+						result: { exitCode: 2, preview, truncated: true },
+					},
+				],
+				error: { message: 'Exit code 2' },
+			},
+		}]);
 	});
 
 	test('item/completed for commandExecution with non-zero exit reports failure', () => {
