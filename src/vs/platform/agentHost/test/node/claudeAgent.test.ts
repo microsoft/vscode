@@ -8880,18 +8880,49 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('Agent Merge turns deny only GitHub MCP tools', async () => {
-		const { agent, sdk, fileService } = buildCtxWith(new FakeAgentPluginManager());
+	test('Agent Merge turns deny only MCP tools of enabled GitHub servers', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const workspace = URI.file('/work');
-		await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
-			'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
-			corp: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
-		})));
-		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const pluginUri = 'https://bundle';
+		const pluginDir = URI.file('/p/bundle');
+		await fileService.createFolder(URI.joinPath(pluginDir, '.claude-plugin'));
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+				corp: { type: 'http', url: 'https://api.github.com/mcp' },
+				hub: { type: 'http', url: 'https://api.githubcopilot.com/mcp/x/repos' },
+			}))),
+			fileService.writeFile(URI.joinPath(pluginDir, '.claude-plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'bundle' }))),
+			fileService.writeFile(URI.joinPath(pluginDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				corp: { type: 'http', url: 'https://corp.example.com/mcp' },
+				'corp.hub': { type: 'http', url: 'https://api.github.com/mcp' },
+			}))),
+		]);
+		const synced = makeSyncedRef(pluginUri, pluginDir.fsPath);
+		const mcpDefaultCwds = toClientPluginMcpDefaultCwdsMeta({ corp: null, 'corp.hub': null });
+		pm.syncResult = [{ ...synced, customization: { ...synced.customization, _meta: mcpDefaultCwds } }];
+		const created = await createSession(agent, {
+			workingDirectories: [workspace],
+			activeClient: {
+				clientId: 'client-1',
+				tools: [],
+				customizations: [{ ...makeClientCustomization(pluginUri, 'Bundle'), _meta: mcpDefaultCwds }],
+			},
+		});
+		const disabledWorkspaceCorp = makeMcpServerCustomization(URI.joinPath(workspace, '.mcp.json'), 'corp');
+		publishReducerCustomizations(stateManager, created.session, [disabledWorkspaceCorp]);
+		stateManager.dispatchServerAction(created.session.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: disabledWorkspaceCorp.id,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
 		const chat = defaultChatUri(created.session);
 		const turnActive = new DeferredPromise<void>();
 		const finishTurn = new DeferredPromise<void>();
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
 		sdk.queryAdvance = async index => {
 			if (index === 1) {
@@ -8902,9 +8933,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const send = agent.chats.sendMessage(chat, 'repair', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat, { agentMergeTurn: true }));
 		await turnActive.p;
 
-		const preToolUse = sdk.capturedStartupOptions[0]?.hooks?.PreToolUse?.[0].hooks[0];
+		const options = sdk.capturedStartupOptions[0];
+		const preToolUse = options?.hooks?.PreToolUse?.[0].hooks[0];
 		assert.ok(preToolUse);
-		const toolNames = ['mcp__component-explorer__sessions', 'mcp__client__runTests', 'mcp__host__readAgentMergeCI', 'mcp__corp__get_me', 'mcp__github-mcp-server__get_me'];
+		const toolNames = ['mcp__component-explorer__sessions', 'mcp__client__runTests', 'mcp__host__readAgentMergeCI', 'mcp__corp__get_me', 'mcp__hub__get_me', 'mcp__corp_hub__get_me', 'mcp__github-mcp-server__get_me'];
 		const results = await Promise.all(toolNames.map(async toolName => [toolName, await preToolUse({
 			hook_event_name: 'PreToolUse',
 			tool_name: toolName,
@@ -8922,12 +8954,20 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			stopReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION,
 			hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION },
 		};
-		assert.deepStrictEqual(Object.fromEntries(results), {
-			'mcp__component-explorer__sessions': {},
-			'mcp__client__runTests': {},
-			'mcp__host__readAgentMergeCI': {},
-			'mcp__corp__get_me': denied,
-			'mcp__github-mcp-server__get_me': denied,
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			hookResults: Object.fromEntries(results),
+		}, {
+			explicitServers: ['corp', 'corp.hub', 'github-mcp-server'],
+			hookResults: {
+				'mcp__component-explorer__sessions': {},
+				'mcp__client__runTests': {},
+				'mcp__host__readAgentMergeCI': {},
+				'mcp__corp__get_me': {},
+				'mcp__hub__get_me': denied,
+				'mcp__corp_hub__get_me': denied,
+				'mcp__github-mcp-server__get_me': denied,
+			},
 		});
 	});
 

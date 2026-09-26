@@ -42,6 +42,10 @@ suite('Agent Merge tool restrictions', () => {
 			'component-explorer': { command: 'npm', args: ['exec', '--no', '--', 'component-explorer', 'mcp'] },
 			'pages': { url: 'https://octocat.github.io/mcp' },
 			'malformed': { command: 'node', args: 5 as unknown as readonly string[] },
+			'stdio-with-url': { type: 'stdio', command: 'github-mcp-server', url: 'https://example.com/mcp' },
+			'local-docker': { type: 'local', command: 'docker', args: ['run', 'ghcr.io/github/github-mcp-server'] },
+			'http-with-command': { type: 'http', url: 'https://example.com/mcp', command: 'github-mcp-server' },
+			'sse-copilot-api': { type: 'sse', url: 'https://api.githubcopilot.com/mcp/' },
 			'unknown': undefined,
 		};
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(servers).map(([name, server]) => [name, isAgentMergeRestrictedMcpServer(name, server)])), {
@@ -54,6 +58,10 @@ suite('Agent Merge tool restrictions', () => {
 			'component-explorer': false,
 			'pages': false,
 			'malformed': false,
+			'stdio-with-url': true,
+			'local-docker': true,
+			'http-with-command': false,
+			'sse-copilot-api': true,
 			'unknown': false,
 		});
 	});

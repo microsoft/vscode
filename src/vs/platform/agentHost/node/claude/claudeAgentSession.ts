@@ -138,6 +138,11 @@ function toClaudeDeniedMcpServer(definition: IMcpServerDefinition): ClaudeDenied
 	return { serverName: definition.name };
 }
 
+/** Mirrors how the Claude SDK sanitizes a server name within `mcp__<server>__<tool>` tool names. */
+function toClaudeMcpToolServerName(serverName: string): string {
+	return serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 /**
  * Per-SDK-conversation coordinator. Owns:
  *   • SDK identity, exact chat channel, workspace, and working directories.
@@ -888,8 +893,8 @@ export class ClaudeAgentSession extends Disposable {
 			return { servers: {}, deniedServers: [], agentMergeRestrictedServerNames: new Set() };
 		}
 		const definitions = new Map<string, IMcpServerDefinition>();
+		const nativeWorkspaceDefinitions: IMcpServerDefinition[] = [];
 		const discoveredDefinitions = await this._mcpDiscovery?.refresh() ?? [];
-		const agentMergeRestrictedServerNames = new Set(discoveredDefinitions.filter(definition => isAgentMergeRestrictedMcpServer(definition.name, definition.configuration)).map(definition => definition.name));
 		let hasGitHubMcpServer = gitHubMcpServerConfiguration
 			? discoveredDefinitions.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))
 			: false;
@@ -905,6 +910,7 @@ export class ClaudeAgentSession extends Disposable {
 				continue;
 			}
 			if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+				nativeWorkspaceDefinitions.push(definition);
 				continue;
 			}
 			definitions.set(definition.name, definition);
@@ -917,11 +923,6 @@ export class ClaudeAgentSession extends Disposable {
 				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
 				if (gitHubMcpServerConfiguration && parsed.mcpServers.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))) {
 					hasGitHubMcpServer = true;
-				}
-				for (const definition of parsed.mcpServers) {
-					if (isAgentMergeRestrictedMcpServer(definition.name, definition.configuration)) {
-						agentMergeRestrictedServerNames.add(definition.name);
-					}
 				}
 				const candidate = { ...synced.customization, children: parsed.mcpServers.map(definition => definition.customization) };
 				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
@@ -966,6 +967,9 @@ export class ClaudeAgentSession extends Disposable {
 		for (const name of converted.skipped) {
 			this._logService.warn(`[Claude:${this.sessionId}] Skipping MCP server '${name}' because its stdio working directory cannot be represented by the Claude SDK`);
 		}
+		// The SDK resolves name collisions between its native workspace servers and explicit ones, so either may own a name.
+		const launchedServers = [...nativeWorkspaceDefinitions.map(definition => [definition.name, definition.configuration] as const), ...Object.entries(converted.servers)];
+		const agentMergeRestrictedServerNames = new Set(launchedServers.filter(([name, server]) => isAgentMergeRestrictedMcpServer(name, server)).map(([name]) => toClaudeMcpToolServerName(name)));
 		return { servers: converted.servers, deniedServers, agentMergeRestrictedServerNames };
 	}
 

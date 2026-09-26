@@ -25,7 +25,7 @@ import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } 
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
@@ -53,6 +53,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -14497,9 +14498,16 @@ Use the attached image as context.
 			assert.strictEqual(mcpResult?.permissionDecision, 'deny');
 		});
 
-		test('allows non-GitHub MCP tools during Agent Merge turns', async () => {
+		test('restricts only the GitHub MCP servers a launch projects during Agent Merge turns', async () => {
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
-			const workspaceMcpUri = URI.file('/workspace/.mcp.json');
+			const mcpJsonUri = URI.file('/workspace/.mcp.json');
+			const mcpServer = (name: string, configuration: IMcpServerConfiguration, sdkRegistration: ICopilotMcpServerInfo['sdkRegistration']): ICopilotMcpServerInfo => ({
+				name,
+				configuration,
+				sdkRegistration,
+				uri: mcpJsonUri,
+				customization: { type: CustomizationType.McpServer, id: name, uri: mcpJsonUri.toString(), name, state: { kind: McpServerStatus.Stopped } },
+			});
 			const { session } = await createAgentSession(disposables, {
 				captureRuntime: capturedRuntime,
 				clientSnapshot: {
@@ -14507,25 +14515,35 @@ Use the attached image as context.
 					plugins: [{
 						format: PluginFormat.Copilot,
 						hooks: [],
-						mcpServers: [{
-							name: 'component-explorer',
-							configuration: { type: McpServerType.LOCAL, command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
-							sdkRegistration: 'sessionConfig',
-							uri: workspaceMcpUri,
-							customization: { type: CustomizationType.McpServer, id: 'component-explorer', uri: workspaceMcpUri.toString(), name: 'component-explorer', state: { kind: McpServerStatus.Stopped } },
-						}],
+						mcpServers: [
+							mcpServer('component-explorer', { type: McpServerType.LOCAL, command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] }, 'sessionConfig'),
+							mcpServer('corp', { type: McpServerType.LOCAL, command: 'node', args: ['corp.js'] }, 'sessionConfig'),
+							mcpServer('docs', { type: McpServerType.LOCAL, command: 'github-mcp-server', args: ['stdio'] }, 'sessionConfig'),
+						],
+						disabledMcpServers: ['docs'],
 						agents: [],
 						skills: [],
 						instructions: [],
+					}, {
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [mcpServer('octo', { type: McpServerType.LOCAL, command: 'github-mcp-server', args: ['stdio'] }, 'pluginDiscovery')],
+						disabledMcpServers: ['octo'],
+						agents: [],
+						skills: [],
+						instructions: [],
+						pluginDir: URI.file('/plugins/octo'),
 					}],
 					mcpServers: {
 						corp: { type: McpServerType.REMOTE, url: 'https://api.githubcopilot.com/mcp/' },
+						docs: { type: McpServerType.LOCAL, command: 'node', args: ['docs.js'] },
+						hub: { type: McpServerType.REMOTE, url: 'https://api.githubcopilot.com/mcp/' },
 					},
 				},
 			});
 			(session as unknown as ISessionInternalsForTest)._agentMergeTurn = true;
 
-			const toolNames = ['component-explorer-sessions', 'corp-get_me', 'github-mcp-server-get_me'];
+			const toolNames = ['component-explorer-sessions', 'corp-get_me', 'docs-search', 'hub-get_me', 'octo-get_me', 'github-mcp-server-get_me'];
 			const decisions = await Promise.all(toolNames.map(async toolName => {
 				const result = await capturedRuntime.current!.handlePreToolUse({
 					sessionId: 'test-session-1',
@@ -14539,7 +14557,10 @@ Use the attached image as context.
 
 			assert.deepStrictEqual(Object.fromEntries(decisions), {
 				'component-explorer-sessions': 'allow',
-				'corp-get_me': 'deny',
+				'corp-get_me': 'allow',
+				'docs-search': 'allow',
+				'hub-get_me': 'deny',
+				'octo-get_me': 'deny',
 				'github-mcp-server-get_me': 'deny',
 			});
 		});

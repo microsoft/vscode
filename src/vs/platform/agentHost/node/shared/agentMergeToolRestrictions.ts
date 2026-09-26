@@ -13,9 +13,12 @@ const githubCliPathPattern = /[\\/](?:gh(?:\.exe)?|github-mcp-server)(?=$|[\s;&|
 const directGitHubApiPattern = /\b(?:api\.github\.com|github\.com\/api\/v3)\b/i;
 const gitHubHostPattern = /(?:^|\.)(?:github\.com|githubcopilot\.com|ghe\.com)$/i;
 const gitHubMcpServerPackagePattern = /(?:^|[\s\\/])(?:github-mcp-server|server-github)(?=$|[\s\\/:@.])/i;
+const localMcpServerTypes: ReadonlySet<string> = new Set(['stdio', 'local']);
+const remoteMcpServerTypes: ReadonlySet<string> = new Set(['http', 'sse']);
 
-/** How an MCP server is reached: a remote URL or a local command line. */
+/** How an MCP server is launched, in the configuration shape of any provider. */
 interface IMcpServerLaunch {
+	readonly type?: string;
 	readonly url?: string;
 	readonly command?: string;
 	readonly args?: readonly string[];
@@ -42,18 +45,26 @@ export function isGitHubMcpToolName(toolName: string): boolean {
 
 /**
  * Whether Agent Merge turns must not use an MCP server because it exposes GitHub. Other MCP servers stay available.
- * Matches a GitHub server name, a GitHub-hosted endpoint, or a command that runs a GitHub MCP server package.
+ * Matches a GitHub server name, or the endpoint or command that the server's transport uses; untyped shapes check both.
  */
 export function isAgentMergeRestrictedMcpServer(name: string, server?: IMcpServerLaunch): boolean {
 	if (name.toLowerCase().includes('github')) {
 		return true;
 	}
-	if (server?.url !== undefined) {
-		return URL.canParse(server.url) && gitHubHostPattern.test(new URL(server.url).hostname);
-	}
+	const type = server?.type;
+	const usesUrl = !isString(type) || !localMcpServerTypes.has(type);
+	const usesCommand = !isString(type) || !remoteMcpServerTypes.has(type);
+	return (usesUrl && isGitHubMcpServerUrl(server?.url)) || (usesCommand && runsGitHubMcpServerPackage(server?.command, server?.args));
+}
+
+function isGitHubMcpServerUrl(url: unknown): boolean {
+	return isString(url) && URL.canParse(url) && gitHubHostPattern.test(new URL(url).hostname);
+}
+
+function runsGitHubMcpServerPackage(command: unknown, args: unknown): boolean {
 	// Root MCP config entries are not schema-validated per server, so tolerate malformed arguments.
-	const args: readonly unknown[] = Array.isArray(server?.args) ? server.args : [];
-	return [server?.command, ...args].some(part => isString(part) && gitHubMcpServerPackagePattern.test(part));
+	const parts: readonly unknown[] = [command, ...(Array.isArray(args) ? args : [])];
+	return parts.some(part => isString(part) && gitHubMcpServerPackagePattern.test(part));
 }
 
 export function isCopilotMcpToolName(toolName: string, serverNames: ReadonlySet<string>): boolean {
