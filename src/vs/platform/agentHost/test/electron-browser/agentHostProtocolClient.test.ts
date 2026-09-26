@@ -2896,7 +2896,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}));
 
-		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authenticate', 'subscriptions'] as const) {
+		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
 			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const blocked = new DeferredPromise<void>();
 				let restoring = false;
@@ -2910,8 +2910,12 @@ suite('AgentHostProtocolClient', () => {
 							await blocked.p;
 						}
 					},
-					resolveInitialAuthentication: async () => restoring
-						? { resource: 'https://api.example.com', token: 'restored' } : undefined,
+					resolveInitialAuthentication: async () => {
+						if (restoring && stage === 'authentication resolution') {
+							await blocked.p;
+						}
+						return restoring ? { resource: 'https://api.example.com', token: 'restored' } : undefined;
+					},
 				});
 				await completeHandshake(transports[0], client.connect());
 				const subscription = stage === 'subscriptions' ? disposables.add(client.getSubscription(StateComponents.Session, URI.parse('copilot:/stalled-restore'), 'test')) : undefined;
@@ -3045,6 +3049,82 @@ suite('AgentHostProtocolClient', () => {
 				state: AgentHostClientState.Connected, failedAttempts: 0, transports: 3,
 			});
 		}));
+
+		for (const outcome of ['resolve', 'reject'] as const) {
+			test(`a timed-out authentication resolver cannot affect a restarted recovery: ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const blocked = new DeferredPromise<{ resource: string; token: string }>();
+				const resolving = new DeferredPromise<void>();
+				let resolutions = 0;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => {
+						if (++resolutions === 1) {
+							return undefined;
+						}
+						if (resolutions === 2) {
+							resolving.complete();
+							return blocked.p;
+						}
+						return { resource: 'https://api.example.com', token: 'fresh-credential' };
+					},
+				});
+				async function initializeReplacement(index: number): Promise<TestClientProtocolTransport> {
+					const replacement = await waitForTransport(transports, index);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'client not found' } });
+					const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] } });
+					return replacement;
+				}
+				try {
+					await completeHandshake(transports[0], client.connect());
+					const authenticationOutcomes: IConnectionDiagnosticEvent['outcome'][] = [];
+					disposables.add(client.onDidConnectionDiagnostic(event => {
+						if (event.phase === 'protocol.authentication' && event.outcome !== 'started') {
+							authenticationOutcomes.push(event.outcome);
+						}
+					}));
+					const closed = Event.toPromise(client.onDidFatalClose);
+					transports[0].fireClose();
+					client.reconnectNow();
+					await initializeReplacement(1);
+					await resolving.p;
+					await closed;
+					await timeout(0);
+					const outcomesAtClose = [...authenticationOutcomes];
+
+					client.reconnectFromClosed();
+					client.reconnectNow();
+					const replacement = await initializeReplacement(2);
+					const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+					await waitForConnectedWithin(client, 50);
+					if (outcome === 'resolve') {
+						await blocked.complete({ resource: 'https://api.example.com', token: 'stale-credential' });
+					} else {
+						await blocked.error(new Error('late credential failure'));
+					}
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						outcomesAtClose,
+						authenticationOutcomes,
+						tokens: [...client['_authentication'].values()].map(authentication => authentication.params.token),
+						state: client.connectionState,
+					}, {
+						outcomesAtClose: ['failed'],
+						authenticationOutcomes: ['failed', 'succeeded'],
+						tokens: ['fresh-credential'],
+						state: AgentHostClientState.Connected,
+					});
+				} finally {
+					client.dispose();
+				}
+			}));
+		}
 
 		test('retries initial authentication preparation on replay recovery without losing the initial root snapshot', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let preparations = 0;

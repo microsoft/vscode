@@ -67,7 +67,7 @@ interface IStagedCloudSandboxConnection {
 	readonly refreshState: CloudSandboxCredentialRefreshState;
 	refresher: CloudSandboxCredentialRefresher | undefined;
 	reconnectRequiresRefresh: boolean;
-	lastAuthenticatedCredentials: ICloudSandboxClientToken | undefined;
+	lastAuthenticationToken: string | undefined;
 }
 
 /** Builds cloud sandbox protocol clients from credentials staged by the caller. */
@@ -162,7 +162,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			refreshState: new CloudSandboxCredentialRefreshState(),
 			refresher: undefined,
 			reconnectRequiresRefresh: true,
-			lastAuthenticatedCredentials: undefined,
+			lastAuthenticationToken: undefined,
 		});
 		this._updateEntries();
 		return entry;
@@ -188,11 +188,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		if (!staged || !refresher) {
 			throw new Error(`No active cloud sandbox credential refresher for ${address}.`);
 		}
-		await refresher.refreshConnectionCredentials();
+		const sealedToken = await refresher.refreshAuthenticationCredentials();
 		if (this._stagedConnections.get(address) !== staged || staged.refresher !== refresher) {
 			throw new CancellationError();
 		}
-		return staged.creds.token.encrypted_github_token;
+		return sealedToken;
 	}
 
 	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -256,8 +256,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 						staged.reconnectRequiresRefresh = true;
 					}),
 					prepareAuthentication: async () => {
-						if (staged.lastAuthenticatedCredentials === staged.creds.token) {
-							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshConnectionCredentials());
+						if (staged.lastAuthenticationToken && staged.lastAuthenticationToken === staged.creds.token.encrypted_github_token) {
+							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshAuthenticationCredentials());
 						}
 					},
 					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged),
@@ -284,7 +284,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		if (!isCloudSandboxSealedToken(sealedToken)) {
 			throw new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
 		}
-		staged.lastAuthenticatedCredentials = staged.creds.token;
+		staged.lastAuthenticationToken = sealedToken;
 		return { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: sealedToken };
 	}
 
