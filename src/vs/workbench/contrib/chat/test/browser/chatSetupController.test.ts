@@ -19,6 +19,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, IChatEntitlementContextState } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -81,6 +82,7 @@ suite('ChatSetupController', () => {
 			new class extends mock<IQuickInputService>() { }(),
 			new class extends mock<IDefaultAccountService>() { }(),
 			new class extends mock<IProductService>() { }(),
+			new class extends mock<IWorkspaceTrustManagementService>() { }(),
 		));
 
 		const resultPromise = controller.setup({ forceSignIn: true, cancellationToken: cancellation.token });

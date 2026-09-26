@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { enterpriseUriSetting, getEnterpriseUriKey } from './enterpriseConfiguration';
+import { enterpriseUriSetting, enterpriseUrisSetting, getEnterpriseUriKey } from './enterpriseConfiguration';
 
 export interface EnterpriseHostConfiguration {
 	readonly key: string;
@@ -60,7 +60,7 @@ function selectPopulatedStorage(host: EnterpriseHostConfiguration, candidates: r
 	if (host.legacyStorageKey && occupied.includes(host.legacyStorageKey)) {
 		return host.legacyStorageKey;
 	}
-	throw new Error(vscode.l10n.t('Multiple saved authentication stores match {0}. Set {1} to the previously used URI.', host.uri.toString(true), enterpriseUriSetting));
+	throw new Error(vscode.l10n.t('Multiple saved authentication stores match {0}. Keep the original URI spelling in {1}, or set {2} to the previously used URI.', host.uri.toString(true), enterpriseUrisSetting, enterpriseUriSetting));
 }
 
 function resolveStorageKey(
