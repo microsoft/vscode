@@ -136,6 +136,7 @@ suite('MainThreadCustomEditors', () => {
 			}
 		};
 
+		const didStopExtensionHosts = store.add(new Emitter<void>());
 		const models = new CustomEditorModelManager();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICustomEditorService, new class extends mock<ICustomEditorService>() {
@@ -144,9 +145,9 @@ suite('MainThreadCustomEditors', () => {
 			override getCustomEditorCapabilities() { return undefined; }
 		});
 		instantiationService.stub(IWebviewWorkbenchService, webviewWorkbenchService);
-		instantiationService.stub(IExtensionService, { activateByEvent: async () => { }, onWillStop: Event.None });
+		instantiationService.stub(IExtensionService, { activateByEvent: async () => { }, onWillStop: Event.None, onDidStop: didStopExtensionHosts.event });
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(IWorkingCopyService, { workingCopies: [] });
+		instantiationService.stub(IWorkingCopyService, { workingCopies: [], registerWorkingCopy: () => Disposable.None });
 		instantiationService.stub(IWorkingCopyFileService, { registerWorkingCopyProvider: () => Disposable.None, onWillRunWorkingCopyFileOperation: Event.None });
 		instantiationService.stub(IEditorGroupsService, { getGroup: () => undefined, getGroups: () => [] });
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
@@ -158,7 +159,7 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
 		instantiationService.stub(ICustomEditorLabelService, { onDidChange: Event.None, getName: () => undefined });
 		instantiationService.stub(IFileDialogService, {});
-		instantiationService.stub(IUndoRedoService, {});
+		instantiationService.stub(IUndoRedoService, { pushElement: () => { }, removeElements: () => { } });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(IPathService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
@@ -198,8 +199,33 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, models, resolvers, createInput, createDiffInput };
+		return { calls, models, resolvers, createInput, createDiffInput, customEditors, stopExtensionHosts: () => didStopExtensionHosts.fire() };
 	}
+
+	test('disconnects a dirty custom editor after the extension host stops (#184142)', async () => {
+		const customEditors = createCustomEditors({ createCustomDocument: async () => ({ editable: true }) });
+		const { input, webview } = customEditors.createInput();
+		await input.resolve();
+		await customEditors.customEditors.$onDidEdit(resource, viewType, 1, undefined);
+
+		const wasDirty = input.isDirty();
+		const wasReadonly = input.isReadonly();
+		customEditors.stopExtensionHosts();
+		const afterStop = {
+			wasDirty,
+			wasReadonly,
+			dirty: input.isDirty(),
+			readonly: input.isReadonly(),
+			message: webview.html?.includes('extension host'),
+		};
+
+		input.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({ afterStop, unexpectedErrors }, {
+			afterStop: { wasDirty: true, wasReadonly: false, dirty: true, readonly: true, message: true },
+			unexpectedErrors: [],
+		});
+	});
 
 	test('creates the document before resolving the editor and disposes it with the editor', async () => {
 		const customEditors = createCustomEditors({ createCustomDocument: async () => ({ editable: false }) });
