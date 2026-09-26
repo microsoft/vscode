@@ -29,29 +29,32 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 	}
 }
 
+function createTestCSSRule(cssText: string): CSSRule {
+	const cssRule = { cssText };
+	return cssRule as unknown as CSSRule;
+}
+
 export class TestGlobalStyleSheet extends GlobalStyleSheet {
 
-	public rules: string[] = [];
+	public rules: CSSRule[] = [];
 
 	constructor() {
 		super(null!);
 	}
 
-	public override insertRule(selector: string, rule: string): void {
-		this.rules.unshift(`${selector} {${rule}}`);
+	public override insertRule(selector: string, rule: string): CSSRule {
+		const cssRule = createTestCSSRule(`${selector} {${rule}}`);
+		this.rules.unshift(cssRule);
+		return cssRule;
 	}
 
-	public override removeRulesContainingSelector(ruleName: string): void {
-		for (let i = 0; i < this.rules.length; i++) {
-			if (this.rules[i].indexOf(ruleName) >= 0) {
-				this.rules.splice(i, 1);
-				i--;
-			}
-		}
+	protected override _removeRules(rules: readonly CSSRule[]): void {
+		const toRemove = new Set(rules);
+		this.rules = this.rules.filter(rule => !toRemove.has(rule));
 	}
 
 	public read(): string {
-		return this.rules.join('\n');
+		return this.rules.map(rule => rule.cssText).join('\n');
 	}
 }
 

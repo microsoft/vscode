@@ -550,13 +550,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _removeDecorationTypes(): void {
 		this._decorationTypeKeysToIds = {};
 		if (this._decorationTypeSubtypes) {
+			const subTypeKeys: string[] = [];
 			for (const decorationType in this._decorationTypeSubtypes) {
 				const subTypes = this._decorationTypeSubtypes[decorationType];
 				for (const subType in subTypes) {
-					this._removeDecorationType(decorationType + '-' + subType);
+					subTypeKeys.push(decorationType + '-' + subType);
 				}
 			}
 			this._decorationTypeSubtypes = {};
+			this._removeDecorationTypesByKeys(subTypeKeys);
 		}
 	}
 
@@ -1418,11 +1420,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
+		const unusedSubTypeKeys: string[] = [];
 		for (const subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
-				this._removeDecorationType(decorationTypeKey + '-' + subType);
+				unusedSubTypeKeys.push(decorationTypeKey + '-' + subType);
 			}
 		}
+		this._removeDecorationTypesByKeys(unusedSubTypeKeys);
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
@@ -1434,10 +1438,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
+		const oldSubTypeKeys: string[] = [];
 		for (const subType in oldDecorationsSubTypes) {
-			this._removeDecorationType(decorationTypeKey + '-' + subType);
+			oldSubTypeKeys.push(decorationTypeKey + '-' + subType);
 		}
 		this._decorationTypeSubtypes[decorationTypeKey] = {};
+		this._removeDecorationTypesByKeys(oldSubTypeKeys);
 
 		const opts = ModelDecorationOptions.createDynamic(this._resolveDecorationOptions(decorationTypeKey, false));
 		const newModelDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(ranges.length);
@@ -1461,11 +1467,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
 			const items = this._decorationTypeSubtypes[decorationTypeKey];
-			for (const subType of Object.keys(items)) {
-				this._removeDecorationType(decorationTypeKey + '-' + subType);
-			}
+			const subTypeKeys = Object.keys(items).map(subType => decorationTypeKey + '-' + subType);
 			delete this._decorationTypeSubtypes[decorationTypeKey];
-
+			this._removeDecorationTypesByKeys(subTypeKeys);
 		}
 	}
 
@@ -2035,8 +2039,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
 
-	private _removeDecorationType(key: string): void {
-		this._codeEditorService.removeDecorationType(key);
+	private _removeDecorationTypesByKeys(keys: readonly string[]): void {
+		if (this._codeEditorService.removeDecorationTypes) {
+			this._codeEditorService.removeDecorationTypes(keys);
+		} else {
+			for (const key of keys) {
+				this._codeEditorService.removeDecorationType(key);
+			}
+		}
 	}
 
 	private _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions {
