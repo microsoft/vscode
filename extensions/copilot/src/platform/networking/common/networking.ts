@@ -330,6 +330,8 @@ export const PENDING_DEPRECATION_CODE = 'model_pending_deprecation';
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
+	/** The declared context window, independent of the prompt and output token limits. */
+	readonly maxContextWindowTokens?: number;
 	/** The model ID- this may change and will be `copilot-utility` for the utility (fallback) model. Use `family` to switch behavior based on model type. */
 	readonly model: string;
 	readonly modelProvider: string;
@@ -381,6 +383,13 @@ export interface IChatEndpoint extends IEndpoint {
 	 * APIM policies, etc.) that validate the header.
 	 */
 	readonly ownsAuthorization?: boolean;
+	/**
+	 * When true, explicit Responses API prompt caching (`prompt_cache_breakpoint` markers) is only
+	 * used if the user explicitly enables `chat.responsesApi.promptCacheBreakpoint.enabled`; the
+	 * setting's default and experiment treatments are ignored. Set by client-side BYOK endpoints,
+	 * whose gateways may forward the explicit cache mode but drop the markers, disabling caching.
+	 */
+	readonly promptCacheBreakpointsRequireOptIn?: boolean;
 	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service

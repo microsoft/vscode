@@ -238,6 +238,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					category: m.category,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
+					maxContextWindowTokens: m.maxContextWindowTokens,
 					auth,
 					isDefaultForLocation,
 					isUserSelectable: m.isUserSelectable,

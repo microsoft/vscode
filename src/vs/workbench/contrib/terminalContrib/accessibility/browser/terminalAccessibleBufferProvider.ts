@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -21,7 +21,10 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 
 	private _focusedInstance: ITerminalInstance | undefined;
 
-	private readonly _onDidRequestClearProvider = this._register(new Emitter<AccessibleViewProviderId>());
+	// The accessible view disposes providers when it hides but may keep remembering this one, so the
+	// clear request lives as long as the terminal instance instead of as long as the provider
+	private readonly _clearRequestStore = new DisposableStore();
+	private readonly _onDidRequestClearProvider = this._clearRequestStore.add(new Emitter<AccessibleViewProviderId>());
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
@@ -37,14 +40,17 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 		super();
 		this.options.customHelp = customHelp;
 		this._updatePosition(configurationService);
-		this._register(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this._clearRequestStore.add(Event.once(this._instance.onDisposed)(() => {
+			this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
+			this._clearRequestStore.dispose();
+		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition)) {
 				this._updatePosition(configurationService);
 			}
 		}));
 		this._focusedInstance = terminalService.activeInstance;
-		this._register(terminalService.onDidChangeActiveInstance(() => {
+		this._clearRequestStore.add(terminalService.onDidChangeActiveInstance(() => {
 			if (terminalService.activeInstance && this._focusedInstance?.instanceId !== terminalService.activeInstance?.instanceId) {
 				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
 				this._focusedInstance = terminalService.activeInstance;

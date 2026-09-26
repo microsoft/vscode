@@ -345,6 +345,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			if (generation !== this._generation && successor && successor.sessionKey === pending.sessionKey) {
 				this._pending = { ...successor, trigger: mergeTriggers(successor.trigger, pending.trigger) };
 			}
+			if (generation === this._generation && !this._ctx.isRestoringSessionLayout) {
+				this._ctx.completeChangesEditorTransition();
+			}
 		}
 	}
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
-import { getSessionSandboxOverrides } from '../sessionSandbox.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -217,7 +217,9 @@ export interface ICopilotSessionLauncher {
 	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'>;
+type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
+	readonly rpc?: Pick<CopilotClient['rpc'], 'account'>;
+};
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
@@ -466,7 +468,7 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeT
 	return isAutoModeTier(tier) ? tier : undefined;
 }
 
-/** Resolves the shared Auto override independently of the picker gate, leaving concrete models unchanged. */
+/** Resolves the shared Auto override, leaving concrete models unchanged. */
 function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
 	if (model && !isAutoModel(model.id)) {
 		return undefined;
@@ -484,7 +486,7 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 	return tier;
 }
 
-/** Resolves the shared override first, then the picker preference while "Optimize for" is enabled. */
+/** Resolves the shared override first, then the picker preference. */
 export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
@@ -492,10 +494,6 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
-		return undefined;
-	}
-	if (configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) !== true) {
-		logService.trace(`[Copilot:${sessionId}] Auto "Optimize for" is disabled; ignoring '${tier}'`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
@@ -585,6 +583,8 @@ export async function resolveByokSessionConfig(
 		provider: m.vendor,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
+		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
 	}));
 	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
 	return { providers, models };
@@ -629,6 +629,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		const sandboxConfig = () => {
@@ -645,11 +646,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		let fallbackConfig = config;
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
-			const stopWatch = new StopWatch();
-			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._resumeSession(session, plan, config);
-			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
-			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -661,7 +659,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -689,11 +687,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
-		return this._sessionOpenTelemetry.withSdkResume(
-			session,
-			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
-		);
+	private async _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+		const attemptId = generateUuid();
+		const stopWatch = new StopWatch();
+		let outcome = 'error';
+		this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession started: attemptId=${attemptId}`);
+		try {
+			const raw = await this._sessionOpenTelemetry.withSdkResume(
+				session,
+				() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+			);
+			outcome = 'success';
+			return raw;
+		} finally {
+			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession settled: attemptId=${attemptId}, outcome=${outcome}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
+		}
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -712,25 +720,62 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
+		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, plan: CopilotSessionLaunchPlan, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		try {
-			await this._applyScriptSafety(raw, sessionId);
-			await applySandboxConfig(raw, sandboxConfig(), sessionId, this._logService);
+			await this._applyScriptSafety(raw, plan.sessionId);
+			await applySandboxConfig(raw, sandboxConfig(), plan.sessionId, this._logService);
+			await this._reconcileCopilotConnectors(raw, plan);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
 			await raw.disconnect().catch(() => { /* best-effort teardown */ });
 			throw err;
 		}
-		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
-		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
+		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
-			await this._applyGpt56Customizations(raw, sessionId);
+			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw);
+		return new CopilotSessionWrapper(raw, this._logService);
+	}
+
+	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<void> {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
+			return;
+		}
+		try {
+			const capabilities = await session.rpc.connectors.getCapabilities();
+			if (capabilities.availability !== 'enabled') {
+				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
+				return;
+			}
+			const token = plan.githubCredentials.token;
+			const auth = await session.rpc.gitHubAuth.getStatus();
+			const accounts = plan.client.rpc ? await plan.client.rpc.account.getAllUsers() : [];
+			let account = token ? accounts.find(candidate => candidate.token === token && candidate.selectionId) : undefined;
+			if (!account) {
+				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+				const matchingAccounts = accounts.filter(candidate => {
+					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli'
+						? candidate.authInfo.login
+						: candidate.authInfo.copilotUser?.login;
+					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+					return candidate.selectionId && accountHost === sessionHost && (!auth.login || login === auth.login);
+				});
+				const matchingProviders = matchingAccounts.filter(candidate => candidate.authInfo.type === 'token-provider');
+				account = matchingProviders.length === 1 ? matchingProviders[0] : matchingAccounts.length === 1 ? matchingAccounts[0] : undefined;
+			}
+			if (!account?.selectionId) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
+				return;
+			}
+			const status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
+			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; continuing without connector tools: ${getErrorMessage(error)}`);
+		}
 	}
 
 	/**
@@ -773,15 +818,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Applies the post-launch session options used by GPT-5.6 models. */
-	private async _applyGpt56Customizations(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		await this._applyVerbosity(session, 'medium', sessionId);
-		const reasoningSummaryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningSummary) === true;
-		if (reasoningSummaryEnabled) {
-			await this._applyReasoningSummary(session, 'concise', sessionId);
-		}
-	}
-
 	/** Sets output verbosity after session creation. */
 	private async _applyVerbosity(session: CopilotSessionWrapper['session'], verbosity: Verbosity, sessionId: string): Promise<void> {
 		try {
@@ -792,22 +828,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Sets reasoning summary detail after session creation. */
-	private async _applyReasoningSummary(session: CopilotSessionWrapper['session'], reasoningSummary: ReasoningSummary, sessionId: string): Promise<void> {
-		try {
-			await session.rpc.options.update({ reasoningSummary });
-			this._logService.info(`[Copilot:${sessionId}] Applied '${reasoningSummary}' reasoning summary`);
-		} catch (err) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${reasoningSummary}' reasoning summary`, err);
-		}
-	}
-
 	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
 	private _computeSandboxConfig(session: string): SandboxConfig {
-		return buildSandboxConfigForSdk(process.platform, {
-			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-			...getSessionSandboxOverrides(this._configurationService, session),
-		}) ?? { enabled: false };
+		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, session)) ?? { enabled: false };
 	}
 
 	/**
@@ -861,6 +884,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
+		const featureFlags = {
+			CONNECTORS: copilotConnectorsEnabled,
+			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
+			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
+		};
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -873,6 +903,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Hooks are also projected explicitly below because plugin directory discovery
+		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
@@ -983,6 +1015,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			featureFlags,
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -994,12 +1027,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			enableSkills: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
+			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),

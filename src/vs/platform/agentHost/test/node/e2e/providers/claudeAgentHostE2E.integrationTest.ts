@@ -63,8 +63,8 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
 	streamingFileCreateToolName: 'Write',
-	modelSwitchTarget: 'claude-sonnet-4.6',
-	modelSwitchReturnTarget: 'claude-opus-5',
+	modelSwitchTarget: 'claude-opus-5',
+	modelSwitchReturnTarget: 'claude-opus-5.5',
 	interactiveInputPrompt: 'Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.',
 	cancelledInputPrompt: 'Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
@@ -83,9 +83,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSubagents: true,
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
-	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
-	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
-	subagentReplayUnstableOnWindows: true,
+	fileDeleteReplayUnstableOnWindows: true,
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.

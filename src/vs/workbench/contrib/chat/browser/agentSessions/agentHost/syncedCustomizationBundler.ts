@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { hash, hashAsync } from '../../../../../../base/common/hash.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -186,7 +186,7 @@ interface IBundleResult {
  * skills/         ← skill directories
  * ```
  *
- * The bundler computes a metadata-based nonce so the agent host can
+ * The bundler computes a content-based nonce so the agent host can
  * skip re-loading when nothing has changed.
  */
 export class SyncedCustomizationBundler extends Disposable {
@@ -235,7 +235,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	 * filesystem.
 	 *
 	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
-	 * pointing at the virtual plugin directory with a metadata-based nonce.
+	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
@@ -258,13 +258,13 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
-		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri: source.resource, destUri, hashPart: `${hashKey}:${source.mtime}:${source.size}` });
+		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
+			entries.push({ sourceUri, destUri, hashKey });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: source.resource,
+					uri: sourceUri,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -282,8 +282,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
 				const skillRoot = dirname(file.uri);
 				const skillDirName = basename(skillRoot);
-				const entrypoint = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, entrypoint, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
 				for (const source of await collectDirectoryFiles(this._fileService, this._logService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
 					if (extUri.isEqual(source.resource, file.uri)) {
 						continue;
@@ -294,14 +293,13 @@ export class SyncedCustomizationBundler extends Disposable {
 					}
 					addEntry(
 						file,
-						source,
+						source.resource,
 						URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
 				}
 			} else {
-				const source = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, source, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
 		this._throwIfDisposed();
@@ -326,39 +324,32 @@ export class SyncedCustomizationBundler extends Disposable {
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
-		const hashParts = entries.map(e => e.hashPart);
-		if (mcpContent !== undefined) {
-			hashParts.push(`.mcp.json:${mcpContent}`);
-		}
-		if (mcpDefaultCwds !== undefined) {
-			hashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
-		}
-
-		// Stable nonce: sort so file ordering doesn't matter.
-		hashParts.sort();
-		const nonce = String(hash(hashParts.join('\n')));
-		this._throwIfDisposed();
-
-		// Nothing changed since the last successful bundle — reuse it and skip
-		// reading file contents and rewriting the in-memory plugin tree.
-		if (nonce === this._lastNonce && this._lastRef) {
-			this._originByDest = originByDest;
-			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
-				return {
-					ref: {
-						...this._lastRef.ref,
-						childEnablement,
-					},
-				};
-			}
-			return this._lastRef;
-		}
-
+		// Same-size edits can preserve mtime, so metadata cannot replace a content check.
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
+			hashKey: entry.hashKey,
 			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
 		this._throwIfDisposed();
+
+		const contentHashParts = await Promise.all(fileContents.map(async entry => `${entry.hashKey}:${await hashAsync(entry.content)}`));
+		if (mcpContent !== undefined) {
+			contentHashParts.push(`.mcp.json:${mcpContent}`);
+		}
+		if (mcpDefaultCwds !== undefined) {
+			contentHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
+		}
+		contentHashParts.sort();
+		const nonce = String(hash(contentHashParts.join('\n')));
+		this._throwIfDisposed();
+
+		if (nonce === this._lastNonce && this._lastRef) {
+			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
+		}
+
+		this._lastNonce = undefined;
+		this._lastRef = undefined;
+		this._originByDest.clear();
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
@@ -408,6 +399,20 @@ export class SyncedCustomizationBundler extends Disposable {
 		};
 		this._lastRef = result;
 		return result;
+	}
+
+	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {
+		this._originByDest = originByDest;
+		if (hasMcpServers && !equals(childEnablement, lastRef.ref.childEnablement)) {
+			this._lastRef = {
+				ref: {
+					...lastRef.ref,
+					childEnablement,
+				},
+			};
+			return this._lastRef;
+		}
+		return lastRef;
 	}
 
 	/**

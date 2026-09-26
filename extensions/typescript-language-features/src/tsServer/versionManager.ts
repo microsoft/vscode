@@ -149,7 +149,7 @@ export class TypeScriptVersionManager extends Disposable {
 		const isUsingTsgo = readUnifiedConfig<boolean>('experimental.useTsgo', false, { fallbackSection: 'typescript' });
 
 		return {
-			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript Native Preview (Experimental)"),
+			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript 7"),
 			description: nativePreviewExtension.packageJSON.version,
 			run: async () => {
 				await vscode.commands.executeCommand('typescript.native-preview.enable');

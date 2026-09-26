@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
@@ -55,12 +56,14 @@ suite('Sessions - Session management actions', () => {
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
 		const renameChatRule = getKeybindingRule(RENAME_CHAT_COMMAND_ID, KeyCode.F2);
+		const renameHeaderRule = getKeybindingRule('sessions.sessionHeader.rename', KeyCode.F2);
 		const archiveSessionRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyCode.Delete);
 		const archiveSessionMacRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyMod.CtrlCmd | KeyCode.Backspace, OperatingSystem.Macintosh);
 		const deleteSessionRule = getKeybindingRule('sessionsViewPane.deleteSession', KeyCode.Delete);
 		const deleteChatRule = getKeybindingRule(DELETE_CHAT_COMMAND_ID, KeyCode.Delete);
 		assert.ok(renameRule?.when);
 		assert.ok(renameChatRule?.when);
+		assert.ok(renameHeaderRule?.when);
 		assert.ok(archiveSessionRule?.when);
 		assert.ok(archiveSessionMacRule?.when);
 		assert.ok(deleteChatRule?.when);
@@ -81,13 +84,20 @@ suite('Sessions - Session management actions', () => {
 			[SessionFocusedChatIsRenameTargetContext.key]: false,
 		};
 		const peerChatTranscript = { ...chatTranscript, [SessionFocusedChatIsRenameTargetContext.key]: true };
+		const peerChatTab = {
+			...sessionsWindow,
+			[SessionsFocusContext.key]: true,
+			[SessionFocusedChatIsRenameTargetContext.key]: true,
+		};
 		const nestedChat = { ...sessionsList, [SessionsListFocusedChatItemContext.key]: true };
 
 		assert.deepStrictEqual({
 			renameWeight: renameRule.weight1,
 			renameChatWeight: renameChatRule.weight1,
+			renameHeaderWeight: renameHeaderRule.weight1,
 			renameSessionRow: evaluate(renameRule, sessionsList),
 			renameChatOnSessionRow: evaluate(renameChatRule, sessionsList),
+			renameHeaderOnSessionRow: evaluate(renameHeaderRule, sessionsList),
 			renameNestedChatAsSession: evaluate(renameRule, nestedChat),
 			renameNestedChat: evaluate(renameChatRule, nestedChat),
 			renameInListFindInput: evaluate(renameRule, { ...sessionsList, [InputFocusedContext.key]: true }),
@@ -96,6 +106,9 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: evaluate(renameChatRule, chatTranscript),
 			renamePeerTranscriptAsSession: evaluate(renameRule, peerChatTranscript),
 			renamePeerTranscriptAsChat: evaluate(renameChatRule, peerChatTranscript),
+			renamePeerTabAsChat: evaluate(renameChatRule, peerChatTab),
+			renameHeaderInMainTranscript: evaluate(renameHeaderRule, chatTranscript),
+			renameHeaderInPeerTranscript: evaluate(renameHeaderRule, peerChatTranscript),
 			renamePeerChatInput: evaluate(renameChatRule, { ...peerChatTranscript, [ChatContextKeys.inChatInput.key]: true, [InputFocusedContext.key]: true }),
 			renameUnsupportedPeerAsChat: evaluate(renameChatRule, { ...peerChatTranscript, [SessionSupportsRenameContext.key]: false }),
 			renameOutsideAgentsWindow: evaluate(renameRule, { [ChatContextKeys.inChatSession.key]: true, [SessionSupportsRenameContext.key]: true }),
@@ -112,8 +125,10 @@ suite('Sessions - Session management actions', () => {
 		}, {
 			renameWeight: KeybindingWeight.SessionsContrib,
 			renameChatWeight: KeybindingWeight.SessionsContrib + 10,
+			renameHeaderWeight: KeybindingWeight.SessionsContrib + 1,
 			renameSessionRow: true,
 			renameChatOnSessionRow: false,
+			renameHeaderOnSessionRow: false,
 			renameNestedChatAsSession: true,
 			renameNestedChat: true,
 			renameInListFindInput: false,
@@ -122,6 +137,9 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: false,
 			renamePeerTranscriptAsSession: true,
 			renamePeerTranscriptAsChat: true,
+			renamePeerTabAsChat: true,
+			renameHeaderInMainTranscript: true,
+			renameHeaderInPeerTranscript: false,
 			renamePeerChatInput: true,
 			renameUnsupportedPeerAsChat: true,
 			renameOutsideAgentsWindow: false,
@@ -138,12 +156,32 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat) {
+	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat, renameFocusedTab = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
+		const dialogService = new class extends mock<IDialogService>() {
+			readonly confirmations: IConfirmation[] = [];
+
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				this.confirmations.push(confirmation);
+				return { confirmed: false };
+			}
+		}();
+		const inlineRenamedSessions: ISession[] = [];
+		const inlineRenamedChats: ISessionChatItem[] = [];
+		const inlineRenamedTabs: URI[] = [];
+		let inlineRenamedFocusedTabs = 0;
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
+			beginRenameSession: session => {
+				inlineRenamedSessions.push(session);
+				return true;
+			},
+			beginRenameChat: item => {
+				inlineRenamedChats.push(item);
+				return true;
+			},
 		});
 		const sessionsView = upcastPartial<SessionsView>({ sessionsControl });
 		const getViewWithId = <T extends IView>(id: string): T | null => id === SessionsViewId ? sessionsView as unknown as T : null;
@@ -152,21 +190,55 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
 		}));
+		const sessionView = activeSession ? upcastPartial<SessionView>({
+			getSession: () => activeSession,
+			getFocusedChat: () => focusedGroupChat,
+			startChatTitleEditing: chatResource => {
+				inlineRenamedTabs.push(chatResource);
+				return true;
+			},
+			startFocusedChatTitleEditing: () => {
+				if (!renameFocusedTab) {
+					return false;
+				}
+				inlineRenamedFocusedTabs++;
+				return true;
+			},
+		}) : undefined;
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(sessionId: string | undefined): SessionView | undefined {
+				return sessionView?.getSession()?.sessionId === sessionId ? sessionView : undefined;
+			}
 			override getFocusedSessionView(): SessionView | undefined {
-				return focusedGroupChat && activeSession
-					? upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedGroupChat })
-					: undefined;
+				return focusedGroupChat ? sessionView : undefined;
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService };
+		return { instantiationService, managementService, dialogService, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
+
+	test('archives active sessions without confirmation', async () => {
+		const active = createTestSession('Running', { status: SessionStatus.InProgress }).session;
+		const waiting = createTestSession('Waiting', { status: SessionStatus.NeedsInput }).session;
+		const completed = createTestSession('Completed').session;
+		const harness = createActionHarness([active, waiting, completed], undefined);
+
+		await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+		assert.deepStrictEqual({
+			confirmations: harness.dialogService.confirmations,
+			archived: harness.managementService.archived.map(session => session.sessionId),
+		}, {
+			confirmations: [],
+			archived: [active.sessionId, waiting.sessionId, completed.sessionId],
+		});
+	});
 
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;
@@ -176,10 +248,11 @@ suite('Sessions - Session management actions', () => {
 		const mainChat = base.mainChat.get();
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:///grill-and-plan'),
+			workspace: constObservable(undefined),
 			title: constObservable('Grill and Plan'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		});
 		const activeSession = upcastPartial<IActiveSession>({
 			...base,
@@ -188,6 +261,8 @@ suite('Sessions - Session management actions', () => {
 			activeChat: constObservable(peerChat),
 		});
 		const chatHarness = createActionHarness(undefined, activeSession, undefined, peerChat);
+		const chatTabHarness = createActionHarness(undefined, activeSession, undefined, peerChat, true);
+		const chatTabMenuHarness = createActionHarness(undefined, activeSession);
 		const nestedChatHarness = createActionHarness([], listActiveSession, { session: activeSession, chat: peerChat });
 		const archiveSession = createTestSession('Archive target').session;
 		const archivedSession = createTestSession('Already archived', { isArchived: true }).session;
@@ -201,22 +276,36 @@ suite('Sessions - Session management actions', () => {
 		await renameSessionHandler(listHarness.instantiationService);
 		await renameSessionHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatHarness.instantiationService);
+		await renameChatHandler(chatTabHarness.instantiationService);
+		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true });
 		await renameChatHandler(nestedChatHarness.instantiationService);
 		await archiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 
 		assert.deepStrictEqual({
-			listRename: listHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
+			listInlineRename: listHarness.inlineRenamedSessions.map(session => session.sessionId),
+			listPromptRename: listHarness.managementService.renamed,
 			sessionRenameFromChat: chatHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
 			activeChatRename: chatHarness.managementService.renamedChats.map(({ session, chatResource, title }) => ({ sessionId: session.sessionId, chatResource: chatResource.toString(), title })),
-			nestedChatRename: nestedChatHarness.managementService.renamedChats.map(({ session, chatResource, title }) => ({ sessionId: session.sessionId, chatResource: chatResource.toString(), title })),
+			activeChatTabInlineRename: chatTabHarness.inlineRenamedFocusedTabs(),
+			activeChatTabPromptRename: chatTabHarness.managementService.renamedChats,
+			chatTabMenuInlineRename: chatTabMenuHarness.inlineRenamedTabs.map(resource => resource.toString()),
+			chatTabMenuPromptRename: chatTabMenuHarness.managementService.renamedChats,
+			nestedChatInlineRename: nestedChatHarness.inlineRenamedChats.map(item => item.chat.resource.toString()),
+			nestedChatPromptRename: nestedChatHarness.managementService.renamedChats,
 			archived: archiveHarness.managementService.archived.map(session => session.sessionId),
 			inactiveArchived: inactiveArchiveHarness.managementService.archived,
 		}, {
-			listRename: [{ sessionId: listSession.sessionId, title: 'Renamed' }],
+			listInlineRename: [listSession.sessionId],
+			listPromptRename: [],
 			sessionRenameFromChat: [{ sessionId: activeSession.sessionId, title: 'Renamed' }],
 			activeChatRename: [{ sessionId: activeSession.sessionId, chatResource: peerChat.resource.toString(), title: 'Renamed' }],
-			nestedChatRename: [{ sessionId: activeSession.sessionId, chatResource: peerChat.resource.toString(), title: 'Renamed' }],
+			activeChatTabInlineRename: 1,
+			activeChatTabPromptRename: [],
+			chatTabMenuInlineRename: [peerChat.resource.toString()],
+			chatTabMenuPromptRename: [],
+			nestedChatInlineRename: [peerChat.resource.toString()],
+			nestedChatPromptRename: [],
 			archived: [archiveSession.sessionId],
 			inactiveArchived: [],
 		});

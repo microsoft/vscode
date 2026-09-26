@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -15,11 +16,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
@@ -28,6 +30,8 @@ import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browse
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -64,6 +68,7 @@ interface ICreateSessionNowHarness {
 
 interface INewChatWidgetHarness extends IRecreateHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	_pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
 	_createdSessionId: string | undefined;
 	readonly sessionsManagementService: { readonly onDidChangeSessionTypes: Event<void> };
 	readonly _newChatInput: {
@@ -82,6 +87,7 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 	this: INewChatWidgetHarness,
 	folderUri: URI,
 	userPick?: IPreferredSessionType,
+	handoff?: { readonly token: CancellationToken; readonly providerId?: string; readonly preferDevContainer?: boolean },
 ) => Promise<IOpenNewSessionResult>;
 const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow') as (
 	this: ICreateSessionNowHarness,
@@ -90,6 +96,14 @@ const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow
 	token: CancellationToken,
 ) => Promise<IOpenNewSessionResult>;
 const canApplyWorkspaceDefault = Reflect.get(NewChatWidget.prototype, '_canApplyWorkspaceDefault') as (this: NewChatWidget) => boolean;
+const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
+	this: {
+		readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
+		readonly sessionsManagementService: { getSessionTypesForFolder(folderUri: URI): readonly { readonly providerId: string; readonly sessionType: { readonly id: string } }[] };
+	},
+	folderUri: URI,
+	pick: IPreferredSessionType,
+) => boolean;
 const prepareSessionTypeSelection = Reflect.get(NewChatWidget.prototype, '_prepareSessionTypeSelection') as (
 	this: {
 		readonly _workspacePicker: {
@@ -138,6 +152,38 @@ const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, 
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
+const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
+const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
+const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+
+interface IWelcomeAnnouncementHarness {
+	_welcomePhraseAnnounced: boolean;
+	readonly accessibilityService: {
+		isScreenReaderOptimized(): boolean;
+		status(message: string): void;
+	};
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
+}
+const refreshGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_refreshGitHubProfileName') as (this: {
+	_githubProfileAccountKey: string | undefined;
+	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
+	readonly configurationService: { getValue<T>(key: string): T };
+	readonly defaultAccountService: {
+		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
+		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
+	};
+	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
+}) => Promise<void>;
+const fetchGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_fetchGitHubProfileName') as (this: {
+	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
+	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
+	readonly requestService: { request(): Promise<never> };
+	readonly logService: { warn(message: string): void };
+}, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -157,6 +203,8 @@ interface ISessionCountHarness {
 }
 
 interface ISendHarness {
+	readonly notificationService: { error(message: string): void };
+	readonly _pendingBackgroundSends: { deleteAndDispose(key: object): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
@@ -182,7 +230,11 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
-	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
+	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
+	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
+		readonly pickerVisibility: SessionInputPickerVisibility;
+		placeRepositoryControls(container?: HTMLElement): void;
+	};
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
 	};
@@ -194,15 +246,17 @@ interface ISelectNoWorkspaceHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	readonly _workspacePicker: { selectNoWorkspace(): void };
-	readonly sessionsService: { openQuickChat(): { readonly sessionId: string } };
-	_openQuickChat(options?: undefined): { readonly sessionId: string } | undefined;
+	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions): { readonly sessionId: string } };
+	_openQuickChat(options?: ICreateNewSessionOptions): { readonly sessionId: string } | undefined;
 }
 
 interface INoWorkspaceOptionHarness {
 	readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
-	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
-	selectNoWorkspace(): void;
+	readonly _session: IObservable<{ readonly providerId: string } | undefined>;
+	readonly sessionsProvidersService: { getProviders(): ISessionsProvider[] };
+	readonly sessionsManagementService: { isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean };
+	selectNoWorkspace(options?: ICreateNewSessionOptions): void;
 }
 
 interface IWorkspaceRootsHarness {
@@ -211,19 +265,26 @@ interface IWorkspaceRootsHarness {
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
-	readonly _session: IObservable<IActiveSession | undefined>;
-	readonly _workspacePicker: { isNoWorkspaceSelected(): boolean };
+	readonly _noWorkspaceRestore: MutableDisposable<IDisposable>;
+	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	_createdSessionId: string | undefined;
+	readonly _workspacePicker: Pick<WorkspacePicker, 'isNoWorkspaceSelected' | 'selectedFolderUri' | 'whenWorkspaceRestored'>;
+	readonly sessionsService: {
+		readonly activeSession: IObservable<IActiveSession | undefined>;
+		readonly initialRestoreComplete: IObservable<boolean>;
+		openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
+	};
 	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
 	selectNoWorkspace(): void;
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
-const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness) => void;
+const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
-const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => boolean;
+const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -260,10 +321,13 @@ suite('NewChatWidget', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
+		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
+		const workspaceVisibility: boolean[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
-			_workspacePickerVisibleKey: { set: () => { } },
+			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
+					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
 					target.appendChild(row);
 					for (const trigger of triggers) {
@@ -276,6 +340,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_newChatInput: {
+				pickerVisibility,
+				placeRepositoryControls: () => { },
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
@@ -293,20 +359,24 @@ suite('NewChatWidget', () => {
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
+		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 
-		assert.deepStrictEqual(
-			Array.from(harness._workspacePickerRow?.children ?? [], element => ({
+		assert.deepStrictEqual({
+			items: Array.from(harness._workspacePickerRow?.children ?? [], element => ({
 				label: element.textContent,
 				className: element.className,
 			})),
-			[
-				{ label: 'Workspace', className: '' },
+			workspaceTriggers,
+			workspaceVisibility,
+		}, {
+			items: [
+				{ label: isWeb ? 'Select Repository' : 'Workspace', className: '' },
+				{ label: '', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
-		);
-		assert.deepStrictEqual(workspaceTriggers, [
-			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
-		]);
+			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
+			workspaceVisibility: [false, true],
+		});
 	});
 
 	test('restores workspace, harness, context DOM and tab order after quick chat', () => {
@@ -358,6 +428,7 @@ suite('NewChatWidget', () => {
 		let pendingUpgradeDisposed = false;
 		let sessionCreationDisposed = false;
 		let quickChatOpenCount = 0;
+		let quickChatOptions: ICreateNewSessionOptions | undefined;
 		let noWorkspaceSelectCount = 0;
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
 		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
@@ -369,50 +440,197 @@ suite('NewChatWidget', () => {
 			_newSessionCreation: newSessionCreation,
 			_workspacePicker: { selectNoWorkspace: () => noWorkspaceSelectCount++ },
 			sessionsService: {
-				openQuickChat: () => {
+				openQuickChat: options => {
 					quickChatOpenCount++;
+					quickChatOptions = options;
 					return { sessionId: 'quick-chat' };
 				},
 			},
 			_openQuickChat: options => openQuickChat.call(harness, options),
 		};
-		selectNoWorkspace.call(harness);
+		selectNoWorkspace.call(harness, { providerId: 'agenthost-remote-test' });
 
 		assert.deepStrictEqual({
 			pendingUpgradeDisposed,
 			sessionCreationDisposed,
 			noWorkspaceSelectCount,
 			quickChatOpenCount,
+			quickChatOptions,
 		}, {
 			pendingUpgradeDisposed: true,
 			sessionCreationDisposed: true,
 			noWorkspaceSelectCount: 1,
 			quickChatOpenCount: 1,
+			quickChatOptions: { providerId: 'agenthost-remote-test' },
 		});
 	});
 
-	test('restores a pending No workspace selection when quick chats become available', () => {
-		let quickChatAvailable = false;
-		let selectNoWorkspaceCalls = 0;
-		const harness: IRestoreNoWorkspaceDraftHarness = {
-			_session: constObservable(undefined),
-			_workspacePicker: { isNoWorkspaceSelected: () => true },
-			sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
-			selectNoWorkspace: () => selectNoWorkspaceCalls++,
-		};
+	suite('workspace-less fallback', () => {
+		function createRestoreHarness() {
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const initialRestoreComplete = observableValue('initialRestoreComplete', true);
+			const opened: string[] = [];
+			let quickChatAvailable = true;
+			let noWorkspaceSelected = false;
+			let selectedFolderUri: URI | undefined;
+			let workspaceRestored = Promise.resolve(true);
+			const open = (kind: string): IActiveSession => {
+				opened.push(kind);
+				const session = upcastPartial<IActiveSession>({ sessionId: `quick-chat-${opened.length}` });
+				activeSession.set(session, undefined);
+				return session;
+			};
+			const harness: IRestoreNoWorkspaceDraftHarness = {
+				_noWorkspaceRestore: disposables.add(new MutableDisposable<IDisposable>()),
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_createdSessionId: undefined,
+				_workspacePicker: {
+					isNoWorkspaceSelected: () => noWorkspaceSelected,
+					get selectedFolderUri() { return selectedFolderUri; },
+					whenWorkspaceRestored: token => raceCancellationError(workspaceRestored, token),
+				},
+				sessionsService: {
+					activeSession,
+					initialRestoreComplete,
+					openQuickChat: (_options, preserveNavigation) => open(preserveNavigation ? 'automatic' : 'explicit'),
+				},
+				sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
+				selectNoWorkspace: () => { open('checked'); },
+			};
+			return {
+				harness, activeSession, initialRestoreComplete, opened,
+				set quickChatAvailable(value: boolean) { quickChatAvailable = value; },
+				set noWorkspaceSelected(value: boolean) { noWorkspaceSelected = value; },
+				set selectedFolderUri(value: URI | undefined) { selectedFolderUri = value; },
+				set workspaceRestored(value: Promise<boolean>) { workspaceRestored = value; },
+				restore: () => restoreNoWorkspaceDraft.call(harness),
+			};
+		}
 
-		const pending = restoreNoWorkspaceDraft.call(harness);
-		quickChatAvailable = true;
-		const restored = restoreNoWorkspaceDraft.call(harness);
+		test('selects Chat without a previous Chat selection and without persisting a user choice', async () => {
+			const { harness, opened, restore } = createRestoreHarness();
 
-		assert.deepStrictEqual({
-			pending,
-			restored,
-			selectNoWorkspaceCalls,
-		}, {
-			pending: true,
-			restored: true,
-			selectNoWorkspaceCalls: 1,
+			await restore();
+			await restore();
+
+			assert.deepStrictEqual({
+				opened,
+				checked: harness._workspacePicker.isNoWorkspaceSelected(),
+				createdSessionId: harness._createdSessionId,
+			}, {
+				opened: ['automatic'],
+				checked: false,
+				createdSessionId: 'quick-chat-1',
+			});
+		});
+
+		for (const previouslySelected of [false, true]) {
+			test(`does not infer Chat from failed workspace restoration (previously selected: ${previouslySelected})`, async () => {
+				const state = createRestoreHarness();
+				state.noWorkspaceSelected = previouslySelected;
+				state.workspaceRestored = Promise.resolve(false);
+
+				await state.restore();
+
+				assert.deepStrictEqual(state.opened, previouslySelected ? ['checked'] : []);
+			});
+
+			test(`retries when a quick-chat provider becomes available (previously selected: ${previouslySelected})`, async () => {
+				const state = createRestoreHarness();
+				state.noWorkspaceSelected = previouslySelected;
+				state.quickChatAvailable = false;
+				await state.restore();
+				const beforeAvailable = [...state.opened];
+
+				state.quickChatAvailable = true;
+				await state.restore();
+
+				assert.deepStrictEqual({ beforeAvailable, afterAvailable: state.opened }, {
+					beforeAvailable: [],
+					afterAvailable: [previouslySelected ? 'checked' : 'automatic'],
+				});
+			});
+		}
+
+		test('allows automatic Chat fallback after workspace restoration recovers', async () => {
+			const state = createRestoreHarness();
+			state.workspaceRestored = Promise.resolve(false);
+			await state.restore();
+			const afterFailure = [...state.opened];
+
+			state.workspaceRestored = Promise.resolve(true);
+			await state.restore();
+
+			assert.deepStrictEqual({ afterFailure, afterRecovery: state.opened }, {
+				afterFailure: [],
+				afterRecovery: ['automatic'],
+			});
+		});
+
+		test('waits for workspace discovery before selecting Chat', async () => {
+			const state = createRestoreHarness();
+			const discovery = new DeferredPromise<boolean>();
+			state.workspaceRestored = discovery.p;
+			const restoring = state.restore();
+			await timeout(0);
+			const whileDiscovering = [...state.opened];
+
+			await discovery.complete(true);
+			await restoring;
+
+			assert.deepStrictEqual({ whileDiscovering, afterDiscovery: state.opened }, {
+				whileDiscovering: [],
+				afterDiscovery: ['automatic'],
+			});
+		});
+
+		for (const target of ['workspace', 'activeSession', 'pendingWorkspaceCreation'] as const) {
+			test(`preserves a ${target} that arrives while discovering workspaces`, async () => {
+				const state = createRestoreHarness();
+				const discovery = new DeferredPromise<boolean>();
+				state.workspaceRestored = discovery.p;
+				const restoring = state.restore();
+				await timeout(0);
+
+				if (target === 'workspace') {
+					state.selectedFolderUri = URI.file('/from-window');
+				} else if (target === 'activeSession') {
+					state.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'restored-session' }), undefined);
+				} else {
+					state.harness._newSessionCreation.value = toDisposable(() => { });
+				}
+				await discovery.complete(true);
+				await restoring;
+
+				assert.deepStrictEqual(state.opened, []);
+			});
+		}
+
+		test('waits for initial session restoration before selecting Chat', async () => {
+			const state = createRestoreHarness();
+			state.initialRestoreComplete.set(false, undefined);
+			const restoring = state.restore();
+			await timeout(0);
+			const beforeRestore = [...state.opened];
+
+			state.initialRestoreComplete.set(true, undefined);
+			await restoring;
+
+			assert.deepStrictEqual({ beforeRestore, afterRestore: state.opened }, {
+				beforeRestore: [],
+				afterRestore: ['automatic'],
+			});
+		});
+
+		test('cancels pending restoration when the composer is disposed', async () => {
+			const state = createRestoreHarness();
+			state.initialRestoreComplete.set(false, undefined);
+			const restoring = state.restore();
+			state.harness._noWorkspaceRestore.dispose();
+			await restoring;
+			state.initialRestoreComplete.set(true, undefined);
+
+			assert.deepStrictEqual(state.opened, []);
 		});
 	});
 
@@ -428,6 +646,8 @@ suite('NewChatWidget', () => {
 			const option = getNoWorkspaceOption.call({
 				_useConsolidatedRemoteWorkspaces: constObservable(testCase.enabled),
 				_isWorkspacePickerQuickChat: constObservable(testCase.isWorkspacePickerQuickChat),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => [] },
 				sessionsManagementService: { isQuickChatTargetAvailable: () => testCase.available },
 				selectNoWorkspace: () => { },
 			});
@@ -442,6 +662,137 @@ suite('NewChatWidget', () => {
 				{ description: 'Start without a backing workspace', isSelected: false },
 				{ description: 'Start without a backing workspace', isSelected: true },
 			]);
+	});
+
+	test('offers quick chat providers as a host submenu and forwards the selection', async () => {
+		const selections: Array<ICreateNewSessionOptions | undefined> = [];
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				icon: Codicon.vm,
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				icon: Codicon.remote,
+				supportsQuickChats: true,
+			}),
+		];
+		const option = getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: options => !options?.providerId || providers.some(provider => provider.id === options.providerId) },
+			selectNoWorkspace: options => selections.push(options),
+		});
+		await option?.submenuActions?.[1].run();
+
+		assert.deepStrictEqual({
+			labels: option?.submenuActions?.map(action => action.label),
+			icons: option?.submenuActions?.map(action => (action as { readonly icon?: { readonly id: string } }).icon?.id),
+			selections,
+		}, isWeb
+			? {
+				labels: undefined,
+				icons: undefined,
+				selections: [],
+			}
+			: {
+				labels: ['Local', 'Test Remote'],
+				icons: [Codicon.vm.id, Codicon.remote.id],
+				selections: [{ providerId: 'agenthost-remote-test' }],
+			});
+	});
+
+	test('labels selected remote quick chats with their provider', () => {
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+		];
+		const selectedLabels = [
+			LOCAL_AGENT_HOST_PROVIDER_ID,
+			'agenthost-remote-test',
+			'agenthost-missing',
+		].map(providerId => getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => { },
+		})?.selectedLabel);
+
+		assert.deepStrictEqual(selectedLabels, isWeb
+			? [undefined, undefined, undefined]
+			: [undefined, 'Chat [Test Remote]', undefined]);
+	});
+
+	test('selects the sole quick chat provider directly', () => {
+		const selections: Array<ICreateNewSessionOptions | undefined> = [];
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'agenthost-remote-test',
+			label: 'Test Remote',
+			icon: Codicon.remote,
+			supportsQuickChats: true,
+		});
+		const option = getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => selections.push(options),
+		});
+		option?.select();
+
+		assert.deepStrictEqual({
+			hasSubmenu: !!option?.submenuActions,
+			selections,
+		}, {
+			hasSubmenu: false,
+			selections: isWeb ? [] : [{ providerId: 'agenthost-remote-test' }],
+		});
+	});
+
+	test('includes remote quick chat hosts even when availability is still resolving', async () => {
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				icon: Codicon.vm,
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				icon: Codicon.remote,
+				supportsQuickChats: true,
+			}),
+		];
+		const option = getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: {
+				isQuickChatTargetAvailable: options => options?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID,
+			},
+			selectNoWorkspace: () => { },
+		});
+		await option?.submenuActions?.[1].run();
+
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['Local', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
@@ -460,6 +811,208 @@ suite('NewChatWidget', () => {
 		}, {
 			quickChat: [],
 			workspaceDraft: [staleFolder.toString()],
+		});
+	});
+
+	test('rotates welcome phrase indices across composers', () => {
+		assert.deepStrictEqual(
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
+			[0, 1, 2, 3, 4, 0],
+		);
+	});
+
+	test('renders and personalizes new session welcome phrases', () => {
+		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+			const container = document.createElement('div');
+			const title = document.createElement('h2');
+			container.append(title);
+			updateWelcomeMessage(container, title, true, phraseIndex, undefined);
+			return container.textContent;
+		});
+		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+			const container = document.createElement('div');
+			const title = document.createElement('h2');
+			container.append(title);
+			updateWelcomeMessage(container, title, true, phraseIndex, 'Megan');
+			return container.textContent;
+		});
+		const hiddenContainer = document.createElement('div');
+		const hiddenTitle = document.createElement('h2');
+		hiddenContainer.append(hiddenTitle);
+		updateWelcomeMessage(hiddenContainer, hiddenTitle, false, 0, 'Megan');
+
+		assert.deepStrictEqual({ phrases, namedPhrases, hidden: hiddenContainer.hidden, hiddenText: hiddenContainer.textContent }, {
+			phrases: [
+				'What are we building?',
+				'What’s the move?',
+				'Let’s cook',
+				'Time to lock in',
+				'Let’s ship something',
+			],
+			namedPhrases: [
+				'What are we building, Megan?',
+				'What’s the move, Megan?',
+				'Let’s cook, Megan',
+				'Time to lock in, Megan',
+				'Let’s ship something, Megan',
+			],
+			hidden: true,
+			hiddenText: '',
+		});
+	});
+
+	test('announces the welcome phrase once and identifies the opt-out setting', () => {
+		const announcements: string[] = [];
+		const createHarness = (screenReaderOptimized: boolean, announcementEnabled: boolean): IWelcomeAnnouncementHarness => ({
+			_welcomePhraseAnnounced: false,
+			accessibilityService: {
+				isScreenReaderOptimized: () => screenReaderOptimized,
+				status: message => announcements.push(message),
+			},
+			configurationService: {
+				getValue: <T>(key: string): T => {
+					assert.strictEqual(key, AccessibilityVerbositySettingId.NewSessionWelcome);
+					return announcementEnabled as T;
+				},
+			},
+		});
+
+		const enabledHarness = createHarness(true, true);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building?', false);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building?', true);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building, Megan?', true);
+		announceWelcomeMessage.call(createHarness(false, true), 'What’s the move?', true);
+		announceWelcomeMessage.call(createHarness(true, false), 'Let’s cook', true);
+		announceWelcomeMessage.call(createHarness(true, true), undefined, true);
+
+		assert.deepStrictEqual(announcements, [
+			'What are we building?\nTo disable this announcement, set accessibility.verbosity.newSessionWelcome to false.',
+		]);
+	});
+
+	test('uses only the first configured or GitHub name', () => {
+		const harness = { _getFirstName: getFirstName };
+		const configuredName = getWelcomeName.call(harness, 'Octo Cat', '  Megan Rogge  ');
+		const gitHubName = getWelcomeName.call(harness, '  Octo   Cat  ', '');
+		const missingName = getWelcomeName.call(harness, undefined, '');
+
+		assert.deepStrictEqual({ configuredName, gitHubName, missingName }, {
+			configuredName: 'Megan',
+			gitHubName: 'Octo',
+			missingName: undefined,
+		});
+	});
+
+	test('fetches a GitHub profile only when enabled and no name is configured', async () => {
+		let welcomePhrasesEnabled = false;
+		let configuredName = '';
+		let currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null = null;
+		let accountRequests = 0;
+		const profileRequests: string[] = [];
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', 'stale');
+		const harness = {
+			_githubProfileAccountKey: 'github:stale',
+			_githubProfileName: githubProfileName,
+			configurationService: {
+				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? welcomePhrasesEnabled : configuredName) as T,
+			},
+			defaultAccountService: {
+				get currentDefaultAccount() { return currentDefaultAccount; },
+				async getDefaultAccount() {
+					accountRequests++;
+					currentDefaultAccount = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: 'initial-session' };
+					return currentDefaultAccount;
+				},
+			},
+			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
+				profileRequests.push(`${providerId}:${sessionId}`);
+				return 'Octo Cat';
+			},
+		};
+
+		await refreshGitHubProfileName.call(harness);
+		configuredName = 'Megan';
+		welcomePhrasesEnabled = true;
+		await refreshGitHubProfileName.call(harness);
+		configuredName = '';
+		await refreshGitHubProfileName.call(harness);
+
+		assert.deepStrictEqual({
+			accountRequests,
+			profileRequests,
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, {
+			accountRequests: 1,
+			profileRequests: ['github:initial-session'],
+			accountKey: 'github:initial-session',
+			profileName: 'Octo Cat',
+		});
+	});
+
+	test('distinguishes providers when profile requests complete out of order', async () => {
+		const githubProfile = new DeferredPromise<string | undefined>();
+		const enterpriseProfile = new DeferredPromise<string | undefined>();
+		let currentDefaultAccount = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: 'shared-session' };
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', undefined);
+		const harness = {
+			_githubProfileAccountKey: undefined,
+			_githubProfileName: githubProfileName,
+			configurationService: {
+				getValue: <T>(key: string): T => (key.endsWith('welcomePhrases') ? true : '') as T,
+			},
+			defaultAccountService: {
+				get currentDefaultAccount() { return currentDefaultAccount; },
+				async getDefaultAccount() { return currentDefaultAccount; },
+			},
+			_fetchGitHubProfileName(providerId: string) {
+				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
+			},
+		};
+
+		const publicRefresh = refreshGitHubProfileName.call(harness);
+		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
+		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
+		githubProfile.complete('Public Name');
+		await publicRefresh;
+		enterpriseProfile.complete('Enterprise Name');
+		await enterpriseRefresh;
+
+		assert.deepStrictEqual({
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, {
+			accountKey: 'github-enterprise:shared-session',
+			profileName: 'Enterprise Name',
+		});
+	});
+
+	test('does not request a public GitHub endpoint for an unresolved enterprise account', async () => {
+		let authenticationRequests = 0;
+		let profileRequests = 0;
+		const warnings: string[] = [];
+		const profileName = await fetchGitHubProfileName.call({
+			authenticationService: {
+				async getSessions() {
+					authenticationRequests++;
+					return [];
+				},
+			},
+			defaultAccountService: { resolveGitHubUrl: () => undefined },
+			requestService: {
+				async request() {
+					profileRequests++;
+					throw new Error('Unexpected profile request');
+				},
+			},
+			logService: { warn: message => warnings.push(message) },
+		}, 'github-enterprise', true, 'session');
+
+		assert.deepStrictEqual({ profileName, authenticationRequests, profileRequests, warnings }, {
+			profileName: undefined,
+			authenticationRequests: 0,
+			profileRequests: 0,
+			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
 	});
 
@@ -483,6 +1036,42 @@ suite('NewChatWidget', () => {
 		await creating;
 
 		assert.strictEqual(createCount, 2);
+	});
+
+	test('tracks pending workspace creation until trust and draft creation settle', async () => {
+		const creation = new DeferredPromise<IOpenNewSessionResult>();
+		const harness = createHarness(
+			disposables.add(new MutableDisposable<IDisposable>()),
+			disposables.add(new MutableDisposable<IDisposable>()),
+			Event.None,
+			() => creation.p,
+		);
+		const creating = harness._createNewSession(URI.file('/project'));
+		const pending = harness._pendingWorkspaceCreation === creation.p;
+		await creation.complete({ session: undefined, trustDeclined: true });
+		await creating;
+		assert.deepStrictEqual({ pending, settled: harness._pendingWorkspaceCreation }, { pending: true, settled: undefined });
+	});
+
+	test('a cancelled handoff does not retry creation or apply its pending Dev Container preference', async () => {
+		const changed = disposables.add(new Emitter<void>());
+		const creation = new DeferredPromise<IOpenNewSessionResult>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let calls = 0;
+		let preferences = 0;
+		const harness = createHarness(
+			disposables.add(new MutableDisposable<IDisposable>()),
+			disposables.add(new MutableDisposable<IDisposable>()),
+			changed.event,
+			async () => { calls++; return creation.p; },
+		);
+		harness._applyPreferredDevContainer = () => { preferences++; };
+		const opening = createNewSession.call(harness, URI.file('/source'), undefined, { token: cancellation.token, preferDevContainer: true });
+		cancellation.cancel();
+		await creation.complete({ session: undefined, trustDeclined: false });
+		await opening;
+		changed.fire();
+		assert.deepStrictEqual({ calls, preferences, pending: harness._pendingWorkspaceCreation }, { calls: 1, preferences: 0, pending: undefined });
 	});
 
 	test('applies the Dev Container preference when a late provider creates the draft', async () => {
@@ -650,6 +1239,25 @@ suite('NewChatWidget', () => {
 		}, {
 			tokenCount: 2, firstCancelledWhenSecondStarted: true, createdSessionId: 'second',
 		});
+	});
+
+	test('restricts saved harness preferences to the explicit creation destination on web', () => {
+		const folder = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+		const picks = [
+			{ providerId: 'cloud', sessionTypeId: 'cloud' },
+			{ sessionTypeId: 'cloud' },
+			{ providerId: 'creation', sessionTypeId: 'sandbox' },
+		];
+
+		assert.deepStrictEqual(picks.map(pick => isPreferredServable.call({
+			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [
+					{ providerId: 'cloud', sessionType: { id: 'cloud' } },
+					{ providerId: 'creation', sessionType: { id: 'sandbox' } },
+				],
+			},
+		}, folder, pick)), isWeb ? [false, false, true] : [true, true, true]);
 	});
 
 	test('sends the user pick to openNewSession, falling back to the preferred type', async () => {
@@ -942,6 +1550,8 @@ suite('NewChatWidget', () => {
 		let clearAttachedContextCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1007,6 +1617,8 @@ suite('NewChatWidget', () => {
 		let sendCount = 0;
 
 		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { deleteAndDispose: () => { } },
 			_session: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1030,6 +1642,37 @@ suite('NewChatWidget', () => {
 			result: false,
 			pickerOpenCount: 1,
 			sendCount: 0,
+		});
+	});
+
+	test('reports setup failures without clearing context or notifying on cancellation', async () => {
+		const notifications: string[] = [];
+		const errors: unknown[] = [];
+		let cleared = 0;
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const results: boolean[] = [];
+		for (const error of [new Error('Container build failed'), new CancellationError(), new WorkspaceNotTrustedError()]) {
+			const harness: ISendHarness & { send: typeof send } = {
+				send,
+				notificationService: { error: message => notifications.push(message) },
+				_pendingBackgroundSends: { deleteAndDispose: () => { } },
+				_session: constObservable(session),
+				_feedbackItems: constObservable([]),
+				_workspacePicker: { selectedFolderUri: undefined, clearAttachedContext: () => cleared++, showPicker: () => { } },
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				sessionsManagementService: { sendNewChatRequest: async () => { throw error; } },
+				logService: { error: (_message, error) => errors.push(error) },
+				_getWorkspaceRoots: () => [],
+			};
+			results.push(await harness.send('hello'));
+		}
+		assert.deepStrictEqual({ results, notifications, cleared, errors: errors.length }, {
+			results: [false, false, false],
+			notifications: ['Failed to start session: Container build failed'],
+			cleared: 0,
+			errors: 1,
 		});
 	});
 
@@ -1077,7 +1720,7 @@ suite('NewChatWidget', () => {
 				options: { canApplyWorkspaceDefault: () => canApplyWorkspaceDefault.call(widget) },
 			});
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
-				_session: constObservable(protectedState === 'restoredDraft' ? upcastPartial<IActiveSession>({ sessionId: 'restored' }) : undefined),
+				_session: constObservable(protectedState === 'restoredDraft' || protectedState === 'quickChat' ? upcastPartial<IActiveSession>({ sessionId: protectedState }) : undefined),
 				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
 				_newChatInput: input,
 				_isQuickChatComposer: constObservable(protectedState === 'quickChat'),
@@ -1090,8 +1733,8 @@ suite('NewChatWidget', () => {
 		});
 	}
 
-	for (const createdSessionId of [undefined, 'late-draft', 'another-draft']) {
-		test(`checks late draft ownership before applying a default (created: ${createdSessionId})`, () => {
+	for (const { createdSessionId, quickChat } of [false, true].flatMap(quickChat => [undefined, 'late-draft', 'another-draft'].map(createdSessionId => ({ createdSessionId, quickChat })))) {
+		test(`checks late draft ownership before applying a default (created: ${createdSessionId}, quick chat: ${quickChat})`, () => {
 			const session = observableValue<IActiveSession | undefined>('session', undefined);
 			const creation = disposables.add(new MutableDisposable<IDisposable>());
 			const selected: URI[] = [];
@@ -1109,7 +1752,7 @@ suite('NewChatWidget', () => {
 				_createdSessionId: createdSessionId,
 				_newSessionCreation: creation,
 				_newChatInput: input,
-				_isQuickChatComposer: constObservable(false),
+				_isQuickChatComposer: constObservable(quickChat),
 				uriIdentityService: { extUri },
 				_workspacePicker: {
 					get selectionSnapshot() { return selection; },
@@ -1121,7 +1764,7 @@ suite('NewChatWidget', () => {
 			});
 			const initiallyEligible = input.canApplyWorkspaceDefault;
 			session.set(upcastPartial<IActiveSession>({
-				sessionId: 'late-draft', workspace: constObservable(undefined),
+				sessionId: 'late-draft', workspace: constObservable(undefined), isQuickChat: constObservable(quickChat),
 			}), undefined);
 			creation.value = toDisposable(() => { });
 			const folderUri = URI.file('/from-editor');
@@ -1147,6 +1790,7 @@ suite('NewChatWidget', () => {
 				setSelectedWorkspace: (_folder: URI, options: Parameters<WorkspacePicker['setSelectedWorkspace']>[1]) => forwarded.push(options),
 			},
 		});
+
 		const options: ISelectWorkspaceOptions = { providerId: 'provider', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen };
 		const results = [widget.selectWorkspace(folder, options)];
 		selection = { folderUri: URI.file('/unrelated'), state: 'selected' };
@@ -1158,4 +1802,66 @@ suite('NewChatWidget', () => {
 			forwarded: Array.from({ length: 3 }, () => ({ providerId: 'provider', preferDevContainer: true, origin: WorkspaceSelectionOrigin.WindowOpen })),
 		});
 	});
+
+	for (const existing of ['empty', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
+		test(`draft handoff preserves ownership for ${existing} destination input`, async () => {
+			const changed = disposables.add(new Emitter<void>());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const ready = new DeferredPromise<void>();
+			const sourceFolder = URI.file('/source');
+			const originalFolder = URI.file('/destination');
+			let selectedFolder = originalFolder;
+			let content: IChatDraft = {
+				inputText: existing === 'text' ? 'Keep destination' : '',
+				attachments: existing === 'attachments' ? [toFileVariableEntry(URI.file('/destination/context'))] : [],
+			};
+			let creations = 0;
+			const incoming = { inputText: 'Incoming', attachments: [toFileVariableEntry(URI.file('/source/context'))] };
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_store: disposables.add(new DisposableStore()),
+				_feedbackItems: constObservable([]),
+				_newChatInput: {
+					isInputReady: true,
+					get hasInput() { return !!content.inputText || content.attachments.length > 0; },
+					onDidChangeInput: changed.event,
+					sessionTypePicker: { getUserPickedSessionType: () => undefined },
+					applyDraft: (draft: IChatDraft) => { content = draft; return true; },
+				},
+				_createNewSession: async (_folder: URI, _pick: IPreferredSessionType | undefined, handoff: { token: CancellationToken }): Promise<IOpenNewSessionResult> => {
+					await ready.p;
+					if (handoff.token.isCancellationRequested) {
+						return { session: undefined, trustDeclined: false };
+					}
+					creations++;
+					return { session: upcastPartial<IActiveSession>({ providerId: 'source-provider' }), trustDeclined: false };
+				},
+				_workspacePicker: {
+					selectionSnapshot: { state: 'selected', folderUri: originalFolder, origin: WorkspaceSelectionOrigin.User },
+					setSelectedWorkspace: (folder: URI) => { selectedFolder = folder; },
+				},
+			});
+			const opening = widget.applyDraft(serializeChatDraft(incoming), sourceFolder, {
+				providerId: 'source-provider', selectionOrigin: WorkspaceSelectionOrigin.WindowOpen,
+			}, cancellation.token);
+			if (existing === 'lateEdit') {
+				content = { inputText: 'Typed while workspace trust was pending', attachments: [] };
+				changed.fire();
+			} else if (existing === 'cancelled') {
+				cancellation.cancel();
+			}
+			await ready.complete();
+			const result = await opening;
+			assert.deepStrictEqual({
+				result, selectedFolder, creations, content,
+			}, {
+				result: existing === 'empty' ? 'applied' : 'preserved',
+				selectedFolder: existing === 'empty' ? sourceFolder : originalFolder,
+				creations: existing === 'empty' ? 1 : 0,
+				content: existing === 'empty' ? incoming : {
+					inputText: existing === 'text' ? 'Keep destination' : existing === 'lateEdit' ? 'Typed while workspace trust was pending' : '',
+					attachments: existing === 'attachments' ? [toFileVariableEntry(URI.file('/destination/context'))] : [],
+				},
+			});
+		});
+	}
 });

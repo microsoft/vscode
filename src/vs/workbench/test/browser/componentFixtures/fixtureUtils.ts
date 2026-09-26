@@ -87,6 +87,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -101,6 +102,7 @@ import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
@@ -607,9 +609,9 @@ export class FixtureModelService extends ModelService {
  * are automatically resolvable. URIs without a backing model fail loudly so
  * that callers don't silently receive a null `textEditorModel`.
  */
-export class FixtureTextModelService extends mock<ITextModelService>() {
+export class FixtureTextModelService extends InMemoryTextModelService {
 	constructor(@IModelService private readonly _modelService: IModelService) {
-		super();
+		super(_modelService);
 	}
 
 	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -617,19 +619,7 @@ export class FixtureTextModelService extends mock<ITextModelService>() {
 		if (!model) {
 			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
 		}
-		return {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			object: { textEditorModel: model } as IResolvedTextEditorModel,
-			dispose() { },
-		};
-	}
-
-	override registerTextModelContentProvider(): IDisposable {
-		return { dispose() { } };
-	}
-
-	override canHandleResource(): boolean {
-		return false;
+		return super.createModelReference(resource);
 	}
 }
 
@@ -704,6 +694,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	defineInstance(IHoverService, {
 		_serviceBrand: undefined,
+		getStickyHover: () => undefined,
 		showDelayedHover: () => undefined,
 		setupDelayedHover: () => ({ dispose: () => { } }),
 		setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
@@ -787,6 +778,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getChatChanges: () => [],
 		getFeedbackSessionResource: () => undefined,
 		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
@@ -882,6 +874,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  * Use with createEditorServices additionalServices option.
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
+	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -976,7 +969,7 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
-	readonly blocksCi?: true;
+	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
 
@@ -1034,6 +1027,8 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	/** Reveal headless fixtures only after async setup and virtual-time layout have completed. */
+	deferPaint?: boolean;
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	/** Base color themes to render; defaults to both dark and light. */
@@ -1061,6 +1056,7 @@ if (logOutsideTime) {
 }
 
 let fixtureRenderCounter = 0;
+let sourceMapsInitialized = false;
 
 /**
  * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
@@ -1099,6 +1095,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
 			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			if (leakDetectionEnabled && !sourceMapsInitialized) {
+				// Initialize source maps before async render timeouts start, not on the first fixture error.
+				void new Error().stack;
+				sourceMapsInitialized = true;
+			}
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
@@ -1209,7 +1210,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
-						const stackTrace = new Error().stack;
+						const stackTrace = new Error();
 						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
 						return clock.schedule({
 							time: clock.now,
@@ -1222,7 +1223,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							},
 							source: {
 								toString() { return 'runWhenIdle'; },
-								stackTrace,
+								get stackTrace() { return stackTrace.stack; },
 							},
 							trace,
 						});
@@ -1273,10 +1274,21 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// setTimeout/rAF calls that led to it.
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
-			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
-				// Trace-reset escapes virtual time so it actually fires.
-				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
-			});
+			const deferPaint = options.deferPaint === true && context.host.kind === 'headless';
+			const originalOpacity = fixtureHost.style.opacity;
+			if (deferPaint) {
+				fixtureHost.style.opacity = '0';
+			}
+			try {
+				await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+					// Trace-reset escapes virtual time so it actually fires.
+					afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+				});
+			} finally {
+				if (deferPaint) {
+					fixtureHost.style.opacity = originalOpacity;
+				}
+			}
 
 			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;

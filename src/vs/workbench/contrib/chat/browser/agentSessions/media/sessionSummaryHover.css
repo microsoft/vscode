@@ -49,6 +49,11 @@ session with no pull requests shows one rule and a quick chat none. */
 	display: none;
 }
 
+.session-summary-hover-section-title {
+	margin-bottom: var(--vscode-spacing-size40);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 .session-summary-hover-row {
 	display: flex;
 	align-items: flex-start;
