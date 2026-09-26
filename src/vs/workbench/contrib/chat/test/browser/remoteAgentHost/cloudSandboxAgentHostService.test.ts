@@ -22,6 +22,7 @@ import {
 	ICloudSandboxApiService,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
+	type ICloudSandboxConnectionRequest,
 	type ICloudSandboxConnectOptions,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionObserver, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -34,14 +35,14 @@ import { ITelemetryData, ITelemetryService } from '../../../../../../platform/te
 import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../../browser/remoteAgentHost/cloudSandboxAgentHostService.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
-function clientToken(sealed: string | undefined): ICloudSandboxClientToken {
+function clientToken(sealed: string | undefined, clientId = 'client-1'): ICloudSandboxClientToken {
 	return {
 		access_token: 'wps-token',
 		expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
 		wps_endpoint: 'wss://relay.example.com',
 		hub: 'hub',
 		subprotocol: 'json.reliable.webpubsub.azure.v1',
-		client_id: 'client-1',
+		client_id: clientId,
 		groups: { to_host: 'to_host', to_client: 'to_client', broadcast: 'broadcast' },
 		...(sealed ? { encrypted_github_token: sealed } : {}),
 	} as ICloudSandboxClientToken;
@@ -53,10 +54,12 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 
 	/** The sealed token as it stood when minting finished. */
 	sealedTokenAtEstablish: string | undefined;
+	clientIdAtEstablish: string | undefined;
 	connectThroughFactory = false;
 
 	protected override async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		this.sealedTokenAtEstablish = clientToken.encrypted_github_token;
+		this.clientIdAtEstablish = clientToken.client_id;
 		return this.connectThroughFactory ? super._establish(options, address, clientToken, token) : address;
 	}
 }
@@ -65,6 +68,7 @@ type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[]) {
 	let calls = 0;
+	const requests: { method: 'connect' | 'reconnect'; request: ICloudSandboxConnectionRequest; clientId?: string; token: CancellationToken }[] = [];
 	let factory: IRemoteAgentHostConnectionFactory | undefined;
 	let observer: RemoteAgentHostConnectionObserver | undefined;
 	let info: IRemoteAgentHostConnectionInfo | undefined;
@@ -82,15 +86,23 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
 	instantiationService.stub(IConfigurationService, configurationService);
 
+	const nextResult = async (): Promise<CloudSandboxConnectResult> => {
+		// Hold the last result so a caller can keep retrying past the scripted responses.
+		const result = results[Math.min(calls, results.length - 1)];
+		calls++;
+		if (result instanceof Error) {
+			throw result;
+		}
+		return typeof result === 'function' ? result() : result;
+	};
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
-		override async connect(): Promise<CloudSandboxConnectResult> {
-			// Hold the last result so a caller can keep re-minting past the scripted responses.
-			const result = results[Math.min(calls, results.length - 1)];
-			calls++;
-			if (result instanceof Error) {
-				throw result;
-			}
-			return typeof result === 'function' ? result() : result;
+		override async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
+			requests.push({ method: 'connect', request, token });
+			return nextResult();
+		}
+		override async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
+			requests.push({ method: 'reconnect', request, clientId, token });
+			return nextResult();
 		}
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
@@ -134,7 +146,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			assert.ok(factory);
 			return factory;
 		},
-		connectCalls: () => calls,
+		requestCalls: () => calls,
+		requests,
 		events,
 		started: started.p,
 		setState(state: 'reconnecting' | 'connected'): void {
@@ -304,19 +317,73 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 	}));
 
-	test('re-mints credentials until the sealed GitHub token arrives', async () => {
-		// A fresh environment can answer `/connect` before its credentials are complete.
-		const { service, connectCalls } = createService(store, [
-			{ kind: 'token', token: clientToken(undefined) },
-			{ kind: 'token', token: clientToken(undefined) },
-			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') },
+	test('retains the initial client identity while waiting for the sealed GitHub token', async () => {
+		const request = { environmentId: 'env-1', sessionId: 'session-1' };
+		const cts = store.add(new CancellationTokenSource());
+		const { service, requests } = createService(store, [
+			{ kind: 'token', token: clientToken(undefined, 'initial-client') },
+			{ kind: 'token', token: clientToken(undefined, 'initial-client') },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload', 'initial-client') },
+		]);
+
+		await service.connect({ ...request, name: 'Sandbox' }, cts.token);
+
+		assert.deepStrictEqual({ requests, clientId: service.clientIdAtEstablish, sealed: service.sealedTokenAtEstablish }, {
+			requests: [
+				{ method: 'connect', request, token: cts.token },
+				{ method: 'reconnect', request, clientId: 'initial-client', token: cts.token },
+				{ method: 'reconnect', request, clientId: 'initial-client', token: cts.token },
+			],
+			clientId: 'initial-client',
+			sealed: 'copilot-sealed.v1.key.payload',
+		});
+	});
+
+	test('uses connect while waking and retains the first minted client for credential refresh', () => runWithFakedTimers({}, async () => {
+		const { service, requests } = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 2 } },
+			{ kind: 'token', token: clientToken(undefined, 'awakened-client') },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload', 'awakened-client') },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		service.dispose();
 
-		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
-			calls: 3,
-			sealed: 'copilot-sealed.v1.key.payload',
+		assert.deepStrictEqual(requests.map(({ method, clientId }) => ({ method, clientId })), [
+			{ method: 'connect', clientId: undefined },
+			{ method: 'connect', clientId: undefined },
+			{ method: 'reconnect', clientId: 'awakened-client' },
+		]);
+	}));
+
+	test('cancellation during credential refresh prevents staging a late result', async () => {
+		const started = new DeferredPromise<void>();
+		const refreshed = new DeferredPromise<CloudSandboxConnectResult>();
+		const cts = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			{ kind: 'token', token: clientToken(undefined) },
+			() => {
+				started.complete();
+				return refreshed.p;
+			},
+		]);
+		fixture.service.connectThroughFactory = true;
+
+		const connecting = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, cts.token), isCancellationError);
+		await started.p;
+		cts.cancel();
+		await refreshed.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') });
+		await connecting;
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(({ method, clientId, token }) => ({ method, clientId, cancelled: token.isCancellationRequested })),
+			staged: fixture.getFactory().entries.get(),
+		}, {
+			requests: [
+				{ method: 'connect', clientId: undefined, cancelled: true },
+				{ method: 'reconnect', clientId: 'client-1', cancelled: true },
+			],
+			staged: [],
 		});
 	});
 
@@ -344,7 +411,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			await fixture.service.connect(options, CancellationToken.None);
 			fixture.service.dispose();
-			assert.deepStrictEqual({ calls: fixture.connectCalls(), events: fixture.events }, {
+			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events }, {
 				calls: 3,
 				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 9000 } }],
 			});
@@ -469,41 +536,45 @@ suite('CloudSandboxAgentHostService', () => {
 		}));
 	});
 
-	test('gives up re-minting and connects anyway, since a host may never seal one', async () => {
-		// Refusing to connect would be worse than a session that cannot reach GitHub APIs.
-		const { service, connectCalls } = createService(store, [
+	test('bounds credential refreshes without allocating additional clients', async () => {
+		const { service, requests } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
-		// Bounded, and the connection still proceeds unsealed. Initial mint plus one per retry.
-		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
-			calls: MAX_SEALED_TOKEN_RETRIES + 1,
+		assert.deepStrictEqual({
+			requests: requests.map(({ method, clientId }) => ({ method, clientId })),
+			sealed: service.sealedTokenAtEstablish,
+		}, {
+			requests: [
+				{ method: 'connect', clientId: undefined },
+				...Array.from({ length: MAX_SEALED_TOKEN_RETRIES }, () => ({ method: 'reconnect', clientId: 'client-1' })),
+			],
 			sealed: undefined,
 		});
 	});
 
 	test('does not re-mint when the first credentials already carry a sealed token', async () => {
-		const { service, connectCalls } = createService(store, [
+		const { service, requests } = createService(store, [
 			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
-		assert.strictEqual(connectCalls(), 1);
+		assert.deepStrictEqual(requests.map(({ method }) => method), ['connect']);
 	});
 
 	test('keeps re-minting when the value is present but not a sealed envelope', async () => {
 		// A plaintext bearer is refused when forwarding, so accepting it here would skip re-minting.
-		const { service, connectCalls } = createService(store, [
+		const { service, requestCalls } = createService(store, [
 			{ kind: 'token', token: clientToken('ghu_plaintext') },
 			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
+		assert.deepStrictEqual({ calls: requestCalls(), sealed: service.sealedTokenAtEstablish }, {
 			calls: 2,
 			sealed: 'copilot-sealed.v1.key.payload',
 		});
@@ -526,14 +597,14 @@ suite('CloudSandboxAgentHostService', () => {
 
 	test('stops re-minting when the environment goes back to waking', async () => {
 		// Re-entering the wake loop would stack two waits; the handshake watchdog covers this.
-		const { service, connectCalls } = createService(store, [
+		const { service, requestCalls } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
 			{ kind: 'waking', waking: { retryAfterSeconds: 5 } as never },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
+		assert.deepStrictEqual({ calls: requestCalls(), sealed: service.sealedTokenAtEstablish }, {
 			calls: 2,
 			sealed: undefined,
 		});
