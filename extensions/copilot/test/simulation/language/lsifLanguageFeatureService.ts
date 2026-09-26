@@ -24,7 +24,7 @@ const liftLSIFLocations = (locations: undefined | LSIF.types.Location | LSIF.typ
 
 type IGraph = Pick<LSIF.JsonStore, 'declarations' | 'definitions' | 'references'>;
 
-/** Gets whether the SCIP occurence happens at the given posiiton */
+/** Gets whether the SCIP occurrence happens at the given position */
 const occursAt = (o: scip.Occurrence, position: LSIF.types.Position) => {
 	const range = occurenceToPosition(o);
 	if (position.line < range.start.line || (position.line === range.start.line && position.character < range.start.character)) {
@@ -38,7 +38,7 @@ const occursAt = (o: scip.Occurrence, position: LSIF.types.Position) => {
 	return true;
 };
 
-/** Converts an SCIP occurence to an LSIF range */
+/** Converts an SCIP occurrence to an LSIF range */
 const occurenceToPosition = (o: scip.Occurrence): LSIF.types.Range => {
 	const [startLine, startChar] = o.range;
 	let endLine: number;
