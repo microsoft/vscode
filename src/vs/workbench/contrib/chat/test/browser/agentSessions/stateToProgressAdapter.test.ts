@@ -176,7 +176,7 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	test('Fusion milestones render workflow descriptions and terminal statuses with specific icons', () => {
-		assert.deepStrictEqual(['selected', 'completed', 'failed', 'cancelled', 'degraded'].map(fusionStatus => {
+		assert.deepStrictEqual((['selected', 'completed', 'failed', 'cancelled', 'degraded'] as const).map(fusionStatus => {
 			const content = fusionStatus === 'selected' ? 'Selected workflow\n\nSDK-provided workflow description.' : 'Fusion milestone';
 			const part = systemNotificationToChatPart(content, 'local', toAgentSystemNotificationMeta({
 				kind: AgentSystemNotificationKind.FusionProgress,
