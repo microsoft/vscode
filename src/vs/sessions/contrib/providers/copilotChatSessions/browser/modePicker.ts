@@ -105,6 +105,7 @@ export class ModePickerModel extends Disposable {
 
 		// Always include the default Agent mode.
 		const result: IChatMode[] = [ChatMode.Agent];
+		const customModeLabels = new Set<string>();
 
 		// Add custom modes matching the target and visible to users.
 		for (const mode of (this._chatModes?.custom ?? [])) {
@@ -114,6 +115,10 @@ export class ModePickerModel extends Disposable {
 				if (visibility && !visibility.userInvocable) {
 					continue;
 				}
+				if (customModeLabels.has(mode.label.get())) {
+					continue;
+				}
+				customModeLabels.add(mode.label.get());
 				result.push(mode);
 			}
 		}
