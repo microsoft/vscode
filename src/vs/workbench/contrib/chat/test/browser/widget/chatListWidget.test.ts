@@ -279,6 +279,41 @@ suite('ChatListWidget', () => {
 		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
+	test('copy omits hidden transcript content after the selection', () => {
+		const { disposables, container } = createWidget();
+		const wrapper = container.appendChild(mainWindow.document.createElement('div'));
+		const paragraph = wrapper.appendChild(mainWindow.document.createElement('p'));
+		const text = paragraph.appendChild(mainWindow.document.createTextNode('Selected response'));
+		const hidden = wrapper.appendChild(mainWindow.document.createElement('div'));
+		hidden.style.display = 'none';
+		hidden.textContent = '0 files changed+0-0';
+		const style = wrapper.appendChild(mainWindow.document.createElement('style'));
+		style.textContent = '.monaco-list { color: red; }';
+		const footer = wrapper.appendChild(mainWindow.document.createElement('div'));
+
+		const selection = mainWindow.getSelection()!;
+		const range = mainWindow.document.createRange();
+		range.setStart(text, 0);
+		range.setEnd(footer, 0);
+		selection.addRange(range);
+		disposables.add(toDisposable(() => selection.removeAllRanges()));
+
+		const clipboardData = new DataTransfer();
+		const copyEvent = new mainWindow.Event('copy', { bubbles: true, cancelable: true }) as ClipboardEvent;
+		Object.defineProperty(copyEvent, 'clipboardData', { value: clipboardData });
+		text.parentElement!.dispatchEvent(copyEvent);
+
+		assert.deepStrictEqual({
+			text: clipboardData.getData('text/plain'),
+			html: clipboardData.getData('text/html'),
+			prevented: copyEvent.defaultPrevented,
+		}, {
+			text: 'Selected response',
+			html: '<div><p>Selected response</p><div></div></div>',
+			prevented: true,
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
