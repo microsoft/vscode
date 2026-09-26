@@ -19,7 +19,7 @@ import { Range as EditorRange, IRange } from '../../../editor/common/core/range.
 import { Selection } from '../../../editor/common/core/selection.js';
 import * as languages from '../../../editor/common/languages.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
-import { IndentationRule, LanguageConfiguration, OnEnterRule } from '../../../editor/common/languages/languageConfiguration.js';
+import { IAutoClosingPairConditional, IndentationRule, LanguageConfiguration, OnEnterRule } from '../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
@@ -967,6 +967,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
 	}
 
+	private static _reviveAutoClosingPairs(autoClosingPairs: NonNullable<ILanguageConfigurationDto['autoClosingPairs']>): IAutoClosingPairConditional[] {
+		return autoClosingPairs.map(autoClosingPair => ({
+			open: autoClosingPair.open,
+			close: autoClosingPair.close,
+			notIn: autoClosingPair.notIn,
+			beforeText: autoClosingPair.beforeText ? MainThreadLanguageFeatures._reviveRegExp(autoClosingPair.beforeText) : undefined,
+		}));
+	}
+
 	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ILanguageConfigurationDto): void {
 
 		const configuration: LanguageConfiguration = {
@@ -982,7 +991,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		};
 
 		if (_configuration.autoClosingPairs) {
-			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+			configuration.autoClosingPairs = MainThreadLanguageFeatures._reviveAutoClosingPairs(_configuration.autoClosingPairs);
 		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
