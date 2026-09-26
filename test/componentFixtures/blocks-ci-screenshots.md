@@ -220,13 +220,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d45768ef875bb18b3f9b712a569d6012c45471ffe1c15f7ba54a9a1623e063c4)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4517e43220e3ad090e25ea7dfc493b4c4f428edf8858ec41ecf1e41c1f0b3bf2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/75f2af25406da9d02fc92f0bda36e7e22053ea804f74b18946c1053b6d6bb8b8)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/DarkHighContrast
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5127c83d91aec7ec0776ea4d86d110d18e70c171100445e9ef2ceed836e19b04)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/543fe2d7c3ffc753d8c929a368fcd6fc53dd7d47db67f135dbcb60b640fe0229)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1374fc7f1b93ebba81211ee149913f233bdf6cce460b77136bc6a05198f81edb)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/LightHighContrast
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/910e709f9938aa20b92f584f46997475e2b6b5143ab7101cee1081ed00c226cc)
