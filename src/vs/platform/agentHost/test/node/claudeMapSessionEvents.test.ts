@@ -911,7 +911,55 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(usage.action.usage.model, undefined);
 	});
 
-	test('result drains pending tool_use entries that never received a tool_result and warns once per orphan', () => {
+	test('result keeps a pending tool_use so a tool_result that lands after a steering preempt still completes it', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const registry = r();
+		const TOOL_USE_ID = 'toolu_in_flight_1';
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, TOOL_USE_ID, 'Read')), SESSION, TURN_ID, state, log, registry);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, registry);
+		// The preempted turn's `result` arrives while the tool is still running.
+		mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, log, registry);
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, TOOL_USE_ID, 'file contents'),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			registry,
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'action',
+			resource: SESSION,
+			action: {
+				type: ActionType.ChatToolCallComplete,
+				turnId: TURN_ID,
+				toolCallId: TOOL_USE_ID,
+				result: {
+					success: true,
+					pastTenseMessage: 'Read file',
+					content: [{ type: ToolResultContentType.Text, text: 'file contents' }],
+				},
+			},
+		}]);
+		assert.deepStrictEqual(log.warns, []);
+	});
+
+	test('result keeps a foreground subagent spawn in the registry', () => {
+		const state = new ClaudeMapperState();
+		const registry = r();
+		const PARENT = 'toolu_task_in_flight';
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, PARENT, 'Task')), SESSION, TURN_ID, state, new NullLogService(), registry);
+		mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, new NullLogService(), registry);
+
+		assert.strictEqual(registry.getSpawn(PARENT)?.toolUseId, PARENT);
+	});
+
+	test('clearPendingToolCalls drains tool_use entries that never received a tool_result and warns once per orphan', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
@@ -927,23 +975,14 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		// Turn ends with no tool_result for the tool_use.
-		const resultSignals = mapSDKMessageToAgentSignals(
-			makeResultSuccess(SESSION_ID),
-			SESSION,
-			TURN_ID,
-			state,
-			log,
-			r(),
-		);
+		// The pipeline drives this once the protocol turn's final result lands.
+		state.clearPendingToolCalls(log);
 
-		assert.strictEqual(resultSignals.length, 1);
 		assert.strictEqual(log.warns.length, 1);
 		assert.ok(log.warns[0].includes(TOOL_USE_ID), `expected warn to mention orphan id, got: ${log.warns[0]}`);
 		assert.ok(log.warns[0].includes('Read'), `expected warn to mention tool name, got: ${log.warns[0]}`);
 
-		// A late-arriving tool_result for the orphan must now be treated
-		// as unknown — proving the cross-message state was actually cleared.
+		// A late tool_result for the orphan is now unknown, proving the state was cleared.
 		const lateSignals = mapSDKMessageToAgentSignals(
 			makeUserToolResultMessage(SESSION_ID, TOOL_USE_ID, 'late content'),
 			SESSION,
@@ -957,7 +996,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(log.warns.length, 2);
 		assert.ok(log.warns[1].includes(`tool_result for unknown tool_use_id ${TOOL_USE_ID}`));
 	});
-
 
 	test('message_stop and unknown stream events emit nothing', () => {
 		const log = new NullLogService();
