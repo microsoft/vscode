@@ -71,7 +71,7 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 	}
 }
 
-function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
+function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem, identifiersEnabled: boolean): SCMHistoryItemDto {
 	const authorIcon = getHistoryItemIconDto(historyItem.authorIcon);
 	const tooltip = Array.isArray(historyItem.tooltip)
 		? MarkdownString.fromMany(historyItem.tooltip)
@@ -81,7 +81,15 @@ function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMH
 		...r, icon: getHistoryItemIconDto(r.icon)
 	}));
 
-	return { ...historyItem, authorIcon, references, tooltip };
+	// Explicitly overwrite the spread property so undeclared proposals cannot cross RPC.
+	const identifier = identifiersEnabled && Array.isArray(historyItem.identifier)
+		? historyItem.identifier.filter(part => part && typeof part.text === 'string').map(part => ({
+			text: part.text.replace(/[\r\n\t\u2028\u2029]/g, ' '),
+			color: typeof part.color?.id === 'string' && /^[\w.-]+$/.test(part.color.id) ? { id: part.color.id } : undefined
+		}))
+		: undefined;
+
+	return { ...historyItem, authorIcon, references, tooltip, identifier };
 }
 
 function toSCMHistoryItemRefDto(historyItemRef?: vscode.SourceControlHistoryItemRef): SCMHistoryItemRefDto | undefined {
@@ -653,6 +661,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
+
+	toHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
+		return toSCMHistoryItemDto(historyItem, isProposedApiEnabled(this._extension, 'scmHistoryItemIdentifier'));
+	}
 	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
@@ -1180,10 +1192,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	async $resolveHistoryItem(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
 		try {
-			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const sourceControl = this._sourceControls.get(sourceControlHandle);
+			const historyProvider = sourceControl?.historyProvider;
 			const historyItem = await historyProvider?.resolveHistoryItem(historyItemId, token);
 
-			return historyItem ? toSCMHistoryItemDto(historyItem) : undefined;
+			return historyItem ? sourceControl?.toHistoryItemDto(historyItem) : undefined;
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$resolveHistoryItem', err);
@@ -1245,10 +1258,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	async $provideHistoryItems(sourceControlHandle: number, options: vscode.SourceControlHistoryOptions, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		try {
-			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const sourceControl = this._sourceControls.get(sourceControlHandle);
+			const historyProvider = sourceControl?.historyProvider;
 			const historyItems = await historyProvider?.provideHistoryItems(options, token);
 
-			return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
+			return sourceControl && historyItems?.map(item => sourceControl.toHistoryItemDto(item));
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideHistoryItems', err);

@@ -153,6 +153,17 @@
 	align-items: center;
 }
 
+.scm-view .monaco-list-row .history-item > .history-item-identifier {
+	flex: 0 0 auto;
+	min-width: 0;
+	max-width: 35%;
+	margin-right: 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: pre;
+	font-family: var(--monaco-monospace-font);
+}
+
 .scm-view .monaco-list-row .monaco-tl-twistie:not(.collapsed) + .monaco-tl-contents > .history-item > .graph-container > svg > path:last-of-type {
 	stroke-width: 3px;
 }

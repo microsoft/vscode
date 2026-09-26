@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import type * as vscode from 'vscode';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,7 +20,64 @@ import { ExtHostSCM } from '../../common/extHostSCM.js';
 import { TestRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostSCM', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const identifiersEnabled of [false, true]) {
+		test(`history identifiers require their own proposal (enabled: ${identifiersEnabled})`, async () => {
+			let handle = -1;
+			const rpcProtocol = new TestRPCProtocol();
+			rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+				override async $registerSourceControl(sourceControlHandle: number): Promise<void> { handle = sourceControlHandle; }
+				override async $unregisterSourceControl(): Promise<void> { }
+				override async $updateSourceControl(): Promise<void> { }
+			});
+			rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+				override $publicLog2(): void { }
+			});
+			const commands = new class extends mock<ExtHostCommands>() {
+				override registerArgumentProcessor(): void { }
+			};
+			const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+			const sourceControl = store.add(extHostSCM.createSourceControl({
+				...nullExtensionDescription,
+				enabledApiProposals: identifiersEnabled ? ['scmHistoryProvider', 'scmHistoryItemIdentifier'] : ['scmHistoryProvider']
+			}, 'test', 'Test', undefined, undefined, undefined, undefined));
+			let item: vscode.SourceControlHistoryItem = {
+				id: 'snapshot', parentIds: ['parent'], subject: 'Subject', message: 'Message', displayId: 'short',
+				identifier: [
+					{ text: 'change', color: { id: 'terminal.ansiMagenta' } },
+					{ text: '\n\tcommit\u2028', color: { id: 'invalid); color: red' } }
+				]
+			};
+			sourceControl.historyProvider = new class extends mock<vscode.SourceControlHistoryProvider>() {
+				override readonly onDidChangeCurrentHistoryItemRefs = Event.None;
+				override readonly onDidChangeHistoryItemRefs = Event.None;
+				override provideHistoryItems() { return [item]; }
+				override resolveHistoryItem() { return item; }
+			};
+			await rpcProtocol.sync();
+			const expected = {
+				...item, authorIcon: undefined, references: undefined, tooltip: undefined,
+				identifier: identifiersEnabled ? [
+					{ text: 'change', color: { id: 'terminal.ansiMagenta' } },
+					{ text: '  commit ', color: undefined }
+				] : undefined
+			};
+			assert.deepStrictEqual({
+				page: await extHostSCM.$provideHistoryItems(handle, {}, CancellationToken.None),
+				resolved: await extHostSCM.$resolveHistoryItem(handle, 'snapshot', CancellationToken.None)
+			}, { page: [expected], resolved: expected });
+
+			item = { ...item, identifier: undefined };
+			assert.deepStrictEqual(await extHostSCM.$provideHistoryItems(handle, {}, CancellationToken.None), [{ ...expected, identifier: undefined }]);
+
+			// Extensions written in JavaScript can supply malformed parts.
+			item = { ...item, identifier: [null, { text: 42 }, { text: '42' }] as unknown as vscode.SourceControlHistoryItemIdentifierPart[] };
+			assert.deepStrictEqual(await extHostSCM.$provideHistoryItems(handle, {}, CancellationToken.None), [{
+				...expected, identifier: identifiersEnabled ? [{ text: '42', color: undefined }] : undefined
+			}]);
+		});
+	}
 
 	test('disposed source controls are removed from extension bookkeeping', () => {
 		const rpcProtocol = new TestRPCProtocol();
