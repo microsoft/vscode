@@ -23,7 +23,7 @@ import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService,
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationService } from '../../../authentication/common/authentication.js';
@@ -45,6 +45,17 @@ suite('DefaultAccountProvider', () => {
 		scopes: ['user:email'],
 		authorizationServer: URI.parse('https://github.com/login/oauth'),
 	}];
+
+	test('reads wrapped cached account data and ignores retired flat cache data', async () => {
+		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})));
+		const accountPolicyData = createCachedPolicy(false);
+
+		provider['storageService'].store('defaultAccount.cachedPolicyData', JSON.stringify({ accountPolicyData }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual(provider['getCachedAccountData'](), { accountPolicyData, copilotTokenInfo: undefined });
+
+		provider['storageService'].store('defaultAccount.cachedPolicyData', JSON.stringify(accountPolicyData), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.strictEqual(provider['getCachedAccountData'](), null);
+	});
 
 	test('cached settings perform one startup compatibility fetch', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
