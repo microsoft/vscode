@@ -1,0 +1,80 @@
+classDiagram
+    class Developer {
+        developerId
+    }
+    class Workspace {
+        workspaceId
+        trusted
+    }
+    class Folder {
+        path
+    }
+    class Document {
+        resourceId
+        path
+        kind
+    }
+    class Search {
+        searchId
+        textPattern
+        includePattern
+        excludePattern
+        resultCount
+    }
+    class Match {
+        matchId
+        range
+    }
+    class LaunchConfiguration {
+        configurationId
+        name
+        requestType
+    }
+    class DebugStartRequest {
+        requestId
+        state
+    }
+    class DebugSession {
+        sessionId
+        status
+    }
+    class GitProject {
+        repositoryId
+        path
+    }
+    class Branch {
+        name
+        protected
+    }
+    class ChangedResource {
+        resourceId
+        path
+        staged
+    }
+    class Commit {
+        commitId
+        message
+    }
+
+    Developer "0..*" --> "0..*" Workspace : opens
+    Workspace "1" --> "1..*" Folder : contains
+    Folder "1" --> "0..*" Document : contains
+    Developer "1" --> "0..*" Search : performs
+    Workspace "1" --> "0..*" Search : searched by
+    Search "1" --> "0..*" Match : contains
+    Document "1" --> "0..*" Match : contains
+    Workspace "1" --> "0..*" LaunchConfiguration : offers
+    Developer "1" --> "0..*" DebugStartRequest : makes
+    Workspace "1" --> "0..*" DebugStartRequest : receives
+    LaunchConfiguration "1" --> "0..*" DebugStartRequest : selected for
+    DebugStartRequest "1" --> "0..1" DebugSession : produces
+    Workspace "1" --> "0..*" DebugSession : hosts
+    LaunchConfiguration "1" --> "0..*" DebugSession : configures
+    Workspace "1" --> "0..*" GitProject : contains
+    GitProject "1" --> "1..*" Branch : has
+    GitProject "1" --> "0..*" ChangedResource : tracks
+    GitProject "1" --> "0..*" Commit : records
+    Branch "1" --> "0..*" Commit : contains
+    Developer "1" --> "0..*" Commit : authors
+    Commit "0..*" --> "1..*" ChangedResource : records staged content of
+    GitProject "1" --> "0..1" Commit : current head

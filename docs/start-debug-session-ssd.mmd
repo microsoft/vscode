@@ -1,0 +1,7 @@
+sequenceDiagram
+    actor Developer
+    participant S as :VSCodeSystem
+    Developer->>S: startDebugSession(configurationId: ConfigurationID)
+    S-->>Developer: trustRequired(workspaceId: WorkspaceID)
+    Developer->>S: grantWorkspaceTrust(workspaceId: WorkspaceID)
+    S-->>Developer: sessionId: SessionID, status: running

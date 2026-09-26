@@ -1,0 +1,10 @@
+sequenceDiagram
+    actor Developer
+    participant S as :VSCodeSystem
+    Developer->>S: searchWorkspace(textPattern: Text, includePattern: Text, excludePattern: Text)
+    loop each matching resource
+        S-->>Developer: match(matchId: MatchID, resourcePath: Path, range: Range)
+    end
+    S-->>Developer: resultCount: Integer
+    Developer->>S: openMatch(matchId: MatchID)
+    S-->>Developer: resourcePath: Path, range: Range
