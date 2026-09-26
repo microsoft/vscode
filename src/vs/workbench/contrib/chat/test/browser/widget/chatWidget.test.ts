@@ -577,6 +577,7 @@ suite('ChatWidget', () => {
 			mainPasteTargetRegistration: { value: store.add(new MutableDisposable()) },
 			inlinePasteTargetRegistration: { value: store.add(new MutableDisposable()) },
 			_gettingStartedTip: { value: store.add(new MutableDisposable()) },
+			customizationMigrationNotice: { value: store.add(new MutableDisposable()) },
 			_onDidChangeActiveInputEditor: { value: { fire: () => { } } },
 			_onDidChangeContentHeight: { value: { fire: () => { } } },
 			inputContainer: { value: undefined, writable: true },

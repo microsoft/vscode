@@ -6,7 +6,7 @@
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -15,6 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { IChatSessionArchiveNudgeOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatSessionArchiveNudge.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
@@ -46,8 +47,16 @@ interface ISessionArchiveNudgeState {
 
 export interface ISessionArchiveNudgeService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Whether this window has yet to report where a suggestion would show. Until then,
+	 * disabled and dismissed suggestions still resolve whether they would show, because
+	 * only arms that render the suggestion can dismiss it.
+	 */
+	readonly experimentTriggerPending: IObservable<boolean>;
 	isDismissed(session: ISession, reader: IReader | undefined): boolean;
 	shouldShowCompact(reader: IReader | undefined): boolean;
+	/** Reports the enablement experiment trigger of a suggestion that would show if it were enabled and not dismissed. */
+	reportWouldShow(): void;
 	markShown(state: ISessionArchiveNudgeState): void;
 	dismiss(state: ISessionArchiveNudgeState): void;
 	showArchiveOnboarding(session: ISession): Promise<void>;
@@ -80,6 +89,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	private readonly _archiveCountChanged: IObservable<void>;
 	private readonly _onboardingStore = this._register(new MutableDisposable<DisposableStore>());
 	private _onboardingInFlight: Promise<void> | undefined;
+	private readonly _experimentTriggerPending = observableValue(this, true);
+	readonly experimentTriggerPending: IObservable<boolean> = this._experimentTriggerPending;
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
@@ -120,6 +131,11 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	shouldShowCompact(reader: IReader | undefined): boolean {
 		this._archiveCountChanged.read(reader);
 		return this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0) >= COMPACT_AFTER_ARCHIVE_COUNT;
+	}
+
+	reportWouldShow(): void {
+		logSettingExperimentTrigger(this._telemetryService, SESSION_ARCHIVE_NUDGE_SETTING);
+		this._experimentTriggerPending.set(false, undefined);
 	}
 
 	markShown(state: ISessionArchiveNudgeState): void {
@@ -282,7 +298,7 @@ export class SessionArchiveNudge extends Disposable {
 			if (!current || !isSessionAvailableForArchiveNudge(current, reader)) {
 				return undefined;
 			}
-			if (!enabled.read(reader) || this._nudgeService.isDismissed(current, reader)) {
+			if (!this._nudgeService.experimentTriggerPending.read(reader) && (!enabled.read(reader) || this._nudgeService.isDismissed(current, reader))) {
 				return undefined;
 			}
 			return current;
@@ -321,7 +337,12 @@ export class SessionArchiveNudge extends Disposable {
 				pullRequestCount,
 			};
 		});
-		this.options = this._state.map((state, reader) => state && ({
+		this._register(autorun(reader => {
+			if (this._state.read(reader)) {
+				this._nudgeService.reportWouldShow();
+			}
+		}));
+		this.options = this._state.map((state, reader) => state && enabled.read(reader) && !this._nudgeService.isDismissed(state.session, reader) ? {
 			hasWorktree: state.hasWorktree,
 			pullRequestCount: state.pullRequestCount,
 			compact: this._nudgeService.shouldShowCompact(reader),
@@ -332,7 +353,7 @@ export class SessionArchiveNudge extends Disposable {
 				await this._nudgeService.showArchiveOnboarding(state.session);
 				await this._nudgeService.archive(this._getArchiveState(state.session));
 			},
-		}));
+		} : undefined);
 	}
 
 	private _getArchiveState(session: ISession): ISessionArchiveNudgeState {
@@ -345,7 +366,7 @@ export class SessionArchiveNudge extends Disposable {
 
 	markShown(): void {
 		const state = this._state.get();
-		if (state) {
+		if (state && this.options.get()) {
 			this._nudgeService.markShown(state);
 		}
 	}

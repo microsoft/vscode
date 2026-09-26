@@ -535,11 +535,12 @@ suite('ChatModelConfigurationStore', () => {
 			const picker = new ModelPickerConfiguration({
 				getSelectedModel: () => selectedModel,
 				getConfigurationAccess: () => configuration,
+				getChatSessionId: () => undefined,
 				isDisabled: () => false,
 				shouldShowCacheBreakHint: () => false,
 				getCacheBreakLearnMoreLink: () => undefined,
 				dismissCacheBreakHint() { },
-			}, upcastPartial<IActionWidgetService>({}), NullTelemetryService);
+			}, upcastPartial<IActionWidgetService>({}), NullTelemetryService, control.service);
 			store.add(configuration.onDidChange(() => picker.renderButton(button, false, false)));
 			const initial: IChatModelInputState = {
 				selectedModel, attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },

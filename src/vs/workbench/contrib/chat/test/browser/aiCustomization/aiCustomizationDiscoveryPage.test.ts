@@ -8,6 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -50,7 +51,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		...CustomizationMarketplaceSources.PluginMarketplaces,
 		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
 	};
-	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource, pluginSource];
+	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors, secondSource, pluginSource];
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -98,8 +99,9 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const installs: { identifier: string; result: DeferredPromise<void> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
-		let recoveryAction: ICustomizationMarketplaceSourceRecoveryAction | undefined;
+		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const deletions: DeferredPromise<void>[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(commandId: string, ..._args: unknown[]): Promise<R | undefined> {
@@ -111,12 +113,15 @@ suite('AICustomizationDiscoveryPage', () => {
 				return Promise.resolve(undefined);
 			}
 		}());
-		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		const notifications: Parameters<INotificationService['error']>[0][] = [];
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(error: Parameters<INotificationService['error']>[0]) { notifications.push(error); }
+		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = sources;
 			override readonly allSources = sources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
-			override getSourceRecoveryAction(sourceId: string) { return sourceId === 'other' ? recoveryAction : undefined; }
+			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
 				requests.push({ options, token, result });
@@ -127,6 +132,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
+		const cancellations: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
@@ -151,10 +157,19 @@ suite('AICustomizationDiscoveryPage', () => {
 				installStates.set(key, { kind: 'installed', target: state.target });
 				installChanges.fire();
 			}
+			override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const result = new DeferredPromise<void>();
+				installs.push({ identifier: resource.identifier, result });
+				await result.p;
+			}
+			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
+				cancellations.push(resource.identifier);
+			}
 		}());
+		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override readonly sentiment = { hidden: false };
-			override readonly onDidChangeSentiment = Event.None;
+			override readonly onDidChangeSentiment = sentimentChanged.event;
 		}();
 		instantiationService.stub(IChatEntitlementService, entitlement);
 		const installed: readonly IAICustomizationListItem[] = [{
@@ -189,8 +204,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
+		function getSourceActions() {
+			const button = container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
+			assert.ok(button);
+			button.click();
+			assert.ok(sourceMenu?.getActions);
+			return sourceMenu.getActions();
+		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, deletions, repairs,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, deletions, installs, repairs, cancellations,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -200,8 +222,9 @@ suite('AICustomizationDiscoveryPage', () => {
 					recordedResources.delete(key);
 				}
 			},
+			notifyInstallChange: () => installChanges.fire(),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
-			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
+			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
@@ -212,11 +235,11 @@ suite('AICustomizationDiscoveryPage', () => {
 				sourceMenu?.onHide?.(false);
 				sourceMenu = undefined;
 			},
-			selectSource: async (id: string) => {
+			selectSource: async (id: string | undefined) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
 				assert.ok(button);
 				button.click();
-				const action = sourceMenu?.getActions?.().find(action => action.id === `customizationDiscovery.source.${id}`);
+				const action = sourceMenu?.getActions?.().find(action => action.id === `customizationDiscovery.source.${id ?? 'all'}`);
 				assert.ok(action);
 				await action.run();
 				sourceMenu?.onHide?.(false);
@@ -611,6 +634,49 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('uses connection terminology and offers cancellation for a pending Connector repair', async () => {
+		const candidate = resource('mail', {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			displayName: 'Mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		});
+		const target = { kind: 'copilotConnector' as const, name: 'mail' };
+		const fixture = createPage([CustomizationMarketplaceSources.CopilotConnectors.id]);
+		fixture.setInstallState(candidate, { kind: 'missing', target });
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getConnectorRow = () => [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-results .monaco-list-row')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'Mail');
+		const disconnectedRow = getConnectorRow();
+		assert.ok(disconnectedRow);
+		const disconnected = {
+			detail: disconnectedRow.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...disconnectedRow.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		};
+
+		fixture.setInstallState(candidate, { kind: 'repairing', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
+		const repairingRow = getConnectorRow();
+		assert.ok(repairingRow);
+		const cancel = [...repairingRow.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Cancel');
+		assert.ok(cancel);
+		cancel.click();
+
+		assert.deepStrictEqual({
+			disconnected,
+			repairingDetail: repairingRow.querySelector('.customization-discovery-result-detail')?.textContent,
+			cancelAriaLabel: cancel.getAttribute('aria-label'),
+			cancellations: fixture.cancellations,
+		}, {
+			disconnected: { detail: 'MCP server · Copilot Connectors · Disconnected', actions: ['Reconnect', 'Disconnect'] },
+			repairingDetail: 'MCP server · Copilot Connectors · Reconnecting',
+			cancelAriaLabel: 'Cancel reconnecting Mail',
+			cancellations: ['mail'],
+		});
+	});
+
 	test('shows missing records in installed-only search without querying the catalog', async () => {
 		const candidate = resource('retired-skill', {
 			sourceId: 'retired',
@@ -904,6 +970,372 @@ suite('AICustomizationDiscoveryPage', () => {
 				cursors: [undefined, undefined],
 				visible: query ? ['other-mail', 'public-mail'] : ['public-mail', 'other-mail'],
 				warnings: 0,
+			});
+		});
+	}
+
+
+	for (const sourceIds of [['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {
+		test(`source gates preserve installed Discover: ${sourceIds.join(', ')}`, async () => {
+			const fixture = createPage(sourceIds);
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [] });
+			fixture.page.setSearchQuery('@installed mail');
+			await timeout(0);
+			assert.deepStrictEqual({
+				catalogRequests: fixture.requests.map(request => request.options),
+				installedVisible: fixture.page.getAccessibilityContent().includes('Local mail skill'),
+				searchVisible: fixture.container.querySelector('.customization-discovery-search') !== null,
+			}, {
+				catalogRequests: [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined }],
+				installedVisible: true,
+				searchVisible: true,
+			});
+		});
+	}
+
+
+	test('source selection uses public display names, cancels the previous query, and resets when disabled', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		const labels = fixture.getSourceActions().map(action => action.label).filter(Boolean);
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-mail', { sourceId: 'copilotConnectors' })] });
+		await fixture.requests[0].result.complete({ items: [resource('stale-mail')] });
+		await timeout(0);
+		const selected = {
+			label: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			cancelled: fixture.requests[0].token.isCancellationRequested,
+			content: fixture.page.getAccessibilityContent().match(/^(?:connector|stale)-mail$/gm),
+		};
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+		await fixture.requests[2].result.complete({ items: [resource('public-mail')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			labels,
+			selected,
+			selections: fixture.requests.map(request => request.options.sourceIds),
+			finalLabel: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
+			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
+		}, {
+			labels: ['All sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
+			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
+			selections: [undefined, ['copilotConnectors'], undefined],
+			finalLabel: 'All sources',
+			disabledSelectable: false,
+			content: ['public-mail'],
+		});
+	});
+
+
+	test('clearing search restores browse results only for the selected source', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('');
+		const restored = fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm);
+		await fixture.selectSource(undefined);
+		assert.deepStrictEqual({
+			restored,
+			all: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
+			requests: fixture.requests.map(request => [request.options.query, request.options.sourceIds]),
+		}, {
+			restored: ['connector-featured'],
+			all: ['all-featured'],
+			requests: [[undefined, undefined], [undefined, ['copilotConnectors']], ['mail', ['copilotConnectors']]],
+		});
+	});
+
+
+	test('source recovery during search invalidates cached browse failures', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const sourceErrors = [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }];
+		fixture.recoveryActions.set('copilotConnectors', { label: 'Sign In', kind: 'signIn', run: async () => { } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('old-featured')], sourceErrors });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [], sourceErrors });
+		await timeout(0);
+		const signIn = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.ok(signIn);
+		signIn.click();
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('');
+		await timeout(0);
+		const restoredStale = fixture.page.getAccessibilityContent().includes('old-featured');
+		await fixture.requests[3].result.complete({ items: [resource('new-featured')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.requests.map(request => request.options.query),
+			cursors: fixture.requests.map(request => request.options.cursor),
+			restoredStale,
+			signInPrompts: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			featured: fixture.page.getAccessibilityContent().match(/^(?:old|new)-featured$/gm),
+		}, {
+			queries: [undefined, 'mail', 'mail', undefined],
+			cursors: [undefined, undefined, undefined, undefined],
+			restoredStale: false,
+			signInPrompts: 0,
+			featured: ['new-featured'],
+		});
+	});
+
+
+	test('effective source toggles cancel and clear available results without clearing the installed search', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		await fixture.requests[2].result.complete({ items: [resource('current mail', { sourceId: 'copilotConnectors' })] });
+		await fixture.requests[0].result.complete({ items: [resource('stale mail')] });
+		await fixture.requests[1].result.complete({ items: [resource('also stale mail')] });
+		await timeout(0);
+		const beforeDisable = {
+			cancelled: fixture.requests.slice(0, 2).map(request => request.token.isCancellationRequested),
+			hasCurrent: fixture.page.getAccessibilityContent().includes('current mail'),
+			hasStale: fixture.page.getAccessibilityContent().includes('stale mail'),
+		};
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+		const disabled = {
+			hasAvailable: fixture.page.getAccessibilityContent().includes('current mail'),
+			hasInstalled: fixture.page.getAccessibilityContent().includes('Local mail skill'),
+			requests: fixture.requests.length,
+		};
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await fixture.requests[4].result.complete({ items: [] });
+		assert.deepStrictEqual({
+			beforeDisable, disabled, searches: fixture.requests.map(request => [request.options.query, request.options.cursor]),
+		}, {
+			beforeDisable: { cancelled: [true, true], hasCurrent: true, hasStale: false },
+			disabled: { hasAvailable: false, hasInstalled: true, requests: 4 },
+			searches: [['mail', undefined], ['mail', undefined], ['mail', undefined], ['mail', undefined], ['mail', undefined]],
+		});
+	});
+
+
+	test('unchanged source settings and entitlement notifications preserve the request', async () => {
+		const fixture = createPage();
+		fixture.page.setVisible(true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+		fixture.sentimentChanged.fire();
+		const cancelled = fixture.requests[0].token.isCancellationRequested;
+		await fixture.requests[0].result.complete({ items: [] });
+		assert.deepStrictEqual({ count: fixture.requests.length, cancelled }, { count: 1, cancelled: false });
+	});
+
+
+	test('source authorization is explicit, keyboard accessible, and restarts the combined query after consent', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const consent = new DeferredPromise<void>();
+		const authorizations: CancellationToken[] = [];
+		fixture.recoveryActions.set('copilotConnectors', {
+			label: 'Sign In',
+			kind: 'signIn',
+			run: async token => { authorizations.push(token); await consent.p; },
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('public-mail')],
+			sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
+		});
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.ok(action);
+		const initial = {
+			authorizations: authorizations.length,
+			healthyVisible: fixture.page.getAccessibilityContent().includes('public-mail'),
+			accessibleAction: fixture.page.getAccessibilityContent().includes('Choose Sign In'),
+			label: action.getAttribute('aria-label'),
+			primary: !action.classList.contains('secondary'),
+			warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning, .customization-marketplace-source-warning-help, .customization-marketplace-source-warnings .codicon-warning').length,
+		};
+		action.focus();
+		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		action.click();
+		const pending = { authorizations: authorizations.length, disabled: action.getAttribute('aria-disabled'), requests: fixture.requests.length };
+		await consent.complete();
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [resource('connector-mail', { sourceId: 'copilotConnectors' }), resource('public-mail')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			initial, pending,
+			cursors: fixture.requests.map(request => request.options.cursor),
+			warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
+			signIns: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			notifications: fixture.notifications,
+		}, {
+			initial: {
+				authorizations: 0,
+				healthyVisible: true,
+				accessibleAction: true,
+				label: 'Sign In to view Copilot Connectors.',
+				primary: true,
+				warnings: 0,
+			},
+			pending: { authorizations: 1, disabled: 'true', requests: 1 },
+			cursors: [undefined, undefined],
+			warnings: 0,
+			signIns: 0,
+			notifications: [],
+		});
+	});
+
+
+	for (const outcome of ['cancelled', 'denied', 'disposed']) {
+		test(`source authorization ${outcome} does not restart discovery or remove healthy results`, async () => {
+			const fixture = createPage(['agentFinder', 'copilotConnectors']);
+			const consent = new DeferredPromise<void>();
+			let authorizationToken = CancellationToken.None;
+			fixture.recoveryActions.set('copilotConnectors', {
+				label: 'Sign In',
+				kind: 'signIn',
+				run: async token => { authorizationToken = token; await consent.p; },
+			});
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({
+				items: [resource('public-mail')],
+				sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
+			});
+			await timeout(0);
+			const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+			assert.ok(action);
+			action.click();
+			const denied = new Error('Permission denied');
+			if (outcome === 'disposed') {
+				fixture.page.dispose();
+				await consent.complete();
+			} else {
+				await consent.error(outcome === 'cancelled' ? new CancellationError() : denied);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				requests: fixture.requests.length,
+				healthyVisible: outcome === 'disposed' || fixture.page.getAccessibilityContent().includes('public-mail'),
+				disabled: outcome === 'disposed' ? undefined : action.getAttribute('aria-disabled'),
+				cancelled: authorizationToken.isCancellationRequested,
+				notifications: fixture.notifications,
+			}, {
+				requests: 1,
+				healthyVisible: true,
+				disabled: outcome === 'disposed' ? undefined : 'false',
+				cancelled: outcome === 'disposed',
+				notifications: outcome === 'denied' ? [denied] : [],
+			});
+		});
+	}
+
+
+	for (const query of ['', '@type:mcp mail']) {
+		test(`connector sign-in with no ${query ? 'search' : 'browse'} results is an invitation, not a warning or empty success`, async () => {
+			const fixture = createPage(['copilotConnectors']);
+			fixture.recoveryActions.set('copilotConnectors', { label: 'Sign In', kind: 'signIn', run: async () => { } });
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({
+				items: [],
+				sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
+			});
+			await timeout(0);
+			const state = fixture.container.querySelector(query ? '.customization-discovery-results .customization-discovery-state' : '.customization-discovery-browse .customization-discovery-state');
+			assert.deepStrictEqual({
+				prompt: fixture.container.querySelector('.customization-marketplace-source-signin .customization-marketplace-source-message')?.textContent,
+				state: state?.textContent,
+				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning, .customization-marketplace-source-warning-help, .customization-marketplace-source-warnings .codicon-warning').length,
+				accessibleAction: fixture.page.getAccessibilityContent().includes('Choose Sign In'),
+				accessibleFailure: /unavailable|incomplete|could not|No customizations/.test(fixture.page.getAccessibilityContent()),
+			}, {
+				prompt: 'Sign in to view connectors.', state: '', warnings: 0, accessibleAction: true, accessibleFailure: false,
+			});
+		});
+
+		test(`isolates source failures in ${query ? 'search' : 'welcome browsing'} and restarts ranking on source retry`, async () => {
+			const fixture = createPage(['agentFinder', 'copilotConnectors']);
+			let failing = true;
+			const service = new CustomizationMarketplaceService([
+				{ id: 'agentFinder', query: async () => ({ items: [resource('public-mail', { score: 50 })], total: 1 }) },
+				{
+					id: 'copilotConnectors', query: async () => {
+						if (failing) {
+							throw new Error('Connector catalog unavailable');
+						}
+						return { items: [resource('connector-mail', { score: 100 })], total: 1 };
+					}
+				},
+			]);
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			const complete = async (index: number) => {
+				const request = fixture.requests[index];
+				await request.result.complete(await service.query({ ...request.options, sourceIds: ['agentFinder', 'copilotConnectors'] }, request.token));
+				await timeout(0);
+			};
+			await complete(0);
+			const initial = {
+				healthyVisible: fixture.page.getAccessibilityContent().includes('public-mail'),
+				warning: fixture.container.querySelector('.customization-marketplace-source-warning')?.textContent,
+				accessibleWarning: fixture.page.getAccessibilityContent().includes('Connector catalog unavailable'),
+			};
+			const retry = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-warning .monaco-button');
+			assert.ok(retry);
+			failing = false;
+			retry.click();
+			await complete(1);
+			assert.deepStrictEqual({
+				initial,
+				cursors: fixture.requests.map(request => request.options.cursor),
+				order: fixture.page.getAccessibilityContent().match(/^(?:public|connector)-mail$/gm),
+				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
+			}, {
+				initial: {
+					healthyVisible: true,
+					warning: 'Copilot Connectors: Connector catalog unavailableRetry',
+					accessibleWarning: true,
+				},
+				cursors: [undefined, undefined],
+				order: query ? ['connector-mail', 'public-mail'] : ['public-mail', 'connector-mail'],
+				warnings: 0,
+			});
+		});
+
+		test(`all sources failing in ${query ? 'search' : 'welcome browsing'} offers source retries rather than an empty success`, async () => {
+			const fixture = createPage(['agentFinder', 'copilotConnectors']);
+			const sources = ['agentFinder', 'copilotConnectors'].map(id => ({
+				id, query: async () => { throw new Error(`${id} unavailable`); },
+			}));
+			const service = new CustomizationMarketplaceService(sources);
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			const request = fixture.requests[0];
+			await request.result.complete(await service.query({ ...request.options, sourceIds: sources.map(source => source.id) }, request.token));
+			await timeout(0);
+			const state = fixture.container.querySelector(query ? '.customization-discovery-results .customization-discovery-state' : '.customization-discovery-browse .customization-discovery-state');
+			assert.deepStrictEqual({
+				state: state?.textContent,
+				retries: [...fixture.container.querySelectorAll('.customization-marketplace-source-warning .monaco-button')].map(button => button.getAttribute('aria-label')),
+				accessibleErrors: sources.map(source => fixture.page.getAccessibilityContent().includes(`${source.id} unavailable`)),
+			}, {
+				state: 'Available customizations could not be fully loaded. Retry an unavailable source.',
+				retries: [
+					'Retry GitHub Feed. Reload all sources from the first page.',
+					'Retry Copilot Connectors. Reload all sources from the first page.',
+				],
+				accessibleErrors: [true, true],
 			});
 		});
 	}

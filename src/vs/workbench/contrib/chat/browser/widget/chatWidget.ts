@@ -96,6 +96,7 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../aiCustomization/chatCustomizationMigrationNotice.js';
 import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatTipService } from '../chatTipService.js';
@@ -413,6 +414,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+	private readonly customizationMigrationNotice = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly mainPasteTargetRegistration = this._register(new MutableDisposable());
 	private readonly inlinePasteTargetRegistration = this._register(new MutableDisposable());
@@ -2613,8 +2615,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		input.render(container, '', this);
-		// The tip belongs to the empty state, which never applies while a request is edited.
+		// The migration notice and the tip belong to the empty state, which never applies while a request is edited.
 		if (!isInlineEdit) {
+			if (this.viewOptions.customizationMigrationNotice) {
+				const noticeStore = new DisposableStore();
+				this.customizationMigrationNotice.value = noticeStore;
+				const emptyState = observableFromEvent(noticeStore, Event.any(this.onDidChangeEmptyState, this.onDidChangeViewModel), () => this.isEmpty());
+				const noticeContext = derived<IChatCustomizationMigrationNoticeContext | undefined>(noticeStore, reader => {
+					const viewModel = this._viewModelObs.read(reader);
+					const sessionResource = viewModel?.sessionResource;
+					if (!sessionResource) {
+						return undefined;
+					}
+					return {
+						sessionResource,
+						workspace: this.viewOptions.customizationMigrationNotice!.workspace.read(reader),
+					};
+				});
+				noticeStore.add(this.instantiationService.createInstance(
+					ChatCustomizationMigrationNotice,
+					input.customizationMigrationNoticeContainerElement,
+					noticeContext,
+					emptyState,
+					() => this.focusInput(),
+					this.viewOptions.customizationMigrationNotice.onDidChangeAvailability,
+					visible => input.setCustomizationMigrationNoticeVisible(visible),
+				));
+			} else {
+				this.customizationMigrationNotice.clear();
+			}
 			this._gettingStartedTip.value = this.instantiationService.createInstance(
 				ChatInputTipPresenter,
 				{
