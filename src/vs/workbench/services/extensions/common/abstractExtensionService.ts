@@ -82,6 +82,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onWillStop = this._register(new Emitter<WillStopExtensionHostsEvent>());
 	public readonly onWillStop = this._onWillStop.event;
 
+	private readonly _onDidStop = this._register(new Emitter<void>());
+	public readonly onDidStop = this._onDidStop.event;
+
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private readonly _registry = new LockableExtensionDescriptionRegistry(this._activationEventReader);
 	private readonly _installedExtensionsReady = new Barrier();
@@ -750,6 +753,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		await this._extensionHostManagers.stopAllInReverse();
+		this._onDidStop.fire();
 		for (const extensionStatus of this._extensionStatus.values()) {
 			extensionStatus.clearRuntimeStatus();
 		}
