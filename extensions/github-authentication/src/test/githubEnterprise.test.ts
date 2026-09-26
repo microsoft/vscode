@@ -9,6 +9,9 @@ import * as vscode from 'vscode';
 import { Log } from '../common/logger';
 import { AuthProviderType, IGitHubAuthenticationProvider, IGitHubAuthenticationProviderFactory, UriEventHandler } from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';
+import { TestMemento } from './testMemento';
+import { TestSecretStorage } from './testSecretStorage';
+import { AccountLinks } from '../common/accountLinks';
 
 class TestProvider implements IGitHubAuthenticationProvider {
 	readonly changes = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
@@ -89,12 +92,12 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		sinon.restore();
 	});
 
-	async function create(uri?: vscode.Uri) {
+	async function create(uri?: vscode.Uri, state = new TestMemento(), secrets = new TestSecretStorage()) {
 		const factory = new TestProviderFactory();
-		const provider = new GitHubEnterpriseAuthenticationProvider(factory);
-		disposables.push(provider);
+		const provider = new GitHubEnterpriseAuthenticationProvider(state, secrets, factory);
+		disposables.push(secrets, provider);
 		await provider.update(uri);
-		return { provider, factory };
+		return { provider, factory, state, secrets };
 	}
 
 	test('one registered host keeps native session identities and provider options', async () => {
@@ -128,6 +131,45 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		const { provider, factory } = await create(a);
 		await provider.update(a);
 		assert.deepStrictEqual({ engines: factory.engines.length, registrations: registration.callCount }, { engines: 1, registrations: 1 });
+	});
+
+	test('equivalent URI edits retain the engine and its original token and account-link namespace', async () => {
+		const original = vscode.Uri.parse('https://TENANT.example/Team/');
+		const normalized = vscode.Uri.parse('https://tenant.example/Team');
+		const state = new TestMemento();
+		const secrets = new TestSecretStorage();
+		disposables.push(secrets);
+		const storageKey = 'TENANT.example/Team/.ghes.auth';
+		await secrets.store(storageKey, 'fake-saved-token');
+		const links = [{ gitHubAccountId: '42', gitHubAccountLabel: 'octocat', microsoftAccountLabel: 'mona@example.com' }];
+		await state.update(`${storageKey}.microsoftAccountLinks`, links);
+		const { provider, factory } = await create(original, state, secrets);
+		await provider.update(normalized);
+		const restarted = await create(normalized, state, secrets);
+		const logger = new Log(AuthProviderType.githubEnterprise);
+		disposables.push(logger);
+		assert.deepStrictEqual({
+			created: factory.engines.length,
+			storage: [factory.engines[0].storageKey, restarted.factory.engines[0].storageKey],
+			saved: await secrets.get(storageKey),
+			links: new AccountLinks(state, `${restarted.factory.engines[0].storageKey}.microsoftAccountLinks`, logger).linkedAccounts()
+		}, { created: 1, storage: [storageKey, storageKey], saved: 'fake-saved-token', links });
+	});
+
+	test('storage failures leave the live host usable without creating replacement engines', async () => {
+		const { provider, factory, secrets } = await create(a);
+		sinon.stub(secrets, 'get').callThrough().withArgs('b.example/Deployment.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+		await assert.rejects(provider.update(b), /Secret storage is unavailable/);
+		assert.deepStrictEqual({ sessions: await provider.getSessions(), engines: factory.engines.length }, { sessions: factory.engines[0].sessions, engines: 1 });
+	});
+
+	test('a new scheme cannot claim an existing instance namespace', async () => {
+		const { provider, factory } = await create(vscode.Uri.parse('https://a.example'));
+		await provider.update(vscode.Uri.parse('http://a.example'));
+		assert.deepStrictEqual(factory.engines.map(engine => engine.storageKey), [
+			'a.example/.ghes.auth',
+			'http%3A%2F%2Fa.example%2F.ghes.auth'
+		]);
 	});
 
 	test('configuration failure leaves the current host usable and a later update can recover', async () => {
