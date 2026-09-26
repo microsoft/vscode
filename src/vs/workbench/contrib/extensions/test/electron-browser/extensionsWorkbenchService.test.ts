@@ -10,7 +10,7 @@ import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurati
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, IExtensionInfo, IExtensionQueryOptions, InstallExtensionInfo
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -33,7 +33,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ExtensionType, ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
@@ -419,6 +419,152 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 			assert.strictEqual(0, testObject.local.length);
 		});
+	});
+
+	suite('platform-specific extension updates', () => {
+		for (const targetPlatform of [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_ARM64, TargetPlatform.LINUX_X64]) {
+			for (const universalPlatform of [TargetPlatform.UNDEFINED, TargetPlatform.UNIVERSAL]) {
+				test(`prefers ${targetPlatform} over ${universalPlatform} when syncing gallery results`, async () => {
+					stubConfiguration(false, false);
+					const local = aLocalExtension('platform-extension', {}, { targetPlatform, identifier: { id: 'pub.platform-extension', uuid: generateUuid() } });
+					const universal = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1', allTargetPlatforms: [universalPlatform, targetPlatform] }, { targetPlatform: universalPlatform });
+					const native = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1' }, { targetPlatform });
+					instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+					instantiationService.stubPromise(IExtensionManagementService, 'getTargetPlatform', targetPlatform);
+					instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+					const queries: IExtensionQueryOptions[] = [];
+					instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensions: IExtensionInfo[], options: IExtensionQueryOptions) => {
+						queries.push(options);
+						return options.queryAllVersions ? [native] : [universal];
+					});
+					const installedPlatforms: TargetPlatform[] = [];
+					instantiationService.stub(IWorkbenchExtensionManagementService, 'installGalleryExtensions', async (extensions: InstallExtensionInfo[]) => {
+						installedPlatforms.push(...extensions.map(({ extension }) => extension.properties.targetPlatform));
+						return [];
+					});
+					testObject = await aWorkbenchService();
+
+					await testObject.checkForUpdates();
+					await testObject.updateAll();
+
+					assert.deepStrictEqual({
+						targetPlatform: testObject.local[0].gallery?.properties.targetPlatform,
+						outdated: testObject.local[0].outdated,
+						installedPlatforms,
+						queries: queries.map(options => ({ targetPlatform: options.targetPlatform, queryAllVersions: !!options.queryAllVersions }))
+					}, {
+						targetPlatform,
+						outdated: true,
+						installedPlatforms: [targetPlatform],
+						queries: [{ targetPlatform, queryAllVersions: false }, { targetPlatform, queryAllVersions: true }]
+					});
+				});
+			}
+		}
+
+		test('resolves updates for a remote installation using the remote target platform', async () => {
+			stubConfiguration(false, false);
+			const targetPlatform = TargetPlatform.LINUX_X64;
+			const local = aLocalExtension('platform-extension', {}, { targetPlatform, identifier: { id: 'pub.platform-extension', uuid: generateUuid() } });
+			const localServer = createExtensionManagementService();
+			const remoteServer = createExtensionManagementService([local]);
+			sinon.stub(localServer, 'getTargetPlatform').resolves(TargetPlatform.DARWIN_ARM64);
+			sinon.stub(remoteServer, 'getTargetPlatform').resolves(targetPlatform);
+			instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService, localServer, remoteServer));
+			instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+			const universal = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1', allTargetPlatforms: [TargetPlatform.UNDEFINED, targetPlatform] }, { targetPlatform: TargetPlatform.UNDEFINED });
+			const native = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1' }, { targetPlatform });
+			const queriedPlatforms: (TargetPlatform | undefined)[] = [];
+			instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensions: IExtensionInfo[], options: IExtensionQueryOptions) => {
+				queriedPlatforms.push(options.targetPlatform);
+				return options.targetPlatform === targetPlatform ? [native] : [universal];
+			});
+			testObject = await aWorkbenchService();
+
+			await testObject.checkForUpdates();
+
+			assert.deepStrictEqual({
+				queriedPlatforms,
+				extensions: testObject.local.map(extension => ({ server: extension.server?.id, targetPlatform: extension.gallery?.properties.targetPlatform }))
+			}, {
+				queriedPlatforms: [TargetPlatform.DARWIN_ARM64, targetPlatform],
+				extensions: [{ server: 'vscode-remote', targetPlatform }]
+			});
+		});
+
+		test('uses a compatible universal web extension without querying again', async () => {
+			stubConfiguration(false, false);
+			const local = aLocalExtension('platform-extension', {}, { targetPlatform: TargetPlatform.UNDEFINED, identifier: { id: 'pub.platform-extension', uuid: generateUuid() } });
+			const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1', allTargetPlatforms: [TargetPlatform.UNDEFINED, TargetPlatform.WEB] }, { targetPlatform: TargetPlatform.UNDEFINED });
+			instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+			instantiationService.stubPromise(IExtensionManagementService, 'getTargetPlatform', TargetPlatform.WEB);
+			instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+			let queries = 0;
+			instantiationService.stub(IExtensionGalleryService, 'getExtensions', async () => { queries++; return [gallery]; });
+			testObject = await aWorkbenchService();
+
+			await testObject.checkForUpdates();
+
+			assert.deepStrictEqual({ queries, outdated: testObject.local[0].outdated }, { queries: 1, outdated: true });
+		});
+
+		for (const hasPlatformSpecificBuild of [false, true]) {
+			test(`keeps a newer universal update when a native build is ${hasPlatformSpecificBuild ? 'older' : 'unavailable'}`, async () => {
+				stubConfiguration(false, false);
+				const targetPlatform = getTargetPlatform(platform, arch);
+				const local = aLocalExtension('platform-extension', {}, { targetPlatform, identifier: { id: 'pub.platform-extension', uuid: generateUuid() } });
+				const allTargetPlatforms = hasPlatformSpecificBuild ? [TargetPlatform.UNDEFINED, targetPlatform] : [TargetPlatform.UNDEFINED];
+				const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.1', allTargetPlatforms }, { targetPlatform: TargetPlatform.UNDEFINED });
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+				const queries: IExtensionQueryOptions[] = [];
+				instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensions: IExtensionInfo[], options: IExtensionQueryOptions) => {
+					queries.push(options);
+					return [gallery];
+				});
+				testObject = await aWorkbenchService();
+
+				await testObject.checkForUpdates();
+
+				assert.deepStrictEqual({
+					targetPlatform: testObject.local[0].gallery?.properties.targetPlatform,
+					outdated: testObject.local[0].outdated,
+					queries: queries.map(options => !!options.queryAllVersions)
+				}, {
+					targetPlatform: TargetPlatform.UNDEFINED,
+					outdated: true,
+					queries: hasPlatformSpecificBuild ? [false, true] : [false]
+				});
+			});
+		}
+
+		for (const [localPlatform, galleryPlatform, outdated] of [
+			[TargetPlatform.UNDEFINED, TargetPlatform.DARWIN_ARM64, true],
+			[TargetPlatform.UNIVERSAL, TargetPlatform.DARWIN_ARM64, true],
+			[TargetPlatform.DARWIN_ARM64, TargetPlatform.UNDEFINED, false],
+			[TargetPlatform.DARWIN_ARM64, TargetPlatform.UNIVERSAL, false],
+			[TargetPlatform.DARWIN_X64, TargetPlatform.DARWIN_ARM64, true],
+			[TargetPlatform.DARWIN_ARM64, TargetPlatform.DARWIN_ARM64, false],
+			[TargetPlatform.WEB, TargetPlatform.DARWIN_ARM64, false],
+			[TargetPlatform.DARWIN_ARM64, TargetPlatform.WEB, false],
+		] as const) {
+			test(`same-version update from ${localPlatform} to ${galleryPlatform}`, async () => {
+				stubConfiguration(false, false);
+				const local = aLocalExtension('platform-extension', {}, { targetPlatform: localPlatform });
+				const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, allTargetPlatforms: [galleryPlatform] }, { targetPlatform: galleryPlatform });
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+				instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+				testObject = await aWorkbenchService();
+
+				await testObject.checkForUpdates();
+
+				assert.deepStrictEqual({
+					outdated: testObject.local[0].outdated,
+					outdatedTargetPlatform: testObject.local[0].outdatedTargetPlatform,
+				}, { outdated, outdatedTargetPlatform: outdated });
+			});
+		}
 	});
 
 	test('test extension doesnot show outdated for system extensions', async () => {
