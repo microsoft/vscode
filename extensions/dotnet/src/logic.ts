@@ -193,26 +193,38 @@ export function firstHttpUrl(applicationUrl: string): string | undefined {
 }
 
 /** Split a launch profile's commandLineArgs string into arguments, honouring double quotes
- *  (e.g. `--message "hello world"` stays one argument). */
+ *  (e.g. `--message "hello world"` stays one argument). Empty quoted arguments are kept
+ *  and `\"` escapes a literal quote; other backslashes are literal (Windows paths). */
 export function splitCommandLineArgs(args: string): string[] {
 	const out: string[] = [];
 	let current = '';
+	let hasToken = false;
 	let inQuote = false;
-	for (const ch of args) {
+	for (let i = 0; i < args.length; i++) {
+		const ch = args[i];
 		if (ch === '"') {
 			inQuote = !inQuote;
+			hasToken = true; // `""` is an (empty) argument
 			continue;
 		}
-		if (ch === ' ' && !inQuote) {
-			if (current.length > 0) {
+		if (!inQuote && ch === ' ') {
+			if (hasToken) {
 				out.push(current);
 				current = '';
+				hasToken = false;
 			}
 			continue;
 		}
+		if (ch === '\\' && args[i + 1] === '"') {
+			current += '"';
+			i++;
+			hasToken = true;
+			continue;
+		}
 		current += ch;
+		hasToken = true;
 	}
-	if (current.length > 0) {
+	if (hasToken) {
 		out.push(current);
 	}
 	return out;

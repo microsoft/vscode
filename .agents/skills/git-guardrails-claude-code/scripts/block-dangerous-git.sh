@@ -59,7 +59,7 @@ case "$SUBCOMMAND" in
 		;;
 	checkout | restore)
 		for a in "${ARGS[@]}"; do
-			case "$a" in . | -- . | "..") blocked "git $SUBCOMMAND ." ;; esac
+			case "$a" in . | ..) blocked "git $SUBCOMMAND ." ;; esac
 		done
 		;;
 esac

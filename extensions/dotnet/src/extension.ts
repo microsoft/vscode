@@ -588,7 +588,7 @@ async function resolveProgram(project: DotnetProject): Promise<string | undefine
 
 	const baseOut = /<BaseOutputPath>\s*([^<\s]+)\s*<\/BaseOutputPath>/i.exec(csprojXml)?.[1];
 	const candidates = baseOut
-		? [path.resolve(project.dir, baseOut.trim(), tfm, `${assembly}.dll`)]
+		? [path.resolve(project.dir, baseOut.trim(), 'Debug', tfm, `${assembly}.dll`)]
 		: [path.join(project.dir, 'bin', 'Debug', tfm, `${assembly}.dll`)];
 	for (const candidate of candidates) {
 		if (fs.existsSync(candidate)) {
@@ -597,7 +597,7 @@ async function resolveProgram(project: DotnetProject): Promise<string | undefine
 	}
 	// Last resort: newest matching DLL under the Debug output tree only (the pipeline
 	// always builds Debug; searching all configurations could launch a stale Release DLL).
-	const binDir = baseOut ? path.resolve(project.dir, baseOut.trim()) : path.join(project.dir, 'bin', 'Debug');
+	const binDir = baseOut ? path.resolve(project.dir, baseOut.trim(), 'Debug') : path.join(project.dir, 'bin', 'Debug');
 	const found = findNewestDll(binDir, `${assembly}.dll`, 4);
 	if (found) {
 		return found;
