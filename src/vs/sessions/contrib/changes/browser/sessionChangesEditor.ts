@@ -5,8 +5,11 @@
 
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,6 +31,7 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
@@ -175,6 +179,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	private widget: MultiDiffEditorWidget | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
+	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -202,6 +207,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
+	private readonly _pendingReveal = this._register(new MutableDisposable());
+	/** Defers resolving the multi-diff while the editor part is hidden (single-pane detail-only). */
+	private readonly _pendingResolve = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
 
@@ -244,8 +252,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -338,8 +344,26 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
+		this._pendingResolve.clear();
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
+			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
+			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.
+			const cts = new CancellationTokenSource();
+			const store = new DisposableStore();
+			store.add(toDisposable(() => cts.dispose(true)));
+			store.add(Event.once(Event.filter(this.layoutService.onDidChangePartVisibility, e => e.partId === Parts.EDITOR_PART && e.visible))(() => {
+				this._resolveInput(input, options, context, cts.token).catch(onUnexpectedError);
+			}));
+			this._pendingResolve.value = store;
+			return;
+		}
+		await this._resolveInput(input, options, context, token);
+	}
+
+	private async _resolveInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const viewModel = await input.getViewModel();
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 		this.viewModel = viewModel;
@@ -349,7 +373,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
 		this._logger.log('changes editor set input', {
-			session: sessionResource,
+			session: this.sessionChangesService.getSessionResource(input.multiDiffSource),
 			preserveFocus: !!options?.preserveFocus,
 			hasPersistedViewState: !!viewState,
 		});
@@ -427,19 +451,43 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
+		this._pendingReveal.clear();
 		const revealData = options?.viewState?.revealData;
 		if (!revealData) {
 			return;
 		}
-		this.widget?.reveal(revealData.resource, {
-			range: revealData.range ? Range.lift(revealData.range) : undefined,
-			highlight: true,
-		});
+
+		const reveal = (): boolean => {
+			const hasResource = this.viewModel?.items.get().some(item =>
+				isEqual(item.originalUri, revealData.resource.original) &&
+				isEqual(item.modifiedUri, revealData.resource.modified));
+			if (!hasResource) {
+				return false;
+			}
+			this.widget?.reveal(revealData.resource, {
+				range: revealData.range ? Range.lift(revealData.range) : undefined,
+				highlight: true,
+			});
+			return true;
+		};
+
+		if (!reveal()) {
+			const viewModel = this.viewModel;
+			if (viewModel) {
+				this._pendingReveal.value = Event.fromObservableLight(viewModel.items)(() => {
+					if (reveal()) {
+						this._pendingReveal.clear();
+					}
+				});
+			}
+		}
 	}
 
 	override clearInput(): void {
 		const input = this.input;
 		this._pendingFocus.clear();
+		this._pendingReveal.clear();
+		this._pendingResolve.clear();
 		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.

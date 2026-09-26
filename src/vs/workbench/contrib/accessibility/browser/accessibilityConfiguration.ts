@@ -52,6 +52,7 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
+	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -67,9 +68,11 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
+	ReleaseNotes = 'accessibility.verbosity.releaseNotes',
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -153,6 +156,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.customizationMigrations.description', "Provide information about how to access accessibility help for the customization migration checklist."),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
+			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
 			...baseVerbosityProperty
@@ -214,12 +221,20 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ReleaseNotes]: {
+			description: localize('verbosity.releaseNotes', "Provide information about how to access release notes accessibility help when the release notes are focused."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Find]: {
 			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
 			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.NewSessionWelcome]: {
+			description: localize('verbosity.newSessionWelcome', "Announce the welcome message when a new session composer is shown."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
@@ -654,6 +669,16 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.confetti': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.confetti', "Plays a joyful sound / audio cue when confetti is shown."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.confetti.sound', "Plays a joyful sound when confetti is shown."),
 					...soundFeatureBase
 				},
 			}

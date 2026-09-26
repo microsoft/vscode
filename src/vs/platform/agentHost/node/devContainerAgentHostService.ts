@@ -10,13 +10,13 @@ import { EventEmitter as NodeEventEmitter } from 'events';
 import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { join, posix } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { vArray, vLiteral, vObj, vString } from '../../../base/common/validation.js';
+import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -44,6 +44,7 @@ import {
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -108,6 +109,7 @@ interface IDevContainerMount {
 	readonly Type: string;
 	readonly Source: string;
 	readonly Destination: string;
+	readonly Name?: string;
 }
 
 interface IGitIdentity {
@@ -125,6 +127,7 @@ const devContainerMountsValidator = vArray(vObj({
 	Type: vString(),
 	Source: vString(),
 	Destination: vString(),
+	Name: vOptionalProp(vString()),
 }));
 
 /** Testable relay abstraction owned by the shared-process launcher. */
@@ -201,9 +204,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 		try {
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
+			const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
 			const up = await this._runDevContainer(
 				config.connectionId,
-				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder],
+				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder, ...cacheMountArgs],
 				tokenSource.token,
 			);
 			const upResult = parseDevContainerUpResult(up.stdout);
@@ -242,6 +246,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const serverDataFolderName = this._productService.serverDataFolderName ?? '.vscode-server-oss';
 			const quality = this._productService.quality || 'insider';
+			const cliCacheDir = await this._configureCaches(config.connectionId, upResult.containerId, serverDataFolderName, platform, exec, tokenSource.token);
 			const cliInstallation = await ensureRemoteAgentHostCliInstalled(exec, platform, {
 				serverDataFolderName,
 				quality,
@@ -249,6 +254,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				reportInstalling: () => this._logService.info(`${LOG_PREFIX} Installing VS Code CLI in Dev Container...`),
 				logService: this._logService,
 				logPrefix: LOG_PREFIX,
+				cliCacheDir,
+				reportCacheStatus: message => this._reportOutput(config.connectionId, `${message}\n`),
 			});
 			const { cliBin } = cliInstallation;
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
@@ -310,6 +317,76 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				this._connectionStores.deleteAndDispose(config.connectionId);
 			}
 			throw error;
+		}
+	}
+
+	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
+		try {
+			const config = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '--include-merged-configuration'], token);
+			if (config.code !== 0) {
+				throw new Error(`Cannot read Dev Container configuration (exit ${config.code}): ${config.stderr}`);
+			}
+			if (canAddDevContainerServerCacheMount(config.stdout)) {
+				return ['--mount', devContainerServerCacheMount];
+			}
+			this._logService.info(`${LOG_PREFIX} Keeping configured container mounts; server cache sharing requires an existing vscode volume mount`);
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			this._logService.warn(`${LOG_PREFIX} Cannot add optional shared server cache mount`, error);
+			this._reportOutput(connectionId, `Cannot add optional shared server cache mount: ${getErrorMessage(error)}\n`);
+		}
+		return [];
+	}
+
+	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
+		const reportError = (kind: string, error: Error) => {
+			this._logService.warn(`${LOG_PREFIX} Shared ${kind} cache unavailable; keeping the existing CLI cache`, error);
+			this._reportOutput(connectionId, `Shared ${kind} cache unavailable; keeping the existing CLI cache: ${getErrorMessage(error)}\n`);
+		};
+		try {
+			const mounts = await this._getContainerMounts(connectionId, containerId, token);
+			if (!mounts.some(mount => mount.Type === 'volume' && mount.Name === 'vscode' && mount.Destination === '/vscode')
+				|| mounts.some(mount => mount.Destination.startsWith('/vscode/'))) {
+				throw new Error('The shared vscode volume is not mounted at /vscode without nested mounts');
+			}
+			const { stdout } = await exec('id -u; id -g');
+			const [uid, gid] = stdout.trim().split(/\r?\n/);
+			let cliCacheDir: string | undefined;
+			for (const kind of ['server', 'CLI'] as const) {
+				if (kind === 'CLI' && !this._productService.commit) {
+					continue;
+				}
+				try {
+					const cachePath = kind === 'server' ? getDevContainerServerCachePath(serverDataFolderName, platform) : getDevContainerCliCachePath(serverDataFolderName, platform);
+					const created = await this._runLocalCommand('docker', [
+						'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerCacheCommand(cachePath, uid, gid),
+					], await this._resolveShellEnvironment(), token);
+					if (created.code !== 0) {
+						throw new Error(`Unable to prepare shared ${kind} cache (exit ${created.code}): ${created.stderr}`);
+					}
+					if (kind === 'server') {
+						await exec(buildLinkDevContainerServerCacheCommand(serverDataFolderName, cachePath));
+						this._logService.info(`${LOG_PREFIX} Using shared server cache at ${cachePath}`);
+						this._reportOutput(connectionId, `Using shared server cache at ${cachePath}\n`);
+					} else {
+						cliCacheDir = cachePath;
+					}
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw error;
+					}
+					reportError(kind, error);
+				}
+			}
+			return cliCacheDir;
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			reportError('server', error);
+			return undefined;
 		}
 	}
 
@@ -737,8 +814,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	): ChildProcessWithoutNullStreams {
 		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
 			stdio: ['pipe', 'pipe', 'pipe'],
-			env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+			env: this._getDevContainerSpawnEnvironment(environment),
 		});
+	}
+
+	protected _getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		const spawnEnvironment: NodeJS.ProcessEnv = { ...environment, ELECTRON_RUN_AS_NODE: '1' };
+		delete spawnEnvironment.NODE_OPTIONS;
+		delete spawnEnvironment.VSCODE_INSPECTOR_OPTIONS;
+		return spawnEnvironment;
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {

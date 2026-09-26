@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../agentFinder/common/agentFinderMcpRegistry.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
-import { McpGalleryService } from '../../common/mcpGalleryService.js';
+import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
 
 const SERVERS_URL = 'https://registry.test/servers';
 const NAMED_TEMPLATE = 'https://registry.test/servers/{name}';
@@ -121,6 +123,7 @@ function createManifestService(manifest: IMcpGalleryManifest | null): IMcpGaller
 		onDidChangeMcpGalleryManifestStatus: Event.None,
 		onDidChangeMcpGalleryManifest: Event.None,
 		getMcpGalleryManifest: async () => manifest,
+		getDefaultMcpGalleryManifest: async () => manifest,
 	};
 }
 
@@ -132,6 +135,63 @@ const manifest: IMcpGalleryManifest = {
 		{ id: NAMED_TEMPLATE, type: McpGalleryResourceType.McpServerNamedResourceUri }
 	]
 };
+
+suite('McpGalleryService - marketplace pages', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the gallery cursor and bounded page size without replaying the search text', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({
+			servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+			metadata: { count: 2, nextCursor: 'opaque+/=' },
+		}));
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const first = await service.queryPage({ text: 'server', pageSize: 2 }, CancellationToken.None);
+		const next = await service.queryPage({ text: 'server', cursor: first.nextCursor, pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			urls: requests.requests.map(request => request.url),
+			first: { names: first.items.map(item => item.name), total: first.total, cursor: first.nextCursor },
+			next: { names: next.items.map(item => item.name), cursor: next.nextCursor },
+		}, {
+			urls: [`${SERVERS_URL}?limit=2&version=latest&search=server`, `${SERVERS_URL}?limit=2&version=latest&cursor=opaque%2B%2F%3D`],
+			first: { names: ['io.github.owner/server'], total: 2, cursor: 'opaque+/=' },
+			next: { names: ['io.github.owner/server'], cursor: 'opaque+/=' },
+		});
+	});
+
+	test('pins marketplace pages to the supplied custom registry while legacy queries use the active manifest', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({ servers: [], metadata: { count: 0 } }));
+		const productManifest = {
+			...manifest, url: 'https://api.mcp.github.com',
+			resources: [{ id: 'https://api.mcp.github.com/v0.1/servers', type: McpGalleryResourceType.McpServersQueryService }],
+		};
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(productManifest)));
+		await service.queryPage({ pageSize: 2 }, CancellationToken.None, manifest);
+		await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual(requests.requests.map(request => request.url), [
+			`${SERVERS_URL}?limit=2&version=latest`,
+			'https://api.mcp.github.com/v0.1/servers?limit=2&version=latest',
+		]);
+	});
+
+	test('reports registry failures to the marketplace without changing the legacy query fallback', async () => {
+		const requests = new StatusRequestService(503);
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /HTTP 503/);
+		const legacy = await service.query(undefined, CancellationToken.None);
+		assert.deepStrictEqual(legacy.firstPage, { items: [], hasMore: false });
+	});
+
+	test('does not invent a zero total when older registry responses omit count', async () => {
+		const requests = new StatusRequestService(200, JSON.stringify({
+			servers: [serverDocumentData('io.github.owner/server', ['npm'])], metadata: {},
+		}));
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({ names: page.items.map(item => item.name), total: page.total }, {
+			names: ['io.github.owner/server'], total: undefined,
+		});
+	});
+});
 
 suite('McpGalleryService - resolveMcpServersFromGallery', () => {
 
@@ -322,10 +382,13 @@ suite('McpGalleryService - getMcpServer validation', () => {
 	});
 
 	test('rejects unsupported v0.1 package registry types', async () => {
-		const requestService = new StatusRequestService(200, serverDocument('unsupported'));
+		const data = serverDocumentData('io.github.owner/server', ['other']);
+		const document = { ...data, server: { ...data.server, repository: { source: 'github', url: 'https://github.com/owner/server' } } };
+		const requestService = new StatusRequestService(200, JSON.stringify(document));
 		const service = createService(requestService, { ...manifest, version: 'v0.1' });
 
-		await assert.rejects(() => service.getMcpServer(serverUrl('io.github.owner/server')), /Failed to serialize MCP server/);
+		await assert.rejects(() => service.getMcpServer(serverUrl('io.github.owner/server')), error =>
+			error instanceof UnsupportedMcpGalleryPackageError && error.repositoryUrl?.toString() === 'https://github.com/owner/server');
 	});
 
 	test('filters unsupported packages while preserving supported launch options', async () => {
@@ -368,6 +431,35 @@ suite('McpGalleryService - getMcpServer validation', () => {
 				}
 			}]
 		});
+	});
+
+	test('resolves a pinned GitHub Feed version with the supported package parser rather than the configured registry', async () => {
+		const name = 'io.github.owner/server';
+		const requestService = new StatusRequestService(200, JSON.stringify(serverDocumentData(name, ['npm'])));
+		const service = createService(requestService);
+		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const server = await service.getMcpServer(url, agentFinderMcpRegistryManifest);
+		assert.deepStrictEqual({
+			name: server?.name,
+			version: server?.version,
+			packageTypes: server?.configuration.packages?.map(pkg => pkg.registryType),
+			requests: requestService.requests.map(request => ({ url: request.url, followRedirects: request.followRedirects, timeout: request.timeout })),
+		}, {
+			name, version: '1.0.0', packageTypes: ['npm'],
+			requests: [{ url, followRedirects: 0, timeout: 30_000 }],
+		});
+	});
+
+	test('bounds versioned feed MCP records without truncating an allowed response', async () => {
+		const name = 'io.github.owner/server';
+		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const document = JSON.stringify(serverDocumentData(name, ['npm']));
+		const size = 5 * 1024 * 1024;
+		const allowed = createService(new StatusRequestService(200, document.padEnd(size, ' ')));
+		const oversized = createService(new StatusRequestService(200, document.padEnd(size + 1, ' ')));
+		const server = await allowed.getMcpServer(url, agentFinderMcpRegistryManifest);
+		await assert.rejects(oversized.getMcpServer(url, agentFinderMcpRegistryManifest), /response is too large/);
+		assert.strictEqual(server?.name, name);
 	});
 
 	test('skips unusable servers without dropping a v0.1 gallery page', async () => {

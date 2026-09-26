@@ -304,7 +304,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^(?:@\S+\s+)?\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		const match = /^(?:@\S+\s+)?\/(init|create-(?:instructions|prompt|agent|skill)|fork|btw)(?:\s|$)/.exec(trimmed);
 		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
@@ -321,6 +321,8 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				return CREATE_SKILL_TRACKING_COMMAND;
 			case 'fork':
 				return FORK_CONVERSATION_TRACKING_COMMAND;
+			case 'btw':
+				return TipTrackingCommands.BtwUsed;
 			default:
 				return undefined;
 		}

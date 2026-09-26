@@ -34,6 +34,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly count: number;
 	readonly countLabel: string;
 	readonly highRisk?: boolean;
+	readonly hasDetails?: boolean;
 }
 
 export interface ICustomizationMigrationDashboardScope {
@@ -56,6 +57,7 @@ export interface ICustomizationMigrationDashboardActivity {
 		readonly sourceLabel: string;
 		readonly targetLabel: string;
 		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
+		readonly migrationKey?: string;
 	}[];
 }
 
@@ -67,6 +69,7 @@ export interface ICustomizationMigrationDashboardOverview {
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
+	readonly actionClicked: (action: 'retryClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'destinationsClicked' | 'migrationCategoryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', categoryId?: CustomizationMigrationCategoryId) => void;
 	readonly configureLocations: (storage: PromptsStorage) => void;
 	readonly dismissResult: () => void;
 	readonly reviewCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
@@ -101,7 +104,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const page = this.renderHeader(title, description);
 		page.setAttribute('aria-busy', String(!retry));
 		if (retry) {
-			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), retry);
+			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
+				this.callbacks.actionClicked('retryClicked');
+				retry();
+			});
 		}
 		this.callbacks.onDidChangeContent?.();
 	}
@@ -222,15 +228,21 @@ export class CustomizationMigrationDashboard extends Disposable {
 			this.button(actions, `skip:${scope.storage}`,
 				scope.skipped ? localize('includeWorkspace', "Include Workspace") : localize('skipWorkspace', "Skip Workspace"),
 				scope.skipped ? localize('includeWorkspaceLabel', "Include workspace {0}", scope.label) : localize('skipWorkspaceLabel', "Skip workspace {0}", scope.label),
-				() => this.callbacks.setWorkspaceSkipped(!scope.skipped), 'link');
+				() => {
+					this.callbacks.actionClicked(scope.skipped ? 'workspaceIncluded' : 'workspaceSkipped');
+					this.callbacks.setWorkspaceSkipped(!scope.skipped);
+				}, 'link');
 		}
 		if (!complete && scope.hasConfigurableDestinations) {
 			const destinations = this.button(actions, `destinations:${scope.storage}`, '', localize('changeDestinations', "Change destinations for {0}", scope.label),
-				() => this.callbacks.configureLocations(scope.storage), 'icon', Codicon.settings);
+				() => {
+					this.callbacks.actionClicked('destinationsClicked');
+					this.callbacks.configureLocations(scope.storage);
+				}, 'icon', Codicon.settings);
 			destinations.element.setAttribute('aria-haspopup', 'listbox');
 		}
 
-		const categories = scope.categories.filter(category => category.count > 0).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
+		const categories = scope.categories.filter(category => category.count > 0 || category.hasDetails).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
 		if (!scope.skipped && categories.length) {
 			const categoryList = DOM.append(item, $('.migration-categories'));
 			for (const category of categories) {
@@ -246,7 +258,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 				DOM.append(content, $('p.migration-category-description', {}, category.description));
 				this.button(row, `review:${scope.storage}:${category.id}`, localize('review', "Review"),
 					localize('reviewMigrationCategory', "Review {0} from {1}", category.label, scope.label),
-					() => this.callbacks.reviewCategory(category.id, scope.storage));
+					() => {
+						this.callbacks.actionClicked('migrationCategoryClicked', category.id);
+						this.callbacks.reviewCategory(category.id, scope.storage);
+					});
 			}
 		}
 	}
@@ -261,6 +276,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (overview.activity.length) {
 			const latest = overview.activity[0];
 			this.button(actions, 'viewChanges', localize('viewChanges', "View Changes"), localize('viewMigrationChanges', "View migration changes"), () => {
+				this.callbacks.actionClicked('viewChangesClicked');
 				const details = this.activityDetails.get(latest.id);
 				if (details) {
 					details.open = true;
@@ -272,6 +288,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			}, 'link');
 		}
 		this.button(actions, 'dismissResult', '', localize('dismissMigrationResult', "Dismiss migration result"), () => {
+			this.callbacks.actionClicked('resultDismissed');
 			this.pendingFocus = 'checklist';
 			this.callbacks.dismissResult();
 		}, 'icon', Codicon.close);
@@ -326,6 +343,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			const actions = DOM.append(row, $('.migration-activity-actions'));
 			this.button(actions, `dismissActivity:${entry.id}`, '',
 				localize('dismissMigrationActivity', "Dismiss {0} activity from {1}", entry.categoryLabel, entry.scopeLabel), () => {
+					this.callbacks.actionClicked('activityDismissed');
 					const next = activity[index + 1] ?? activity[index - 1];
 					this.pendingFocus = next ? `activity:${next.id}` : 'checklist';
 					this.callbacks.dismissActivity(entry.id);

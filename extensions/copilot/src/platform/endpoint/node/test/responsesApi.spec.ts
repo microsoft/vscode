@@ -1039,10 +1039,12 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		cacheType: CacheType,
 	});
 
-	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint: boolean | 'unset' = true) => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, enablePromptCacheBreakpoint);
+		if (enablePromptCacheBreakpoint !== 'unset') {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, enablePromptCacheBreakpoint);
+		}
 		const instantiationService = accessor.get(IInstantiationService);
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 		accessor.dispose();
@@ -1275,6 +1277,62 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		expect(body.prompt_cache_options).toBeUndefined();
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not leak markers through opaque content into subsequent implicit or unsupported requests', () => {
+		const inputText = { type: 'input_text', text: 'replayed user input' };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Opaque, value: inputText },
+				cacheBreakpoint(),
+			],
+		}];
+
+		expect(buildBody(messages).input?.[0]).toMatchObject({
+			content: [{ ...inputText, prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+		expect(inputText).not.toHaveProperty('prompt_cache_breakpoint');
+		for (const body of [buildBody(messages, cacheBreakpointEndpoint, false), buildBody(messages, testEndpoint)]) {
+			expect(body.input?.[0]).toEqual({
+				type: 'message',
+				role: 'user',
+				content: [{ type: 'input_text', text: 'replayed user input' }],
+			});
+		}
+	});
+
+	it('uses explicit prompt caching for opt-in endpoints only when the user explicitly enables it', () => {
+		const byokEndpoint: IChatEndpoint = { ...cacheBreakpointEndpoint, promptCacheBreakpointsRequireOptIn: true };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+		const summarize = (setting: boolean | 'unset') => {
+			const body = buildBody(messages, byokEndpoint, setting);
+			return { setting, options: body.prompt_cache_options, content: (body.input?.[0] as { content: unknown[] }).content };
+		};
+
+		expect([summarize('unset'), summarize(true), summarize(false)]).toEqual([
+			{ setting: 'unset', options: { mode: 'implicit' }, content: [{ type: 'input_text', text: 'hello' }] },
+			{ setting: true, options: { mode: 'explicit' }, content: [{ type: 'input_text', text: 'hello', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }] },
+			{ setting: false, options: { mode: 'implicit' }, content: [{ type: 'input_text', text: 'hello' }] },
+		]);
+	});
+
+	it('uses explicit prompt caching by default for endpoints that do not require opt-in', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		expect(buildBody(messages, cacheBreakpointEndpoint, 'unset').prompt_cache_options).toEqual(expectedPromptCacheBreakpoint);
 	});
 });
 

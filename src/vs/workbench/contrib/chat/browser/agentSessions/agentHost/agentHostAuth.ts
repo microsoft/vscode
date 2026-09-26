@@ -10,8 +10,12 @@ import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { deriveGitHubEndpoints } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { copilotConnectorsScope } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -184,7 +188,7 @@ export class AgentHostAuthTokenCache {
 }
 
 type AuthenticationSessionResolution =
-	| { readonly kind: 'resolved'; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset' }
+	| { readonly kind: 'resolved'; readonly providerId: string; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset' }
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
 
@@ -236,7 +240,7 @@ export class AgentHostAuthenticationRecovery {
 			return pendingRecovery;
 		}
 
-		const recovery = this._recover(accessor, key, resource, options)
+		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options))
 			.finally(() => {
 				if (this._pendingRecoveries.get(key) === recovery) {
 					this._pendingRecoveries.delete(key);
@@ -246,7 +250,7 @@ export class AgentHostAuthenticationRecovery {
 		return recovery;
 	}
 
-	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const authenticationService = accessor.get(IAuthenticationService);
 		const commandService = accessor.get(ICommandService);
@@ -408,6 +412,7 @@ async function resolveAuthenticationSessionForResource(
 		if (exactSession) {
 			return {
 				kind: 'resolved',
+				providerId,
 				session: exactSession,
 				match: exactSession.scopes.every(scope => requestedSet.has(scope)) ? 'exact' : 'superset',
 			};
@@ -445,7 +450,7 @@ async function resolveAuthenticationSessionForResource(
 			}
 		}
 		if (bestSession) {
-			return { kind: 'resolved', session: bestSession, match: bestExtraScopes === 0 ? 'exact' : 'superset' };
+			return { kind: 'resolved', providerId, session: bestSession, match: bestExtraScopes === 0 ? 'exact' : 'superset' };
 		}
 	}
 	return hasUnavailableProvider ? { kind: 'unavailable' } : { kind: 'signedOut' };
@@ -465,6 +470,17 @@ export interface IAgentHostAuthenticationOptions {
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
+}
+
+interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticationOptions {
+	readonly preferConnectorScopedSession: boolean;
+}
+
+function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
+	return {
+		...options,
+		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+	};
 }
 
 export interface IAgentHostMcpAuthenticationOptionsBase {
@@ -532,9 +548,10 @@ export async function authenticateProtectedResources(
 ): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
 	const logService = accessor.get(ILogService);
+	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
-			await authenticateProtectedResourceWithServices(authenticationService, logService, resource, options);
+			await authenticateProtectedResourceWithServices(authenticationService, logService, resource, resolvedOptions);
 		}
 	}
 }
@@ -586,6 +603,7 @@ export async function revokeAuthenticationForRemovedSessions(
 ): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
 	const logService = accessor.get(ILogService);
+	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	const reconciledResources = new Set<string>();
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
@@ -607,7 +625,7 @@ export async function revokeAuthenticationForRemovedSessions(
 			if (rejectedSession && removedSessions.some(session => session.id === rejectedSession.id)) {
 				options.authTokenCache?.clearRejectedSession(resource.resource, scopes);
 			}
-			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, resolvedOptions);
 			throwIfAuthenticationStale(options);
 			if (resolution.kind === 'unavailable') {
 				logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
@@ -669,14 +687,14 @@ export async function authenticateProtectedResource(
 	resource: ProtectedResourceMetadata,
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
-	return authenticateProtectedResourceWithServices(accessor.get(IAuthenticationService), accessor.get(ILogService), resource, options);
+	return authenticateProtectedResourceWithServices(accessor.get(IAuthenticationService), accessor.get(ILogService), resource, resolveAuthenticationOptions(accessor, options));
 }
 
 async function authenticateProtectedResourceWithServices(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: IAgentHostAuthenticationOptions,
+	options: IResolvedAgentHostAuthenticationOptions,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
@@ -702,10 +720,10 @@ async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'logPrefix'>,
+	options: IResolvedAgentHostAuthenticationOptions,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
-	return resolveAuthenticationSessionForResource(
+	const resolution = await resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
 		resource.authorization_servers ?? [],
 		resource.scopes_supported ?? [],
@@ -714,6 +732,29 @@ async function resolveSessionForProtectedResource(
 		options.logPrefix,
 		rejectedSession,
 	);
+	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
+		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
+		return resolution;
+	}
+
+	let sessions: readonly AuthenticationSession[];
+	try {
+		sessions = await authenticationService.getSessions(resolution.providerId, undefined, { account: resolution.session.account, silent: true }, true);
+	} catch (error) {
+		logService.trace(`${options.logPrefix} Unable to resolve an already-authorized connector session; retaining Copilot authentication`, error);
+		return resolution;
+	}
+	let preferred = resolution.session;
+	for (const session of sessions) {
+		if (session.account.id === resolution.session.account.id &&
+			isAuthenticationSessionCandidate(session, rejectedSession) &&
+			session.scopes.includes(copilotConnectorsScope) &&
+			(resource.scopes_supported ?? []).every(scope => session.scopes.includes(scope)) &&
+			(!preferred.scopes.includes(copilotConnectorsScope) || session.scopes.length < preferred.scopes.length)) {
+			preferred = session;
+		}
+	}
+	return preferred === resolution.session ? resolution : { kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset' };
 }
 
 function logAuthenticationSessionResolution(
@@ -742,11 +783,12 @@ export async function resolveAuthenticationInteractively(
 	const commandService = accessor.get(ICommandService);
 	const logService = accessor.get(ILogService);
 	const telemetryService = accessor.get(ITelemetryService);
+	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const resource of protectedResources) {
 		throwIfAuthenticationStale(options);
 		const scopes = resource.scopes_supported ?? [];
 		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
-		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, resolvedOptions);
 		throwIfAuthenticationStale(options);
 		if (existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
@@ -768,7 +810,7 @@ export async function resolveAuthenticationInteractively(
 			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
 			quarantinePresent: rejectedSession !== undefined,
 		});
-		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, telemetryService, resource, options, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
+		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
 	}
 
 	return false;
@@ -780,7 +822,7 @@ async function forceAuthenticationInteractively(
 	logService: ILogService,
 	telemetryService: ITelemetryService,
 	resource: ProtectedResourceMetadata,
-	options: IAgentHostAuthenticationOptions,
+	options: IResolvedAgentHostAuthenticationOptions,
 	trigger: AgentHostAuthTrigger,
 	challengedToken?: string,
 ): Promise<AuthenticationSession | undefined> {
@@ -876,10 +918,13 @@ export async function resolveMcpServerAuthentication(
 			const oauthClientOptions = options.oauthClient
 				? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
 				: {};
-			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
+			const providerOptions = {
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
 				...oauthClientOptions,
+			};
+			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
+				...providerOptions,
 				silent: !options.allowInteraction,
 			}, true);
 			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
@@ -895,13 +940,11 @@ export async function resolveMcpServerAuthentication(
 			const provider = authenticationService.getProvider(providerId);
 			const session = sessions.length
 				? provider.supportsMultipleAccounts
-					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
+					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions, providerOptions)
 					: sessions[0]
 				: await authenticationService.createSession(providerId, [...scopes], {
+					...providerOptions,
 					activateImmediate: true,
-					authorizationServer: authorizationServerUri,
-					resource: protectedResource.resource,
-					...oauthClientOptions,
 				});
 			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 			return true;

@@ -23,12 +23,14 @@ suite('CustomizationMigrationDashboard', () => {
 
 	function createDashboard(callbacks: Partial<ICustomizationMigrationDashboardCallbacks> = {}) {
 		const parent = DOM.append(document.body, DOM.$('div'));
+		const telemetryActions: string[] = [];
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupDelayedHover() { return Disposable.None; }
 		});
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
+			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
 			configureLocations: () => { },
 			dismissResult: () => { },
 			reviewCategory: () => { },
@@ -36,7 +38,7 @@ suite('CustomizationMigrationDashboard', () => {
 			dismissActivity: () => { },
 			...callbacks,
 		}));
-		return { parent, dashboard };
+		return { parent, dashboard, telemetryActions };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -56,10 +58,10 @@ suite('CustomizationMigrationDashboard', () => {
 					],
 				},
 				{
-					storage: PromptsStorage.local, label: 'vscode', count: 1, skipped: false, hasConfigurableDestinations: false,
+					storage: PromptsStorage.local, label: 'vscode', count: 2, skipped: false, hasConfigurableDestinations: true,
 					categories: [
 						{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, countLabel: '1 server' },
-						{ id: CustomizationMigrationCategoryId.ConfiguredLocations, label: 'Configured locations', description: 'Update locations.', count: 0, countLabel: '0 locations' },
+						{ id: CustomizationMigrationCategoryId.ConfiguredLocations, label: 'Custom location settings', description: 'Update locations.', count: 1, countLabel: '1 customization' },
 					],
 				},
 			],
@@ -69,7 +71,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('orders high-risk categories first and sends scoped review and destination callbacks', () => {
 		const actions: string[] = [];
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			configureLocations: storage => actions.push(`destinations:${storage}`),
 			reviewCategory: (id, storage) => actions.push(`review:${id}:${storage}`),
 		});
@@ -79,6 +81,7 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Review Prompts to skills from Your profile').click();
 		button(parent, 'Review User Data from Your profile').click();
 		button(parent, 'Review MCP Servers from vscode').click();
+		button(parent, 'Review Custom location settings from vscode').click();
 		button(parent, 'Change destinations for Your profile').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -92,17 +95,19 @@ suite('CustomizationMigrationDashboard', () => {
 			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
+			telemetryActions,
 		}, {
 			title: 'Migrations',
-			categories: ['Prompts to skills', 'User Data', 'MCP Servers'],
-			counts: ['2 prompts', '2 agents · 1 instruction', '1 server'],
+			categories: ['Prompts to skills', 'User Data', 'MCP Servers', 'Custom location settings'],
+			counts: ['2 prompts', '2 agents · 1 instruction', '1 server', '1 customization'],
 			highRisk: 'High risk',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
 			initialFocus: 'Review Prompts to skills from Your profile',
 			focus: 'Change destinations for Your profile',
-			workspaceDestinationButton: false,
-			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'destinations:user'],
+			workspaceDestinationButton: true,
+			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'review:configuredLocations:local', 'destinations:user'],
+			telemetryActions: ['migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 
@@ -157,7 +162,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('skipping and including workspace preserves focus through loading and hides its categories', () => {
 		let model = overview();
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			setWorkspaceSkipped: skipped => {
 				model = { ...model, scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? { ...scope, skipped } : scope) };
 				dashboard.showLoading('Migrations', 'Loading migrations');
@@ -180,11 +185,13 @@ suite('CustomizationMigrationDashboard', () => {
 			included: model.scopes[1].skipped,
 			categories: parent.querySelectorAll('.migration-category').length,
 			focus: document.activeElement?.getAttribute('aria-label'),
+			telemetryActions,
 		}, {
 			skipped: { progress: '1 of 2 complete', state: 'Skipped', categories: 0, focus: 'Include workspace vscode' },
 			included: false,
-			categories: 3,
+			categories: 4,
 			focus: 'Skip workspace vscode',
+			telemetryActions: ['workspaceSkipped', 'workspaceIncluded'],
 		});
 	});
 
@@ -220,7 +227,7 @@ suite('CustomizationMigrationDashboard', () => {
 			})),
 		};
 		let contentChanges = 0;
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			dismissActivity: id => {
 				model = { ...model, activity: model.activity.filter(entry => entry.id !== id) };
 				dashboard.showOverview(model);
@@ -258,6 +265,7 @@ suite('CustomizationMigrationDashboard', () => {
 			activity: !!parent.querySelector('.migration-activity'),
 			focus: document.activeElement?.textContent,
 			notified: contentChanges > 0,
+			telemetryActions,
 		}, {
 			expanded: {
 				open: [true, false],
@@ -269,12 +277,13 @@ suite('CustomizationMigrationDashboard', () => {
 			},
 			remainedOpen: true, nextFocused: true, lastDismissFocus: 'Your migration checklist',
 			result: false, activity: false, focus: 'Your migration checklist', notified: true,
+			telemetryActions: ['viewChangesClicked', 'activityDismissed', 'activityDismissed', 'resultDismissed'],
 		});
 	});
 
 	test('retry loading uses standard keyboard-activated Button and focus remains usable', () => {
 		let retries = 0;
-		const { parent, dashboard } = createDashboard();
+		const { parent, dashboard, telemetryActions } = createDashboard();
 		dashboard.showLoading('Migrations unavailable', 'Try again.', () => retries++);
 		const retry = button(parent, 'Retry loading migrations');
 		retry.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
@@ -283,6 +292,7 @@ suite('CustomizationMigrationDashboard', () => {
 			retries,
 			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
 			focus: document.activeElement?.textContent,
-		}, { retries: 1, busy: 'false', focus: 'Retry' });
+			telemetryActions,
+		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
 	});
 });

@@ -27,9 +27,9 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	private callbacks: IAgentServiceCallbacks | undefined;
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
 		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
+		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
@@ -38,6 +38,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
 		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
 		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
+		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
@@ -48,7 +49,6 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
-		useCompactPrompts: () => this.value.artifactServerToolAccessor.useCompactPrompts(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 	};
 

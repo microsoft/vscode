@@ -80,6 +80,40 @@
 	display: flex;
 }
 
+.experimental-new-session-composer .new-session-workspace-picker-container {
+	margin-top: var(--vscode-spacing-size40);
+	margin-bottom: 0;
+}
+
+.experimental-new-session-composer .new-session-quick-chat-header {
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container {
+	display: flex;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container > .session-workspace-picker-slot {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
+	width: 100%;
+	min-height: var(--vscode-spacing-size280);
+	margin: 0;
+	padding: 0 var(--vscode-spacing-size40);
+	background-color: transparent;
+	box-sizing: border-box;
+	align-items: center;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-input-container {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -93,6 +127,41 @@
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
+}
+
+.new-session-welcome-message {
+	align-self: center;
+	align-items: center;
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	justify-content: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	position: relative;
+	text-align: center;
+}
+
+.new-session-welcome-message[hidden] {
+	display: none;
+}
+
+.new-session-welcome-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	margin: 0;
+}
+
+.new-session-welcome-message-actions {
+	left: 100%;
+	opacity: 0;
+	padding-left: var(--vscode-spacing-size40);
+	position: absolute;
+}
+
+.new-session-welcome-message:hover .new-session-welcome-message-actions,
+.new-session-welcome-message:focus-within .new-session-welcome-message-actions {
+	opacity: 1;
 }
 
 .new-chat-widget-container .new-chat-bottom-container {
@@ -113,6 +182,10 @@
 	display: flex;
 }
 
+.new-chat-widget-container.revealed .experimental-new-session-composer .new-chat-bottom-container.empty {
+	display: none;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
 	overflow: hidden;
 }
@@ -125,7 +198,7 @@
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+.new-chat-widget-container .new-chat-repo-config-container {
 	display: flex;
 	align-items: center;
 	gap: 2px;
@@ -133,7 +206,7 @@
 	overflow: hidden;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+.new-chat-widget-container .new-chat-repo-config-container {
 	.monaco-action-bar .actions-container {
 		gap: 0;
 	}
@@ -164,12 +237,12 @@
 	}
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container.has-no-actions {
+.new-chat-widget-container .new-chat-repo-config-container.has-no-actions {
 	display: none;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] {
+.new-chat-widget-container .new-chat-repo-config-container:hover,
+.new-chat-widget-container .new-chat-repo-config-container[data-picker-open='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -182,7 +255,7 @@
  * and switch to compact form before their labels would truncate. */
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > *,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container > *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > * {
+.new-chat-widget-container .new-chat-repo-config-container > * {
 	min-width: 0;
 	overflow: hidden;
 }
@@ -196,11 +269,13 @@
 	overflow: visible;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator {
 	min-width: 0;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator {
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator,
+.experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator {
 	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
 	height: var(--vscode-spacing-size120);
 	margin: 0 !important;
@@ -255,7 +330,8 @@
 }
 
 /* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container,
+.experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .actions-container {
 	gap: 2px;
 }
 
@@ -263,7 +339,8 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. Each item carries its own opaque
  * surface so a chat background cannot show through it. */
-.new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
+.new-chat-widget-container .new-chat-bottom-container .action-label,
+.experimental-new-session-composer .new-chat-repo-config-container .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
@@ -271,6 +348,14 @@
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 	background-color: var(--session-view-background);
+}
+
+.experimental-new-session-composer .new-chat-repo-config-container .action-label:not(.separator) {
+	background-color: transparent;
+}
+
+.experimental-new-session-composer .new-chat-repo-config-container .codicon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-bottom-container .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
@@ -379,6 +464,40 @@
 	padding: 0;
 }
 
+.experimental-new-session-composer .sessions-workspace-category-picker {
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
+	margin-left: auto;
+}
+
+.new-chat-repository-controls-host {
+	display: contents;
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
+	min-height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size40);
+	background-color: transparent;
+	border-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:hover,
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	background-image: none;
+	border-color: transparent;
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .sessions-workspace-category-picker-label {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
@@ -393,7 +512,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
 	min-height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	background-color: var(--session-view-background);
@@ -422,23 +541,43 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
-	font-size: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
+	display: none;
+}
+
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action .action-list-submenu-indicator {
-	margin-right: var(--vscode-spacing-size40);
+.action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action {
+	padding-right: var(--vscode-spacing-size60);
 }
 
-.sessions-workspace-category-picker .sessions-chat-dropdown-label {
+.action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action .action-list-submenu-indicator {
+	margin-right: var(--vscode-spacing-sizeNone);
+}
+
+.sessions-workspace-category-picker > .sessions-chat-picker-slot .sessions-chat-dropdown-label {
 	margin-left: 0;
+}
+
+.sessions-workspace-category-picker .new-chat-repo-config-container .action-label > .codicon:not(.monaco-checkbox) {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .sessions-workspace-category-picker:empty {

@@ -17,7 +17,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
@@ -125,6 +125,7 @@ suite('customizationMigration', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const candidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'server',
 			name: 'Server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -138,6 +139,7 @@ suite('customizationMigration', () => {
 			banner: category.getBanner?.([candidate], 'Copilot', undefined, []),
 			confirmation: category.getConfirmation([candidate], 'Copilot'),
 			failure: category.getMcpServerFailureMessage?.([{
+				storage: candidate.storage,
 				id: candidate.id,
 				name: candidate.name,
 				sourceUri: candidate.sourceUri,
@@ -150,16 +152,16 @@ suite('customizationMigration', () => {
 				selectionAriaLabel: 'Select Server from /workspace/.vscode/mcp.json',
 				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
 			},
-			description: 'Select the supported MCP server to move so Copilot can discover it directly. Unsupported and unselected servers stay in .vscode/mcp.json.',
+			description: 'Select the eligible MCP server to move so Copilot can discover it directly. Servers that cannot be migrated and unselected servers stay in their current files.',
 			banner: {
-				message: 'Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Unsupported and unselected servers stay in their current files.',
+				message: 'Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Servers that cannot be migrated and unselected servers stay in their current files.',
 			},
 			confirmation: {
 				message: 'Migrate 1 MCP server to .mcp.json?',
-				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Unsupported and unselected entries stay in place.',
+				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated and unselected entries stay in place.',
 				primaryButton: 'Migrate',
 			},
-			failure: 'Could not migrate \'Server\' because .mcp.json already contains a different server with that name.',
+			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
 		});
 	});
 
@@ -194,9 +196,52 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('groups user MCP migrations separately and scopes confirmation to the selected servers', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const user = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.user,
+			id: 'user',
+			name: 'User server',
+			sourceUri: URI.file('/profile/mcp.json'),
+			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		} as const;
+		const workspace = { ...user, id: 'workspace', storage: PromptsStorage.local } as const;
+		const confirmations = [[user], [user, { ...user, id: 'secondUser' }], [user, workspace]]
+			.map(candidates => category.getConfirmation(candidates, 'Copilot'));
+		const banner = category.getBanner?.([user], 'Copilot', undefined, []);
+		assert.deepStrictEqual({
+			groups: category.group([workspace, user]).map(group => [group.label, group.customizations.map(candidate => candidate.storage)]),
+			confirmations,
+			banner: banner?.message,
+		}, {
+			groups: [['User', [PromptsStorage.user]], ['Workspace', [PromptsStorage.local]]],
+			confirmations: [
+				{
+					message: 'Migrate 1 MCP server?',
+					detail: 'Move to Copilot home for use across profiles and workspaces. The original entry will be removed.\n\nDisabled servers may become enabled.',
+					primaryButton: 'Migrate',
+				},
+				{
+					message: 'Migrate 2 MCP servers?',
+					detail: 'Move to Copilot home for use across profiles and workspaces. The original entries will be removed.\n\nDisabled servers may become enabled.',
+					primaryButton: 'Migrate',
+				},
+				{
+					message: 'Migrate 2 MCP servers?',
+					detail: 'Move user servers to Copilot home and workspace servers to .mcp.json. The original entries will be removed.\n\nDisabled user servers may become enabled.',
+					primaryButton: 'Migrate',
+				},
+			],
+			banner: 'User servers move to mcp-config.json in Copilot home, making them available across profiles and workspaces. Disabled user servers may become enabled after migration. Workspace servers move to the root .mcp.json. Unselected servers and servers that cannot be migrated stay in their current files.',
+		});
+	});
+
 	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const failure = {
+			storage: PromptsStorage.local as const,
 			id: 'demo',
 			name: 'demo',
 			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
@@ -376,7 +421,11 @@ suite('customizationMigration', () => {
 		await fileService.writeFile(URI.joinPath(userAgentRoot.uri, 'planner.agent.md'), VSBuffer.fromString('existing'));
 
 		const migrationErrors: Error[] = [];
-		const result = await migrateCustomizations(customizations, targetFolders, fileService, error => migrationErrors.push(error));
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const result = await migrateCustomizations(customizations, targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+		});
 		const migratedSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'review-prompt');
 		const migratedAgentUri = URI.joinPath(userAgentRoot.uri, 'planner-2.agent.md');
 		const migratedInstructionsUri = URI.joinPath(userInstructionsRoot.uri, 'style.instructions.md');
@@ -393,6 +442,7 @@ suite('customizationMigration', () => {
 			migratedInstructionsContent: (await fileService.readFile(migratedInstructionsUri)).value.toString(),
 			originalsExist: await Promise.all(customizations.slice(0, 3).map(customization => fileService.exists(customization.uri))),
 			migrationErrorCount: migrationErrors.length,
+			failureReasons,
 		}, {
 			result: {
 				migratedCount: 3,
@@ -410,6 +460,7 @@ suite('customizationMigration', () => {
 			migratedInstructionsContent: '---\ndescription: Use tabs\n---\nUse tabs.',
 			originalsExist: [false, false, false],
 			migrationErrorCount: 1,
+			failureReasons: [FileCustomizationMigrationFailureReason.SourceReadFailed],
 		});
 	});
 
@@ -492,7 +543,11 @@ suite('customizationMigration', () => {
 		fileSystemProvider.deleteFailureResource = sourceFolder;
 
 		const migrationErrors: Error[] = [];
-		const result = await migrateCustomizations([skill], targetFolders, fileService, error => migrationErrors.push(error));
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const result = await migrateCustomizations([skill], targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+		});
 
 		assert.deepStrictEqual({
 			result,
@@ -502,6 +557,7 @@ suite('customizationMigration', () => {
 			].map(async uri => (await fileService.readFile(uri)).value.toString())),
 			targetEntries: await fileSystemProvider.readdir(targetRoot.uri),
 			migrationErrorCount: migrationErrors.length,
+			failureReasons,
 		}, {
 			result: {
 				migratedCount: 0,
@@ -516,6 +572,7 @@ suite('customizationMigration', () => {
 			],
 			targetEntries: [],
 			migrationErrorCount: 1,
+			failureReasons: [FileCustomizationMigrationFailureReason.SourceDeleteFailed],
 		});
 	});
 
@@ -667,7 +724,11 @@ suite('customizationMigration', () => {
 		fileSystemProvider.conflictResource = targetUri;
 
 		const migrationErrors: Error[] = [];
-		const result = await migrateCustomizations([customization], targetFolders, fileService, error => migrationErrors.push(error));
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const result = await migrateCustomizations([customization], targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+		});
 		const targetEntries = await fileSystemProvider.readdir(instructionsRoot.uri);
 
 		assert.deepStrictEqual({
@@ -676,6 +737,7 @@ suite('customizationMigration', () => {
 			targetContent: (await fileService.readFile(targetUri)).value.toString(),
 			targetEntries,
 			migrationErrorCount: migrationErrors.length,
+			failureReasons,
 		}, {
 			result: {
 				migratedCount: 0,
@@ -688,6 +750,7 @@ suite('customizationMigration', () => {
 			targetContent: 'foreign content',
 			targetEntries: [['style.instructions.md', FileType.File]],
 			migrationErrorCount: 1,
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetWriteFailed],
 		});
 	});
 

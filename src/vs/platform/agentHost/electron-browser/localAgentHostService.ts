@@ -31,6 +31,8 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -424,8 +426,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
 
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
+	}
+
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
@@ -442,6 +459,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions();
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

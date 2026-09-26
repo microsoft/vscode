@@ -143,6 +143,7 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 			return false;
 		}
 		return (
+			other.subAgentInvocationId === this.edit.subAgentInvocationId &&
 			isEqual(other.uri, this.edit.uri) &&
 			other.editKind === this.edit.editKind &&
 			(other.diff?.added ?? 0) === (this.edit.diff?.added ?? 0) &&

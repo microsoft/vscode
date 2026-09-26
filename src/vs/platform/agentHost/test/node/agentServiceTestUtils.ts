@@ -14,11 +14,11 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { type IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
+import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -187,12 +187,15 @@ export function createTestAgentService(
 	});
 	registerAgentHostCoreServices(services, {
 		storageResource,
+		rootConfigResource,
+		orchestratorDatabase,
 		fetchFn,
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
@@ -212,8 +215,6 @@ export function createTestAgentService(
 		getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 		octoKitService,
 		copilotApiService: effectiveCopilotApiService,
-		isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
-		isDeferredTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 	services.set(IAgentHostLocalTurns, localTurns);

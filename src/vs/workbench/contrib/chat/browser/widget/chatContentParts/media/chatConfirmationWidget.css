@@ -72,7 +72,7 @@
 	margin: 0 !important;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact {
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact:not(.chat-tool-call-error *) {
 	color: var(--vscode-errorForeground) !important;
 }
 

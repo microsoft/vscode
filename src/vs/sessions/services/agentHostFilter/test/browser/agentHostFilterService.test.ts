@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
@@ -79,8 +83,17 @@ class StubSessionsProvidersService implements Partial<ISessionsProvidersService>
 	}
 }
 
-class StubRemoteAgentHostService implements Partial<IRemoteAgentHostService> {
+class StubRemoteAgentHostService extends Disposable implements Partial<IRemoteAgentHostService> {
 	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeConfiguredEntries = this._register(new Emitter<void>());
+	readonly onDidChangeConfiguredEntries = this._onDidChangeConfiguredEntries.event;
+	configuredEntries: readonly IRemoteAgentHostEntry[] = [];
+
+	setConfiguredEntries(entries: readonly IRemoteAgentHostEntry[]): void {
+		this.configuredEntries = entries;
+		this._onDidChangeConfiguredEntries.fire();
+	}
+
 	reconnect(_address: string): void { /* noop */ }
 }
 
@@ -104,11 +117,13 @@ suite('AgentHostFilterService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(providers: StubSessionsProvidersService, storage = store.add(new InMemoryStorageService())) {
+	function createService(providers: StubSessionsProvidersService, storage = store.add(new InMemoryStorageService()), remote = store.add(new StubRemoteAgentHostService()), configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true })) {
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsProvidersService, providers as unknown as ISessionsProvidersService);
-		instantiationService.stub(IRemoteAgentHostService, new StubRemoteAgentHostService() as unknown as IRemoteAgentHostService);
+		instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>(remote));
 		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(IConfigurationService, configuration);
 		return store.add(instantiationService.createInstance(AgentHostFilterService));
 	}
 
@@ -179,6 +194,207 @@ suite('AgentHostFilterService', () => {
 		// Recreate service with same storage — selection is restored only on web.
 		const service2 = createService(providers, storage);
 		assert.strictEqual(service2.selectedHostId, isWeb ? pid('localhost:9999') : undefined);
+	});
+
+	for (const savedHostId of [SANDBOX_GROUP.id, pid('localhost:4321')]) {
+		test(`restores ${savedHostId} after delayed discovery without persisting the fallback`, () => {
+			const providers = new StubSessionsProvidersService();
+			const storage = store.add(new InMemoryStorageService());
+			const storageKey = 'sessions.agentHostFilter.selectedProviderId';
+			storage.store(storageKey, savedHostId, StorageScope.PROFILE, StorageTarget.USER);
+			const service = createService(providers, storage);
+			const selections = [service.selectedHostId];
+			const otherHost = new StubRemoteProvider('localhost:9999', 'Other host');
+			store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(otherHost)));
+			selections.push(service.selectedHostId);
+			store.add(service.registerHostGroup(SANDBOX_GROUP));
+			selections.push(service.selectedHostId);
+			store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Saved host'))));
+			selections.push(service.selectedHostId);
+			otherHost.setStatus(RemoteAgentHostConnectionStatus.reconnecting);
+			selections.push(service.selectedHostId);
+
+			assert.deepStrictEqual({
+				selections,
+				providerIds: service.selectedHost?.providerIds,
+				stored: storage.get(storageKey, StorageScope.PROFILE),
+			}, {
+				selections: isWeb ? [
+					undefined,
+					pid('localhost:9999'),
+					savedHostId === SANDBOX_GROUP.id ? savedHostId : pid('localhost:9999'),
+					savedHostId,
+					savedHostId,
+				] : [undefined, undefined, undefined, undefined, undefined],
+				providerIds: isWeb ? (savedHostId === SANDBOX_GROUP.id ? [] : [savedHostId]) : undefined,
+				stored: savedHostId,
+			});
+		});
+	}
+
+	test('explicitly choosing the startup fallback replaces a not-yet-restored preference', () => {
+		const providers = new StubSessionsProvidersService();
+		const storage = store.add(new InMemoryStorageService());
+		storage.store('sessions.agentHostFilter.selectedProviderId', SANDBOX_GROUP.id, StorageScope.PROFILE, StorageTarget.USER);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Host A'))));
+		const service = createService(providers, storage);
+		service.setSelectedHostId(pid('localhost:4321'));
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
+	});
+
+	test('keeps the selected configured host and scope while its provider is replaced', () => {
+		const providers = new StubSessionsProvidersService();
+		const remote = store.add(new StubRemoteAgentHostService());
+		remote.setConfiguredEntries([{ name: 'Host A', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:4321' } }]);
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Host A'))));
+		const service = createService(providers, undefined, remote);
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+		service.setSelectedHostId(pid('localhost:4321'));
+		const snapshots: { id: string | undefined; label: string | undefined; providerIds: readonly string[] | undefined; status: AgentHostFilterConnectionStatus | undefined }[] = [];
+		store.add(service.onDidChange(() => snapshots.push({
+			id: service.selectedHostId,
+			label: service.selectedHost?.label,
+			providerIds: service.selectedHost?.providerIds,
+			status: service.selectedHost?.status,
+		})));
+
+		registration.dispose();
+		const replacement = new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.connecting);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(replacement)));
+		replacement.setStatus(RemoteAgentHostConnectionStatus.connected);
+
+		assert.deepStrictEqual(snapshots, isWeb ? [
+			{ id: pid('localhost:4321'), label: 'Host A', providerIds: [pid('localhost:4321')], status: AgentHostFilterConnectionStatus.Disconnected },
+			{ id: pid('localhost:4321'), label: 'Host A', providerIds: [pid('localhost:4321')], status: AgentHostFilterConnectionStatus.Connecting },
+			{ id: pid('localhost:4321'), label: 'Host A', providerIds: [pid('localhost:4321')], status: AgentHostFilterConnectionStatus.Connected },
+		] : [
+			{ id: undefined, label: undefined, providerIds: undefined, status: undefined },
+			{ id: undefined, label: undefined, providerIds: undefined, status: undefined },
+			{ id: undefined, label: undefined, providerIds: undefined, status: undefined },
+		]);
+	});
+
+	test('falls back when a retained host is removed from configuration', () => {
+		const providers = new StubSessionsProvidersService();
+		const remote = store.add(new StubRemoteAgentHostService());
+		remote.setConfiguredEntries([{ name: 'Host A', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:4321' } }]);
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Host A'))));
+		const service = createService(providers, undefined, remote);
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+		service.setSelectedHostId(pid('localhost:4321'));
+		registration.dispose();
+		remote.setConfiguredEntries([]);
+
+		assert.deepStrictEqual({
+			selected: service.selectedHostId,
+			providerIds: service.selectedHost?.providerIds,
+			hosts: service.hosts.map(host => host.id),
+		}, {
+			selected: isWeb ? SANDBOX_GROUP.id : undefined,
+			providerIds: isWeb ? [] : undefined,
+			hosts: [SANDBOX_GROUP.id],
+		});
+	});
+
+	for (const disableBeforeRemoval of [true, false]) {
+		test(`clears a ${disableBeforeRemoval ? 'configured' : 'retained'} host when remote hosts are disabled`, async () => {
+			const providers = new StubSessionsProvidersService();
+			const remote = store.add(new StubRemoteAgentHostService());
+			remote.setConfiguredEntries([{ name: 'Host A', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:4321' } }]);
+			const host = new StubRemoteProvider('localhost:4321', 'Host A');
+			const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
+			const storage = store.add(new InMemoryStorageService());
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const service = createService(providers, storage, remote, configuration);
+			service.setSelectedHostId(host.id);
+
+			const setEnabled = async (enabled: boolean) => {
+				await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === RemoteAgentHostsEnabledSettingId,
+				}));
+			};
+			const getState = () => ({
+				selectedHostId: service.selectedHostId,
+				hosts: service.hosts.map(entry => entry.id),
+			});
+
+			if (disableBeforeRemoval) {
+				await setEnabled(false);
+			}
+			registration.dispose();
+			if (!disableBeforeRemoval) {
+				await setEnabled(false);
+			}
+			const disabled = getState();
+
+			await setEnabled(true);
+			const awaitingProvider = getState();
+			store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
+
+			assert.deepStrictEqual({
+				disabled,
+				awaitingProvider,
+				restored: getState(),
+				stored: storage.get('sessions.agentHostFilter.selectedProviderId', StorageScope.PROFILE),
+			}, {
+				disabled: { selectedHostId: undefined, hosts: [] },
+				awaitingProvider: { selectedHostId: undefined, hosts: [] },
+				restored: { selectedHostId: isWeb ? host.id : undefined, hosts: [host.id] },
+				stored: host.id,
+			});
+		});
+	}
+
+	test('keeps an explicit group selected through empty membership and reconnects', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Host A'))));
+		const service = createService(providers);
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+		service.setSelectedHostId(SANDBOX_GROUP.id);
+		const member = new StubRemoteProvider('cloudsandbox:env-1', 'Sandbox', RemoteAgentHostConnectionStatus.connected, SANDBOX_GROUP);
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(member)));
+		const snapshots = [service.selectedHost?.providerIds];
+		member.setStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		snapshots.push(service.selectedHost?.providerIds);
+		registration.dispose();
+		snapshots.push(service.selectedHost?.providerIds);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(member)));
+		snapshots.push(service.selectedHost?.providerIds);
+
+		assert.deepStrictEqual({ selected: service.selectedHostId, snapshots }, {
+			selected: isWeb ? SANDBOX_GROUP.id : undefined,
+			snapshots: isWeb ? [[member.id], [member.id], [], [member.id]] : [undefined, undefined, undefined, undefined],
+		});
+	});
+
+	test('overlapping discovery does not replace the latest explicit choice', async () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:4321', 'Host A'))));
+		const service = createService(providers);
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+		const first = new DeferredPromise<void>();
+		const second = new DeferredPromise<void>();
+		let calls = 0;
+		store.add(service.registerDiscoveryHandler(() => ++calls === 1 ? first.p : second.p));
+		const firstDiscovery = service.rediscover();
+		const secondDiscovery = service.rediscover();
+		service.setSelectedHostId(pid('localhost:4321'));
+		await first.complete();
+		await firstDiscovery;
+		const discoveringAfterFirst = service.isDiscovering;
+		service.setSelectedHostId(SANDBOX_GROUP.id);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('localhost:9999', 'Host B'))));
+		await second.complete();
+		await secondDiscovery;
+
+		assert.deepStrictEqual({ discoveringAfterFirst, discovering: service.isDiscovering, selected: service.selectedHostId }, {
+			discoveringAfterFirst: true,
+			discovering: false,
+			selected: isWeb ? SANDBOX_GROUP.id : undefined,
+		});
 	});
 
 	test('fallback selection depends on platform when selected host disappears', () => {
@@ -328,6 +544,48 @@ suite('AgentHostFilterService', () => {
 		assert.deepStrictEqual([...service.hosts].map(h => ({ id: h.id, providerIds: [...h.providerIds], status: h.status })), [
 			{ id: 'cloudsandbox', providerIds: [pid('cloudsandbox:env-1')], status: AgentHostFilterConnectionStatus.Connected },
 		]);
+	});
+
+	test('scopes creation drafts to a group without treating the creation provider as a connection', async () => {
+		const providers = new StubSessionsProvidersService();
+		const service = createService(providers);
+		const group = { ...SANDBOX_GROUP, sessionCreationProviderId: 'sandbox-creation' };
+		store.add(service.registerHostGroup(group));
+		const beforeRegistration = [...service.hosts[0].providerIds];
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>({ id: 'sandbox-creation' })));
+		const emptyGroup = service.hosts[0];
+		const member = new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.connected, group);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(member)));
+		const populatedGroup = service.hosts[0];
+		await service.reconnect(group.id);
+		await service.disconnect(group.id);
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			emptyGroup: {
+				providerIds: emptyGroup.providerIds,
+				creationProvider: emptyGroup.sessionCreationProviderId,
+				status: emptyGroup.status,
+				address: emptyGroup.address,
+				connectable: emptyGroup.connectable,
+			},
+			populatedGroup: { providerIds: populatedGroup.providerIds, status: populatedGroup.status },
+			afterUnregister: service.hosts[0].providerIds,
+			connectionCalls: [member.connectCalls, member.disconnectCalls],
+		}, {
+			beforeRegistration: [],
+			emptyGroup: {
+				providerIds: ['sandbox-creation'],
+				creationProvider: 'sandbox-creation',
+				status: AgentHostFilterConnectionStatus.Disconnected,
+				address: undefined,
+				connectable: false,
+			},
+			populatedGroup: { providerIds: ['sandbox-creation', pid('cloudsandbox:env-1')], status: AgentHostFilterConnectionStatus.Connected },
+			afterUnregister: [pid('cloudsandbox:env-1')],
+			connectionCalls: [1, 1],
+		});
 	});
 
 	test('an empty declared group is never the automatic selection', () => {
