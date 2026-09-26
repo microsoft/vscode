@@ -6,6 +6,7 @@
 import ingestUtils = require('@github/blackbird-external-ingest-utils');
 import * as l10n from '@vscode/l10n';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import sql from 'node:sqlite';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { Result } from '../../../../util/common/result';
@@ -597,6 +598,10 @@ export class ExternalIngestIndex extends Disposable {
 			return this.createFreshDatabase(dbPath);
 		}
 
+		// VS Code only guarantees that storageUri's parent exists, this folder is created by the extension
+		// node:sqlite cannot create a file inside a folder that does not exist, so make sure it exists.
+		fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+		
 		// Try to open existing database and check cache version
 		if (fs.existsSync(dbPath)) {
 			try {
