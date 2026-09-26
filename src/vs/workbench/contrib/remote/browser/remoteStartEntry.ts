@@ -34,7 +34,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 		super();
 
-		const remoteExtensionTips = this.productService.remoteExtensionTips?.['tunnel'];
+		const remoteExtensionTips = this.productService.remoteExtensionTips?.tunnel;
 		this.startCommand = remoteExtensionTips?.startEntry?.startCommand ?? '';
 		this.remoteExtensionId = remoteExtensionTips?.extensionId ?? '';
 

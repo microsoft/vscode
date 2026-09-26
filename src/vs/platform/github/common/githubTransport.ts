@@ -217,7 +217,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						'X-GitHub-Api-Version': defaultApiVersion,
 					};
 					if (authenticated) {
-						headers['Authorization'] = `Bearer ${token}`;
+						headers.Authorization = `Bearer ${token}`;
 					}
 					let response: Response;
 					try {
