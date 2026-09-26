@@ -21936,6 +21936,30 @@ suite('AgentService (node dispatcher)', () => {
 		class RenameObservingDatabase extends TestSessionDatabase {
 			automaticSettled: DeferredPromise<void> | undefined;
 			userWritesHeld: DeferredPromise<void> | undefined;
+			private readonly _holds: { readonly matches: (values: Readonly<Record<string, string>>) => boolean; readonly afterWrite: boolean; readonly reached: DeferredPromise<void>; readonly release: DeferredPromise<void>; readonly landed: DeferredPromise<void> }[] = [];
+
+			/** Holds the next matching write before it is issued, or once it has landed but before it is acknowledged. */
+			hold(matches: (values: Readonly<Record<string, string>>) => boolean, afterWrite = false): { readonly reached: Promise<void>; readonly landed: Promise<void>; release(): Promise<void> } {
+				const held = { matches, afterWrite, reached: new DeferredPromise<void>(), release: new DeferredPromise<void>(), landed: new DeferredPromise<void>() };
+				this._holds.push(held);
+				return { reached: held.reached.p, landed: held.landed.p, release: () => held.release.complete() };
+			}
+
+			private async _write<T>(values: Readonly<Record<string, string>>, write: () => Promise<T>): Promise<T> {
+				const index = this._holds.findIndex(held => held.matches(values));
+				const held = index === -1 ? undefined : this._holds.splice(index, 1)[0];
+				if (held && !held.afterWrite) {
+					await held.reached.complete();
+					await held.release.p;
+				}
+				const result = await write();
+				if (held?.afterWrite) {
+					await held.reached.complete();
+					await held.release.p;
+				}
+				await held?.landed.complete();
+				return result;
+			}
 
 			override async getMetadata(key: string): Promise<string | undefined> {
 				const value = await super.getMetadata(key);
@@ -21952,13 +21976,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 				await this.holdUserWrite(Object.values(values));
-				await super.setMetadataValues(values);
+				await this._write(values, () => super.setMetadataValues(values));
 				this.observeWrite(values);
 			}
 
 			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
 				await this.holdUserWrite(Object.values(values));
-				const result = await super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				const result = await this._write(values, () => super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot));
 				this.observeWrite(values);
 				return result;
 			}
@@ -22033,6 +22057,57 @@ suite('AgentService (node dispatcher)', () => {
 				livePeerTitle: 'User peer title',
 				persistedDefaultTitle: 'User default title',
 				persistedPeerTitle: 'User peer title',
+			});
+		});
+
+		test('an automatic rename_chat keeps a title the user gives the chat while the automatic title is being persisted', async () => {
+			const db = new RenameObservingDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RenameToolAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const [peerChat, secondChat, otherChat] = ['peer', 'second', 'other'].map(id => buildChatUri(session.toString(), id));
+			for (const chat of [peerChat, secondChat, otherChat]) {
+				await localService.createChat(session, URI.parse(chat));
+			}
+
+			// The peer's own write has landed but is not yet acknowledged when the user renames it.
+			const acknowledgement = db.hold(values => values[SESSION_CUSTOM_TITLE_KEY] === 'Automatic peer title', true);
+			await agent.serverToolHost!.executeTool(peerChat, SessionServerToolName.RenameChat, { title: 'Automatic peer title', automatic: true });
+			await acknowledgement.reached;
+			localService.dispatchAction(peerChat, { type: ActionType.SessionTitleChanged, title: 'User peer title' }, 'test-client', 1);
+			await timeout(0);
+			await acknowledgement.release();
+			await timeout(0);
+			// The session's catalog writes run in order, so this one settles only after the automatic rename's have.
+			await agent.serverToolHost!.executeTool(otherChat, SessionServerToolName.RenameChat, { title: 'Other title' });
+
+			// The second chat's session write waits behind another catalog write, which the user's rename then joins.
+			const background = db.hold(values => values[customChatTitleMetadataKey(otherChat)] === 'User other title');
+			localService.dispatchAction(otherChat, { type: ActionType.SessionTitleChanged, title: 'User other title' }, 'test-client', 2);
+			await background.reached;
+			const chatWrite = db.hold(values => values[SESSION_CUSTOM_TITLE_KEY] === 'Automatic second title', true);
+			const sessionWrite = db.hold(values => values[customChatTitleMetadataKey(secondChat)] === 'Automatic second title');
+			void sessionWrite.release();
+			await agent.serverToolHost!.executeTool(secondChat, SessionServerToolName.RenameChat, { title: 'Automatic second title', automatic: true });
+			void chatWrite.release();
+			await chatWrite.landed;
+			await timeout(0);
+			localService.dispatchAction(secondChat, { type: ActionType.SessionTitleChanged, title: 'User second title' }, 'test-client', 3);
+			await background.release();
+			await sessionWrite.landed;
+			await waitForMetadata(db, customChatTitleSourceMetadataKey(secondChat), AGENT_HOST_TITLE_SOURCE_USER);
+
+			assert.deepStrictEqual({
+				livePeerTitle: getStateManager(localService).getChatState(peerChat)?.title,
+				persistedPeer: [await db.getMetadata(customChatTitleMetadataKey(peerChat)), await db.getMetadata(customChatTitleSourceMetadataKey(peerChat))],
+				liveSecondTitle: getStateManager(localService).getChatState(secondChat)?.title,
+				persistedSecond: [await db.getMetadata(customChatTitleMetadataKey(secondChat)), await db.getMetadata(customChatTitleSourceMetadataKey(secondChat))],
+			}, {
+				livePeerTitle: 'User peer title',
+				persistedPeer: ['User peer title', AGENT_HOST_TITLE_SOURCE_USER],
+				liveSecondTitle: 'User second title',
+				persistedSecond: ['User second title', AGENT_HOST_TITLE_SOURCE_USER],
 			});
 		});
 
