@@ -14,6 +14,28 @@ Many tests will use the underlying platform to install and verify basic VS Code 
 Such tests will need to be run on the corresponding target OS/virtual machine and will fail if ran outside.
 Use -g or -f command-line options to filter tests to match the host platform.
 
+### Desktop Launchers
+
+Desktop tests also check the launchers supplied by the distribution:
+
+- **Linux DEB/RPM:** Require the canonical reverse-DNS application and URL-handler desktop
+  entries, both targeting the installed executable. Validate the application window identity,
+  URL-handler arguments and MIME type, and that only the application entry is visible.
+  Exercise the application entry's `Exec` command without a shell; this does not require
+  GTK/GIO or a full desktop shell in the container.
+- **Windows user/system installers:** Explicitly enable the Desktop shortcut task and
+  require both Desktop and Start Menu shortcuts in the appropriate user/common shell folders.
+  Verify their targets, then open files through the actual `.lnk` files using ShellExecute.
+- **macOS ZIP/DMG bundles:** Check `Info.plist`'s executable and application bundle type,
+  then exercise LaunchServices using `open -n -a` with the exact downloaded bundle.
+
+Launcher probes open unique files in the existing Playwright-controlled window using the
+same isolated user-data and extensions directories; the test waits for each file's editor tab.
+The normal app teardown, installer uninstall, and DMG unmount also run on launcher failures.
+Linux/Windows archives and server/CLI targets do not install shortcuts; Snap retains its
+existing direct-launch coverage. `--no-detection` remains download-only and skips these checks.
+Run installed-target tests only on disposable sanity hosts, not a workstation with VS Code installed.
+
 ### Command-Line Options
 
 |Option|Alias|Description|
