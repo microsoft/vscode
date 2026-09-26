@@ -16,7 +16,7 @@ interface IWorktreeSymlinkHarness {
 	_getWorktreeSymlinkFolders(): Promise<string[]>;
 }
 
-const symlinkWorktreeFolders = Reflect.get(Repository.prototype, '_symlinkWorktreeFolders') as (this: IWorktreeSymlinkHarness, worktreePath: string) => Promise<void>;
+const symlinkWorktreeFolders = Reflect.get(Repository.prototype, '_symlinkWorktreeFolders') as (this: IWorktreeSymlinkHarness, worktreePath: string) => Promise<string[]>;
 
 suite('worktreeSymlink', () => {
 	const nul = (...entries: string[]) => entries.map(entry => `${entry}\x00`).join('');
@@ -154,10 +154,11 @@ suite('worktreeSymlink', () => {
 			}
 		};
 
-		await symlinkWorktreeFolders.call(harness, worktreeRoot);
+		const folders = await symlinkWorktreeFolders.call(harness, worktreeRoot);
 
-		assert.deepStrictEqual(warnings, [
-			'[Repository][_symlinkWorktreeFolders] Failed to symlink folders to worktree: Error: detection failed'
-		]);
+		assert.deepStrictEqual({ folders, warnings }, {
+			folders: [],
+			warnings: ['[Repository][_symlinkWorktreeFolders] Failed to symlink folders to worktree: Error: detection failed']
+		});
 	});
 });

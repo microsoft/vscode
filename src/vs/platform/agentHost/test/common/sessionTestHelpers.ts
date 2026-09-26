@@ -599,7 +599,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },
 		copyWorktreeIncludeFiles: async () => { },
-		symlinkWorktreeFolders: async () => { },
+		symlinkWorktreeFolders: async () => [],
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,

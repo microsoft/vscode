@@ -180,9 +180,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
+	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders: readonly string[] = []): Promise<void> {
 		try {
-			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, patterns, sessionId);
+			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, patterns, sessionId, excludedFolders);
 			if (worktreeIncludePaths.length === 0) {
 				return;
 			}
@@ -227,11 +227,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	async symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<void> {
+	async symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]> {
 		try {
 			const folders = await this._getWorktreeSymlinkFolders(repositoryRoot, patterns, sessionId);
 			if (folders.length === 0) {
-				return;
+				return [];
 			}
 
 			const startTime = performance.now();
@@ -248,8 +248,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 					this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] ${error.reason}`);
 				}
 			}
+			return folders.filter((_, index) => {
+				const result = results[index];
+				return result?.status === 'fulfilled' && result.value;
+			});
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] Failed to symlink folders to worktree ${worktree.fsPath}: ${error}`);
+			return [];
 		}
 	}
 
@@ -671,7 +676,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * Resolves the git-ignored paths to copy into a worktree. `patterns` are
 	 * matched by git using `.gitignore` semantics.
 	 */
-	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, patterns: readonly string[], sessionId: string): Promise<IWorktreeIncludeEntry[]> {
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, patterns: readonly string[], sessionId: string, excludedFolders: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
 		// Each setting entry must stay a single `.gitignore` line; an embedded
 		// line break would inject additional patterns (e.g. a `!` negation).
 		const includePatterns = sanitizeWorktreePatterns(patterns);
@@ -723,7 +728,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				return [];
 			}
 
-			return resolveWorktreeIncludeEntries(repositoryRoot, ignoredFiles, includedOutput, directoryOutput, worktreeOutput);
+			return resolveWorktreeIncludeEntries(repositoryRoot, ignoredFiles, includedOutput, directoryOutput, worktreeOutput, excludedFolders);
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
@@ -1381,7 +1386,7 @@ function hasContainingFolder(folder: string, folders: ReadonlySet<string>, inclu
  * `git ls-files` outputs, collapsing wholly-ignored directories whose every
  * ignored file is included into a single recursive entry.
  */
-function resolveWorktreeIncludeEntries(repositoryRoot: URI, ignoredFiles: readonly string[], includedOutput: string, directoryOutput: string | undefined, worktreeOutput: string | undefined): IWorktreeIncludeEntry[] {
+function resolveWorktreeIncludeEntries(repositoryRoot: URI, ignoredFiles: readonly string[], includedOutput: string, directoryOutput: string | undefined, worktreeOutput: string | undefined, excludedFolders: readonly string[] = []): IWorktreeIncludeEntry[] {
 	// Keep only the ignored files that also match one of the configured
 	// `git.worktreeIncludeFiles` patterns, and — in the same pass — tally
 	// which wholly-ignored directories contain an ignored file that cannot
@@ -1396,6 +1401,7 @@ function resolveWorktreeIncludeEntries(repositoryRoot: URI, ignoredFiles: readon
 		.split('\x00').filter(entry => entry.endsWith('/')));
 	const worktreeFiles = new Set((worktreeOutput ?? '')
 		.split('\x00').filter(entry => entry.length > 0));
+	const excludedDirectories = new Set(excludedFolders.map(folder => folder.endsWith('/') ? folder : `${folder}/`));
 
 	// Every ancestor directory of a tracked path, with the trailing `/` used
 	// by `git ls-files --directory`, so a source path can be checked against
@@ -1414,6 +1420,7 @@ function resolveWorktreeIncludeEntries(repositoryRoot: URI, ignoredFiles: readon
 	for (const file of ignoredFiles) {
 		if (
 			includedFiles.has(file) &&
+			findContainingDirectory(file, excludedDirectories) === undefined &&
 			!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
 		) {
 			matchedFiles.push(file);

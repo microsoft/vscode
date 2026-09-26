@@ -97,6 +97,8 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
+const WORKTREE_META_SYMLINK_SOURCE_ROOT = 'copilot.worktree.symlinkSourceRoot';
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
 const DETACHED_WORKTREE_OWNER_SCHEME = 'vscode-agent-host-worktree';
 const DETACHED_WORKTREE_SCOPE = 'vscode.devContainerWorktree.scope';
@@ -141,6 +143,8 @@ export interface IWorktreeMetadata {
 	readonly branchName: string;
 	readonly worktreePath?: URI;
 	readonly repositoryRoot?: URI;
+	readonly symlinkPatterns?: readonly string[];
+	readonly symlinkSourceRoot?: URI;
 }
 
 /**
@@ -973,10 +977,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			&& config[SessionConfigKey.WorktreeSymlinkFolders].every(pattern => typeof pattern === 'string')
 			? config[SessionConfigKey.WorktreeSymlinkFolders] as readonly string[]
 			: undefined;
+		let createdSymlinkFolders: readonly string[] = [];
 		if (worktreeSymlinkFolders?.length) {
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.SymlinkingFolders));
-				await this._gitService.symlinkWorktreeFolders(checkoutRoot, worktreePath, worktreeSymlinkFolders, sessionId);
+				createdSymlinkFolders = await this._gitService.symlinkWorktreeFolders(checkoutRoot, worktreePath, worktreeSymlinkFolders, sessionId);
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to symlink worktree folders: ${errorMessage(error)}`);
 			}
@@ -985,7 +990,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
 				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
-					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, sessionId, progress));
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, sessionId, progress, createdSymlinkFolders));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
@@ -998,7 +1003,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 
 		try {
-			await this._writeWorktreeMetadata(sessionUri, { repositoryRoot, worktreePath, baseBranch, branchName });
+			await this._writeWorktreeMetadata(
+				sessionUri,
+				{ repositoryRoot, worktreePath, baseBranch, branchName },
+				{ sourceRoot: checkoutRoot, patterns: worktreeSymlinkFolders ?? [] },
+			);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to persist worktree branch metadata: ${errorMessage(error)}`);
 		}
@@ -1040,11 +1049,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		let recreateFailureReason: string | undefined;
 		if (meta?.worktreePath && meta.repositoryRoot) {
-			const { branchName, worktreePath, repositoryRoot } = meta;
-			const recreated = await this._recreateWorktree(sessionId, { branchName, worktreePath, repositoryRoot });
+			const recreated = await this._recreateWorktree(sessionId, {
+				branchName: meta.branchName,
+				worktreePath: meta.worktreePath,
+				repositoryRoot: meta.repositoryRoot,
+				symlinkPatterns: meta.symlinkPatterns,
+				symlinkSourceRoot: meta.symlinkSourceRoot,
+			});
 			if (recreated.ok) {
-				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing worktree '${worktreePath.fsPath}' for a live session on resume`);
-				return worktreePath;
+				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing worktree '${meta.worktreePath.fsPath}' for a live session on resume`);
+				return meta.worktreePath;
 			}
 			recreateFailureReason = recreated.reason;
 		}
@@ -1179,6 +1193,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				WORKTREE_META_BRANCH,
 				WORKTREE_META_PATH,
 				WORKTREE_META_REPOSITORY_ROOT,
+				WORKTREE_META_SYMLINK_PATTERNS,
+				WORKTREE_META_SYMLINK_SOURCE_ROOT,
 				WORKTREE_META_CREATION_FAILURE,
 				LEGACY_WORKTREE_META_WORKING_DIRECTORY,
 				META_DIFF_BASE_BRANCH,
@@ -1306,12 +1322,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			// expected when the worktree was cleaned up on archive
 		}
 
-		const { branchName, worktreePath, repositoryRoot } = meta;
-		await this._recreateWorktree(sessionId, { branchName, worktreePath, repositoryRoot });
+		await this._recreateWorktree(sessionId, {
+			branchName: meta.branchName,
+			worktreePath: meta.worktreePath,
+			repositoryRoot: meta.repositoryRoot,
+			symlinkPatterns: meta.symlinkPatterns,
+			symlinkSourceRoot: meta.symlinkSourceRoot,
+		});
 	}
 
-	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
-		const { branchName, worktreePath, repositoryRoot } = meta;
+	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly symlinkPatterns?: readonly string[]; readonly symlinkSourceRoot?: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+		const { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot } = meta;
 		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
 		if (!branchPresent) {
 			const reason = localize('worktreeRecreateBranchMissing', "the branch '{0}' no longer exists", branchName);
@@ -1321,6 +1342,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			if (symlinkSourceRoot && symlinkPatterns?.length) {
+				try {
+					await this._gitService.symlinkWorktreeFolders(symlinkSourceRoot, worktreePath, symlinkPatterns, sessionId);
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to restore worktree folder symlinks in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				}
+			}
 			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
@@ -1476,7 +1504,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return { currentBranch, defaultBranch };
 	}
 
-	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
+	private async _writeWorktreeMetadata(
+		sessionUri: URI,
+		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI },
+		symlinkSetup?: { readonly sourceRoot: URI; readonly patterns: readonly string[] },
+	): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			const work: Promise<void>[] = [
@@ -1486,6 +1518,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			];
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
+			}
+			if (symlinkSetup) {
+				if (symlinkSetup.patterns.length > 0) {
+					work.push(
+						dbRef.object.setMetadata(WORKTREE_META_SYMLINK_PATTERNS, JSON.stringify(symlinkSetup.patterns)),
+						dbRef.object.setMetadata(WORKTREE_META_SYMLINK_SOURCE_ROOT, symlinkSetup.sourceRoot.toString()),
+					);
+				} else {
+					work.push(dbRef.object.deleteMetadata([WORKTREE_META_SYMLINK_PATTERNS, WORKTREE_META_SYMLINK_SOURCE_ROOT]));
+				}
 			}
 			await Promise.all(work);
 		} finally {
@@ -1506,10 +1548,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		try {
-			const [branchName, worktreePathRaw, repositoryRootRaw, legacyWorkingDirectoryRaw] = await Promise.all([
+			const [branchName, worktreePathRaw, repositoryRootRaw, symlinkPatternsRaw, symlinkSourceRootRaw, legacyWorkingDirectoryRaw] = await Promise.all([
 				ref.object.getMetadata(WORKTREE_META_BRANCH),
 				ref.object.getMetadata(WORKTREE_META_PATH),
 				ref.object.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				ref.object.getMetadata(WORKTREE_META_SYMLINK_PATTERNS),
+				ref.object.getMetadata(WORKTREE_META_SYMLINK_SOURCE_ROOT),
 				ref.object.getMetadata(LEGACY_WORKTREE_META_WORKING_DIRECTORY),
 			]);
 			if (!branchName) {
@@ -1537,7 +1581,20 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					}
 				}
 			}
-			return { branchName, worktreePath, repositoryRoot };
+			let symlinkPatterns: readonly string[] | undefined;
+			let symlinkSourceRoot: URI | undefined;
+			if (symlinkPatternsRaw && symlinkSourceRootRaw) {
+				try {
+					const parsedPatterns = JSON.parse(symlinkPatternsRaw);
+					if (Array.isArray(parsedPatterns) && parsedPatterns.every(pattern => typeof pattern === 'string')) {
+						symlinkPatterns = parsedPatterns;
+						symlinkSourceRoot = URI.parse(symlinkSourceRootRaw);
+					}
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}] Failed to read worktree symlink metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
+				}
+			}
+			return { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot };
 		} finally {
 			ref.dispose();
 		}

@@ -80,7 +80,7 @@ suite('WorktreeIsolation', () => {
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let commitCalls: { worktree: URI; message: string }[];
 	let commitError: Error | undefined;
-	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string }[];
+	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string; excludedFolders: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
 	let symlinkFolderCalls: { repositoryRoot: URI; worktree: URI; patterns: readonly string[]; sessionId: string }[];
 	let symlinkFolderError: Error | undefined;
@@ -118,9 +118,9 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 			},
-			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId) => {
+			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId, _onProgress, excludedFolders = []) => {
 				worktreeSetupCalls.push('includeFiles');
-				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId });
+				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId, excludedFolders: [...excludedFolders] });
 				if (copyIncludeError) {
 					throw copyIncludeError;
 				}
@@ -131,6 +131,7 @@ suite('WorktreeIsolation', () => {
 				if (symlinkFolderError) {
 					throw symlinkFolderError;
 				}
+				return patterns.map(pattern => pattern.endsWith('/**') ? pattern.slice(0, -3) : pattern);
 			},
 			addExistingWorktree: async (_root, worktree, branch) => {
 				addExistingCalls.push({ worktree, branchName: branch });
@@ -622,19 +623,62 @@ suite('WorktreeIsolation', () => {
 			worktree: worktree?.toString(),
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
+			includeExcludedFolders: copyIncludeCalls[0]?.excludedFolders,
 			symlinkFolderRoot: symlinkFolderCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			metaSymlinkSourceRoot: meta?.symlinkSourceRoot?.toString(),
+			metaSymlinkPatterns: meta?.symlinkPatterns,
 			project: worktreeInfo && { uri: worktreeInfo.project.uri.toString(), displayName: worktreeInfo.project.displayName },
 			branchName: worktreeInfo?.branchName,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
+			includeExcludedFolders: ['node_modules'],
 			symlinkFolderRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
+			metaSymlinkSourceRoot: checkoutRoot.toString(),
+			metaSymlinkPatterns: symlinkFolders,
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 			branchName,
 		});
+	});
+
+	test('replays persisted symlink setup after missing-worktree recovery and unarchive', async () => {
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => checkoutRoot;
+		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
+		const isolation = createIsolation(disposables, { gitService });
+		const symlinkPatterns = ['node_modules/**'];
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: checkoutRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+				[SessionConfigKey.WorktreeSymlinkFolders]: symlinkPatterns,
+			},
+		});
+		assert.ok(worktree);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		symlinkFolderCalls = [];
+
+		const restoredIsolation = createIsolation(disposables, { gitService });
+		await restoredIsolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, worktree);
+		await restoredIsolation.cleanupWorktree(sessionUri, sessionId);
+		await restoredIsolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual(symlinkFolderCalls.map(call => ({
+			repositoryRoot: call.repositoryRoot.toString(),
+			worktree: call.worktree.toString(),
+			patterns: call.patterns,
+			sessionId: call.sessionId,
+		})), [
+			{ repositoryRoot: checkoutRoot.toString(), worktree: worktree.toString(), patterns: symlinkPatterns, sessionId },
+			{ repositoryRoot: checkoutRoot.toString(), worktree: worktree.toString(), patterns: symlinkPatterns, sessionId },
+		]);
 	});
 
 	test('resolveWorkingDirectory falls back to the selected checkout when primary worktree resolution fails', async () => {
@@ -859,6 +903,7 @@ suite('WorktreeIsolation', () => {
 				worktree: call.worktree.toString(),
 				globs: call.globs,
 				sessionId: call.sessionId,
+				excludedFolders: call.excludedFolders,
 			})),
 			symlinkFolderCalls: symlinkFolderCalls.map(call => ({
 				repositoryRoot: call.repositoryRoot.toString(),
@@ -875,6 +920,7 @@ suite('WorktreeIsolation', () => {
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
 				sessionId,
+				excludedFolders: [],
 			}],
 			symlinkFolderCalls: [{
 				repositoryRoot: repoRoot.toString(),
@@ -1314,6 +1360,8 @@ suite('WorktreeIsolation', () => {
 				'copilot.worktree.branchName': true,
 				'copilot.worktree.path': true,
 				'copilot.worktree.repositoryRoot': true,
+				'copilot.worktree.symlinkPatterns': true,
+				'copilot.worktree.symlinkSourceRoot': true,
 				[META_DIFF_BASE_BRANCH]: true,
 			}),
 		}, {
@@ -1322,6 +1370,8 @@ suite('WorktreeIsolation', () => {
 				'copilot.worktree.branchName': undefined,
 				'copilot.worktree.path': undefined,
 				'copilot.worktree.repositoryRoot': undefined,
+				'copilot.worktree.symlinkPatterns': undefined,
+				'copilot.worktree.symlinkSourceRoot': undefined,
 				[META_DIFF_BASE_BRANCH]: undefined,
 			},
 		});

@@ -1998,26 +1998,30 @@ export class Repository implements Disposable {
 	private async _setupWorktree(worktreePath: string): Promise<void> {
 		// Set up shared and copied worktree files before running any
 		// worktree-created tasks.
-		await this._symlinkWorktreeFolders(worktreePath);
-		await this._copyWorktreeIncludeFiles(worktreePath);
+		const symlinkFolders = await this._symlinkWorktreeFolders(worktreePath);
+		await this._copyWorktreeIncludeFiles(worktreePath, symlinkFolders);
 		await this._runWorktreeCreatedTasks(worktreePath);
 	}
 
-	private async _symlinkWorktreeFolders(worktreePath: string): Promise<void> {
+	private async _symlinkWorktreeFolders(worktreePath: string): Promise<string[]> {
 		try {
 			const directories = await this._getWorktreeSymlinkFolders();
 			if (directories.length === 0) {
-				return;
+				return [];
 			}
 
 			const startTime = performance.now();
 			const statuses = new Map<WorktreeSymlinkStatus, number>();
+			const createdDirectories: string[] = [];
 			const errors: { directory: string; error: string }[] = [];
 
 			for (const directory of directories) {
 				try {
 					const status = await createWorktreeSymlink(this.root, worktreePath, directory);
 					statuses.set(status, (statuses.get(status) ?? 0) + 1);
+					if (status === 'created') {
+						createdDirectories.push(directory);
+					}
 				} catch (err) {
 					errors.push({ directory, error: String(err) });
 				}
@@ -2042,8 +2046,10 @@ export class Repository implements Disposable {
 					this.logger.warn(`  - ${error.directory}: ${error.error}`);
 				}
 			}
+			return createdDirectories;
 		} catch (err) {
 			this.logger.warn(`[Repository][_symlinkWorktreeFolders] Failed to symlink folders to worktree: ${err}`);
+			return [];
 		}
 	}
 
@@ -2143,7 +2149,7 @@ export class Repository implements Disposable {
 	 * `git.worktreeIncludeFiles` patterns are matched by git using
 	 * `.gitignore` semantics.
 	 */
-	private async _getWorktreeIncludePaths(worktreePath: string): Promise<string[]> {
+	private async _getWorktreeIncludePaths(worktreePath: string, excludedFolders: readonly string[]): Promise<string[]> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
@@ -2198,7 +2204,7 @@ export class Repository implements Disposable {
 				return [];
 			}
 
-			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput);
+			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput, excludedFolders);
 		} finally {
 			try {
 				await fsPromises.rm(tempDir, { recursive: true, force: true });
@@ -2208,9 +2214,9 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
+	private async _copyWorktreeIncludeFiles(worktreePath: string, excludedFolders: readonly string[]): Promise<void> {
 		try {
-			const files = await this._getWorktreeIncludePaths(worktreePath);
+			const files = await this._getWorktreeIncludePaths(worktreePath, excludedFolders);
 			if (files.length === 0) {
 				return;
 			}
