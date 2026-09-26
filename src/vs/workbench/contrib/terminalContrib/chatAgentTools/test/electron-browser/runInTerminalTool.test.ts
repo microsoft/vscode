@@ -189,6 +189,7 @@ suite('RunInTerminalTool', () => {
 				onDisposedEmitter.fire(createdTerminalInstance);
 			},
 			getCwdResource: async () => undefined,
+			getCwdResourceForAuthorization: async () => undefined,
 			isDisposed: false,
 		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
@@ -916,6 +917,26 @@ suite('RunInTerminalTool', () => {
 			strictEqual(terminalData.commandLine.forDisplay, 'echo hello');
 			strictEqual(terminalData.commandLine.toolEdited, 'nohup sandbox-runtime echo hello & disown');
 		});
+	});
+
+	test('existing terminal with unknown CWD does not fall back to the session workspace', async () => {
+		const sessionResource = LocalChatSessionUri.forSession('existing-terminal-unknown-cwd');
+		const model = createChatModelWithRequest(sessionResource);
+		Object.defineProperty(model, 'workingDirectory', { value: URI.file('/workspace') });
+		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+			instance: { ...createdTerminalInstance, getCwdResourceForAuthorization: async () => undefined },
+			shellIntegrationQuality: ShellIntegrationQuality.Rich,
+			isBackground: false,
+		});
+
+		const prepared = await runInTerminalTool.prepareToolInvocation({
+			parameters: { command: 'echo hello > out.txt', mode: 'sync', timeout: 30000 } as IRunInTerminalInputParams,
+			chatSessionResource: sessionResource,
+		} as IToolInvocationPreparationContext, CancellationToken.None);
+
+		ok(prepared);
+		assertConfirmationRequired(prepared);
+		strictEqual((prepared.toolSpecificData as IChatTerminalToolInvocationData).cwd, undefined);
 	});
 
 	suite('automatic sandbox retry', () => {
