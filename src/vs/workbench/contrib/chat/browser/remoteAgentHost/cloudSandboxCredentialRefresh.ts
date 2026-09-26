@@ -11,6 +11,7 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { equals } from '../../../../../base/common/objects.js';
 import {
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
+	CloudSandboxRequestError,
 	ICloudSandboxApiService,
 	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
@@ -56,9 +57,6 @@ export const MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES = 10;
  * while being far enough apart that it cannot amount to a meaningful load on Mission Control.
  */
 const CREDENTIAL_REFRESH_FALLBACK_MS = 15 * 60_000;
-
-/** Upper bound on a single waking Retry-After wait (ms), guarding against a hostile header. */
-export const MAX_WAKING_DELAY_MS = 30_000;
 
 /** Mutable holder for the current Web PubSub credentials, read by the transport factory. */
 export interface ICloudSandboxCreds {
@@ -206,7 +204,13 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			return;
 		}
 		this._refreshState.nextRefreshAt = refreshAt;
-		this._timer.value = disposableTimeout(() => void this._refresh(), Math.max(0, refreshAt - Date.now()));
+		this._timer.value = disposableTimeout(() => {
+			if (Date.now() < refreshAt) {
+				this._armAt(refreshAt);
+			} else {
+				void this._refresh();
+			}
+		}, Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(0, refreshAt - Date.now())));
 	}
 
 	/** Re-arm after a cycle that produced no usable token, giving up once too many pile up. */
@@ -252,7 +256,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 				return false;
 			}
 			this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${this._address}; retrying`, err);
-			this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'consecutiveFailures', 'credential refresh kept failing');
+			const delayMs = err instanceof CloudSandboxRequestError && err.retryAfterSeconds !== undefined
+				? Math.max(CREDENTIAL_REFRESH_RETRY_MS, err.retryAfterSeconds * 1000)
+				: CREDENTIAL_REFRESH_RETRY_MS;
+			this._armUnhealthy(delayMs, 'consecutiveFailures', 'credential refresh kept failing');
 			return false;
 		}
 
@@ -264,7 +271,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		if (result.kind === 'waking') {
 			// `/reconnect` refreshes an already-connected client, so a waking environment here is the
 			// sandbox disappearing underneath us rather than a wake worth waiting out.
-			this._armUnhealthy(Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS), 'environmentWaking', 'environment kept reporting waking');
+			this._armUnhealthy(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking');
 			return false;
 		}
 

@@ -114,6 +114,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	private readonly _onDidCreateConnection = this._register(new Emitter<void>());
 	readonly onDidCreateConnection = this._onDidCreateConnection.event;
 	createdConnectionCount = 0;
+	reconnectManagedByClient = false;
 	readonly observations: { state: Parameters<RemoteAgentHostConnectionObserver>[0]; time: number }[] = [];
 
 	constructor(readonly kind: RemoteAgentHostEntryType) {
@@ -136,6 +137,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 			connection: connection as unknown as IRemoteAgentHostProtocolClient,
 			transportDisposable,
 			reconnectTransfersTransportOwnership,
+			reconnectManagedByClient: this.reconnectManagedByClient,
 		});
 		this._createdConnections.set(address, createdConnections);
 		this.publishEntry(entry);
@@ -1106,6 +1108,36 @@ suite('RemoteAgentHostService', () => {
 				{ state: 'failed', time: 3000 },
 			]);
 		}));
+
+		for (const initiallyConnected of [false, true]) {
+			test(`does not restart client-owned recovery after ${initiallyConnected ? 'a live connection' : 'an initial handshake'} gives up`, () => runWithFakedTimers({}, async () => {
+				const factory = createFactory();
+				factory.reconnectManagedByClient = true;
+				const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:owned-recovery');
+				const address = getEntryAddress(entry);
+				const client = disposables.add(new MockProtocolClient(address));
+				factory.stage(entry, client);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 1);
+				if (initiallyConnected) {
+					client.connectDeferred.complete();
+					await service.waitForConnection(address);
+				}
+				client.fireConnectionState('reconnecting');
+				const failed = assert.rejects(service.waitForConnection(address), /closed before recovery completed/);
+				client.fireClose();
+				await failed;
+				client.connectDeferred.complete();
+				await timeout(120_000);
+				const states = factory.observations.map(observation => observation.state);
+				service.dispose();
+
+				assert.deepStrictEqual({ states, creates: factory.createdConnectionCount }, {
+					states: ['connecting', ...(initiallyConnected ? ['connected'] : []), 'reconnecting', 'reconnecting', 'failed'],
+					creates: 1,
+				});
+			}));
+		}
 
 		for (const action of ['remove', 'disable', 'dispose'] as const) {
 			test(`observes ${action} as intentional teardown, not a connection loss`, () => runWithFakedTimers({}, async () => {

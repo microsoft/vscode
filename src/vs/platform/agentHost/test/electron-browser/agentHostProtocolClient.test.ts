@@ -2840,6 +2840,236 @@ suite('AgentHostProtocolClient', () => {
 			await connectPromise;
 		}
 
+		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
+			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const blocked = new DeferredPromise<void>();
+				let restoring = false;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false },
+					stage === 'preparation' ? () => blocked.p : undefined, {
+					prepareAuthentication: async () => {
+						if (restoring && stage === 'authentication preparation') {
+							await blocked.p;
+						}
+					},
+					resolveInitialAuthentication: async () => {
+						if (restoring && stage === 'authentication resolution') {
+							await blocked.p;
+						}
+						return restoring ? { resource: 'https://api.example.com', token: 'restored' } : undefined;
+					},
+				});
+				await completeHandshake(transports[0], client.connect());
+				const subscription = stage === 'subscriptions' ? disposables.add(client.getSubscription(StateComponents.Session, URI.parse('copilot:/stalled-restore'), 'test')) : undefined;
+				if (subscription) {
+					const subscribe = await waitForRequestAtWithin(transports[0], 'subscribe', 0, 50);
+					transports[0].fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: { snapshot: { resource: 'copilot:/stalled-restore', state: { lifecycle: 'ready' }, fromSeq: 5 } },
+					});
+					await flushMicrotasks();
+				}
+				restoring = true;
+				const started = Date.now();
+				const closed = Event.toPromise(client.onDidFatalClose);
+				transports[0].fireClose();
+				client.reconnectNow();
+				if (stage !== 'preparation') {
+					const replacement = await waitForTransport(transports, 1);
+					if (stage !== 'transport') {
+						replacement.connectDeferred.complete();
+						const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 50);
+						if (stage !== 'protocol') {
+							replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'client not found' } });
+							const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0, 50);
+							replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] } });
+							if (stage === 'authenticate' || stage === 'subscriptions') {
+								const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0, 50);
+								if (stage === 'subscriptions') {
+									replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+									await waitForRequestAtWithin(replacement, 'subscribe', 0, 50);
+								}
+							}
+						}
+					}
+				}
+				const error = await closed;
+				const elapsed = Date.now() - started;
+				await blocked.complete();
+				transports[1]?.connectDeferred.complete();
+				await timeout(0);
+				const state = client.connectionState;
+				subscription?.dispose();
+				client.dispose();
+
+				assert.deepStrictEqual({ elapsed, state, error: error.message, transports: transports.length }, {
+					elapsed: 100, state: AgentHostClientState.Closed,
+					error: 'Automatic reconnect timed out after 100ms.', transports: stage === 'preparation' ? 1 : 2,
+				});
+			}));
+		}
+
+		test('failed attempts and immediate retries do not restart the recovery deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const policy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+			};
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false });
+			await completeHandshake(transports[0], client.connect());
+			const started = Date.now();
+			const closed = Event.toPromise(client.onDidFatalClose);
+			transports[0].fireClose();
+			client.reconnectNow();
+			const first = await waitForTransport(transports, 1);
+			await timeout(40);
+			first.connectDeferred.error(new Error('first dial failed'));
+			await timeout(0);
+			client.reconnectNow();
+			await waitForTransport(transports, 2);
+			await closed;
+			const elapsed = Date.now() - started;
+			client.dispose();
+			assert.deepStrictEqual({ elapsed, transports: transports.length }, { elapsed: 100, transports: 3 });
+		}));
+
+		test('successful recovery cancels its deadline and a later outage gets a new budget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const policy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+			};
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false });
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 50);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client, 50);
+			await timeout(150);
+			const stateAfterOldDeadline = client.connectionState;
+			const closed = Event.toPromise(client.onDidFatalClose);
+			const started = Date.now();
+			replacement.fireClose();
+			await closed;
+			const elapsed = Date.now() - started;
+			client.dispose();
+			assert.deepStrictEqual({ stateAfterOldDeadline, elapsed }, {
+				stateAfterOldDeadline: AgentHostClientState.Connected, elapsed: 100,
+			});
+		}));
+
+		test('a timed-out attempt cannot report failure for a restarted recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const policy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+			};
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false });
+			await completeHandshake(transports[0], client.connect());
+			let failedAttempts = 0;
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'reconnect' && event.outcome === 'failed') {
+					failedAttempts++;
+				}
+			}));
+			disposables.add(Event.once(client.onDidClose)(() => {
+				client.reconnectFromClosed();
+				client.reconnectNow();
+				transports[2].connectDeferred.complete();
+			}));
+			const closed = Event.toPromise(client.onDidFatalClose);
+			transports[0].fireClose();
+			client.reconnectNow();
+			await closed;
+			await timeout(0);
+			const replacement = transports[2];
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 50);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client, 50);
+			await transports[1].connectDeferred.error(new Error('late dial failure'));
+			await timeout(0);
+			const state = client.connectionState;
+			client.dispose();
+			assert.deepStrictEqual({ state, failedAttempts, transports: transports.length }, {
+				state: AgentHostClientState.Connected, failedAttempts: 0, transports: 3,
+			});
+		}));
+
+		for (const outcome of ['resolve', 'reject'] as const) {
+			test(`a timed-out authentication resolver cannot affect a restarted recovery: ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const blocked = new DeferredPromise<{ resource: string; token: string }>();
+				const resolving = new DeferredPromise<void>();
+				let resolutions = 0;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => {
+						if (++resolutions === 1) {
+							return undefined;
+						}
+						if (resolutions === 2) {
+							resolving.complete();
+							return blocked.p;
+						}
+						return { resource: 'https://api.example.com', token: 'fresh-credential' };
+					},
+				});
+				async function initializeReplacement(index: number): Promise<TestClientProtocolTransport> {
+					const replacement = await waitForTransport(transports, index);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'client not found' } });
+					const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] } });
+					return replacement;
+				}
+				try {
+					await completeHandshake(transports[0], client.connect());
+					const authenticationOutcomes: IConnectionDiagnosticEvent['outcome'][] = [];
+					disposables.add(client.onDidConnectionDiagnostic(event => {
+						if (event.phase === 'protocol.authentication' && event.outcome !== 'started') {
+							authenticationOutcomes.push(event.outcome);
+						}
+					}));
+					const closed = Event.toPromise(client.onDidFatalClose);
+					transports[0].fireClose();
+					client.reconnectNow();
+					await initializeReplacement(1);
+					await resolving.p;
+					await closed;
+					await timeout(0);
+					const outcomesAtClose = [...authenticationOutcomes];
+
+					client.reconnectFromClosed();
+					client.reconnectNow();
+					const replacement = await initializeReplacement(2);
+					const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0, 50);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+					await waitForConnectedWithin(client, 50);
+					if (outcome === 'resolve') {
+						await blocked.complete({ resource: 'https://api.example.com', token: 'stale-credential' });
+					} else {
+						await blocked.error(new Error('late credential failure'));
+					}
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						outcomesAtClose,
+						authenticationOutcomes,
+						tokens: [...client['_authentication'].values()].map(authentication => authentication.params.token),
+						state: client.connectionState,
+					}, {
+						outcomesAtClose: ['failed'],
+						authenticationOutcomes: ['failed', 'succeeded'],
+						tokens: ['fresh-credential'],
+						state: AgentHostClientState.Connected,
+					});
+				} finally {
+					client.dispose();
+				}
+			}));
+		}
+
 		test('retries initial authentication preparation on replay recovery without losing the initial root snapshot', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let preparations = 0;
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {

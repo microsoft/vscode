@@ -261,6 +261,29 @@ suite('CloudSandboxApiService connection credentials', () => {
 			/Cloud sandbox reconnect returned credentials for a different client/,
 		);
 	});
+
+	test('parses a pending response with an HTTP-date Retry-After', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({}, 202, { 'retry-after': new Date(Date.now() + 45_000).toUTCString() }),
+		});
+		assert.deepStrictEqual(await service.connect(request, CancellationToken.None), {
+			kind: 'waking', waking: { retryAfterSeconds: 45 },
+		});
+	}));
+
+	for (const statusCode of [401, 403, 404, 429, 503]) {
+		test(`retains HTTP ${statusCode} and server pacing without automatically retrying a new connection`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({}, statusCode, { 'retry-after': '45' }),
+			});
+			await assert.rejects(service.connect(request, CancellationToken.None), {
+				name: 'CloudSandboxRequestError', statusCode, retryAfterSeconds: 45,
+			});
+			assert.strictEqual(requestedUrls.length, 1);
+		});
+	}
 });
 
 suite('CloudSandboxApiService repository resolution', () => {
