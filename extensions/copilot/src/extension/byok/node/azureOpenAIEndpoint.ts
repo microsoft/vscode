@@ -14,6 +14,10 @@ export class AzureOpenAIEndpoint extends OpenAIEndpoint {
 	 * Override to use Entra ID authentication headers instead of API key.
 	 */
 	public override getExtraHeaders(): Record<string, string> {
+		if (!this._apiKey) {
+			throw new Error('AzureOpenAIEndpoint: API key or Entra ID token is missing.');
+		}
+
 		const headers = super.getExtraHeaders();
 		headers['Authorization'] = `Bearer ${this._apiKey}`;
 		// Defensive: Ensure 'api-key' header is never sent for Azure endpoints, even if parent class changes.
