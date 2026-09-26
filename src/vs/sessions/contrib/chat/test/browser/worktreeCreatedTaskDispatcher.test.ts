@@ -64,8 +64,6 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading,

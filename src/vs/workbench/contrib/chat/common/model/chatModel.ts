@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from '../../../../../base/common/arrays.js';
+import { asArray, equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
@@ -13,12 +13,13 @@ import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMar
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
-import { URI, UriDto } from '../../../../../base/common/uri.js';
+import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -31,6 +32,7 @@ import { canLog, ILogService, LogLevel } from '../../../../../platform/log/commo
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
+import { formatChatToolError } from '../chatProgressFormatting.js';
 import { IChatRequestOrigin, ISerializableChatRequestOrigin, reviveChatRequestOrigin, serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
@@ -38,7 +40,7 @@ import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind, ChatPermis
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from './chatProgressTypes/chatQuestionCarouselData.js';
-import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
+import { ToolDataSource, IToolData, isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
@@ -66,6 +68,8 @@ export interface IChatPendingRequest {
  * Excludes observables and non-serializable fields.
  */
 export interface ISerializableSendOptions {
+	agentHostMessageOrigin?: IChatSendRequestOptions['agentHostMessageOrigin'];
+	metadata?: IChatSendRequestOptions['metadata'];
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
 	userSelectedModelConfiguration?: IStringDictionary<unknown>;
@@ -178,9 +182,15 @@ export interface IChatTextEditGroupState {
 	applied: number;
 }
 
+export interface IChatEditMetadata {
+	readonly autoTier?: IChatTextEdit['autoTier'];
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
+	/** Attribution snapshots aligned with the edit batches. */
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 	done: boolean | undefined;
@@ -204,6 +214,7 @@ export interface ICellTextEditOperation {
 export interface IChatNotebookEditGroup {
 	uri: URI;
 	edits: (ICellTextEditOperation[] | ICellEditOperation[])[];
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
@@ -328,6 +339,8 @@ export interface IChatResponseModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
+	/** Tool invocations awaiting user input in the visible response, in response order. */
+	readonly pendingToolInvocations: IObservable<readonly IChatToolInvocation[]>;
 	readonly isInProgress: IObservable<boolean>;
 	/**
 	 * True whenever this response has not reached a terminal state yet.
@@ -771,6 +784,7 @@ class AbstractResponse implements IResponse {
 		// Extract the message and input details
 		let message = '';
 		let input = '';
+		let exitCode: number | undefined;
 
 		if (toolInvocation.pastTenseMessage) {
 			message = typeof toolInvocation.pastTenseMessage === 'string'
@@ -788,6 +802,7 @@ class AbstractResponse implements IResponse {
 				message = 'Ran terminal command';
 				const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
 				input = getTerminalDisplayInput(terminalData);
+				exitCode = terminalData.terminalCommandState?.exitCode;
 			}
 		}
 
@@ -798,8 +813,8 @@ class AbstractResponse implements IResponse {
 		}
 
 		// For completed tool invocations, also include the result details if available
+		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 		if (toolInvocation.kind === 'toolInvocationSerialized' || (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isComplete(toolInvocation))) {
-			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (resultDetails && 'input' in resultDetails) {
 				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
 				const resultInput = toolInvocation.toolSpecificData?.kind === 'terminal'
@@ -807,6 +822,14 @@ class AbstractResponse implements IResponse {
 					: resultDetails.input;
 				text += `\n${resultPrefix} with input: ${resultInput}`;
 			}
+		}
+
+		const error = formatChatToolError(
+			IChatToolInvocation.resultError(toolInvocation) || (isToolResultInputOutputDetails(resultDetails) && resultDetails.isError),
+			exitCode,
+		);
+		if (error) {
+			text += '\n' + error;
 		}
 
 		return { text, isBlock: true };
@@ -846,9 +869,20 @@ class ResponseView extends AbstractResponse {
 	}
 }
 
+type ChatResponseConfirmationPart = IChatToolInvocation | IChatConfirmation | IChatQuestionCarousel | IChatPlanReview | IChatElicitationRequest;
+
+function isChatResponseConfirmationPart(part: IChatProgressResponseContent): part is ChatResponseConfirmationPart {
+	return part.kind === 'toolInvocation'
+		|| part.kind === 'confirmation'
+		|| part.kind === 'questionCarousel'
+		|| part.kind === 'planReview'
+		|| part.kind === 'elicitation2';
+}
+
 export class Response extends AbstractResponse implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private readonly _toolInvocationDisposables = this._store.add(new DisposableStore());
+	private readonly _pendingConfirmationCandidates = new Set<ChatResponseConfirmationPart>();
 	private _onDidChangeValue = this._store.add(new Emitter<void>());
 	private _activeReasoning: { part: IChatThinkingPart; startedAt: number } | undefined;
 	public get onDidChangeValue() {
@@ -864,16 +898,49 @@ export class Response extends AbstractResponse implements IDisposable {
 				isMarkdownString(v) ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 					{ kind: 'treeData', treeData: v }
 		)));
+		for (const part of this._responseParts) {
+			if (isChatResponseConfirmationPart(part)) {
+				this._pendingConfirmationCandidates.add(part);
+			}
+		}
 	}
 
 	dispose(): void {
 		this._store.dispose();
 	}
 
+	/** Revisit only unsettled confirmation-capable parts, not the streamed response history. */
+	getPendingConfirmations(reader: IReader): readonly ChatResponseConfirmationPart[] {
+		const pending: ChatResponseConfirmationPart[] = [];
+		for (const part of this._pendingConfirmationCandidates) {
+			if (part.kind === 'toolInvocation') {
+				const state = part.state.read(reader);
+				if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+					this._pendingConfirmationCandidates.delete(part);
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+					|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					pending.push(part);
+				}
+			} else if (part.kind === 'elicitation2') {
+				if (part.state.read(reader) === ElicitationState.Pending) {
+					pending.push(part);
+				} else {
+					this._pendingConfirmationCandidates.delete(part);
+				}
+			} else if (part.isUsed) {
+				this._pendingConfirmationCandidates.delete(part);
+			} else {
+				pending.push(part);
+			}
+		}
+		return pending;
+	}
 
 	clear(): void {
 		this.finalizeReasoningDuration();
 		this._toolInvocationDisposables.clear();
+		this._pendingConfirmationCandidates.clear();
 		this._responseParts = [];
 		this._contentChanged(true);
 	}
@@ -887,6 +954,12 @@ export class Response extends AbstractResponse implements IDisposable {
 			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 				lastToolInvocationIndex = i;
 				break;
+			}
+		}
+		for (let i = lastToolInvocationIndex + 1; i < this._responseParts.length; i++) {
+			const part = this._responseParts[i];
+			if (isChatResponseConfirmationPart(part)) {
+				this._pendingConfirmationCandidates.delete(part);
 			}
 		}
 		if (lastToolInvocationIndex !== -1) {
@@ -983,17 +1056,18 @@ export class Response extends AbstractResponse implements IDisposable {
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			const isExternalEdit = progress.isExternalEdit;
+			const editMetadata = progress.autoTier !== undefined ? { autoTier: progress.autoTier } : undefined;
 
 			if (progress.kind === 'textEdit' && !notebookUri) {
 				// Text edits to a regular (non-notebook) file
-				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			} else if (progress.kind === 'textEdit') {
 				// Text edits to a notebook cell - convert to ICellTextEditOperation
 				const cellEdits = progress.edits.map(edit => ({ uri: progress.uri, edit }));
-				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit, editMetadata);
 			} else {
 				// Notebook cell edits (ICellEditOperation)
-				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressTask') {
@@ -1026,6 +1100,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._contentChanged(false);
 			}));
 			this._responseParts.push(progress);
+			this._pendingConfirmationCandidates.add(progress);
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'mcpAuthenticationRequired') {
 			this._responseParts.push(progress);
@@ -1061,6 +1136,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._contentChanged(quiet);
 		} else {
 			this._responseParts.push(progress);
+			if (isChatResponseConfirmationPart(progress)) {
+				this._pendingConfirmationCandidates.add(progress);
+			}
 			this._contentChanged(quiet);
 		}
 	}
@@ -1101,26 +1179,34 @@ export class Response extends AbstractResponse implements IDisposable {
 		return false;
 	}
 
-	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'notebookEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
 	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
@@ -1180,6 +1266,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		}
 
 		this._responseParts.push(invocation);
+		this._pendingConfirmationCandidates.add(invocation);
 	}
 
 	protected override computeRepr(): string {
@@ -1414,6 +1501,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 
+	readonly pendingToolInvocations: IObservable<readonly IChatToolInvocation[]>;
+
 	readonly isInProgress: IObservable<boolean>;
 
 	/**
@@ -1474,11 +1563,30 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		const signal = observableSignalFromEvent(this, this.onDidChange);
 
-		const _pendingInfo = signal.map((_value, r): string | undefined => {
-			signal.read(r);
+		const pendingConfirmations = derivedOpts({ owner: this, equalsFn: arraysEqual<ChatResponseConfirmationPart> }, reader => {
+			signal.read(reader);
+			return this._response.getPendingConfirmations(reader);
+		});
+		const visibleParts = new WeakMap<IResponse, ReadonlySet<IChatProgressResponseContent>>();
+		this.pendingToolInvocations = derivedOpts({ owner: this, equalsFn: arraysEqual<IChatToolInvocation> }, reader => {
+			signal.read(reader);
+			const pending = pendingConfirmations.read(reader);
+			const response = this.response;
+			let includedParts: ReadonlySet<IChatProgressResponseContent> | undefined;
+			if (response !== this._response && pending.length) {
+				includedParts = visibleParts.get(response);
+				if (!includedParts) {
+					includedParts = new Set(response.value);
+					visibleParts.set(response, includedParts);
+				}
+			}
+			return pending.filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && (!includedParts || includedParts.has(part)));
+		});
 
-			for (const part of this._response.value) {
-				if (part.kind === 'toolInvocation') {
+		const _pendingInfo = signal.map((_value, r): string | undefined => {
+			const part = pendingConfirmations.read(r).at(0);
+			switch (part?.kind) {
+				case 'toolInvocation': {
 					const state = part.state.read(r);
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 						const title = state.confirmationMessages?.title;
@@ -1490,22 +1598,19 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 					if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
 						return localize('waitingForToolAuthentication', "Authenticate {0} to continue...", state.server.name);
 					}
+					return undefined;
 				}
-				if (part.kind === 'confirmation' && !part.isUsed) {
+				case 'confirmation':
 					return part.title;
-				}
-				if (part.kind === 'questionCarousel' && !part.isUsed) {
+				case 'questionCarousel':
 					return localize('waitingAnswer', "Answer questions to continue...");
-				}
-				if (part.kind === 'planReview' && !part.isUsed) {
+				case 'planReview':
 					return localize('waitingPlanReview', "Review the plan to continue...");
-				}
-				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
+				case 'elicitation2': {
 					const title = part.title;
 					return isMarkdownString(title) ? title.value : title;
 				}
 			}
-
 			return undefined;
 		});
 
@@ -2343,12 +2448,42 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 		typeof (obj as IExportableChatData).responderUsername === 'string';
 }
 
-export function extractExportableSessionData(data: IExportableChatData): IExportableChatData {
+export function parseChatImport(content: string): IExportableChatData {
+	const data: unknown = revive(JSON.parse(content, (_key: string, value: unknown) => {
+		if (value && typeof value === 'object' && '$mid' in value && value.$mid === MarshalledId.Uri) {
+			if (!isUriComponents(value)) {
+				throw new Error('Invalid chat session data');
+			}
+			// URI.revive trusts serialized external and fsPath caches.
+			return URI.from(value, true).toJSON();
+		}
+		return value;
+	}));
+	if (!isExportableSessionData(data)) {
+		throw new Error('Invalid chat session data');
+	}
+
+	removeImportedMarkdownTrust(data.requests);
 	return {
 		initialLocation: data.initialLocation,
 		requests: data.requests,
 		responderUsername: data.responderUsername,
 	};
+}
+
+function removeImportedMarkdownTrust(value: unknown): void {
+	if (!value || typeof value !== 'object') {
+		return;
+	}
+
+	// Unlike isMarkdownString, this must also match markdown with malformed optional flags.
+	if ('value' in value && typeof value.value === 'string' && 'isTrusted' in value) {
+		value.isTrusted = false;
+	}
+
+	for (const child of Object.values(value)) {
+		removeImportedMarkdownTrust(child);
+	}
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -3529,6 +3664,8 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
  */
 export function serializeSendOptions(options: IChatSendRequestOptions): ISerializableSendOptions {
 	return {
+		agentHostMessageOrigin: options.agentHostMessageOrigin,
+		metadata: options.metadata,
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
 		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
@@ -3566,10 +3703,15 @@ export namespace ChatResponseResource {
 	export const scheme = Schemas.vscodeChatResponseResource;
 
 	export function createUri(sessionResource: URI, toolCallId: string, index: number, basename?: string): URI {
+		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
+	}
+
+	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: encodeHex(VSBuffer.fromString(sessionResource.toString())),
-			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path,
+			query,
 		});
 	}
 
@@ -3588,22 +3730,23 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		let sessionResource: URI;
+		return {
+			sessionResource: parseSessionResource(uri),
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
+
+	function parseSessionResource(uri: URI): URI {
 		try {
-			sessionResource = URI.parse(decodeHex(uri.authority).toString());
+			return URI.parse(decodeHex(uri.authority).toString());
 		} catch (e) {
 			if (e instanceof SyntaxError) { // pre-1.108 local session ID
-				sessionResource = LocalChatSessionUri.forSession(uri.authority);
+				return LocalChatSessionUri.forSession(uri.authority);
 			} else {
 				throw e;
 			}
 		}
-
-		return {
-			sessionResource,
-			toolCallId: toolCallId,
-			index: Number(index),
-		};
 	}
 }
 

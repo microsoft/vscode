@@ -57,6 +57,8 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
+import { filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
@@ -163,7 +165,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 }
 
 export function getAgentHostSandboxSettingId(sessionType: string | undefined, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
-	if (sessionType !== SessionType.AgentHostCopilot) {
+	if (!sessionType || !isCopilotCliSessionType(sessionType)) {
 		return undefined;
 	}
 	return getAgentHostCopilotSandboxSettingId(windows);
@@ -392,6 +394,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _sessionGeneration = 0;
 	private _hostOperatingSystem: OperatingSystem | undefined;
 	private _hostOperatingSystemRequest: Promise<void> | undefined;
+	private _hostOperatingSystemConnection: IAgentConnection | undefined;
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -432,6 +435,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostStart(async () => {
+			if (this._hostOperatingSystemConnection !== this._agentHostService) {
+				return;
+			}
 			const request = this._hostOperatingSystemRequest;
 			// Recovery can be reported before an interrupted diagnostics request settles.
 			await request;
@@ -786,8 +792,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		return undefined;
 	}
 
-	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown): Promise<IActionListItem<IConfigPickerItem>[]> {
-		const items = await this._getItems(schema, undefined, property);
+	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown, branchItems?: readonly IConfigPickerItem[]): Promise<IActionListItem<IConfigPickerItem>[]> {
+		const items = branchItems ?? await this._getItems(schema, undefined, property);
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 		const actionItems = toActionItems(property, items, value, policyRestricted, this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = getPermissionsLearnMoreUrl(property);
@@ -823,7 +829,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const anchor = trigger === this._trigger ? this._splitTrigger.value?.modeButton ?? trigger : trigger;
-		const modeItems = await this._getActionItems(this._property, ctx.schema, ctx.value);
+		const branches = this._property === SessionConfigKey.Branch && ctx.schema.enumDynamic
+			? await this._getItems(ctx.schema)
+			: undefined;
+		const modeItems = await this._getActionItems(this._property, ctx.schema, ctx.value, branches && filterBranchPickerItems(branches));
 		if (modeItems.length === 0) {
 			return;
 		}
@@ -865,13 +874,19 @@ export class AgentHostChatInputPicker extends Disposable {
 		const delegate: IActionListDelegate<IConfigPickerItem | IAction> = {
 			onSelect: item => hasKey(item, { run: true }) ? item.run() : this._selectItem(this._property, ctx, item),
 			onFilter: ctx.schema.enumDynamic
-				? query => this._filterDelayer.trigger(async () => {
+				? async query => {
 					const refreshed = this._readContext();
 					if (!refreshed || !this._isCurrentTarget(ctx)) {
 						return [];
 					}
-					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
-				})
+					if (branches) {
+						return toActionItems(this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+					}
+					return this._filterDelayer.trigger(async () => {
+						const items = await this._getItems(refreshed.schema, query);
+						return toActionItems(this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+					});
+				}
 				: undefined,
 			onHide: () => {
 				this._pickerVisible = false;
@@ -947,17 +962,26 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
-		if (sessionType !== SessionType.AgentHostCopilot || this._store.isDisposed) {
+		if (!sessionResource || !sessionType || !isCopilotCliSessionType(sessionType) || this._store.isDisposed) {
 			return undefined;
 		}
-		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem();
+		const connection = this._connectionsService.resolveSessionResource(sessionResource)?.connection;
+		if (!connection) {
+			return undefined;
+		}
+		if (this._hostOperatingSystemConnection !== connection) {
+			this._hostOperatingSystemConnection = connection;
+			this._hostOperatingSystem = undefined;
+			this._hostOperatingSystemRequest = undefined;
+		}
+		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem(connection);
 		return getAgentHostSandboxSettingId(sessionType, this._hostOperatingSystem === OperatingSystem.Windows);
 	}
 
-	private async _resolveHostOperatingSystem(): Promise<void> {
+	private async _resolveHostOperatingSystem(connection: IAgentConnection): Promise<void> {
 		try {
-			const os = await getAgentHostOperatingSystem(this._agentHostService);
-			if (this._store.isDisposed) {
+			const os = await getAgentHostOperatingSystem(connection);
+			if (this._store.isDisposed || this._hostOperatingSystemConnection !== connection) {
 				return;
 			}
 			this._hostOperatingSystem = os;
@@ -1023,7 +1047,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				result = await context.connection.sessionConfigCompletions({
 					provider: context.provider,
 					property,
-					query,
+					query: property === SessionConfigKey.Branch ? undefined : query,
 					workingDirectory: this._readWorkingDirectory(),
 					config: this._readCurrentValues(),
 				});

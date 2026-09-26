@@ -26,6 +26,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -53,6 +54,7 @@ import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessi
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { ICodexAccountRateLimitInfo } from '../../../../platform/agentHost/common/codexAccount.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -167,7 +169,7 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 // Update actions
 registerUpdateMenuItems(AccountMenu, '3_updates');
 
-class TitleBarAccountWidget extends BaseActionViewItem {
+export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private container: HTMLElement | undefined;
 	private avatarElement: HTMLImageElement | undefined;
@@ -842,26 +844,21 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, account.planType
 			? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
 			: localize('chatGPTSubscription', "ChatGPT subscription")));
-		if (!account.rateLimit) {
-			return;
-		}
 		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
-		const usedPercentage = percentageFormatter.value.format(account.rateLimit.usedPercent);
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
-			'aria-label': localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage),
-		}, localize('chatGPTLimitUsedPercentageValue', "{0}%", usedPercentage)));
-		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
-		if (account.rateLimit.resetsAt) {
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, localize(
+		for (const rateLimit of getChatGPTRateLimits(account)) {
+			const limitLabel = this.getChatGPTLimitLabel(rateLimit.windowDurationMins);
+			const usedPercentage = percentageFormatter.value.format(rateLimit.usedPercent);
+			const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, rateLimit.resetsAt ? localize(
 				'chatGPTLimitReset',
 				"{0} resets {1}",
-				this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins),
-				fromNow(account.rateLimit.resetsAt * 1000, false, true),
-			)));
-		} else {
-			detailRow.classList.add('without-reset');
+				limitLabel,
+				fromNow(rateLimit.resetsAt * 1000, false, true),
+			) : limitLabel));
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
+				'aria-label': localize('chatGPTWindowLimitUsedPercentage', "{0}: {1}% used", limitLabel, usedPercentage),
+			}, localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage)));
 		}
-		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('chatGPTLimitUsedLabel', "Limit used")));
 	}
 
 	private getCopilotResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
@@ -882,6 +879,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 			if (Math.abs(windowDurationMins - 24 * 60) <= 60) {
 				return localize('chatGPTDailyLimitUsed', "Daily limit");
+			}
+			if (windowDurationMins === 5 * 60) {
+				return localize('chatGPTFiveHourLimitUsed', "5-hour limit");
 			}
 		}
 		return localize('chatGPTUsageLimitUsed', "Usage limit");
@@ -994,6 +994,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 }
 
+function getChatGPTRateLimits(account: ICodexAccountViewInfo): readonly ICodexAccountRateLimitInfo[] {
+	return account.rateLimits?.length ? account.rateLimits : account.rateLimit ? [account.rateLimit] : [];
+}
+
 function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, current: ICodexAccountViewInfo): boolean {
 	return previous.status !== current.status
 		|| previous.email !== current.email
@@ -1001,9 +1005,7 @@ function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, cur
 		|| previous.requiresOpenaiAuth !== current.requiresOpenaiAuth
 		|| previous.authUrl !== current.authUrl
 		|| previous.authUrlNonce !== current.authUrlNonce
-		|| previous.rateLimit?.usedPercent !== current.rateLimit?.usedPercent
-		|| previous.rateLimit?.windowDurationMins !== current.rateLimit?.windowDurationMins
-		|| previous.rateLimit?.resetsAt !== current.rateLimit?.resetsAt;
+		|| !equals(getChatGPTRateLimits(previous), getChatGPTRateLimits(current), (a, b) => a.usedPercent === b.usedPercent && a.windowDurationMins === b.windowDurationMins && a.resetsAt === b.resetsAt);
 }
 
 // --- Register custom view item --- //

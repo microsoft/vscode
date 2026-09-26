@@ -308,7 +308,12 @@ export interface IRemoteAgentHostCreatedConnection {
 	 * Defaults to `false`.
 	 */
 	readonly reconnectTransfersTransportOwnership?: boolean;
+	/** The client owns automatic recovery; its terminal close must not start an outer retry cycle. */
+	readonly reconnectManagedByClient?: boolean;
 }
+
+/** Observes readiness across inner and outer retries; disposal is intentional, failure is terminal. */
+export type RemoteAgentHostConnectionObserver = (state: 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'disposed') => void;
 
 /** Builds agent host connections of one {@link RemoteAgentHostEntryType}. */
 export interface IRemoteAgentHostConnectionFactory {
@@ -318,6 +323,8 @@ export interface IRemoteAgentHostConnectionFactory {
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 	/** Effective initiation mode staged by the factory for the next dial, before createConnection consumes it. */
 	getPendingConnectionInitiation?(entry: IRemoteAgentHostEntry): boolean | undefined;
+	/** Captured once per dial so callbacks from a replaced entry cannot observe its replacement. */
+	getConnectionObserver?(entry: IRemoteAgentHostEntry): RemoteAgentHostConnectionObserver;
 	/**
 	 * Build a client bound to a transport for `entry`.
 	 *
@@ -714,6 +721,9 @@ export interface IRemoteAgentHostService {
 	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
+	/** Fires when the configured entries change, independently of connection attempts. */
+	readonly onDidChangeConfiguredEntries: Event<void>;
+
 	/** Registers a factory for one connection kind. Throws if that kind already has one. */
 	registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory): IDisposable;
 
@@ -819,6 +829,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
+	readonly onDidChangeConfiguredEntries = Event.None;
 	registerConnectionFactory(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

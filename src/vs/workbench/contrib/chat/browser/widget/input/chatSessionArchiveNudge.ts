@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -69,6 +70,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
@@ -242,12 +244,14 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(this.archiveButton.element);
-		}
+		const animationTarget = captureAnimationTarget(this.archiveButton.element);
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
+			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+				triggerConfettiAnimation(animationTarget);
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
+			}
 		} catch (error) {
 			this.notificationService.error(this.markAsDone
 				? localize('chat.sessionArchiveNudge.doneError', "Unable to mark the session as done: {0}", toErrorMessage(error))

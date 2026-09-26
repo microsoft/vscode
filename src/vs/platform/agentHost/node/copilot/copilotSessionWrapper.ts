@@ -11,8 +11,12 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type CopilotFusionEvent } from './copilotFusionProgress.js';
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+/** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
+export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'>;
 
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
@@ -39,6 +43,13 @@ export class CopilotSessionWrapper extends Disposable {
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
 	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
 	readonly onModelCallFinished = this._onModelCallFinished.event;
+	private readonly _onProvisionalFusionEvent = this._register(new Emitter<CopilotProvisionalFusionEvent>());
+	/**
+	 * Conversation from provisional Fusion phases. These never reach the typed
+	 * events because the phase output is not yet part of the parent transcript;
+	 * the session decides what to show live and what waits for the commit.
+	 */
+	readonly onProvisionalFusionEvent = this._onProvisionalFusionEvent.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
 	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
@@ -53,6 +64,12 @@ export class CopilotSessionWrapper extends Disposable {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			if (isProvisionalFusionConversationEvent(event)) {
+				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
+					this._onProvisionalFusionEvent.fire(event);
+				}
+				return;
+			}
 			if (event.type === 'session.shutdown') {
 				void this._shutdown.complete();
 				this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
@@ -137,6 +154,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
 		return this._onMessageDelta ??= this._sdkEvent('assistant.message_delta');
+	}
+
+	private _onFusionEvent: Event<CopilotFusionEvent> | undefined;
+	get onFusionEvent(): Event<CopilotFusionEvent> {
+		return this._onFusionEvent ??= Event.any(...copilotFusionEventTypes.map(type => this._sdkEvent(type)));
 	}
 
 	private _onMessage: Event<SessionEventPayload<'assistant.message'>> | undefined;
@@ -389,6 +411,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
 	}
 
+	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;
+	get onMcpOAuthCompleted(): Event<SessionEventPayload<'mcp.oauth_completed'>> {
+		return this._onMcpOAuthCompleted ??= this._sdkEvent('mcp.oauth_completed');
+	}
+
 	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
 	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
@@ -409,7 +436,11 @@ export class CopilotSessionWrapper extends Disposable {
 			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
 			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
 		}));
-		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
+		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => {
+			if (!isProvisionalFusionConversationEvent(data)) {
+				emitter.fire(data);
+			}
+		});
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}

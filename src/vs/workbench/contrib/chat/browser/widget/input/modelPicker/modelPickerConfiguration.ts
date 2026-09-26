@@ -12,14 +12,16 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
-import { logModelConfigurationChange } from './modelPickerTelemetry.js';
+import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
+import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
+import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly getConfigurationAccess: () => IModelConfigurationAccess;
+	readonly getChatSessionId: () => string | undefined;
 	readonly isDisabled: () => boolean;
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
@@ -32,24 +34,34 @@ export class ModelPickerConfiguration {
 		private readonly _host: IModelPickerConfigurationHost,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) { }
 
-	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean): void {
+	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, useTabbedPicker = false): void {
 		const model = this._host.getSelectedModel();
 		const effortConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT);
 		const tokensConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT);
-		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig)) {
+		const summary = useTabbedPicker ? getModelConfigSummary(model, this._host.getConfigurationAccess()) : undefined;
+		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig && !summary)) {
 			button.style.display = 'none';
+			return;
+		}
+
+		if (useTabbedPicker) {
+			const label = summary ?? localize('chat.modelPicker.configureLabel', "Configure");
+			dom.reset(button, dom.$('span.chat-input-picker-label', undefined, label));
+			button.style.display = '';
+			const description = getModelConfigDescription(model, this._host.getConfigurationAccess()) ?? label;
+			button.ariaLabel = isAutoModel(model) || isHydraFusionModel(model)
+				? localize('chat.modelPicker.autoOptionsAriaLabel', "{0} options, {1}", model.metadata.name, description)
+				: localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, description);
 			return;
 		}
 
 		const labelParts: string[] = [];
 		const ariaParts: string[] = [];
 		if (effortConfig && effortConfig.value !== undefined) {
-			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
-			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
-				? effortConfig.schema.enumItemLabels[enumIndex]
-				: String(effortConfig.value);
+			const effortLabel = getModelConfigValueLabel(effortConfig.schema, effortConfig.value);
 			labelParts.push(effortLabel);
 			// The group is generic, so producers name it: Copilot's Auto model uses it
 			// for "Optimize for" while regular models use it for thinking effort.
@@ -80,24 +92,24 @@ export class ModelPickerConfiguration {
 		button.ariaLabel = ariaParts.join(', ');
 	}
 
-	show(button: HTMLElement | undefined, focusGroup?: string): void {
-		if (this._host.isDisabled() || !button || !this._host.getSelectedModel()) {
+	show(button: HTMLElement | undefined, focusGroup: string | undefined, trigger: IModelPickerOpenTrigger): void {
+		const model = this._host.getSelectedModel();
+		if (this._host.isDisabled() || !button || !model || (!this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT) && !this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT))) {
 			return;
 		}
 
-		const items = this._buildItems();
-		if (!items.length) {
-			return;
-		}
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId());
+		const items = this._buildItems(telemetrySession);
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
 				this._actionWidgetService.focusItemById(action.id);
 				await action.run();
-				this._actionWidgetService.updateItems(this._buildItems(), action.id);
+				this._actionWidgetService.updateItems(this._buildItems(telemetrySession), action.id);
 			},
 			onHide: () => {
+				telemetrySession.close(whenModelConfigValuesSaved(this._host.getConfigurationAccess()));
 				button.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
@@ -141,13 +153,12 @@ export class ModelPickerConfiguration {
 		return getModelConfigProperty(this._host.getSelectedModel(), this._host.getConfigurationAccess(), group);
 	}
 
-	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {
+	private _buildItems(telemetrySession: ModelPickerTelemetrySession): IActionListItem<IActionWidgetDropdownAction>[] {
 		const model = this._host.getSelectedModel();
 		if (!model) {
 			return [];
 		}
 
-		const modelIdentifier = model.identifier;
 		const configurationAccess = this._host.getConfigurationAccess();
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const defaultLabel = localize('models.configDefault', "Default");
@@ -160,33 +171,25 @@ export class ModelPickerConfiguration {
 			if (!config) {
 				return;
 			}
-			const previousValue = String(config.value ?? '');
-			const enumValues = config.schema.enum ?? [];
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator });
 			}
 			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
-			for (let index = 0; index < enumValues.length; index++) {
-				const value = enumValues[index];
-				const isDefault = value === config.schema.default;
-				const displayLabel = formatValueLabel(value, config.schema.enumItemLabels?.[index]);
-				const enumDescription = config.schema.enumDescriptions?.[index];
+			for (const { value, label: displayLabel, description: enumDescription, checked, isDefault, readOnly } of getModelConfigChoices(config, formatValueLabel)) {
 				const ariaDescriptionParts = [isDefault ? defaultLabel : undefined, enumDescription].filter((part): part is string => !!part);
-				const checked = config.value === value;
 				items.push({
 					item: {
 						id: `${group}.${value}`,
-						enabled: true,
+						enabled: !readOnly,
 						checked,
 						class: undefined,
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
-						run: () => {
-							logModelConfigurationChange(this._telemetryService, model, group, config.key, previousValue, value);
-							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
-						}
+						run: () => setModelConfigValues(model, configurationAccess, { [config.key]: value },
+							(...change) => telemetrySession.logConfigurationChange(model, ...change)),
 					},
 					kind: ActionListItemKind.Action,
+					disabled: readOnly,
 					className: 'chat-model-picker-config-option',
 					label: displayLabel,
 					description: isDefault ? defaultLabel : undefined,

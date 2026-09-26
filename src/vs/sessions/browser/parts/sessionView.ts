@@ -160,11 +160,13 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._register(autorun(reader => {
 			const session = this._sessionObs.read(reader);
-			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
+			const groupCount = this._groupsView.groupCount.read(reader);
+			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
+			const tabsReplaceHeader = groupCount === 1
 				&& (session?.isCreated.read(reader) ?? false)
-				&& !this._groupsView.showChatAsSessionView.read(reader)
+				&& !showChatAsSessionView
 				&& (session?.shouldShowChatTabs.read(reader) ?? false);
-			this._header.setVisible(!tabsReplaceHeader);
+			this._header.setVisible(!tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
 		}));
@@ -174,6 +176,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
+		options = { ...options, hostVisible: this._isVisibleObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
@@ -314,6 +317,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
+	focusWorkspacePicker(): void {
+		this._visibleStandaloneView?.focusWorkspacePicker();
+	}
+
+	focusHarnessPicker(): void {
+		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
 	/**
 	 * Starts an inline rename of the session title in the header. Returns
 	 * `false` when the header cannot host it (e.g. this view is hidden or the
@@ -334,6 +345,18 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	getFocusedChat(): IChat | undefined {
 		return this._groupsView.getFocusedChat();
+	}
+
+	getActiveChat(): IChat | undefined {
+		return this._groupsView.getActiveChat();
+	}
+
+	toggleActiveChatPin(): void {
+		this._groupsView.toggleActiveChatPin();
+	}
+
+	closeChatGroup(chatResource: URI): Promise<boolean> {
+		return this._groupsView.closeChatGroup(chatResource);
 	}
 
 	getSession(): IActiveSession | undefined {

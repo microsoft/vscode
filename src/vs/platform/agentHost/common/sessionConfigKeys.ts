@@ -31,7 +31,7 @@ export const enum SessionConfigKey {
 	Mode = 'mode',
 	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
-	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
+	/** `'worktreeIncludeFiles'` — host-owned `.gitignore`-syntax patterns for git-ignored files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
 	WorktreeBranchTrack = 'worktreeBranchTrack',
@@ -41,6 +41,12 @@ export const enum SessionConfigKey {
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
 	AgentMergeController = 'agentMerge.controller',
+	/** `'agentMerge.folders'` — client-owned Agent Merge enablement and overrides per working-directory key. */
+	AgentMergeFolders = 'agentMerge.folders',
+	/** `'agentMerge.controller.folders'` — host-owned Agent Merge lifecycle state per working-directory key. */
+	AgentMergeControllerFolders = 'agentMerge.controller.folders',
+	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration applied while any Agent Merge folder runs. */
+	AgentMergeInjectedConfiguration = 'agentMerge.injectedConfiguration',
 	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
 	ShellInitScripts = 'shellInitScripts',
 }
@@ -86,6 +92,9 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
+	SessionConfigKey.AgentMergeFolders,
+	SessionConfigKey.AgentMergeControllerFolders,
+	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
 /** Removes values owned by a concrete session or target rather than a reusable Automation template. */

@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -75,6 +76,7 @@ export interface IMcpServerCustomizationMigrationItem {
 
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	readonly id: string;
 	readonly name: string;
 	readonly sourceUri: URI;
@@ -102,6 +104,7 @@ export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly exclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
@@ -131,11 +134,12 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	WriteFailed = 'writeFailed',
 	/** Original file contents could not be safely restored; a newly created destination may be retained. */
 	RollbackFailed = 'rollbackFailed',
-	/** The source and destination are not a same-root .vscode/mcp.json to .mcp.json pair. */
+	/** The source and destination do not match a supported workspace or user migration. */
 	InconsistentTarget = 'inconsistentTarget',
 }
 
 export interface IMcpServerCustomizationMigrationFailure {
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	readonly id: string;
 	readonly name: string;
 	readonly sourceUri: URI;
@@ -145,10 +149,31 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly error?: Error;
 }
 
+export interface IMcpServerCustomizationMigrationExclusion extends IMcpServerCustomizationMigrationFailure {
+	readonly details: readonly string[];
+}
+
 export interface IMcpServerCustomizationMigrationResult {
 	readonly migratedCount: number;
 	readonly failures: readonly IMcpServerCustomizationMigrationFailure[];
 }
+
+export const enum FileCustomizationMigrationFailureReason {
+	/** The source customization file could not be read. */
+	SourceReadFailed = 'sourceReadFailed',
+	/** A destination folder or available destination name could not be resolved. */
+	TargetResolutionFailed = 'targetResolutionFailed',
+	/** A prompt file could not be converted to a skill. */
+	ConversionFailed = 'conversionFailed',
+	/** The migrated customization could not be written to its destination. */
+	TargetWriteFailed = 'targetWriteFailed',
+	/** The original customization could not be deleted after writing its replacement. */
+	SourceDeleteFailed = 'sourceDeleteFailed',
+	/** One or more partially written migration targets could not be removed. */
+	RollbackFailed = 'rollbackFailed',
+}
+
+export type CustomizationMigrationFailureReason = FileCustomizationMigrationFailureReason | McpServerCustomizationMigrationFailureReason;
 
 export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
 
@@ -158,14 +183,9 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
-export const enum CustomizationMigrationHintTarget {
-	FileMigrations = 'fileMigrations',
-	McpServers = 'mcpServers',
-}
-
 export interface ICustomizationMigrationHint {
+	readonly migrationFlowId: string;
 	readonly message: string;
-	readonly target: CustomizationMigrationHintTarget;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }
 
@@ -176,6 +196,7 @@ export interface ICustomizationMigrationCount {
 
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeCustomizations: Event<void>;
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;

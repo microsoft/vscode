@@ -35,12 +35,15 @@ import { languageModelSourcePresentationRegistry } from '../../../common/languag
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
+import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
@@ -141,6 +144,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
@@ -337,6 +341,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncProvider,
 			itemProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
+			mcpServerCompatibilityProvider: agent.provider === 'copilotcli' ? {
+				acquire: sessionResource => createCustomizationMcpServerCompatibilityScope(
+					this._agentHostCustomizationService.onDidChangeCustomizations,
+					() => this._agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource),
+					roots => this._activeClientService.acquireMcpServerSupportScope(sessionType, roots),
+				),
+			} : undefined,
+			mcpServerMigrationProvider: agent.provider === 'copilotcli'
+				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
+				: undefined,
 		}));
 
 		// Session handler
