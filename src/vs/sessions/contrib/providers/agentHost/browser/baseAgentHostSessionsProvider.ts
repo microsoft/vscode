@@ -4708,19 +4708,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		// Running session: dispatch SessionConfigChanged for sessionMutable properties
+		this._dispatchRunningSessionConfig(sessionId, { [property]: normalizedValue });
+	}
+
+	/** Applies and dispatches the `sessionMutable` properties of `config` to a running session. */
+	private _dispatchRunningSessionConfig(sessionId: string, config: Record<string, unknown>): void {
 		const runningConfig = this._runningSessionConfigs.get(sessionId);
 		const connection = this.connection;
 		if (!runningConfig || !connection) {
 			return;
 		}
 
-		const schema = runningConfig.schema.properties[property];
-		if (!schema?.sessionMutable) {
+		const mutableConfig = Object.fromEntries(Object.entries(config).filter(([property]) => runningConfig.schema.properties[property]?.sessionMutable));
+		if (Object.keys(mutableConfig).length === 0) {
 			return;
 		}
 
 		// Update local cache optimistically
-		const nextValues = { ...runningConfig.values, [property]: normalizedValue };
+		const nextValues = { ...runningConfig.values, ...mutableConfig };
 		this._runningSessionConfigs.set(sessionId, {
 			...runningConfig,
 			values: nextValues,
@@ -4732,7 +4737,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
 			const sessionUri = cached.backendUri;
-			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
+			const action = { type: ActionType.SessionConfigChanged as const, config: mutableConfig };
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
 		}
@@ -5995,7 +6000,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
-		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;
 		const selectedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgent = newSession.getSelectedAgent();
 
@@ -6086,18 +6090,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
 			if (committedSession) {
-				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				const sentConfig = sendOptions.agentHostSessionConfig ?? {};
+				this._preserveNewSessionConfig(newSession, committedSession.sessionId, sentConfig);
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
 				}
 				const committedRawIdForSelections = this._rawIdFromChatId(committedSession.sessionId);
 				const committedAdapter = committedRawIdForSelections ? this._sessionCache.get(committedRawIdForSelections) : undefined;
-				if (committedAdapter && selectedModelId) {
-					this._preserveNewSessionModelSelection(committedAdapter, selectedModelId, selectedModelSource, selectedModelConfiguration);
+				// Use the draft's current picks: they may have changed while the session was committing.
+				const committedModelId = this._resolveSendModelId(chatId, newSession.session.modelId.get());
+				if (committedAdapter && committedModelId) {
+					const committedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;
+					const committedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(committedModelId);
+					this._preserveNewSessionModelSelection(committedAdapter, committedModelId, committedModelSource, committedModelConfiguration);
 				}
-				if (committedAdapter && selectedAgent) {
-					committedAdapter.setChatAgent(committedAdapter.resource, selectedAgent);
+				if (committedAdapter && (selectedAgent || newSession.getSelectedAgent())) {
+					committedAdapter.setChatAgent(committedAdapter.resource, newSession.getSelectedAgent());
 				}
+				// Replay edits made while committing, after the session handler dispatched the original snapshot.
+				const changedConfig = Object.fromEntries(Object.entries(newSession.getConfigValues() ?? {}).filter(([property, value]) => !equals(value, sentConfig[property])));
+				this._dispatchRunningSessionConfig(committedSession.sessionId, changedConfig);
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
 				// acquired its own subscription (chat widget was opened
@@ -6145,21 +6157,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * When a session transitions from untitled (new) to committed (running),
-	 * carry over the full resolved config (schema + values) so consumers like
-	 * the session-settings JSONC editor can round-trip non-mutable values
-	 * (`isolation`, `branch`, …) through a replace dispatch. Mutable-vs-readonly
-	 * behavior is still driven off the per-property `sessionMutable` flag.
+	 * carry over the config schema with the values the host received, so
+	 * consumers like the session-settings JSONC editor can round-trip
+	 * non-mutable values (`isolation`, `branch`, …) through a replace dispatch.
+	 * Mutable-vs-readonly behavior is still driven off the per-property
+	 * `sessionMutable` flag.
 	 */
-	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string): void {
-		const config = newSession.getConfig();
-		if (config && Object.keys(config.schema.properties).length > 0) {
+	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string, values: Record<string, unknown>): void {
+		const schema = newSession.getConfig()?.schema;
+		if (schema && Object.keys(schema.properties).length > 0) {
 			this._runningSessionConfigs.set(committedSessionId, {
-				schema: { type: 'object', properties: { ...config.schema.properties } },
-				values: { ...config.values },
+				schema: { type: 'object', properties: { ...schema.properties } },
+				values: { ...values },
 			});
 		}
 
-		this._applyWorktreeIsolation(committedSessionId, config?.values);
+		this._applyWorktreeIsolation(committedSessionId, values);
 	}
 
 	private _preserveNewSessionModelSelection(
