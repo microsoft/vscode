@@ -365,6 +365,12 @@ export interface IEditorGroupsContainer {
 	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
+	 * Grow a group towards a direction by an amount in CSS pixels, or shrink that edge
+	 * when the amount is negative. Does nothing at an outer edge of the editor area.
+	 */
+	resizeGroup(group: IEditorGroup | GroupIdentifier, direction: GroupDirection, amount: number): void;
+
+	/**
 	 * Arrange all groups in the container according to the provided arrangement.
 	 */
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroup | GroupIdentifier): void;
