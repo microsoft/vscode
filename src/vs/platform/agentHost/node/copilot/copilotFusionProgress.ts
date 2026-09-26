@@ -113,14 +113,6 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 	}
 }
 
-function workflowDescription(pattern: FusionPhase['pattern']): string {
-	switch (pattern) {
-		case 'single': return localize('copilot.fusion.singleDescription', "Using Single: one solver will work on your request.");
-		case 'cascade': return localize('copilot.fusion.cascadeDescription', "Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.");
-		case 'critique': return localize('copilot.fusion.critiqueDescription', "Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.");
-	}
-}
-
 function milestone(summary: string, status: AgentFusionProgressStatus, details?: string, description?: string): SystemNotificationResponsePart {
 	const content = new MarkdownString().appendText(summary);
 	if (description) {
@@ -210,7 +202,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, workflowDescription(d.pattern));
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, d.hint);
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}

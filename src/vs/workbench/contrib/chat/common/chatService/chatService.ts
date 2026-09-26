@@ -333,7 +333,7 @@ export interface IChatSystemNotificationPart {
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
-	presentation?: 'workspaceTransition' | 'workflow';
+	presentation?: 'workspaceTransition' | 'workflow' | 'workflowDescription';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */

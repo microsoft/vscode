@@ -544,17 +544,25 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
-		case AgentSystemNotificationKind.FusionProgress:
+		case AgentSystemNotificationKind.FusionProgress: {
+			if (meta.fusionStatus === 'selected') {
+				const firstLineBreak = markdown.value.indexOf('\n');
+				const description = firstLineBreak === -1 ? '' : markdown.value.slice(firstLineBreak).trim();
+				return description ? {
+					kind: 'systemNotification',
+					content: { ...markdown, value: description },
+					presentation: 'workflowDescription',
+				} : undefined;
+			}
 			return {
 				kind: 'systemNotification',
 				content: markdown,
-				collapsible: meta.fusionStatus !== 'selected',
-				presentation: meta.fusionStatus === 'selected' ? 'workflow' : undefined,
-				icon: meta.fusionStatus === 'selected' ? Codicon.layers
-					: meta.fusionStatus === 'failed' ? Codicon.error
-						: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
-							: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+				collapsible: true,
+				icon: meta.fusionStatus === 'failed' ? Codicon.error
+					: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
+						: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
 			};
+		}
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
