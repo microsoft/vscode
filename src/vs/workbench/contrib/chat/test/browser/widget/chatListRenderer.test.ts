@@ -4095,21 +4095,33 @@ suite('ChatListRenderer', () => {
 					const file = pill?.querySelector<HTMLElement>('.chat-codeblock-pill-widget');
 					assert.ok(pill && label && file);
 					const icon = pill.querySelector('.chat-tool-call-icon');
-					const iconBounds = icon?.getBoundingClientRect();
-					const labelBounds = label.getBoundingClientRect();
 					file.focus();
-					assert.deepStrictEqual({
-						standalone: !pill.closest('.chat-thinking-tool-wrapper'),
-						editIcon: icon?.classList.contains('codicon-pencil') && icon.getClientRects().length > 0,
-						decorativeIcon: icon?.getAttribute('aria-hidden'),
-						iconCentered: !!iconBounds && Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
-						textOffset: Math.round(label.getBoundingClientRect().left - pill.getBoundingClientRect().left),
-						counts: [...pill.querySelectorAll('.label-added, .label-removed')].map(element => element.textContent),
-						focusablePill: mainWindow.document.activeElement === file && file.role === 'button',
-					}, {
+					const snapshot = () => {
+						const iconBounds = icon?.getBoundingClientRect();
+						const labelBounds = label.getBoundingClientRect();
+						return {
+							standalone: !pill.closest('.chat-thinking-tool-wrapper'),
+							editIcon: icon?.classList.contains('codicon-pencil') && icon.getClientRects().length > 0,
+							decorativeIcon: icon?.getAttribute('aria-hidden'),
+							iconCentered: !!iconBounds && Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
+							textOffset: Math.round(labelBounds.left - pill.getBoundingClientRect().left),
+							counts: [...pill.querySelectorAll('.label-added, .label-removed')].map(element => element.textContent),
+							focusablePill: mainWindow.document.activeElement === file && file.role === 'button',
+						};
+					};
+					const original = snapshot();
+					const markdownIconRule = [...mainWindow.document.styleSheets, ...mainWindow.document.adoptedStyleSheets]
+						.flatMap(sheet => Array.from(sheet.cssRules))
+						.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+						.find(rule => rule instanceof CSSStyleRule && rule.selectorText.startsWith('.interactive-item-container .value .rendered-markdown') && rule.style.position === 'relative');
+					assert.ok(markdownIconRule);
+					// Load the real Markdown icon rule last to exercise the conflicting stylesheet order.
+					dom.append(container, dom.$('style')).textContent = markdownIconRule.cssText;
+					const expected = {
 						standalone: true, editIcon: true, decorativeIcon: 'true', iconCentered: true, textOffset: 24,
 						counts: ['+14', '-3'], focusablePill: true,
-					});
+					};
+					assert.deepStrictEqual({ original, markdownStylesLast: snapshot() }, { original: expected, markdownStylesLast: expected });
 					if (!restored) {
 						request.response?.complete();
 					}
