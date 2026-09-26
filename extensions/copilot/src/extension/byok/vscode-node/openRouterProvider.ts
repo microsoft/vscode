@@ -14,6 +14,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { BYOKModelCapabilities } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -58,7 +59,8 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IExperimentationService expService: IExperimentationService
+		@IExperimentationService expService: IExperimentationService,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) {
 		super(
 			OpenRouterLMProvider.providerId,
@@ -69,7 +71,8 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 			logService,
 			instantiationService,
 			configurationService,
-			expService
+			expService,
+			requestMiddlewareRegistry,
 		);
 	}
 

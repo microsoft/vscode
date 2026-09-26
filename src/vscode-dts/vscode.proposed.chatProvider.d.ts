@@ -183,6 +183,11 @@ declare module 'vscode' {
 	 */
 	export interface PrepareLanguageModelChatModelOptions {
 		/**
+		 * The name of the user-configured provider group the models are requested for, as shown in the model picker.
+		 * `undefined` when the models are requested without a group, e.g. for a provider that needs no configuration.
+		 */
+		readonly group?: string;
+		/**
 		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
 		 * The object adheres to the schema that the extension provided during declaration.
 		 */

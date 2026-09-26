@@ -18,6 +18,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { hasForbiddenRequestHeaderPrefix, mergeRequestHeaders, reservedRequestHeaderNames } from '../common/requestHeaders';
 
 function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 	if (response.type === ChatFetchResponseType.Failed && response.streamError) {
@@ -57,54 +58,6 @@ export function isBYOKModel(endpoint: IChatEndpoint | undefined): number {
 }
 
 export class OpenAIEndpoint extends ChatEndpoint {
-	// Reserved headers that cannot be overridden for security and functionality reasons
-	// Including forbidden request headers: https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header
-	private static readonly _reservedHeaders: ReadonlySet<string> = new Set([
-		// Forbidden Request Headers
-		'accept-charset',
-		'accept-encoding',
-		'access-control-request-headers',
-		'access-control-request-method',
-		'connection',
-		'content-length',
-		'cookie',
-		'date',
-		'dnt',
-		'expect',
-		'host',
-		'keep-alive',
-		'origin',
-		'permissions-policy',
-		'referer',
-		'te',
-		'trailer',
-		'transfer-encoding',
-		'upgrade',
-		'user-agent',
-		'via',
-		// Forwarding & Routing
-		'forwarded',
-		'x-forwarded-for',
-		'x-forwarded-host',
-		'x-forwarded-proto',
-		// Others
-		'api-key',
-		'authorization',
-		'content-type',
-		'openai-intent',
-		'x-github-api-version',
-		'x-initiator',
-		'x-interaction-id',
-		'x-interaction-type',
-		'x-onbehalf-extension-id',
-		'x-request-id',
-		'x-vscode-user-agent-library-version',
-		// Pattern-based forbidden headers are checked separately:
-		// - 'proxy-*' headers (handled in sanitization logic)
-		// - 'sec-*' headers (handled in sanitization logic)
-		// - 'x-http-method*' with forbidden methods CONNECT, TRACE, TRACK (handled in sanitization logic)
-	]);
-
 	// RFC 7230 compliant header name pattern: token characters only
 	private static readonly _validHeaderNamePattern = /^[!#$%&'*+\-.0-9A-Z^_`a-z|~]+$/;
 
@@ -113,7 +66,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	private static readonly _maxHeaderValueLength = 8192;
 	private static readonly _maxCustomHeaderCount = 20;
 
+	/** Headers from the model configuration, sanitized once at construction. */
 	protected readonly _customHeaders: Record<string, string>;
+	/** Headers contributed by request middleware for the current request, see {@link applyRequestHeaders}. */
+	protected _requestHeaders: Record<string, string> = {};
 	constructor(
 		_modelMetadata: IChatModelInformation,
 		protected readonly _apiKey: string,
@@ -138,7 +94,27 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			chatWebSocketService,
 			logService
 		);
-		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders);
+		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders, `Model '${this.modelMetadata.id}' configuration`);
+	}
+
+	/**
+	 * Applies request-scoped headers contributed by language model request
+	 * middleware. They are sanitized and capped independently of the model
+	 * configuration headers and override those on name conflicts. Call this on
+	 * a freshly created endpoint before the request is made; clones created via
+	 * {@link cloneWithTokenOverride} inherit the headers.
+	 */
+	public applyRequestHeaders(headers: Readonly<Record<string, string>>): void {
+		this._requestHeaders = this._sanitizeCustomHeaders(headers, `Request middleware for model '${this.modelMetadata.id}'`);
+	}
+
+	/**
+	 * Copies the request-scoped headers of this endpoint onto `clone`, for use
+	 * by {@link cloneWithTokenOverride} overrides.
+	 */
+	protected inheritRequestHeaders<T extends OpenAIEndpoint>(clone: T): T {
+		clone._requestHeaders = this._requestHeaders;
+		return clone;
 	}
 
 	/**
@@ -170,10 +146,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	}
 
 	protected _isReservedHeader(lowerKey: string): boolean {
-		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
+		return reservedRequestHeaderNames.has(lowerKey);
 	}
 
-	private _sanitizeCustomHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
+	/**
+	 * @param source Names the origin of the headers in warnings, e.g. `Model 'x' configuration`.
+	 */
+	private _sanitizeCustomHeaders(headers: Readonly<Record<string, string>> | undefined, source: string): Record<string, string> {
 		if (!headers) {
 			return {};
 		}
@@ -181,7 +160,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		const entries = Object.entries(headers);
 
 		if (entries.length > OpenAIEndpoint._maxCustomHeaderCount) {
-			this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' has ${entries.length} custom headers, exceeding limit of ${OpenAIEndpoint._maxCustomHeaderCount}. Only first ${OpenAIEndpoint._maxCustomHeaderCount} will be processed.`);
+			this.logService.warn(`[OpenAIEndpoint] ${source} has ${entries.length} custom headers, exceeding limit of ${OpenAIEndpoint._maxCustomHeaderCount}. Only first ${OpenAIEndpoint._maxCustomHeaderCount} will be processed.`);
 		}
 
 		const sanitized: Record<string, string> = {};
@@ -194,29 +173,29 @@ export class OpenAIEndpoint extends ChatEndpoint {
 
 			const key = rawKey.trim();
 			if (!key) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' has empty header name, skipping.`);
+				this.logService.warn(`[OpenAIEndpoint] ${source} has empty header name, skipping.`);
 				continue;
 			}
 
 			if (key.length > OpenAIEndpoint._maxHeaderNameLength) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' has header name exceeding ${OpenAIEndpoint._maxHeaderNameLength} characters, skipping.`);
+				this.logService.warn(`[OpenAIEndpoint] ${source} has header name exceeding ${OpenAIEndpoint._maxHeaderNameLength} characters, skipping.`);
 				continue;
 			}
 
 			if (!OpenAIEndpoint._validHeaderNamePattern.test(key)) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' has invalid header name format: '${key}', Skipping.`);
+				this.logService.warn(`[OpenAIEndpoint] ${source} has invalid header name format: '${key}', Skipping.`);
 				continue;
 			}
 
 			const lowerKey = key.toLowerCase();
 			if (this._isReservedHeader(lowerKey)) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' attempted to override reserved header '${key}', skipping.`);
+				this.logService.warn(`[OpenAIEndpoint] ${source} attempted to override reserved header '${key}', skipping.`);
 				continue;
 			}
 
 			// Check for pattern-based forbidden headers
-			if (lowerKey.startsWith('proxy-') || lowerKey.startsWith('sec-')) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' attempted to set forbidden header pattern '${key}', skipping.`);
+			if (hasForbiddenRequestHeaderPrefix(lowerKey)) {
+				this.logService.warn(`[OpenAIEndpoint] ${source} attempted to set forbidden header pattern '${key}', skipping.`);
 				continue;
 			}
 
@@ -225,14 +204,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				const forbiddenMethods = ['connect', 'trace', 'track'];
 				const methodValue = String(rawValue).toLowerCase().trim();
 				if (forbiddenMethods.includes(methodValue)) {
-					this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' attempted to set forbidden method '${methodValue}' in header '${key}', skipping.`);
+					this.logService.warn(`[OpenAIEndpoint] ${source} attempted to set forbidden method '${methodValue}' in header '${key}', skipping.`);
 					continue;
 				}
 			}
 
 			const sanitizedValue = this._sanitizeHeaderValue(rawValue);
 			if (sanitizedValue === undefined) {
-				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' has invalid value for header '${key}': '${rawValue}', skipping.`);
+				// The value is not logged: it may be a credential.
+				this.logService.warn(`[OpenAIEndpoint] ${source} has invalid value for header '${key}' (not a string, longer than ${OpenAIEndpoint._maxHeaderValueLength} characters, or containing control characters), skipping.`);
 				continue;
 			}
 
@@ -420,15 +400,14 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		} else {
 			headers['Authorization'] = `Bearer ${this._apiKey}`;
 		}
-		for (const [key, value] of Object.entries(this._customHeaders)) {
-			headers[key] = value;
-		}
+		mergeRequestHeaders(headers, this._customHeaders);
+		mergeRequestHeaders(headers, this._requestHeaders);
 		return headers;
 	}
 
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): IChatEndpoint {
 		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
-		return this.instantiationService.createInstance(OpenAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
+		return this.inheritRequestHeaders(this.instantiationService.createInstance(OpenAIEndpoint, newModelInfo, this._apiKey, this._modelUrl));
 	}
 
 	public override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
