@@ -16,6 +16,7 @@ import { buildSubagentChatUri, parseRequiredSessionUriFromChatUri } from '../../
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import { mapSubagentSystemMessage } from './claudeSubagentSignals.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
@@ -73,20 +74,27 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			await this._editObserver.observeUser(message, turnId, this._mapperState, this._getEditChatUri(message.parent_tool_use_id));
 		}
 		if (turnId === undefined) {
+			// A background subagent settles with the queue already drained.
+			if (message.type === 'system') {
+				this._produceSignals(() => mapSubagentSystemMessage(message, this._chatChannelUri, this._subagents));
+			}
 			return;
 		}
+		this._produceSignals(() => mapSDKMessageToAgentSignals(
+			message,
+			this._chatChannelUri,
+			turnId,
+			this._mapperState,
+			this._logService,
+			this._subagents,
+			this._clientToolOwner,
+			context?.turnDuration,
+		));
+	}
+
+	private _produceSignals(map: () => readonly AgentSignal[]): void {
 		try {
-			const signals = mapSDKMessageToAgentSignals(
-				message,
-				this._chatChannelUri,
-				turnId,
-				this._mapperState,
-				this._logService,
-				this._subagents,
-				this._clientToolOwner,
-				context?.turnDuration,
-			);
-			for (const signal of signals) {
+			for (const signal of map()) {
 				this._onDidProduceSignal.fire(signal);
 			}
 		} catch (mapperErr) {
