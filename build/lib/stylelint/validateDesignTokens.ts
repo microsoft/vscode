@@ -492,6 +492,16 @@ interface IDeprecatedToken {
 
 /** Deprecated token var -> its replacement. */
 const DEPRECATED_TOKENS: readonly IDeprecatedToken[] = [
+	{ deprecated: '--vscode-agents-fontSize-heading1', replacement: '--vscode-fontSize-heading1' },
+	{ deprecated: '--vscode-agents-fontSize-heading2', replacement: '--vscode-fontSize-heading2' },
+	{ deprecated: '--vscode-agents-fontSize-heading3', replacement: '--vscode-fontSize-heading3' },
+	{ deprecated: '--vscode-agents-fontSize-body1', replacement: '--vscode-fontSize-body1' },
+	{ deprecated: '--vscode-agents-fontSize-body2', replacement: '--vscode-fontSize-body2' },
+	{ deprecated: '--vscode-agents-fontSize-label1', replacement: '--vscode-fontSize-label1' },
+	{ deprecated: '--vscode-agents-fontSize-label2', replacement: '--vscode-fontSize-label2' },
+	{ deprecated: '--vscode-agents-fontSize-label3', replacement: '--vscode-fontSize-label3' },
+	{ deprecated: '--vscode-agents-fontWeight-regular', replacement: '--vscode-fontWeight-regular' },
+	{ deprecated: '--vscode-agents-fontWeight-semiBold', replacement: '--vscode-fontWeight-semiBold' },
 	{ deprecated: '--vscode-bodyFontSize', replacement: '--vscode-fontSize-body1' },
 	{ deprecated: '--vscode-bodyFontSize-small', replacement: '--vscode-fontSize-label1' },
 	{ deprecated: '--vscode-bodyFontSize-xSmall', replacement: '--vscode-fontSize-body2' },

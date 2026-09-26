@@ -21,6 +21,8 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
@@ -54,12 +56,15 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
+		@ICodexAccountService codexAccountService: ICodexAccountService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService);
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
 		if (this.delegate.setPendingDelegationTarget) {
 			this.delegate.setPendingDelegationTarget(sessionTypeItem.type);
 		}
@@ -76,20 +81,23 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
+	protected override getTooltip(): string {
+		const activeProvider = this.delegate.getActiveSessionProvider();
+		if (activeProvider !== undefined && isAgentHostTarget(activeProvider)) {
+			return '';
+		}
+		return super.getTooltip();
+	}
+
 	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type || contribution.type === type);
 
-		// Delegation is allowed:
-		// - in core VS Code: from local sessions, plus from any agent host session;
-		// - in the sessions window: from background sessions, plus from any agent
-		//   host session (local `agent-host-*` or remote `remote-*`).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		const isAgentHostSource = activeProvider !== undefined && isAgentHostTarget(activeProvider);
-		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local && !isAgentHostSource) {
+		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
 		}
-		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background && !isAgentHostSource) {
+		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
 			return false;
 		}
 

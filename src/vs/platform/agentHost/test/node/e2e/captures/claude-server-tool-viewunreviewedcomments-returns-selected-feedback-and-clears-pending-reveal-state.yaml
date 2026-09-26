@@ -2,30 +2,26 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call viewUnreviewedComments exactly once, then reply exactly "viewed".
     response:
       content:
-        - type: text
-          text: I'll check for unreviewed comments.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__viewUnreviewedComments
           input: {}
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call viewUnreviewedComments exactly once, then reply exactly "viewed".
         - role: assistant
           content:
-            - type: text
-              text: I'll check for unreviewed comments.
             - type: tool_use
               name: mcp__host__viewUnreviewedComments
               input: {}
@@ -47,6 +43,7 @@ exchanges:
                       },
                       "text": "revealed",
                       "kind": "prReview",
+                      "author": "prReviewer",
                       "resolved": false
                     }
                   ]

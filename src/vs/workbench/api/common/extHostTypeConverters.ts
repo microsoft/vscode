@@ -738,6 +738,7 @@ export namespace WorkspaceEdit {
 				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
 				if (isSnippet) {
 					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+					editOrSnippetTest.keepWhitespace = item.textEdit.keepWhitespace;
 				} else {
 					editOrSnippetTest = types.TextEdit.replace(range, text);
 				}
@@ -2866,22 +2867,14 @@ export namespace ChatResponseVoiceProgressPart {
 }
 
 export namespace ChatResponseAutoModeResolutionPart {
-	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
-
 	export function from(part: vscode.ChatResponseAutoModeResolutionPart): Dto<IChatAutoModeResolutionPart> {
-		const label = validLabels.has(part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'])
-			? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
-			: 'fallback';
 		return {
 			kind: 'autoModeResolution',
-			resolvedModel: part.resolvedModel,
-			resolvedModelName: part.resolvedModelName,
-			predictedLabel: label,
-			confidence: Math.max(0, Math.min(1, part.confidence)),
+			resolved: part.resolvedModel,
 		};
 	}
 	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {
-		return new types.ChatResponseAutoModeResolutionPart(part.resolvedModel, part.resolvedModelName, part.predictedLabel, part.confidence);
+		return new types.ChatResponseAutoModeResolutionPart(part.resolved);
 	}
 }
 
@@ -3264,12 +3257,14 @@ export namespace ChatResponseTextEditPart {
 			kind: 'textEdit',
 			uri: part.uri,
 			edits: part.edits.map(e => TextEdit.from(e)),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
 		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
 		result.isDone = part.done;
+		result.autoTier = part.autoTier;
 		return result;
 	}
 
@@ -3306,7 +3301,8 @@ export namespace ChatResponseNotebookEditPart {
 			kind: 'notebookEdit',
 			uri: part.uri,
 			edits: part.edits.map(NotebookEdit.from),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 }
@@ -3501,7 +3497,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, workingDirectory: URI.revive(request.workingDirectory) }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, requestId: request.requestId, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
 			modelConfiguration,

@@ -8,7 +8,9 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -17,11 +19,12 @@ import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, 
  * Session initialization state.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionLifecycle {
 	Creating = 'creating',
 	Ready = 'ready',
-	CreationFailed = 'creationFailed',
+	Failed = 'failed',
 }
 
 /**
@@ -32,6 +35,7 @@ export const enum SessionLifecycle {
  * and turns that are paused waiting for input.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionStatus {
 	/** Session is idle — no turn is active. */
@@ -47,6 +51,41 @@ export const enum SessionStatus {
 	/** The session has been archived by the client. */
 	IsArchived = 1 << 6,
 }
+
+/**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ * @nonexhaustive
+ */
+export const enum SessionOriginKind {
+	/** The session was created as part of an automation run. */
+	Automation = 'automation',
+}
+
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
+export interface AutomationSessionOrigin {
+	kind: SessionOriginKind.Automation;
+	/** Owning {@link AutomationEntry.resource}. */
+	automation: URI;
+	/** Owning {@link AutomationRunState.resource}. */
+	run: URI;
+}
+
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
+export type SessionOrigin = AutomationSessionOrigin;
 
 /**
  * Metadata shared between the full {@link SessionState} (delivered when a
@@ -70,18 +109,21 @@ export interface SessionMetadata {
 	status: SessionStatus;
 	/** Human-readable description of what the session is currently doing */
 	activity?: string;
+	/** Durable {@link AutomationSessionOrigin}, when an automation run created this session. */
+	origin?: SessionOrigin;
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
 	 * The working directories the session's agent has tool access to, as
-	 * maintained by the `session/workingDirectorySet` /
-	 * `session/workingDirectoryRemoved` actions. Directories are equal peers
-	 * except when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
-	 * entry is then a fixed process root). Individual chats MAY restrict to a
-	 * subset via {@link ChatSummary.workingDirectories | their own
-	 * `workingDirectories`}; a chat that sets none operates against this full
-	 * set.
+	 * maintained by working-directory actions. Directories are equal peers except
+	 * when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} without
+	 * {@link MultipleWorkingDirectoriesCapability.primaryReplacement} (the first
+	 * entry is then a fixed process root), or advertises `primaryReplacement`
+	 * (the first entry is a protected, replaceable primary slot). Individual chats
+	 * MAY restrict to a subset via
+	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`}; a
+	 * chat that sets none operates against this full set.
 	 */
 	workingDirectories?: URI[];
 	/**
@@ -231,6 +273,7 @@ export interface SessionActiveClient {
  * a `*Kind`.
  *
  * @category Session Input Types
+ * @nonexhaustive
  */
 export const enum SessionInputRequestKind {
 	/** A user-facing elicitation mirrored from an unresolved chat response part. */
@@ -315,6 +358,11 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
  * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
  *
+ * Unlike the other variants this does **not** raise
+ * {@link SessionStatus.InputNeeded}: the call has already cleared its
+ * confirmation gate and is merely executing elsewhere, so the session stays
+ * {@link SessionStatus.InProgress} while it runs.
+ *
  * @category Session Input Types
  */
 export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
@@ -328,10 +376,9 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
 	clientId: string;
 	/**
 	 * The running tool call the session wants the owning client to execute. The
-	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-	 * {@link ToolCallState} in `running` status).
+	 * host only ever populates this with a {@link ToolCallRunningState}.
 	 */
-	toolCall: ToolCallState;
+	toolCall: ToolCallRunningState;
 }
 
 /**
@@ -448,6 +495,40 @@ export interface SessionSummary extends SessionMetadata {
 	 * and session notifications.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight ordered chat catalog for session-list presentation.
+	 *
+	 * This intentionally omits volatile chat state such as status and activity,
+	 * while retaining interactivity so generic clients can hide chats or present
+	 * them as read-only without subscribing to the session channel.
+	 */
+	chats?: SessionChatSummary[];
+	/** Chat that receives input when no specific chat is selected. */
+	defaultChat?: URI;
+}
+
+/**
+ * Lightweight chat information suitable for listing a session without
+ * subscribing to its session channel.
+ *
+ * @category Session State
+ */
+export interface SessionChatSummary {
+	/** Canonical chat URI */
+	resource: URI;
+	/** Human-readable chat title */
+	title: string;
+	/** How this chat was created, when known */
+	origin?: ChatOrigin;
+	/**
+	 * How the user can interact with this chat.
+	 *
+	 * Generic clients use this to omit hidden chats and disable input for
+	 * read-only chats. Absence defaults to {@link ChatInteractivity.Full} for
+	 * backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
+	archived?: boolean;
 }
 
 /**
@@ -617,6 +698,7 @@ export interface ToolAnnotations {
  * a container.
  *
  * @category Customization Types
+ * @nonexhaustive
  */
 export const enum CustomizationType {
 	Plugin = 'plugin',
@@ -633,6 +715,7 @@ export const enum CustomizationType {
  * Scope at which customization enablement is decided.
  *
  * @category Customization Types
+ * @nonexhaustive
  */
 export const enum CustomizationEnablementKind {
 	Global = 'global',
@@ -707,6 +790,7 @@ interface CustomizationBase {
  * Discriminant values for {@link CustomizationLoadState}.
  *
  * @category Customization Types
+ * @exhaustive
  */
 export const enum CustomizationLoadStatus {
 	Loading = 'loading',
@@ -1198,6 +1282,7 @@ export type Customization =
  * Discriminant for the {@link McpServerState} union.
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpServerStatus {
 	/** Server has been registered but is not yet running. */
@@ -1224,6 +1309,7 @@ export const enum McpServerStatus {
  * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpAuthRequiredReason {
 	/** No token has been provided yet (HTTP 401, no prior token). */
@@ -1258,6 +1344,19 @@ export const enum McpAuthRequiredReason {
  */
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
+	/**
+	 * When `true`, the host MAY hold back processing of new messages (for
+	 * example, the next turn) until this server finishes starting, because the
+	 * server's contributions — such as its tools — are still being discovered.
+	 * Clients SHOULD make it clear that the session is waiting on this server
+	 * and MAY offer to
+	 * {@link SessionMcpServerBackgroundRequestedAction | background} the
+	 * startup so message processing can continue without it.
+	 *
+	 * Omitted or `false` means message processing is not blocked on this
+	 * server.
+	 */
+	blocking?: boolean;
 }
 
 /**

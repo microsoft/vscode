@@ -4,27 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { Button } from '../../../../../../../base/browser/ui/button/button.js';
-import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatSessionCreatedData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { ChatRichLink } from '../chatRichLink.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatSessionCreatedResult.css';
 
 /**
- * Renders the "Open Session" pill for a completed `create_session` /
- * `create_chat` tool call: a single secondary button — carrying the agent icon
- * and the session title — that opens the created session. The link comes from
- * the tool call's structured {@link IChatSessionCreatedData} (not the model's
- * prose), so it is always present and clickable. Clicking opens the session
- * through the `agent-host-session://` opener — registered in the Agents window
- * and (for editor-window chat) by the workbench.
+ * Renders the target title of a completed `create_session`, `create_chat`, or
+ * `send_message` tool call as a link. The link comes from the tool call's
+ * structured {@link IChatSessionCreatedData} rather than the model's prose.
  */
 export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPart {
 
@@ -36,26 +33,39 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 		private readonly data: IChatSessionCreatedData,
 		_context: IChatContentPartRenderContext,
 		_renderer: IMarkdownRenderer,
+		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
+		@IHoverService hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(toolInvocation);
 
 		this.domNode = dom.$('.chat-open-session-result');
-
-		const button = this._register(new Button(this.domNode, {
-			...defaultButtonStyles,
-			secondary: true,
-			supportIcons: true,
-			title: this.data.label,
+		const link = dom.append(this.domNode, dom.$('a.monaco-link', { href: this.data.openLink }));
+		const richLink = this._register(ChatRichLink.mount(link, dom.$('span', undefined, this.data.label)));
+		const fallbackPresentation: ILinkPresentation = {
+			kind: this.data.isChat ? 'chat' : 'session',
+			title: this.data.fullTitle ?? this.data.label,
+		};
+		richLink.update(fallbackPresentation);
+		const hover = this._register(hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			link,
+			this.data.fullTitle ?? this.data.label,
+		));
+		this._register(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
+			dom.EventHelper.stop(event, true);
+			void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true });
 		}));
-		button.element.classList.add('chat-open-session-button');
-		button.label = `$(${this.getIcon().id}) ${this.data.label}`;
-		this._register(button.onDidClick(() => {
-			this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true });
-		}));
-	}
-
-	protected override getIcon(): ThemeIcon {
-		return this.data.isChat ? Codicon.commentDiscussion : Codicon.agent;
+		const resource = URI.parse(this.data.openLink);
+		const rule = linkPresentationService.getLinkPresentationRule(resource);
+		const watcher = rule ? linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
+		if (watcher) {
+			this._register(watcher);
+			this._register(autorun(reader => {
+				const presentation = watcher.presentation.read(reader) ?? fallbackPresentation;
+				richLink.update(presentation);
+				hover.update(presentation.tooltip ?? presentation.title ?? this.data.fullTitle ?? this.data.label);
+			}));
+		}
 	}
 }

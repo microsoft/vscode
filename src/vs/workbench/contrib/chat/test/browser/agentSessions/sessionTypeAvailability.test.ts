@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
+import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -104,7 +104,7 @@ suite('getSessionTypeAvailability', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Copilot Agent Host remains setup-selectable when signed-out operation is enabled', () => {
-		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable);
+		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable, false);
 		assert.deepStrictEqual({
 			localCopilot: pickerAvailability(SessionType.AgentHostCopilot, true),
 			localClaude: pickerAvailability(SessionType.AgentHostClaude, true),
@@ -115,6 +115,52 @@ suite('getSessionTypeAvailability', () => {
 			localClaude: SessionTypeAvailability.SignInRequired,
 			localDisabled: SessionTypeAvailability.SignInRequired,
 			legacyCopilot: SessionTypeAvailability.SignInRequired,
+		});
+	});
+
+	suite('a harness that initializes on selection stays selectable', () => {
+		// Agent SDK model discovery starts only after the user selects the harness,
+		// so requiring a discovered model before selection creates a deadlock.
+		const pickerAvailability = (availability: SessionTypeAvailability, hasAgentSdkSetup: boolean, entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasProviderAccount = false) =>
+			getSessionTypePickerAvailability(
+				SessionType.AgentHostClaude,
+				availability,
+				allowSignedOutWhenUsable,
+				canInitializeSessionTypeOnSelection(entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
+			);
+
+		test('a signed-out user can initialize the harness when the experiment is enabled', () => {
+			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true), SessionTypeAvailability.Available);
+		});
+
+		test('a harness with no initialization path stays greyed out', () => {
+			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, false, ChatEntitlement.Unknown, true), SessionTypeAvailability.NoModels);
+		});
+
+		test('a Copilot Free user can initialize a native agent without upgrading or enabling signed-out use', () => {
+			assert.strictEqual(
+				pickerAvailability(SessionTypeAvailability.UpgradeRequired, true, ChatEntitlement.Free, false),
+				SessionTypeAvailability.Available,
+			);
+		});
+
+		test('a user signed in to the provider can initialize it without GitHub or the experiment', () => {
+			assert.strictEqual(
+				pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false, true),
+				SessionTypeAvailability.Available,
+			);
+		});
+
+		test('a signed-out user still needs the experiment when the harness has no models', () => {
+			assert.deepStrictEqual({
+				disabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false),
+				unresolved: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unresolved, false),
+				enabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true),
+			}, {
+				disabled: SessionTypeAvailability.NoModels,
+				unresolved: SessionTypeAvailability.NoModels,
+				enabled: SessionTypeAvailability.Available,
+			});
 		});
 	});
 

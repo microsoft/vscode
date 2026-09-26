@@ -28,6 +28,7 @@ import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReade
 import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getVSCodeSandboxReadRoots } from '../../../../../platform/agentHost/common/vscodeSandboxPaths.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -87,7 +88,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			getUserHome: () => this._resolveUserHome(),
 			getSandboxTempDir: () => this._resolveSandboxTempDir(),
 			getWorkspaceStorageReadRoot: () => this._resolveWorkspaceStorageReadRoot(),
-			getReadRoots: () => [getTerminalOutputDirectory(this._environmentService.cacheHome)],
+			getReadRoots: () => getVSCodeSandboxReadRoots({ terminalOutputDirectory: getTerminalOutputDirectory(this._environmentService.cacheHome) }),
 			getWriteRoots: () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			onDidChangeRoots: this._onDidChangeRoots.event,
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),

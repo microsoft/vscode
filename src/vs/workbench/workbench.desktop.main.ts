@@ -45,6 +45,8 @@ import './services/title/electron-browser/titleService.js';
 import './services/host/electron-browser/nativeHostService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import './services/request/electron-browser/requestService.js';
+import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
+import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import './services/clipboard/electron-browser/clipboardService.js';
 import './services/contextmenu/electron-browser/contextmenuService.js';
 import './services/workspaces/electron-browser/workspaceEditingService.js';
@@ -68,6 +70,7 @@ import './services/localization/electron-browser/localeService.js';
 import './services/extensions/electron-browser/extensionsScannerService.js';
 import './services/extensionManagement/electron-browser/extensionManagementServerService.js';
 import './services/extensionManagement/electron-browser/extensionGalleryManifestService.js';
+import './services/extensionManagement/electron-browser/extensionGalleryAccountService.js';
 import './services/extensionManagement/electron-browser/extensionTipsService.js';
 import './services/userDataSync/electron-browser/userDataSyncService.js';
 import './services/userDataSync/electron-browser/userDataAutoSyncService.js';
@@ -110,6 +113,9 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 
 
 //#region --- workbench contributions
+
+// Onboarding
+import './contrib/onboarding/electron-browser/onboardingTryout.contribution.js';
 
 // Logs
 import './contrib/logs/electron-browser/logs.contribution.js';

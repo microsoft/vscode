@@ -46,8 +46,14 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		this._register(Gesture.addTarget(titleContainer));
 
+		let singleTabAndActionsContainer = titleContainer;
+		if (this.breadcrumbsInHeader) {
+			singleTabAndActionsContainer = $('.single-tab-and-actions-container');
+			titleContainer.appendChild(singleTabAndActionsContainer);
+		}
+
 		const labelContainer = $('.label-container');
-		titleContainer.appendChild(labelContainer);
+		singleTabAndActionsContainer.appendChild(labelContainer);
 
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, {})).element;
@@ -67,12 +73,12 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
-		// Create editor actions toolbar
-		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
-
 		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(titleContainer, this.menuIds.tabsBarAddTab, this.editorLayoutActionsSeparator, true);
+			this.createAddTabControl(labelContainer, this.menuIds.tabsBarAddTab);
 		}
+
+		// Create editor actions toolbar
+		this.createEditorActionsToolBar(singleTabAndActionsContainer, ['title-actions']);
 
 		return titleContainer;
 	}

@@ -41,7 +41,7 @@ class ChatFindAccessibilityHelpProvider extends Disposable implements IAccessibl
 	provideContent(): string {
 		const content: string[] = [];
 		content.push(localize('chatFind.header', "Accessibility Help: Chat Transcript Find"));
-		content.push(localize('chatFind.context', "You are in the Find input for the chat transcript. It searches the whole conversation, including turns that are scrolled out of view, not only what is on screen."));
+		content.push(localize('chatFind.context', "You are in the Find input for the chat transcript. It searches the whole conversation, including turns that are scrolled out of view, not only what is on screen. Matches are ordered newest first, starting from the turn you are looking at and working back through earlier ones."));
 		content.push('');
 		content.push(localize('chatFind.keyboardHeader', "Keyboard Navigation Summary:"));
 		content.push(localize('chatFind.keyEnter', "- Enter: Move to the next match."));

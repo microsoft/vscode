@@ -12,10 +12,11 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, NotificationRenderer, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
+import { Action, ActionRunner } from '../../../base/common/actions.js';
 
 suite('NotificationsList row height', () => {
 	suiteSetup(() => {
@@ -104,6 +105,57 @@ suite('NotificationsList row height', () => {
 	});
 });
 
+suite('NotificationRenderer', () => {
+	suiteSetup(() => {
+		const warmupDisposables = new DisposableStore();
+		const container = document.createElement('div');
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, warmupDisposables);
+			const renderer = instantiationService.createInstance(NotificationRenderer, warmupDisposables.add(new ActionRunner()));
+			const templateData = renderer.renderTemplate(container);
+			renderer.disposeTemplate(templateData);
+		} finally {
+			warmupDisposables.dispose();
+		}
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('releases replaced notification action view items', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+		const templateData = renderer.renderTemplate(container);
+		store.add(toDisposable(() => renderer.disposeTemplate(templateData)));
+		const templateDisposables = (templateData.toDispose as unknown as { _toDispose: Set<object> })._toDispose;
+
+		const firstAction = store.add(new Action('first.action', 'First Action'));
+		const firstNotification = NotificationViewItem.create({
+			severity: Severity.Info,
+			message: 'First notification',
+			actions: { secondary: [firstAction] }
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => firstNotification.close()));
+
+		const replacementAction = store.add(new Action('replacement.action', 'Replacement Action'));
+		const replacementNotification = NotificationViewItem.create({
+			severity: Severity.Info,
+			message: 'Replacement notification',
+			actions: { secondary: [replacementAction] }
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => replacementNotification.close()));
+
+		renderer.renderElement(firstNotification, 0, templateData);
+		const disposableCount = templateDisposables.size;
+		renderer.renderElement(replacementNotification, 0, templateData);
+
+		assert.strictEqual(templateDisposables.size, disposableCount);
+	});
+});
+
 suite('NotificationsList AccessibilityProvider', () => {
 
 	const noFilter: INotificationsFilter = { global: NotificationsFilter.OFF, sources: new Map() };
@@ -189,5 +241,67 @@ suite('NotificationsList AccessibilityProvider', () => {
 		assert.ok(errorLabel.includes('Error: Error message'), 'Error notifications should have Error prefix');
 		assert.ok(warningLabel.includes('Warning: Warning message'), 'Warning notifications should have Warning prefix');
 		assert.ok(infoLabel.includes('Info: Info message'), 'Info notifications should have Info prefix');
+	});
+});
+
+suite('NotificationsCenter', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('updates dismissal affordances when progress starts, completes, and restarts', () => {
+		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const model = store.add(new NotificationsModel());
+		store.add(toDisposable(() => {
+			for (const notification of [...model.notifications]) {
+				notification.close();
+			}
+		}));
+		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
+		const handle = model.addNotification({
+			severity: Severity.Info,
+			message: 'Working...'
+		});
+
+		center.show();
+
+		const clearAllAction = container.querySelector<HTMLElement>('.notifications-center-header-toolbar .codicon-notifications-clear-all');
+		assert.ok(clearAllAction);
+		const states: { closeActionVisible: boolean; clearAllDisabled: boolean }[] = [];
+		const captureState = () => states.push({
+			closeActionVisible: !!container.querySelector('.notification-list-item-toolbar-container .codicon-notifications-clear'),
+			clearAllDisabled: clearAllAction.getAttribute('aria-disabled') === 'true'
+		});
+
+		captureState();
+		const progress = handle.progress;
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.total(100);
+		captureState();
+		progress.done();
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.done();
+		captureState();
+
+		assert.deepStrictEqual(states, [
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false }
+		]);
+
+		center.clearAll();
+		assert.strictEqual(model.notifications.length, 0);
 	});
 });

@@ -28,8 +28,8 @@
 .new-session-prompt-options-title {
 	color: var(--vscode-agentsChatInput-foreground);
 	flex: 1;
-	font-size: var(--vscode-agents-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.4;
 	margin: 0;
 	min-width: 0;
@@ -102,8 +102,8 @@
 
 .new-session-prompt-option-title {
 	display: flex;
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	gap: var(--vscode-spacing-size40);
 	grid-column: 2;
 	grid-row: 1;
@@ -116,16 +116,16 @@
 }
 
 .new-session-prompt-option-title-detail {
-	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .new-session-prompt-option.has-title-detail .new-session-prompt-option-title {
 	align-items: center;
-	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 	grid-column: 2;
 	grid-row: 2;
 }
@@ -139,16 +139,16 @@
 
 .new-session-prompt-option.has-title-detail .new-session-prompt-option-description {
 	color: var(--vscode-agentsChatInput-foreground);
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	grid-column: 2;
 	grid-row: 1;
 }
 
 .new-session-prompt-option-description {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 	grid-column: 1 / -1;
 	grid-row: 2;
 }

@@ -69,10 +69,12 @@ import { createNoopCustomizationEnablementService } from './testCustomizationEna
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -87,6 +89,10 @@ import {
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
@@ -405,7 +411,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
@@ -523,7 +529,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				if (!startup?.onElicitation) {
 					throw new Error('integration test: elicitation marker but Options.onElicitation not wired');
 				}
-				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal });
+				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal, requestId: 'integration-elicitation' });
 				this._sdk.elicitationResults.push(result);
 				continue;
 			}
@@ -548,6 +554,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setModel(): never { throw new Error('not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }
+	updateSettings(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
 	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }
@@ -560,6 +567,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
 	readFile(): never { throw new Error('not modeled'); }
+	readMcpResource(): never { throw new Error('not modeled'); }
 	seedReadState(): never { throw new Error('not modeled'); }
 	reconnectMcpServer(): never { throw new Error('not modeled'); }
 	toggleMcpServer(): never { throw new Error('not modeled'); }
@@ -567,6 +575,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
+	reloadOutputStyles(): never { throw new Error('not modeled'); }
 	backgroundTasks(): never { throw new Error('not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
@@ -669,7 +678,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
 	});
 	if (!created?.backingSession) {
@@ -720,6 +729,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -859,6 +869,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -940,6 +951,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),

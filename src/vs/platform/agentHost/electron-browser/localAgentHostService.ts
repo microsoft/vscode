@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
@@ -22,14 +22,17 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -38,7 +41,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
-	IAgentCreateChatOptions,
+	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
@@ -63,8 +66,9 @@ import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTermi
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
-import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
@@ -143,11 +147,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
-	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private _protocolClient: AgentHostProtocolClient | undefined;
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
 	private _didConnectInitially = false;
@@ -159,6 +164,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
+
+	// Consumers can subscribe before prewarming creates the protocol client.
+	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = this._register(new Relay<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -183,6 +196,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))
@@ -211,13 +225,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
 			));
 			this._protocolClient = this._register(this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient,
+				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				undefined,
-				this.clientId,
-				this._clientInfo,
+				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			this._onDidAction.input = this._protocolClient.onDidAction;
+			this._onDidNotification.input = this._protocolClient.onDidNotification;
+			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -322,7 +337,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}
 	}
 
-	private _requireClient(): RemoteAgentHostProtocolClient {
+	private _requireClient(): AgentHostProtocolClient {
 		if (!this._protocolClient) {
 			throw new Error('Local agent host is not connected.');
 		}
@@ -348,18 +363,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
-	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
-	}
-
-	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
-	}
-
-	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
-	}
-
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
@@ -376,7 +379,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._requireClient().dispatch(channel, action);
 	}
 
@@ -419,6 +422,49 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().createSession(config);
 	}
 
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
+	}
+
+	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().claimDetachedWorktree(handle);
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().deleteDetachedWorktree(handle);
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions();
+	}
+
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._requireClient().resolveSessionConfig(params);
 	}
@@ -431,6 +477,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().completions(params);
 	}
 
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._requireClient().listAutomationTriggerDefinitions(params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._requireClient().runAutomation(params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._requireClient().fetchAutomationRuns(params);
+	}
+
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {
 		return this._requireClient().getCompletionTriggerCharacters();
 	}
@@ -439,7 +497,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		if (options && hasChatExtensions(options)) {
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
@@ -518,12 +576,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
-		return this._getManagementService().getSessionStateFile(session);
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -554,7 +612,7 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
 }
 
-function hasChatExtensions(options: IAgentCreateChatOptions): boolean {
+function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
 	return options.title !== undefined || options.model !== undefined;
 }
 

@@ -21,19 +21,19 @@ type WebviewLinkPresentation = LinkPresentation & { readonly isLoading?: boolean
 
 export class WebviewLinkPresentationProvider extends Disposable implements ILinkPresentationProvider {
 	readonly #entries = new Map<string, LinkPresentationEntry>();
-	readonly #rules: readonly { id: string; uriPattern: RegExp; initialKind: LinkPresentationKind }[];
+	readonly #rules: readonly { id: string; uriPattern: RegExp; kind: LinkPresentationKind }[];
 	readonly #postMessage: (message: unknown) => void;
 	#syncScheduled = false;
 
 	constructor(
-		rules: readonly { id: string; source: string; flags: string; initialKind: LinkPresentationKind }[],
+		rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[],
 		postMessage: (message: unknown) => void,
 	) {
 		super();
 		this.#rules = rules.map(rule => ({
 			id: rule.id,
 			uriPattern: new RegExp(rule.source, rule.flags),
-			initialKind: rule.initialKind,
+			kind: rule.kind,
 		}));
 		this.#postMessage = postMessage;
 	}
@@ -48,7 +48,7 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 		if (!entry) {
 			entry = {
 				presentation: observableValue(`linkPresentation:${url}`, {
-					kind: rule.initialKind,
+					kind: rule.kind,
 					isLoading: true,
 				}),
 				references: 0,

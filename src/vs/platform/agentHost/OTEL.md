@@ -2,9 +2,7 @@
 
 The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that hosts native Copilot, Claude, and Codex runtimes instead of using the extension's in-process harnesses. The agent host has its own OTel pipeline so provider-native traces can be exported to a collector or persisted locally for inspection.
 
-> **Availability:** Insiders / non-stable builds only.
-
-This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) because the agent host runs entirely outside the extension host and is independent of the extension-side OTel pipeline (`github.copilot.chat.otel.*`) documented in `extensions/copilot/docs/monitoring/`.
+This is the architecture and integration reference for OTel in Agent Host sessions. It lives next to `IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts) because Agent Host runs outside the extension host. Local Copilot Chat remains an independent extension-host pipeline configured with `github.copilot.chat.otel.*` and documented in [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md).
 
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
@@ -14,6 +12,259 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
+## User-perceived first progress
+
+`vscode.chat.user_perceived_time_to_first_progress` mirrors the shared
+`chat.userPerceivedTimeToFirstProgress` UI timer, including Chat view and
+Agents-window new-chat submissions. It measures submission through two animation
+frames after meaningful visible **text, reasoning, or tool** progress. Preparation
+indicators are excluded. This is a rendering approximation, not exact physical
+paint or model TTFT. The original timer and product telemetry are unchanged.
+
+Attributes use `vscode.chat.user_interaction.`:
+
+| Attribute | Meaning |
+|---|---|
+| `schemaVersion` | Numeric `1` |
+| `rendererId`, `interactionOrdinal` | Random renderer-lifetime ID and submission-order ordinal starting at 1 (not completion/export order) |
+| `requestId` | Optional opaque request ID; required on success |
+| `result` | `success`, `cancelled`, `error`, `completedWithoutProgress`, `notDispatched`, `queued`, `navigated`, `hidden`, or `disposed` |
+| `requestPhase` | `first`, `followup`, or `unknown` in chat history; not cold/warm process state |
+| `firstProgressKind` | `text`, `reasoning`, or `tool`; success only |
+| `timeToFirstProgress` | Producer-local milliseconds, success only |
+| `timeToTermination` | Producer-local milliseconds, unsuccessful observations only |
+| `windowVisible`, `windowFocused` | Source-window state at observation end; focus loss alone is allowed |
+
+Hiding terminates an observation; it is not paused/resumed. Queued and hidden
+observations are not zero-latency successes. No content, paths, session URIs, or
+remote authorities are exported. Read duration attributes, not span duration.
+These metadata spans have no `gen_ai.operation.name`, token, or cost accounting.
+
+Agent Host transports this allowlisted record using
+`vscode/reportChatUserInteraction`, gated by the independent
+`_meta['vscode.chatUserInteractionTiming']` capability. It uses the existing
+SQLite/OTLP/file diagnostic destinations, without content capture or product
+telemetry opt-in. The host drains the synthetic-span queue before acknowledging.
+The same schema is emitted by the extension-host OTel exporter for local chat;
+Agent Host measurements do not depend on the Copilot extension exporter.
+Observations ending before a response use the submission's session resource for
+routing, including composer session replacement. Unroutable remote observations
+are logged as failed deliveries, never sent to the local extension exporter.
+Observations without a session type or routable host resource, including
+pre-handoff composer terminations, also fail rather than assuming local chat.
+
+The internal `_chat.flushUserInteractionTelemetry` command waits up to 10 seconds
+for active UI observations, then drains renderer deliveries before eval snapshots
+either database. It reports started/completed/failed counts; a timeout does not
+invent a terminal outcome. Crashes, missing destinations, unsupported builds, and
+pre-dispatch observations without a routable Agent Host identity can leave gaps.
+Transport failures are logged, never allowed to fail the chat submission, and
+are not retried. Older hosts never receive the new extension request.
+
+## First Response Diagnostics
+
+### Opt-in OTel export contract (version 1)
+
+The existing Agent Host OTel pipeline also exports content-free diagnostic
+metadata spans. This uses the same exporter configuration, queue, flush and
+SQLite store as host session metadata, **independently of
+`telemetry.telemetryLevel`**. Product telemetry and the existing logs are
+unchanged. OTel must be enabled with a supported destination; content capture
+need not be enabled. With OTel off, neither diagnostic spans nor renderer
+diagnostic requests are emitted.
+
+| Span name | Source | Measurement boundary |
+|---|---|---|
+| `vscode.agent_host.turn_timing` | `host` | Existing host turn tracker start through completion, cancellation or failure |
+| `vscode.agent_host.first_response` | `renderer` | Existing renderer invocation start through its terminal `finally` |
+
+These are standalone **zero-duration metadata spans**, not chat, model,
+inference, or tool spans. Their span timestamps indicate export observation
+time, not the start of the measured operation. They do not have `gen_ai.*`
+operation, token, cost, prompt or response attributes. Do not count them as
+model calls or add their span durations to latency totals. Read their numeric
+measurement attributes instead. No cross-process durations are reconstructed
+from wall clocks.
+
+Every attribute below has the prefix **`vscode.agent_host.`**. Timing numbers
+are **milliseconds**; counts and ordinals are unitless. JSONL and OTLP JSON
+exports preserve numeric and boolean types. SQLite stores generic attributes
+as text, so consumers must parse these values according to the schema below.
+Absent measurements are omitted in every route, never converted to `0`.
+A real observed `0` is retained (as `'0'` in SQLite).
+
+Session anchor spans advertise `vscode.agent_host.timingSchemaVersion=1`.
+Eval consumers can use this to wait for terminal diagnostics after native
+`invoke_agent` roots arrive, within a bounded export-readiness window. Older
+builds without the marker require no additional wait. Missing diagnostics at
+the deadline remain missing; the marker is not proof that a turn completed.
+
+| Attributes | Definition |
+|---|---|
+| `schemaVersion`, `source` | Numeric `1`; `host` or `renderer` |
+| `provider`, `turnId` | Exact provider identifier and protocol turn identifier |
+| `agentSessionId`, `chatId` | Optional opaque backend IDs, not session/chat URIs or telemetry chat-ID hashes |
+| Host `result`, `isSubagentSession` | `success`, `error`, or `cancelled`; existing host subagent classification |
+| Host `totalTime` | Existing local turn-tracker elapsed time through completion |
+| Host `timeToProviderDispatch` | Turn start to provider dispatch; absent if not observed |
+| Host `timeToFirstProgress`, `timeToFirstSubstantiveProgress` | Turn start to existing first visible/substantive progress boundaries; absent if not observed |
+| Host `sendStageWorkingDirectoryMs`, `sendStageModelSelectionMs`, `sendStageAttachmentsMs`, `sendStageContributionsMs` | Elapsed time in each existing pre-send stage that ran; an interrupted open stage retains its partial duration |
+| Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
+| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
+| Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
+| Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
+| Renderer `firstResponseTextMs`, `totalElapsedMs` | Invocation to qualifying first live root markdown, and invocation to terminal outcome |
+| Renderer `hasResponseText`, `rootToolCallsBeforeFirstText` | Whether qualifying text occurred; distinct live root tools before that text, absent without text |
+| Renderer `rendererRootInvocationOrdinal`, `trustInteractionRequired` | Existing renderer root-attempt ordinal and interactive-trust marker |
+
+Join host **`provider + turnId`** to renderer **`provider + requestId`**
+(equivalently its `turnId` alias), never timestamps. Optional IDs are normalized
+to opaque IDs before transport, not copied from renderer URI-valued product
+telemetry. Identifiers must contain 1–256 ASCII letters, digits, underscores,
+dots or hyphens; invalid optional identifiers are omitted and invalid join
+identifiers suppress the record rather than being truncated or guessed.
+Session/chat identifiers need not match historical log formatting.
+
+The renderer sends one best-effort `vscode/reportAgentHostFirstResponse`
+extension request when the host advertises `_meta['vscode.agentHostTiming']`
+as `true`. This capability is advertised only for enabled diagnostic export.
+The host validates and allowlists the request before exporting through
+`IAgentHostOTelService`; this is not a generated AHP protocol extension.
+Old/disabled hosts receive no request. Disconnection/export failure does not
+fail or delay the invocation, and delivery is not retried.
+
+Host duplicate completion signals are suppressed by the existing tracker;
+renderer observation/replay does not add another emission site. Resuming a
+previously completed turn can produce another completion segment with the
+same turn ID and retained root ordinal. Preserve that ambiguity rather than
+assuming a one-to-one join or summing repeated segments. A renderer
+`notDispatched` attempt can have no backend IDs or host partner. Cancellation
+and errors can also occur before dispatch: missing progress/dispatch fields
+remain missing. Crashes and permanent hangs can omit terminal diagnostics.
+
+File export writes these spans to the configured JSONL file (commonly
+`agent-host-traces.jsonl`). OTLP/HTTP JSON and SQLite DB mode use the existing
+metadata routes. As with session metadata, protobuf/gRPC external forwarding
+is not supported for these host-produced spans: enable DB mode to retain them
+locally, or use file/HTTP JSON. Console export remains a summary, not a
+structured measurement sink. Export destination/resource configuration is
+user-owned; the diagnostics add no workspace paths, content or credentials.
+
+### Existing product telemetry and logs
+
+The renderer reports `agentHost.firstResponse` and writes a content-free
+`[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
+contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
+`sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`,
+`cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional
+`firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains
+`sessionId`, identical to `agentSessionId`, for compatibility, and includes
+`turnId`, identical to `requestId`, for AHP joins. The telemetry property uses
+`agentSessionId` to avoid colliding with the common VS Code `sessionID` property.
+Durations use a local monotonic clock starting at agent invocation, before
+trust/authentication/session preparation.
+`invocationKind` is `newTurn`, `existingTurn`, `subagent`, or `unknown` before
+hydration. Exclude `existingTurn` and `subagent` records from first-response
+comparisons rather than treating them as successful turns without an answer.
+The endpoint is the first nonwhitespace live root markdown emission, including
+final-only responses, not physical submit, paint, or a semantic guarantee of an
+answer. Reasoning, tool output, restored history and server-initiated observation
+do not start this metric. Existing first-progress measurements are unchanged.
+
+`rendererRootInvocationOrdinal` counts root invocation attempts across providers
+in this renderer lifetime, including declined, cancelled and resumed attempts.
+Subagents do not advance it. Reload resets it; host reconnection does not.
+`rootToolCallsBeforeFirstText` counts distinct live root tool calls presented
+before first text, excluding child calls, replay and updates to the same call.
+It is absent without qualifying text, and is not a model-round count.
+`trustInteractionRequired` identifies invocations that requested an interactive
+trust decision. Exclude these rows from primary latency comparisons without
+discarding them from outcome reporting. Missing historical fields remain unknown.
+
+The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
+`sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
+and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+an enriched marker with the same start values and `titleGenerationStrategy`
+(`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
+retaining the known strategy rather than counting them as separate observations.
+Resuming the same turn retains its original host timing and strategy without
+advancing the ordinal. This identity is retained until chat teardown or truncation.
+`agentHost.turnCompleted` carries those host fields and the effective saved
+strategy, when available. Join its raw `turnId` and `provider` with renderer
+`requestId` and `provider`, not timestamps or differently formatted session IDs.
+A first host
+root turn is an observable process-first cohort, not proof of a cold SDK/model
+cache. Combine that ordinal with the renderer's observed prior-chat-turn state
+to separate first process turn, new chat in a warm process, and later chat turns;
+retain unknowns for missing observations. SDK readiness is not inferred.
+
+Report unmatched received events alongside latency, separating expected
+pre-dispatch absence from missing host observations. Error/cancelled outcomes
+alone do not prove dispatch. Both completion events and the renderer's `finally`
+can be absent after a crash or permanent hang; join coverage is not a hang rate.
+
+The existing debug-gated `usage.jsonl` export retains at most 2048 recent records and 2 MiB
+(compacting to the latest 1024 when full). Version 2 model-call records have
+`kind: "modelCall"`, `sdkSessionId`, `eventId`, optional `apiCallId`,
+`providerCallId`, `serviceRequestId`, `agentId`, model/token counters, and
+`durationMs`, `timeToFirstTokenMs`, `outputTtftMs`. `turnId` is present only when
+the host has an exact call-to-turn mapping; `correlation` is `exact` or
+`unresolved`. An unresolved record must not inherit the currently active turn.
+IDs are bounded to 256 characters, measurements must be finite and nonnegative,
+and repeated API call IDs (or event IDs when unavailable) are deduplicated.
+Only exact API call IDs join version 2 records to persisted model messages;
+legacy-only exports retain their existing approximate positional association.
+No prompts, response bodies, tool arguments, or workspace paths are added.
+
+The usage sidecar diagnostics are separate from provider OTel and product telemetry.
+The native SDK's output TTFT includes reasoning and tool-call output, so it is
+not interchangeable with renderer first-response-text latency.
+
+## Sandbox Connection Product Scorecard
+
+The renderer's [cloud sandbox telemetry owner](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.ts)
+uses ordinary VS Code product telemetry, not provider OTel. Existing telemetry-level
+and administrator controls apply; no additional setting or exporter is needed.
+
+- `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
+  `failure`, `cancelled`) and `durationMs`. Public connects start before credential
+  minting, waking and sealed-token waits; direct factory dials start at connection
+  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
+  Retries, backoff and outer-client replacement stay in the same operation;
+  an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
+  connections, plus each connection's final delta at teardown. `connectedMs`
+  includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
+  excludes intentional disconnect, cancellation, account/feature teardown and
+  shutdown. `receivedFrames` counts inbound relay frames, including control,
+  malformed, chunk and recovery traffic; it is not unique messages or bytes.
+
+Primary stability measure: `sum(unexpectedDisconnects) / (sum(connectedMs) / 3600000) * 100`
+unexpected disconnects per 100 connected hours. Ready rate is
+`successes / (successes + failures)`, with cancellations shown separately.
+Report successful p50/p95 ready/recovery durations alongside failure and cancellation
+rates; use p99 only with enough samples. Compare like traffic levels and product
+surfaces using existing `commitHash`, `version`, `common.platform`,
+`common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+Both versions need this instrumentation; missing historical measurements cannot
+be reconstructed, and a version comparison alone is not causal proof. Deltas reset
+before reporting, but hard crashes can lose the final partial interval or an
+unfinished outcome; delivery is not exactly once. Browser timer throttling can
+delay summaries. No connection identifiers, credentials, addresses or error text
+are emitted, and the existing request aggregation is unchanged.
+
+## Sources of Truth
+
+Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:
+
+- **Copilot:** the Rust-native OTel lifecycle in `github/copilot-agent-runtime`. Its `docs/developer-docs/monitor.md` is the exhaustive signal and configuration reference. Audit it at the `@github/copilot` version pinned in the root `package-lock.json`, not at an arbitrary runtime `main`; cite an immutable commit permalink in the resulting issue or pull request.
+- **Claude:** the Claude runtime's native OTel implementation and launch environment.
+- **Codex:** the Codex app-server's native OTel implementation and launch overrides.
+
+Do not copy provider-native span, event, metric, or environment-variable catalogs into this document. Keep this reference focused on the VS Code-owned integration boundary. The extension-host Copilot CLI bridge under `extensions/copilot/src/extension/chatSessions/copilotcli/` is a deprecated compatibility path and is not the Agent Host architecture.
+
 ## Two Modes
 
 | Mode | Trigger | Behavior |
@@ -21,35 +272,29 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). SDK spans are not intercepted; host-produced session-title metadata uses the matching JSON/file/console forwarder. |
 | **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
 
-```
-                 ┌─────────────────────────────────────────────────────────────────┐
-                 │  Agent Host process (src/vs/platform/agentHost)                  │
-                 │                                                                 │
-   user setting  │   pass-through mode                                              │
-   chat.agent    │   ┌─────────────────────────┐    OTLP/HTTP    ┌──────────────┐  │
-   Host.otel.*   ─→  │ copilot-sdk             │ ─────────────── │ user-config  │  │
-                 │   │ TelemetryConfig         │                 │ OTLP sink    │  │
-   spawn-time    │   └─────────────────────────┘                 └──────────────┘  │
-   env binding   │                                                                 │
-   in            │   db mode (dbSpanExporter.enabled)                              │
-   electron-     │   ┌─────────────────────────┐    127.0.0.1    ┌──────────────┐  │
-   AgentHostStar ─→  │ copilot-sdk             │ ─────────────── │ loopback     │  │
-   ter.ts and    │   │ TelemetryConfig         │  ephemeral port │ OTLP receiver│  │
-   nodeAgent     │   │ (re-pointed at loopback)│                 │ (localOtlp   │  │
-   HostStarter   │   └─────────────────────────┘                 │  Receiver)   │  │
-   .ts           │                                               └──────┬───────┘  │
-                 │                                                      │          │
-                 │                                onSpans  ────────────►├─→ SQLite │
-                 │                                                      │   store  │
-                 │                                onForward ────────────┘          │
-                 │                                       │                         │
-                 │                                       ▼                         │
-                 │                          OtlpHttpForwarder   OTLP/HTTP          │
-                 │                          (optional fan-out) ─────────────────→  │ user-config OTLP sink
-                 └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    settings["chat.agentHost.otel settings"] --> starter["Agent Host starter<br/>settings to spawn environment"]
+    starter --> host["Agent Host process"]
+    host --> copilot["Copilot native runtime"]
+    host --> claude["Claude runtime"]
+    host --> codex["Codex app-server"]
+
+    copilot --> mode{Trace routing mode}
+    claude --> mode
+    codex --> mode
+
+    mode -->|Pass-through| sink[User-configured exporter]
+    mode -->|DB mode: OTLP/HTTP JSON| receiver[Loopback OTLP receiver]
+    receiver --> sqlite[(SQLite span store)]
+    receiver -->|Optional compatible fan-out| sink
+
+    copilot -. Native metrics .-> sink
+    claude -. Native logs and metrics .-> sink
+    codex -. Native logs and metrics .-> sink
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
 
 ## Native Provider Signal Routing
@@ -58,7 +303,7 @@ Only traces enter the Agent Host loopback and SQLite database. When an external 
 
 | Provider | Trace configuration | Direct external signals |
 |---|---|---|
-| Copilot | SDK `TelemetryConfig` plus a trace-specific endpoint | Metrics |
+| Copilot | SDK configuration consumed by the Rust-native OTel lifecycle | Metrics |
 | Claude | `OTEL_TRACES_EXPORTER` and trace-specific endpoint | Logs and metrics |
 | Codex | `otel.trace_exporter` launch override | Logs and metrics |
 
@@ -111,7 +356,7 @@ Open **Settings** (`Ctrl+,`) and search for `agentHost otel`:
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `chat.agentHost.otel.enabled` | boolean | `false` | Enable OTel emission from the agent host. |
-| `chat.agentHost.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file`. The CLI runtime downgrades `otlp-grpc` to `otlp-http` transparently. |
+| `chat.agentHost.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file`. Provider support differs; for Copilot, `otlp-grpc` is downgraded to `otlp-http` because the runtime supports OTLP/HTTP JSON and protobuf only. |
 | `chat.agentHost.otel.otlpEndpoint` | string | `""` | OTLP endpoint URL. Accepts a bare base URL (`http://localhost:4318`) — `/v1/traces` is appended automatically when needed, matching the standard `OTEL_EXPORTER_OTLP_ENDPOINT` convention. A full signal-specific URL (`http://host:4318/v1/traces`) is used verbatim. |
 | `chat.agentHost.otel.captureContent` | boolean | `false` | Capture prompt/response content in span attributes. Privacy-sensitive — do not enable in environments that ship spans to shared sinks. |
 | `chat.agentHost.otel.outfile` | string | `""` | Output path for JSON-lines spans when `exporterType` is `file`. |
@@ -125,14 +370,19 @@ The workbench-side starter translates the settings above into the following env 
 |---|---|---|
 | `COPILOT_OTEL_ENABLED` | `chat.agentHost.otel.enabled` | Set to `true` only when the setting is on. |
 | `COPILOT_OTEL_EXPORTER_TYPE` | `chat.agentHost.otel.exporterType` | |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `chat.agentHost.otel.otlpEndpoint` | Standard OTel env var. `COPILOT_OTEL_ENDPOINT` is also accepted as an alternate and takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `chat.agentHost.otel.otlpEndpoint` | Standard OTel endpoint. |
+| `COPILOT_OTEL_ENDPOINT` | (inherited) | Alternate endpoint used only when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset. |
 | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | `chat.agentHost.otel.captureContent` | |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | `chat.agentHost.otel.outfile` | |
 | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` | `chat.agentHost.otel.dbSpanExporter.enabled` | |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | (inherited or enterprise policy) | `grpc` and `http/grpc` select gRPC; `http/protobuf` selects HTTP protobuf; other values use HTTP JSON. Set from the managed `telemetry.protocol` when configured. |
+| `COPILOT_OTEL_PROTOCOL` | (inherited) | Alternate protocol used only when `OTEL_EXPORTER_OTLP_PROTOCOL` is unset. |
+| `COPILOT_OTEL_SOURCE_NAME` | (inherited) | Instrumentation scope name used by Copilot and host-produced metadata spans. |
 | `OTEL_SERVICE_NAME` | (inherited or enterprise policy) | `service.name` resource attribute; set from the managed `telemetry.serviceName`. |
 | `OTEL_RESOURCE_ATTRIBUTES` | (inherited or enterprise policy) | Extra resource attributes (`k=v,k2=v2`); set from the managed `telemetry.resourceAttributes`. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (e.g., `Authorization=Bearer …`). **Not** delivered from managed settings — env delivery would leak the secret to tool subprocesses; managed headers apply to the Copilot Chat extension only. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (for example, `Authorization=<value>`). **Not** delivered from managed settings — env delivery would leak the secret to tool subprocesses; managed headers apply to the Copilot Chat extension only. |
+
+Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
 > **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
 
@@ -193,12 +443,20 @@ src/vs/platform/otel/
 |---|---|
 | `chat.agentHost.otel.enabled` | `COPILOT_OTEL_ENABLED` |
 | `chat.agentHost.otel.exporterType` | `COPILOT_OTEL_EXPORTER_TYPE` |
-| `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` also accepted, takes precedence) |
+| `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` is also accepted when the standard variable is unset) |
 | `chat.agentHost.otel.captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` |
 | `chat.agentHost.otel.outfile` | `COPILOT_OTEL_FILE_EXPORTER_PATH` |
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |
 
 `OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
+
+Starting in VS Code 1.140, the shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
+`telemetry.capture.identity` for the legacy Local extension's policy reference.
+Its hidden `chat.agentHost.otel.captureIdentity` delivery slot is not translated
+into environment variables: the native Copilot runtime owns managed identity
+enforcement. The content-capture shorthand does not enable identity. See the
+[Local harness documentation](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md#governed-identity-capture)
+for the extension-host implementation.
 
 `readAgentHostOTelEnv()` ([node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) is the inverse: it reads `process.env` inside the agent host and produces the `ResolvedConfig` that drives mode selection and outbound forwarding.
 

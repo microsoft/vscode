@@ -25,10 +25,10 @@ import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from 
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
-		createSessionServerToolGroup(sessionAccessor),
+		createSessionServerToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 	];
@@ -72,6 +72,18 @@ export function getServerToolDisplay(toolName: string, args: unknown, result?: I
 		for (const def of group.definitions) {
 			if (matchesServerToolName(toolName, def.name)) {
 				return group.getDisplay(def.name, args, result);
+			}
+		}
+	}
+	// Only once no advertised tool matched: a restored call made under a name
+	// that has since been renamed still gets the display of its replacement.
+	for (const group of serverToolGroupsForDisplay) {
+		if (!group.getDisplay) {
+			continue;
+		}
+		for (const [legacyName, currentName] of group.legacyToolNames ?? []) {
+			if (matchesServerToolName(toolName, legacyName)) {
+				return group.getDisplay(currentName, args, result);
 			}
 		}
 	}

@@ -9,6 +9,8 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
+import { detectPluginFormat, parsePlugin, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -20,7 +22,9 @@ import {
 	validatePluginName,
 	getResourceLabel,
 	getResourceFileName,
+	PluginCreationFormat,
 	serializeHookCommand,
+	serializeLegacyMcpLaunch,
 	serializeMcpLaunch,
 	writePluginToDisk,
 	updateMarketplaceIfNeeded,
@@ -222,7 +226,7 @@ suite('CreatePluginAction helpers', () => {
 					type: McpServerTransportType.Stdio,
 					command: 'node',
 					args: ['server.js'],
-					cwd: '/workspace',
+					cwd: '${PLUGIN_ROOT}',
 					env: { NODE_ENV: 'production' },
 					envFile: undefined,
 					sandbox: undefined,
@@ -231,7 +235,7 @@ suite('CreatePluginAction helpers', () => {
 					type: 'stdio',
 					command: 'node',
 					args: ['server.js'],
-					cwd: '/workspace',
+					cwd: '${PLUGIN_ROOT}',
 					env: { NODE_ENV: 'production' },
 				}
 			);
@@ -255,34 +259,75 @@ suite('CreatePluginAction helpers', () => {
 			);
 		});
 
-		test('serializes http launch', () => {
+		test('rejects HTTP headers', () => {
+			assert.throws(() => serializeMcpLaunch({
+				type: McpServerTransportType.HTTP,
+				transport: 'streamable-http',
+				uri: URI.parse('http://localhost:3000'),
+				headers: [['Authorization', 'Bearer token']],
+			}, 'server'),
+				/server.*HTTP headers/
+			);
+		});
+
+		test('serializes SSE launch', () => {
 			assert.deepStrictEqual(
 				serializeMcpLaunch({
 					type: McpServerTransportType.HTTP,
+					transport: 'sse',
 					uri: URI.parse('http://localhost:3000'),
-					headers: [['Authorization', 'Bearer token']],
+					headers: [],
 				}),
 				{
-					type: 'http',
+					type: 'sse',
 					url: 'http://localhost:3000/',
-					headers: { Authorization: 'Bearer token' },
 				}
 			);
 		});
 
-		test('omits empty headers for http', () => {
+		test('serializes streamable HTTP launch', () => {
 			assert.deepStrictEqual(
 				serializeMcpLaunch({
 					type: McpServerTransportType.HTTP,
+					transport: 'streamable-http',
+					uri: URI.parse('http://localhost:3000'),
+					headers: [],
+				}),
+				{
+					type: 'streamable-http',
+					url: 'http://localhost:3000/',
+				}
+			);
+		});
+
+		test('serializes legacy HTTP launch after portable validation', () => {
+			assert.deepStrictEqual(
+				serializeLegacyMcpLaunch({
+					type: McpServerTransportType.HTTP,
+					transport: 'sse',
 					uri: URI.parse('http://localhost:3000'),
 					headers: [],
 				}),
 				{
 					type: 'http',
+					transport: 'sse',
 					url: 'http://localhost:3000/',
 				}
 			);
 		});
+
+		test('rejects non-portable stdio configuration', () => {
+			assert.throws(() => serializeMcpLaunch({
+				type: McpServerTransportType.Stdio,
+				command: '/usr/bin/server',
+				args: [],
+				cwd: '/workspace',
+				env: { PORT: 3000 },
+				envFile: undefined,
+				sandbox: undefined,
+			}, 'server'), /server.*command/);
+		});
+
 	});
 });
 
@@ -310,18 +355,25 @@ suite('writePluginToDisk', () => {
 		return JSON.parse(content.value.toString());
 	}
 
-	test('creates manifest with correct structure', async () => {
+	test('creates an Agent Plugins 1.0 manifest', async () => {
 		const pluginRoot = URI.joinPath(root, 'my-plugin');
 		await writePluginToDisk(fileService, pluginRoot, 'my-plugin', []);
 
-		assert.deepStrictEqual(await readJson(URI.joinPath(pluginRoot, '.plugin', 'plugin.json')), {
-			name: 'my-plugin',
-			version: '1.0.0',
-			description: '',
+		assert.deepStrictEqual({
+			manifest: await readJson(URI.joinPath(pluginRoot, 'plugin.json')),
+			format: (await detectPluginFormat(pluginRoot, fileService)).format,
+		}, {
+			manifest: {
+				$schema: AGENT_PLUGIN_SCHEMA,
+				name: 'my-plugin',
+				version: '1.0.0',
+				description: '',
+			},
+			format: PluginFormat.AgentPlugin,
 		});
 	});
 
-	test('copies instructions to rules/', async () => {
+	test('copies instructions to the Copilot rules extension directory', async () => {
 		const sourceUri = URI.joinPath(root, 'source', 'coding.instructions.md');
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('# My coding rules'));
 
@@ -339,7 +391,7 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'rules', 'coding.instructions.md'));
+		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'rules', 'coding.instructions.md'));
 		assert.strictEqual(content.value.toString(), '# My coding rules');
 	});
 
@@ -361,11 +413,11 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'rules', 'prefer-const.mdc'));
+		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'rules', 'prefer-const.mdc'));
 		assert.strictEqual(content.value.toString(), 'prefer const');
 	});
 
-	test('copies prompts to commands/', async () => {
+	test('copies prompts to the Copilot commands extension directory', async () => {
 		const sourceUri = URI.joinPath(root, 'source', 'review.prompt.md');
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('Review this code'));
 
@@ -383,11 +435,11 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'commands', 'review.md'));
+		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'commands', 'review.md'));
 		assert.strictEqual(content.value.toString(), 'Review this code');
 	});
 
-	test('copies agents to agents/', async () => {
+	test('copies agents to the Copilot agents extension directory', async () => {
 		const sourceUri = URI.joinPath(root, 'source', 'reviewer.agent.md');
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: reviewer\n---\nYou review code.'));
 
@@ -405,7 +457,7 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'agents', 'reviewer.md'));
+		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'agents', 'reviewer.md'));
 		assert.strictEqual(content.value.toString(), '---\nname: reviewer\n---\nYou review code.');
 	});
 
@@ -433,7 +485,7 @@ suite('writePluginToDisk', () => {
 		assert.strictEqual(helperMd.value.toString(), 'helper content');
 	});
 
-	test('merges hooks into hooks/hooks.json', async () => {
+	test('merges hooks into the Copilot hooks extension directory', async () => {
 		const hooksUri = URI.joinPath(root, 'source', 'hooks.json');
 		await fileService.writeFile(hooksUri, VSBuffer.fromString(JSON.stringify({
 			hooks: {
@@ -455,7 +507,7 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		assert.deepStrictEqual(await readJson(URI.joinPath(pluginRoot, 'hooks', 'hooks.json')), {
+		assert.deepStrictEqual(await readJson(URI.joinPath(pluginRoot, 'com.github.copilot', 'hooks', 'hooks.json')), {
 			hooks: {
 				SessionStart: [{ type: 'command', command: 'echo start' }],
 				PreToolUse: [{ type: 'command', command: 'echo pre' }],
@@ -463,7 +515,7 @@ suite('writePluginToDisk', () => {
 		});
 	});
 
-	test('exports MCP servers to .mcp.json', async () => {
+	test('exports MCP servers to mcp.json', async () => {
 		const pluginRoot = URI.joinPath(root, 'test-plugin');
 		await writePluginToDisk(fileService, pluginRoot, 'test-plugin', [
 			makeResourceItem({
@@ -493,7 +545,8 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		assert.deepStrictEqual(await readJson(URI.joinPath(pluginRoot, '.mcp.json')), {
+		assert.deepStrictEqual(await readJson(URI.joinPath(pluginRoot, 'mcp.json')), {
+			$schema: AGENT_PLUGIN_MCP_SCHEMA,
 			mcpServers: {
 				'my-server': {
 					type: 'stdio',
@@ -502,6 +555,193 @@ suite('writePluginToDisk', () => {
 				}
 			}
 		});
+	});
+
+	test('adds legacy compatibility files to a canonical Agent Plugin', async () => {
+		const instructionUri = URI.joinPath(root, 'source', 'coding.instructions.md');
+		const promptUri = URI.joinPath(root, 'source', 'review.prompt.md');
+		const agentUri = URI.joinPath(root, 'source', 'reviewer.agent.md');
+		const hookUri = URI.joinPath(root, 'source', 'hooks.json');
+		await Promise.all([
+			fileService.writeFile(instructionUri, VSBuffer.fromString('# Instructions')),
+			fileService.writeFile(promptUri, VSBuffer.fromString('# Command')),
+			fileService.writeFile(agentUri, VSBuffer.fromString('# Agent')),
+			fileService.writeFile(hookUri, VSBuffer.fromString(JSON.stringify({ hooks: { Stop: [{ type: 'command', command: 'echo stop' }] } }))),
+		]);
+
+		const pluginRoot = URI.joinPath(root, 'compat-plugin');
+		await writePluginToDisk(fileService, pluginRoot, 'compat-plugin', [
+			makeResourceItem({
+				label: 'coding',
+				resourceType: 'instruction',
+				promptPath: makePromptPath({ uri: instructionUri, storage: PromptsStorage.local, type: PromptsType.instructions, name: 'coding' }),
+			}),
+			makeResourceItem({
+				label: 'review',
+				resourceType: 'prompt',
+				promptPath: makePromptPath({ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt, name: 'review' }),
+			}),
+			makeResourceItem({
+				label: 'reviewer',
+				resourceType: 'agent',
+				promptPath: makePromptPath({ uri: agentUri, storage: PromptsStorage.local, type: PromptsType.agent, name: 'reviewer' }),
+			}),
+			makeResourceItem({
+				label: 'hooks',
+				resourceType: 'hook',
+				promptPath: makePromptPath({ uri: hookUri, storage: PromptsStorage.local, type: PromptsType.hook }),
+			}),
+			makeResourceItem({
+				label: 'my-server',
+				resourceType: 'mcp',
+				mcpServer: {
+					collection: {
+						id: 'col1',
+						label: 'Test Collection',
+						order: McpCollectionSortOrder.User,
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['collection'],
+					definition: {
+						id: 'def1',
+						label: 'my-server',
+						launch: {
+							type: McpServerTransportType.HTTP,
+							transport: 'sse',
+							uri: URI.parse('http://localhost:3000'),
+							headers: [],
+						},
+						cacheNonce: '1',
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['definition'],
+				},
+			}),
+		], PluginCreationFormat.AgentPluginWithLegacyCompatibility);
+
+		const legacyRoot = URI.joinPath(root, 'legacy-only-plugin');
+		await Promise.all([
+			fileService.copy(URI.joinPath(pluginRoot, '.plugin'), URI.joinPath(legacyRoot, '.plugin')),
+			fileService.copy(URI.joinPath(pluginRoot, 'rules'), URI.joinPath(legacyRoot, 'rules')),
+			fileService.copy(URI.joinPath(pluginRoot, 'commands'), URI.joinPath(legacyRoot, 'commands')),
+			fileService.copy(URI.joinPath(pluginRoot, 'agents'), URI.joinPath(legacyRoot, 'agents')),
+			fileService.copy(URI.joinPath(pluginRoot, 'hooks'), URI.joinPath(legacyRoot, 'hooks')),
+			fileService.copy(URI.joinPath(pluginRoot, '.mcp.json'), URI.joinPath(legacyRoot, '.mcp.json')),
+		]);
+		const canonicalParsed = await parsePlugin(pluginRoot, fileService, undefined, root);
+		const legacyParsed = await parsePlugin(legacyRoot, fileService, undefined, root);
+
+		assert.deepStrictEqual({
+			format: (await detectPluginFormat(pluginRoot, fileService)).format,
+			canonicalParsed: {
+				format: canonicalParsed.format,
+				agents: canonicalParsed.agents.map(agent => agent.name),
+				instructions: canonicalParsed.instructions.map(instruction => instruction.name),
+				hooks: canonicalParsed.hooks.map(hook => hook.type),
+				mcpServers: canonicalParsed.mcpServers.map(server => server.name),
+			},
+			legacyParsed: {
+				format: legacyParsed.format,
+				agents: legacyParsed.agents.map(agent => agent.name),
+				instructions: legacyParsed.instructions.map(instruction => instruction.name),
+				hooks: legacyParsed.hooks.map(hook => hook.type),
+				mcpServers: legacyParsed.mcpServers.map(server => server.name),
+			},
+			agentManifest: await readJson(URI.joinPath(pluginRoot, 'plugin.json')),
+			legacyManifest: await readJson(URI.joinPath(pluginRoot, '.plugin', 'plugin.json')),
+			agentRule: (await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'rules', 'coding.instructions.md'))).value.toString(),
+			legacyRule: (await fileService.readFile(URI.joinPath(pluginRoot, 'rules', 'coding.instructions.md'))).value.toString(),
+			agentCommand: (await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'commands', 'review.md'))).value.toString(),
+			legacyCommand: (await fileService.readFile(URI.joinPath(pluginRoot, 'commands', 'review.md'))).value.toString(),
+			agent: (await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'agents', 'reviewer.md'))).value.toString(),
+			legacyAgent: (await fileService.readFile(URI.joinPath(pluginRoot, 'agents', 'reviewer.md'))).value.toString(),
+			agentHooks: await readJson(URI.joinPath(pluginRoot, 'com.github.copilot', 'hooks', 'hooks.json')),
+			legacyHooks: await readJson(URI.joinPath(pluginRoot, 'hooks', 'hooks.json')),
+			agentMcp: await readJson(URI.joinPath(pluginRoot, 'mcp.json')),
+			legacyMcp: await readJson(URI.joinPath(pluginRoot, '.mcp.json')),
+		}, {
+			format: PluginFormat.AgentPlugin,
+			canonicalParsed: {
+				format: PluginFormat.AgentPlugin,
+				agents: ['reviewer'],
+				instructions: ['coding'],
+				hooks: ['Stop'],
+				mcpServers: ['my-server'],
+			},
+			legacyParsed: {
+				format: PluginFormat.OpenPlugin,
+				agents: ['reviewer'],
+				instructions: ['coding'],
+				hooks: ['Stop'],
+				mcpServers: ['my-server'],
+			},
+			agentManifest: {
+				$schema: AGENT_PLUGIN_SCHEMA,
+				name: 'compat-plugin',
+				version: '1.0.0',
+				description: '',
+			},
+			legacyManifest: {
+				name: 'compat-plugin',
+				version: '1.0.0',
+				description: '',
+			},
+			agentRule: '# Instructions',
+			legacyRule: '# Instructions',
+			agentCommand: '# Command',
+			legacyCommand: '# Command',
+			agent: '# Agent',
+			legacyAgent: '# Agent',
+			agentHooks: { hooks: { Stop: [{ type: 'command', command: 'echo stop' }] } },
+			legacyHooks: { hooks: { Stop: [{ type: 'command', command: 'echo stop' }] } },
+			agentMcp: {
+				$schema: AGENT_PLUGIN_MCP_SCHEMA,
+				mcpServers: {
+					'my-server': {
+						type: 'sse',
+						url: 'http://localhost:3000/',
+					},
+				},
+			},
+			legacyMcp: {
+				mcpServers: {
+					'my-server': {
+						type: 'http',
+						transport: 'sse',
+						url: 'http://localhost:3000/',
+					},
+				},
+			},
+		});
+	});
+
+	test('validates MCP servers before creating the plugin', async () => {
+		const pluginRoot = URI.joinPath(root, 'test-plugin');
+		await assert.rejects(writePluginToDisk(fileService, pluginRoot, 'test-plugin', [
+			makeResourceItem({
+				label: 'unsafe-server',
+				resourceType: 'mcp',
+				mcpServer: {
+					collection: {
+						id: 'col1',
+						label: 'Test Collection',
+						order: McpCollectionSortOrder.User,
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['collection'],
+					definition: {
+						id: 'def1',
+						label: 'unsafe-server',
+						launch: {
+							type: McpServerTransportType.Stdio,
+							command: 'node',
+							args: [],
+							cwd: '/workspace',
+							env: {},
+							envFile: undefined,
+							sandbox: undefined,
+						},
+						cacheNonce: '1',
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['definition'],
+				},
+			}),
+		], PluginCreationFormat.AgentPluginWithLegacyCompatibility), /unsafe-server.*working directory/);
+
+		assert.strictEqual(await fileService.exists(pluginRoot), false);
 	});
 
 	test('strips namespace prefix from plugin resource names', async () => {
@@ -522,7 +762,7 @@ suite('writePluginToDisk', () => {
 			}),
 		]);
 
-		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'rules', 'writing-rules.instructions.md'));
+		const content = await fileService.readFile(URI.joinPath(pluginRoot, 'com.github.copilot', 'rules', 'writing-rules.instructions.md'));
 		assert.strictEqual(content.value.toString(), 'content');
 	});
 
@@ -530,12 +770,11 @@ suite('writePluginToDisk', () => {
 		const pluginRoot = URI.joinPath(root, 'test-plugin');
 		await writePluginToDisk(fileService, pluginRoot, 'test-plugin', []);
 
-		assert.ok(await fileService.exists(URI.joinPath(pluginRoot, '.plugin', 'plugin.json')));
-		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'rules'))));
-		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'commands'))));
-		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'agents'))));
+		assert.ok(await fileService.exists(URI.joinPath(pluginRoot, 'plugin.json')));
+		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, '.plugin'))));
+		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'com.github.copilot'))));
 		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'skills'))));
-		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'hooks'))));
+		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, 'mcp.json'))));
 		assert.ok(!(await fileService.exists(URI.joinPath(pluginRoot, '.mcp.json'))));
 	});
 });

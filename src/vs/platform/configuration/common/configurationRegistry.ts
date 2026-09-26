@@ -281,7 +281,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * When specified, this setting is governed by a policy owned by another setting.
 	 * A setting must not declare both `policy` and `policyReference`.
-	 * The type must match the owning setting (enforced when exporting the policy catalog).
+	 * The non-null types must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
 
@@ -346,6 +346,14 @@ export interface IConfigurationNode {
 }
 
 export type ConfigurationDefaultSource = IExtensionInfo | string;
+
+/**
+ * The treatment through which an experiment assigns the default value of an
+ * experiment-controlled setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+export function getConfigurationExperimentName(key: string, experiment: { readonly name?: string } | undefined): string {
+	return experiment?.name ?? `config.${key}`;
+}
 
 export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {
 	if (a === b) {

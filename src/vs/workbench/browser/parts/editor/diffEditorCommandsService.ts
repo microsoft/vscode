@@ -5,16 +5,25 @@
 
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IDiffEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActiveCustomEditorDiffCanToggleLayoutContext } from '../../../common/contextkeys.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorResourceAccessor, isDiffEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, isDiffEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
+
+interface IDiffEditorWidthBasedLayoutReset {
+	resetDiffEditorWidthBasedLayout(): void;
+}
+
+function hasDiffEditorWidthBasedLayoutReset(pane: IEditorPane): pane is IEditorPane & IDiffEditorWidthBasedLayoutReset {
+	return 'resetDiffEditorWidthBasedLayout' in pane && typeof pane.resetDiffEditorWidthBasedLayout === 'function';
+}
 
 export const IDiffEditorCommandsService = createDecorator<IDiffEditorCommandsService>('diffEditorCommandsService');
 
@@ -34,6 +43,9 @@ export interface IDiffEditorCommandsService {
 
 	/** Toggles inline vs. side-by-side rendering for the active diff editor. */
 	toggleRenderSideBySide(args: unknown[]): Promise<void>;
+
+	/** Sets the layout mode for the active diff editor. */
+	setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void>;
 
 	/** Opens the original or modified side of the active diff editor, whichever has focus, as its own editor. */
 	openActiveDiffSide(): Promise<void>;
@@ -70,6 +82,38 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		const key = 'diffEditor.renderSideBySide';
 		const value = this.textResourceConfigurationService.getValue(modifiedResource, key);
 		await this.textResourceConfigurationService.updateValue(modifiedResource, key, !value);
+	}
+
+	async setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void> {
+		const activeDiffEditor = this.getActiveDiffEditor(args);
+		const control = activeDiffEditor?.control;
+		const modifiedResource = control?.getModifiedEditor().getModel()?.uri;
+		if (!modifiedResource) {
+			return;
+		}
+
+		switch (mode) {
+			case 'inline':
+				await this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', false);
+				break;
+			case 'sideBySide':
+				await Promise.all([
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', true),
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited', false),
+				]);
+				break;
+			case 'automatic':
+				await Promise.all([
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', true),
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited', true),
+				]);
+				if (activeDiffEditor && hasDiffEditorWidthBasedLayoutReset(activeDiffEditor.pane)) {
+					activeDiffEditor.pane.resetDiffEditorWidthBasedLayout();
+				} else {
+					control.resetWidthBasedLayout();
+				}
+				break;
+		}
 	}
 
 	async openActiveDiffSide(): Promise<void> {
@@ -189,9 +233,34 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		return undefined;
 	}
 
+	private getActiveDiffEditor(args: unknown[]): { pane: IEditorPane; control: IDiffEditor } | undefined {
+		const textDiffEditor = this.getActiveTextDiffEditor(args);
+		const textDiffControl = textDiffEditor?.getControl();
+		if (textDiffEditor && textDiffControl) {
+			return { pane: textDiffEditor, control: textDiffControl };
+		}
+
+		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
+		for (const pane of [this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes]) {
+			const control = pane?.getControl();
+			if (!pane || !isDiffEditor(control)) {
+				continue;
+			}
+
+			const modifiedResource = control.getModifiedEditor().getModel()?.uri;
+			const inputResource = pane.input
+				? EditorResourceAccessor.getCanonicalUri(pane.input, { supportSideBySide: SideBySideEditor.PRIMARY })
+				: undefined;
+			if (!resource || (modifiedResource && isEqual(modifiedResource, resource)) || (inputResource && isEqual(inputResource, resource))) {
+				return { pane, control };
+			}
+		}
+
+		return undefined;
+	}
+
 	private getActiveDiffModifiedResource(args: unknown[]): URI | undefined {
-		const activeTextDiffEditor = this.getActiveTextDiffEditor(args);
-		const model = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		const model = this.getActiveDiffEditor(args)?.control.getModifiedEditor().getModel();
 		if (model) {
 			return model.uri;
 		}

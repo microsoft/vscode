@@ -194,15 +194,9 @@ export class ChatResponsePullRequestPart {
 
 
 export class ChatResponseAutoModeResolutionPart {
-	resolvedModel: string;
-	resolvedModelName: string;
-	predictedLabel: string;
-	confidence: number;
-	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+	resolvedModel: { id: string; name: string } | undefined;
+	constructor(resolvedModel?: { id: string; name: string }) {
 		this.resolvedModel = resolvedModel;
-		this.resolvedModelName = resolvedModelName;
-		this.predictedLabel = predictedLabel;
-		this.confidence = confidence;
 	}
 }
 
@@ -238,6 +232,7 @@ export class ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -253,6 +248,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {

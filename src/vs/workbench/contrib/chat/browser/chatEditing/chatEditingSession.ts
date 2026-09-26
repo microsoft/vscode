@@ -40,7 +40,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
@@ -277,7 +277,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				if (entry instanceof ChatEditingModifiedNotebookEntry) {
 					await entry.restoreModifiedModelFromSnapshot(content);
 				} else {
-					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined);
+					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined, {});
 				}
 
 				if (state !== ModifiedFileEntryState.Modified) {
@@ -334,7 +334,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		const storedState = this._getStoredState();
-		this._reportSessionInfo('chatEditing/sessionStore', this._entriesObs.get());
+		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
+		if (isStringInSample(editSessionId, 5)) {
+			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
+				editSessionId,
+				...this._countEntryStates(this._entriesObs.get()),
+			});
+		}
 		return storage.storeState(storedState);
 	}
 
@@ -547,24 +553,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushText: (edits, isLastEdits) => {
+			pushText: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebookCellText: (cell, edits, isLastEdits) => {
+			pushNotebookCellText: (cell, edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(cell, edits, isLastEdits, responseModel);
+						await this._acceptEdits(cell, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebook: (edits, isLastEdits) => {
+			pushNotebook: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
@@ -576,7 +582,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				didComplete = true;
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, [], true, responseModel);
+						await this._acceptEdits(resource, [], true, responseModel, {});
 						await this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
@@ -1013,10 +1019,16 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
-		this._reportSessionInfo('chatEditing/sessionRestore', entriesArr);
+		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
+		if (isStringInSample(editSessionId, 5)) {
+			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
+				editSessionId,
+				...this._countEntryStates(entriesArr),
+			});
+		}
 	}
 
-	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel, metadata: IChatEditMetadata): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Create, this._getTelemetryInfoForModel(responseModel));
 
 		// Record edit operations in the timeline if there are actual edits
@@ -1024,7 +1036,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._recordEditOperations(entry, resource, textEdits, responseModel);
 		}
 
-		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel, metadata);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
@@ -1047,18 +1059,25 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 				return undefined;
 			}
-		};
-	}
 
-	private _reportSessionInfo(eventName: 'chatEditing/sessionStore' | 'chatEditing/sessionRestore', entries: readonly AbstractChatEditingModifiedFileEntry[]): void {
-		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
-		// Select 5% of edit sessions by ID, retaining all store and restore events for selected sessions and none for the rest.
-		if (isStringInSample(editSessionId, 5)) {
-			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>(eventName, {
-				editSessionId,
-				...this._countEntryStates(entries),
-			});
-		}
+			// The fields above are getters on the prototype, so they are NOT own enumerable
+			// properties and would be dropped by `JSON.stringify` when this object is persisted
+			// as part of the checkpoint timeline. Snapshot the current values into a plain object
+			// so `sessionResource` (and the other fields) survive serialization and revival.
+			toJSON(): IModifiedEntryTelemetryInfo {
+				return {
+					agentId: this.agentId,
+					modelId: this.modelId,
+					modeId: this.modeId,
+					command: this.command,
+					sessionResource: this.sessionResource,
+					requestId: this.requestId,
+					result: undefined,
+					applyCodeBlockSuggestionId: this.applyCodeBlockSuggestionId,
+					feature: this.feature,
+				};
+			}
+		};
 	}
 
 	private _countEntryStates(entries: readonly AbstractChatEditingModifiedFileEntry[]): { entryCount: number; modifiedCount: number; acceptedCount: number; rejectedCount: number } {
