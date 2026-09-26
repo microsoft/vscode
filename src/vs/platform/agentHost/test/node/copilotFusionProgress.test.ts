@@ -25,8 +25,19 @@ suite('CopilotFusionProgress', () => {
 			// The resolved event carries a phase plan; the milestone must not echo it back.
 			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern, hint: description }));
 			const content = JSON.stringify(result?.part?.content);
-			assert.deepStrictEqual({ description: content.includes(description), plan: content.includes('→') }, { description: true, plan: false });
+			const meta = result?.part && readAgentSystemNotificationMeta(result.part);
+			assert.deepStrictEqual({
+				description: content.includes(description),
+				metadataDescription: meta?.fusionDescription,
+				plan: content.includes('→'),
+			}, {
+				description: true,
+				metadataDescription: description,
+				plan: false,
+			});
 		}
+		const withoutHint = new CopilotFusionProgress().accept(event('session.fusion_resolved', { ...data.resolved, hint: undefined }));
+		assert.strictEqual(withoutHint?.part && readAgentSystemNotificationMeta(withoutHint.part).fusionDescription, '');
 	});
 
 	test('uses CLI phase labels consistently for live and replayed phases', () => {

@@ -5,7 +5,7 @@
 
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -546,8 +546,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
-				const firstLineBreak = markdown.value.indexOf('\n');
-				const description = firstLineBreak === -1 ? '' : markdown.value.slice(firstLineBreak).trim();
+				const description = meta.fusionDescription === undefined
+					? markdown.value
+					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
 				return description ? {
 					kind: 'systemNotification',
 					content: { ...markdown, value: description },

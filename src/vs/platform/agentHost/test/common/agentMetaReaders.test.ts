@@ -152,13 +152,25 @@ suite('Agent host _meta readers', () => {
 		test('round trips Fusion statuses and drops malformed values', () => {
 			const statuses: AgentFusionProgressStatus[] = ['selected', 'completed', 'failed', 'cancelled', 'degraded'];
 			const invalid: readonly unknown[] = [undefined, null, '', 'running', 'future', 1, true, {}, []];
-			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
+			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined, fusionDescription: undefined };
 			assert.deepStrictEqual({
 				valid: statuses.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus }) })),
 				invalid: invalid.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: { fusionStatus } })),
 			}, {
 				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
 				invalid: invalid.map(() => empty),
+			});
+		});
+
+		test('round trips the namespaced Fusion description and drops malformed values', () => {
+			assert.deepStrictEqual({
+				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
+				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
+				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+			}, {
+				valid: 'Workflow description.',
+				empty: '',
+				invalid: undefined,
 			});
 		});
 	});

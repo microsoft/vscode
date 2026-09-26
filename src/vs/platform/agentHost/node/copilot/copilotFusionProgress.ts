@@ -124,7 +124,11 @@ function milestone(summary: string, status: AgentFusionProgressStatus, details?:
 	return {
 		kind: ResponsePartKind.SystemNotification,
 		content: { markdown: content.value },
-		_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: status }),
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: status,
+			fusionDescription: status === 'selected' ? description ?? '' : undefined,
+		}),
 	};
 }
 
