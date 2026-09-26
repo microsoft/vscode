@@ -10,7 +10,7 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync, promises } = require('fs');
@@ -272,6 +272,30 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	// A second view lets tests blur the page without stealing desktop focus.
+	/** @type {Map<number, import('electron').WebContentsView>} */
+	const focusTestViews = new Map();
+	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
+		const window = BrowserWindow.fromWebContents(event.sender);
+		if (!window) {
+			throw new Error('Focus test requires a BrowserWindow');
+		}
+		if (focused) {
+			event.sender.focus();
+			const view = focusTestViews.get(event.sender.id);
+			if (view) {
+				window.contentView.removeChildView(view);
+				view.webContents.close();
+				focusTestViews.delete(event.sender.id);
+			}
+		} else {
+			const view = new WebContentsView();
+			focusTestViews.set(event.sender.id, view);
+			window.contentView.addChildView(view);
+			await view.webContents.loadURL('about:blank');
+			view.webContents.focus();
+		}
+	});
 	ipcMain.handle('vscode:test-remote-resource', async () => {
 		const remoteResourceTestWindow = new BrowserWindow({ show: false });
 		try {
