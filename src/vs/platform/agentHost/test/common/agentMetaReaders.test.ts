@@ -152,7 +152,7 @@ suite('Agent host _meta readers', () => {
 		test('round trips Fusion statuses and drops malformed values', () => {
 			const statuses: AgentFusionProgressStatus[] = ['selected', 'completed', 'failed', 'cancelled', 'degraded'];
 			const invalid: readonly unknown[] = [undefined, null, '', 'running', 'future', 1, true, {}, []];
-			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined, fusionDescription: undefined };
+			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
 			assert.deepStrictEqual({
 				valid: statuses.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus }) })),
 				invalid: invalid.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: { fusionStatus } })),

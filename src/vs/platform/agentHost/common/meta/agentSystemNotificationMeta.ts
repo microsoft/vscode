@@ -89,7 +89,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta['workspaceName'] === 'string' ? meta['workspaceName'] : undefined,
 		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
-		fusionDescription: typeof fusionDescription === 'string' ? fusionDescription : undefined,
+		...(typeof fusionDescription === 'string' ? { fusionDescription } : {}),
 	};
 }
 
