@@ -14,6 +14,7 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
@@ -35,19 +36,20 @@ import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '.
 import './codexCustomizationSettings.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatModeKind } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
+import { ChatSessionHandoffController } from './chatSessionHandoff.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -63,6 +65,8 @@ class ChatCommandLineHandler extends Disposable {
 
 	static readonly ID = 'workbench.contrib.chatCommandLineHandler';
 
+	private readonly chatSessionHandoffController: ChatSessionHandoffController;
+
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -70,10 +74,17 @@ class ChatCommandLineHandler extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService
 	) {
 		super();
 
+		this.chatSessionHandoffController = new ChatSessionHandoffController(
+			chatWidgetService,
+			() => configurationService.getValue<boolean>(ChatConfiguration.OpenInEditorPreserveHiddenChat) === true,
+			widget => isIChatViewViewContext(widget.viewContext),
+			async sessionResource => !!await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget),
+		);
 		this.registerListeners();
 	}
 
@@ -92,7 +103,7 @@ class ChatCommandLineHandler extends Disposable {
 			this.logService.trace('vscode:openChatSession', sessionUriString);
 
 			const sessionResource = URI.parse(sessionUriString);
-			Promise.resolve(this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget))
+			void this.chatSessionHandoffController.open(sessionResource)
 				.catch(err => this.logService.error('vscode:openChatSession failed', err));
 		};
 		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);

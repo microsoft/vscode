@@ -111,6 +111,7 @@ export enum ChatConfiguration {
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
+	OpenInEditorPreserveHiddenChat = 'chat.experimental.openInEditor.preserveHiddenChat',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
 
