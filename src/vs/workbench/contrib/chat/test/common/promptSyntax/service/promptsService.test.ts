@@ -1083,6 +1083,70 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('should skip a duplicate agent name contributed from a different source, keeping the higher priority one', async () => {
+			const rootFolder = '/custom-agents-duplicate-source';
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Contribute an agent via a VS Code extension.
+			const extensionAgentUri = URI.joinPath(rootFolderUri, 'extension-agent.agent.md');
+			await mockFiles(fileService, [
+				{
+					path: extensionAgentUri.path,
+					contents: [
+						'---',
+						'name: modernize-dotnet',
+						'description: "Extension-contributed agent."',
+						'---',
+					],
+				},
+			]);
+			const registered = service.registerContributedFile(
+				PromptsType.agent,
+				extensionAgentUri,
+				{ identifier: new ExtensionIdentifier('test.extension'), name: 'test' } as IExtensionDescription,
+				undefined,
+				undefined,
+			);
+
+			// Contribute an agent with the same name via a Copilot CLI plugin.
+			const pluginUri = URI.file('/plugins/modernize-dotnet-plugin');
+			const pluginAgentUri = URI.joinPath(pluginUri, 'agents', 'modernize-dotnet.agent.md');
+			await mockFiles(fileService, [
+				{
+					path: pluginAgentUri.path,
+					contents: [
+						'---',
+						'name: modernize-dotnet',
+						'description: "Plugin-contributed agent."',
+						'---',
+					],
+				},
+			]);
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'modernize-dotnet-plugin',
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', [{ uri: pluginAgentUri, name: 'modernize-dotnet' }]),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServers', []),
+				automations: observableValue('testPluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			try {
+				const agents = await service.getCustomAgents(CancellationToken.None);
+				const matches = agents.filter(agent => agent.name === 'modernize-dotnet');
+				assert.strictEqual(matches.length, 1, 'Should only show the agent once, even though it is contributed by both an extension and a plugin');
+			} finally {
+				registered.dispose();
+			}
+		});
+
 		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
 			const pluginUri = URI.file('/plugins/claude-plugin');
 			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
