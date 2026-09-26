@@ -741,6 +741,9 @@ export class Repository implements Disposable {
 	private _sourceControl: SourceControl;
 	get sourceControl(): SourceControl { return this._sourceControl; }
 
+	private readonly _name: string | undefined;
+	get name(): string { return this._name ?? path.basename(this.root); }
+
 	get inputBox(): SourceControlInputBox { return this._sourceControl.inputBox; }
 
 	private _mergeGroup: SourceControlResourceGroup;
@@ -920,8 +923,10 @@ export class Repository implements Disposable {
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
-		private readonly repositoryCache: RepositoryCache
+		private readonly repositoryCache: RepositoryCache,
+		name?: string
 	) {
+		this._name = name;
 		this._operations = new OperationManager(this.logger);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -964,9 +969,10 @@ export class Repository implements Disposable {
 				: repository.kind === 'worktree' && repository.dotGit.commonPath
 					? path.dirname(repository.dotGit.commonPath)
 					: undefined;
-		const parent = parentRoot
-			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
+		const parentRepository = parentRoot
+			? this.repositoryResolver.getRepository(parentRoot)
 			: undefined;
+		const parent = parentRepository?.sourceControl;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -988,7 +994,7 @@ export class Repository implements Disposable {
 				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent, this._name);
 		this._sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot

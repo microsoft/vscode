@@ -8,7 +8,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
-import { Git } from './git';
+import { getSubmoduleDisplayName, getSubmoduleDisplayNameForPath, Git, Repository as GitRepository } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
@@ -24,7 +24,7 @@ import { RepositoryCache } from './repositoryCache';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
-		return path.basename(this.repository.root);
+		return this.repository.name;
 	}
 
 	@memoize get description(): string {
@@ -685,7 +685,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache);
+			const repositoryName = await this.getRepositoryDisplayName(gitRepository);
+			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache, repositoryName);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
@@ -701,6 +702,31 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		} catch (err) {
 			// noop
 			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
+		}
+	}
+
+	private async getRepositoryDisplayName(repository: GitRepository): Promise<string | undefined> {
+		if (workspace.isAgentSessionsWorkspace ||
+			repository.kind !== 'submodule' ||
+			!repository.dotGit.superProjectPath) {
+			return undefined;
+		}
+
+		const parentRepository = await this.getRepositoryExact(repository.dotGit.superProjectPath);
+		if (!parentRepository) {
+			return undefined;
+		}
+
+		try {
+			// Repository status populates parentRepository.submodules asynchronously.
+			// Read .gitmodules directly so naming does not depend on discovery order.
+			return await getSubmoduleDisplayNameForPath(parentRepository.root, repository.root);
+		} catch (err) {
+			this.logger.warn(`[Model][getRepositoryDisplayName] Failed to resolve submodule name for: "${repository.root}". Error:${err}`);
+
+			const submodule = parentRepository.submodules
+				.find(submodule => pathEquals(path.join(parentRepository.root, submodule.path), repository.root));
+			return submodule ? getSubmoduleDisplayName(submodule) : undefined;
 		}
 	}
 
