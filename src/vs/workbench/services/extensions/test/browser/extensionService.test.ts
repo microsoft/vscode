@@ -290,18 +290,24 @@ suite('ExtensionService', () => {
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
-	test('Extension host disposed when awaited', async () => {
+	test('Extension host stop event fires after hosts are disposed', async () => {
+		const events: string[] = [];
+		disposables.add(extService.onDidStop(() => events.push('stopped')));
 		await extService.stopExtensionHosts('foo');
-		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+		assert.deepStrictEqual({ order: extService.order, events }, {
+			order: ['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1'],
+			events: ['stopped'],
+		});
 	});
 
 	test('Extension host not disposed when vetoed (sync)', async () => {
-
+		const events: string[] = [];
+		disposables.add(extService.onDidStop(() => events.push('stopped')));
 		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
 
 		await extService.stopExtensionHosts('foo');
-		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+		assert.deepStrictEqual({ order: extService.order, events }, { order: ['create 1', 'create 2', 'create 3'], events: [] });
 	});
 
 	test('Extension host not disposed when vetoed (async)', async () => {
