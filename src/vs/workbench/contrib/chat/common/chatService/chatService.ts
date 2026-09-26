@@ -324,6 +324,13 @@ export interface IChatSystemNotificationPart {
 	content: IMarkdownString;
 	kind: 'systemNotification';
 	/**
+	 * Stable identity for a system notification that may be updated after it is
+	 * shown. When set, a later notification with the same id replaces this one
+	 * in place instead of being appended, so e.g. a dismissal action can update
+	 * the existing message instead of leaving it stale.
+	 */
+	id?: string;
+	/**
 	 * Icon shown beside the notification. Defaults to a check, which only suits
 	 * notifications that report something completing.
 	 */

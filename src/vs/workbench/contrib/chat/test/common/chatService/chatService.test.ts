@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
@@ -2693,9 +2693,34 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review Migrations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHint%2522%253A%257B%2522migrationFlowId%2522%253A%2522migration-flow-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Open Chat Customizations")`;
-		const expectedDismissLink = `[Don't Show Again](command:aiCustomization.dismissMigrationHint?%255B%257B%2522hint%2522%253A%257B%2522migrationFlowId%2522%253A%2522migration-flow-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Do not show this migration hint again for this harness in this workspace")`;
-		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
+		// Each shown hint gets a fresh notification id so the "Don't Show Again"
+		// dismissal action can target it specifically; extract the actual ids to
+		// build the expected markdown rather than asserting a fixed string.
+		const notificationIds = new Set<string>();
+		const buildExpectedHint = (part: unknown) => {
+			assert.ok((part as { kind?: string })?.kind === 'systemNotification');
+			const notificationPart = part as { kind: 'systemNotification'; id?: string };
+			assert.ok(notificationPart.id, 'Expected the migration hint notification to carry a stable id');
+			notificationIds.add(notificationPart.id);
+			const reviewLink = createMarkdownCommandLink({
+				id: 'aiCustomization.openManagementEditor',
+				text: 'Review Migrations',
+				tooltip: 'Open Chat Customizations',
+				arguments: [{ migration: true, migrationHint: migrationHint }],
+			});
+			const dismissLink = createMarkdownCommandLink({
+				id: 'aiCustomization.dismissMigrationHint',
+				text: `Don't Show Again`,
+				tooltip: 'Do not show this migration hint again for this harness in this workspace',
+				arguments: [{ hint: migrationHint, notificationId: notificationPart.id }],
+			});
+			return `*Found 3 customization files that could be migrated. ${reviewLink} | ${dismissLink}*`;
+		};
+		const firstRequestHintPart = requests[1].response?.response.value.find(part => part.kind === 'systemNotification');
+		const otherSessionHintParts = (testService.getSession(otherSessionResource) as ChatModel).getRequests()
+			.map(request => request.response?.response.value.find(part => part.kind === 'systemNotification'));
+		const expectedFirstHint = buildExpectedHint(firstRequestHintPart);
+		const expectedOtherSessionHints = otherSessionHintParts.map(part => [buildExpectedHint(part)]);
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
@@ -2705,6 +2730,7 @@ suite('ChatService', () => {
 			secondHint: getHintContent(2),
 			otherSessionHints,
 			dismissedSessionHint,
+			uniqueNotificationIdCount: notificationIds.size,
 			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
 			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
 		}, {
@@ -2719,10 +2745,11 @@ suite('ChatService', () => {
 				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 			],
 			neverHint: [],
-			firstHint: [expectedHint],
+			firstHint: [expectedFirstHint],
 			secondHint: [],
-			otherSessionHints: [[expectedHint], [expectedHint]],
+			otherSessionHints: expectedOtherSessionHints,
 			dismissedSessionHint: [],
+			uniqueNotificationIdCount: 3,
 			dismissedForSessionType: true,
 			dismissedForOtherSessionType: undefined,
 		});
