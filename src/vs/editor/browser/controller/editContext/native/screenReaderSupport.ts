@@ -166,8 +166,8 @@ export class ScreenReaderSupport extends Disposable {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(top);
-		this._domNode.setLeft(left);
+		this._domNode.domNode.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+		this._domNode.domNode.style.willChange = 'transform';
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
