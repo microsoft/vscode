@@ -36,6 +36,8 @@ import {
 	IAllowedExtensionsService,
 	VerifyExtensionSignatureConfigKey,
 	shouldRequireRepositorySignatureFor,
+	ExtensionInstallStage,
+	InstallExtensionProgressEvent,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -277,28 +279,30 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.userDataProfilesService.defaultProfile.extensionsResource;
 	}
 
-	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
+	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions, progress: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void): IInstallExtensionTask {
 		const extensionKey = extension instanceof URI ? new ExtensionKey({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, manifest.version) : ExtensionKey.create(extension);
 		return this.instantiationService.createInstance(InstallExtensionInProfileTask, extensionKey, manifest, extension, options, (operation, token) => {
 			if (extension instanceof URI) {
+				progress({ stage: ExtensionInstallStage.Extracting });
 				return this.extractVSIX(extensionKey, extension, options, token);
 			}
 			let promise = this.extractingGalleryExtensions.get(extensionKey.toString());
 			if (!promise) {
-				this.extractingGalleryExtensions.set(extensionKey.toString(), promise = this.downloadAndExtractGalleryExtension(extensionKey, extension, operation, options, token));
+				this.extractingGalleryExtensions.set(extensionKey.toString(), promise = this.downloadAndExtractGalleryExtension(extensionKey, extension, operation, options, token, progress));
 				promise.finally(() => this.extractingGalleryExtensions.delete(extensionKey.toString()));
 			}
 			return promise;
-		}, this.extensionsScanner);
+		}, progress, this.extensionsScanner);
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
 		return new UninstallExtensionInProfileTask(extension, options, this.extensionsProfileScannerService);
 	}
 
-	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
-		const { verificationStatus, location } = await this.downloadExtension(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT] as TargetPlatform | undefined);
+	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken, progress: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void): Promise<ExtractExtensionResult> {
+		const { verificationStatus, location } = await this.downloadExtension(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT] as TargetPlatform | undefined, progress);
 		try {
+			progress({ stage: ExtensionInstallStage.Extracting });
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -337,12 +341,12 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
+	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform, progress?: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		if (verifySignature) {
 			const value = this.configurationService.getValue(VerifyExtensionSignatureConfigKey);
 			verifySignature = isBoolean(value) ? value : true;
 		}
-		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
+		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform, progress);
 		const shouldRequireSignature = shouldRequireRepositorySignatureFor(extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest());
 
 		if (
@@ -1050,6 +1054,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		readonly source: IGalleryExtension | URI,
 		readonly options: InstallExtensionTaskOptions,
 		private readonly extractExtensionFn: (operation: InstallOperation, token: CancellationToken) => Promise<ExtractExtensionResult>,
+		private readonly progress: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void,
 		private readonly extensionsScanner: ExtensionsScanner,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
@@ -1149,6 +1154,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			local = result.local;
 			this._verificationStatus = result.verificationStatus;
 		}
+		this.progress({ stage: ExtensionInstallStage.Installing });
 
 		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this.options.profileLocation)) {
 			try {
