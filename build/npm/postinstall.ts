@@ -338,51 +338,38 @@ async function main() {
 		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
 	}
 
-	// foundry-local-sdk (on-device chat dictation) resolves its prebuilt N-API
-	// addon and native core libraries from fixed, package-relative paths. We do
-	// not ship that native payload (its addon requires a newer glibc than our
-	// minimum supported Linux distros); it is downloaded on demand at runtime
-	// into a per-user cache. Patch the SDK loader so it honors the
-	// `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR` env var (pointing at that cache) for both
-	// the addon and the core libraries, falling back to the original
-	// package-relative logic so dev-from-source still works. Idempotent.
+	// foundry-local-sdk's libraryPath redirects its shared libraries but not its
+	// two N-API addons. Packaged builds provision all native files together, so
+	// patch the lazy loader to resolve the addons from libraryPath as well.
 	for (const dir of ['', 'remote']) {
-		const coreInteropFile = path.join(root, dir, 'node_modules', 'foundry-local-sdk', 'dist', 'detail', 'coreInterop.js');
-		if (!fs.existsSync(coreInteropFile)) {
+		const nativeLoaderFile = path.join(root, dir, 'node_modules', 'foundry-local-sdk', 'dist', 'detail', 'native.js');
+		if (!fs.existsSync(nativeLoaderFile)) {
 			continue;
 		}
-		const content = fs.readFileSync(coreInteropFile, 'utf8');
-		// Apply the addon and core patches independently. They previously shared
-		// a single `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR` presence check, so if only
-		// one SDK needle changed the file was left half-patched and every later
-		// run skipped it entirely — and since packaging removes both native
-		// fallbacks, a missing half makes shipped dictation unusable. Use a
-		// distinct marker per half and apply whichever is absent.
-		const addonMarker = '// VSCODE_PATCH:foundry-addon-native-dir';
-		const coreMarker = '// VSCODE_PATCH:foundry-core-native-dir';
-		const addonNeedle = `    const platformKey = \`\${platform}-\${arch}\`;\n    // The prebuilt addon ships inside the SDK package under prebuilds/<platform>/\n    const sdkRoot = path.resolve(__dirname, '..', '..');`;
-		const addonReplacement = `    const platformKey = \`\${platform}-\${arch}\`;\n    ${addonMarker}: prefer the on-demand native runtime cache when present.\n    const overrideDir = process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR;\n    if (overrideDir) {\n        const overridePath = path.join(overrideDir, 'prebuilds', platformKey, 'foundry_local_napi.node');\n        if (fs.existsSync(overridePath)) {\n            return require(overridePath);\n        }\n    }\n    // The prebuilt addon ships inside the SDK package under prebuilds/<platform>/\n    const sdkRoot = path.resolve(__dirname, '..', '..');`;
-		const coreNeedle = `        const platformKey = \`\${platform}-\${arch}\`;\n        // Resolve the native binary directory at foundry-local-core/<platform>,`;
-		const coreReplacement = `        const platformKey = \`\${platform}-\${arch}\`;\n        ${coreMarker}: prefer the on-demand native runtime cache when present.\n        const overrideDir = process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR;\n        if (overrideDir) {\n            const overrideExt = CoreInterop._getLibraryExtension();\n            const overrideCorePath = path.join(overrideDir, 'foundry-local-core', platformKey, \`Microsoft.AI.Foundry.Local.Core\${overrideExt}\`);\n            if (fs.existsSync(overrideCorePath)) {\n                config.params['FoundryLocalCorePath'] = overrideCorePath;\n                return overrideCorePath;\n            }\n        }\n        // Resolve the native binary directory at foundry-local-core/<platform>,`;
+		const content = fs.readFileSync(nativeLoaderFile, 'utf8');
+		const marker = '// VSCODE_PATCH:foundry-addons-from-library-path';
+		if (content.includes(marker)) {
+			continue;
+		}
+		const replacements: readonly [string, string][] = [
+			[
+				`const addonPath = resolve(prebuildDir, "foundry_local_node.node");\nconst preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");`,
+				`${marker}\nlet addonPath = resolve(prebuildDir, "foundry_local_node.node");\nlet preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");`,
+			],
+			[
+				`if (!existsSync(fullPath)) {\n        throw new Error(\`libraryPath does not contain \${expected}: \${libraryPath}\`);\n    }`,
+				`if (!existsSync(fullPath)) {\n        throw new Error(\`libraryPath does not contain \${expected}: \${libraryPath}\`);\n    }\n    const configuredAddonPath = resolve(libraryPath, "foundry_local_node.node");\n    const configuredPreloadAddonPath = resolve(libraryPath, "foundry_local_preload.node");\n    if (!existsSync(configuredAddonPath) || !existsSync(configuredPreloadAddonPath)) {\n        throw new Error(\`libraryPath does not contain both Foundry Local addons: \${libraryPath}\`);\n    }\n    addonPath = configuredAddonPath;\n    preloadAddonPath = configuredPreloadAddonPath;`,
+			],
+		];
 		let patched = content;
-		if (!patched.includes(addonMarker)) {
-			if (patched.includes(addonNeedle)) {
-				patched = patched.replace(addonNeedle, addonReplacement);
-			} else {
-				log(dir || '.', 'WARNING: foundry-local-sdk coreInterop.js loadAddon shape changed; skipped addon override patch');
+		for (const [needle, replacement] of replacements) {
+			if (!patched.includes(needle)) {
+				throw new Error(`Unexpected foundry-local-sdk native loader shape in ${nativeLoaderFile}`);
 			}
+			patched = patched.replace(needle, replacement);
 		}
-		if (!patched.includes(coreMarker)) {
-			if (patched.includes(coreNeedle)) {
-				patched = patched.replace(coreNeedle, coreReplacement);
-			} else {
-				log(dir || '.', 'WARNING: foundry-local-sdk coreInterop.js _resolveDefaultCorePath shape changed; skipped core override patch');
-			}
-		}
-		if (content !== patched) {
-			fs.writeFileSync(coreInteropFile, patched);
-			log(dir || '.', 'Patched foundry-local-sdk coreInterop.js (on-demand native runtime override)');
-		}
+		fs.writeFileSync(nativeLoaderFile, patched);
+		log(dir || '.', 'Patched foundry-local-sdk native loader (addons from libraryPath)');
 	}
 }
 
