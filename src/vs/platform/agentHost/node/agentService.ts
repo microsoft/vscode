@@ -75,7 +75,7 @@ import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.j
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -6434,23 +6434,21 @@ export class AgentService extends Disposable implements IAgentService {
 			[key]: set ? 'true' : '',
 			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
 		});
+		await this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
 		this._invalidateSessionList();
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
-		const payloadDirty = this._markCatalogPayloadDirty(session);
-		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
-		await payloadDirty;
 		return true;
 	}
 
-	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): void {
+	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): Promise<void> {
 		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
-			return;
+			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
 		const sessionKey = session.toString();
 		const existing = this._backgroundPassiveSessionMetadataWrites.get(sessionKey);
 		if (existing) {
 			existing.pending.set(update.key, update);
-			return;
+			return existing.promise;
 		}
 		const write: IBackgroundPassiveSessionMetadataWrite = {
 			promise: Promise.resolve(),
@@ -6458,6 +6456,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		this._backgroundPassiveSessionMetadataWrites.set(sessionKey, write);
 		write.promise = this._drainPassiveSessionMetadataSynchronization(session, write);
+		return write.promise;
 	}
 
 	private async _drainPassiveSessionMetadataSynchronization(session: URI, write: IBackgroundPassiveSessionMetadataWrite): Promise<void> {
@@ -6466,15 +6465,14 @@ export class AgentService extends Disposable implements IAgentService {
 			while (write.pending.size > 0) {
 				const updates = [...write.pending.values()];
 				write.pending.clear();
-				try {
-					await this._synchronizePassiveSessionMetadata(session, updates);
-				} catch (error) {
-					this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${sessionKey}`, error);
-				}
+				await this._synchronizePassiveSessionMetadata(session, updates);
 			}
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${sessionKey}`, error);
+			throw error;
+		} finally {
 			this._catalogReconciliationService.schedule();
 			this._invalidateSessionList();
-		} finally {
 			if (this._backgroundPassiveSessionMetadataWrites.get(sessionKey) === write) {
 				this._backgroundPassiveSessionMetadataWrites.delete(sessionKey);
 			}
@@ -6482,53 +6480,44 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly IPassiveSessionMetadataUpdate[]): Promise<void> {
-		let requestUnavailable = false;
-		try {
-			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
-				const sessionKey = session.toString();
-				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
-				let request: IAgentHostCatalogSyncRequest | undefined;
-				if (catalog) {
-					const decoded = decodeAgentHostCatalogPayload(catalog.payload);
-					if (decoded.ok) {
-						request = {
-							data: decoded.value.data,
-							legacyMetadata: {},
-						};
-					}
-				}
-				if (!request) {
-					const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
-					if (registered) {
-						const source = await this._resolveCatalogReconciliationSource(registered, database);
-						if (source.status === 'available') {
-							request = source.request;
-						}
-					}
-				}
-				if (!request) {
-					requestUnavailable = true;
-					throw new Error(`No catalog synchronization source is available for passive session metadata ${sessionKey}`);
-				}
-				let data = request.data;
-				const legacyMetadata = { ...request.legacyMetadata };
-				for (const update of updates) {
-					data = {
-						...data,
-						...(update.flag === SessionStatus.IsArchived ? { isArchived: update.set } : { isRead: update.set }),
+		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+			const sessionKey = session.toString();
+			const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
+			let request: IAgentHostCatalogSyncRequest | undefined;
+			if (catalog) {
+				const decoded = decodeAgentHostCatalogPayload(catalog.payload);
+				if (decoded.ok) {
+					request = {
+						data: decoded.value.data,
+						legacyMetadata: {},
 					};
-					legacyMetadata[update.key] = update.set ? 'true' : '';
 				}
-				return { data, legacyMetadata };
-			});
-			if (result.status === 'pending') {
-				this._logService.warn(`[AgentService] Catalog synchronization for passive session metadata ${session.toString()} remains pending: ${result.reason}`);
 			}
-		} catch (error) {
-			if (requestUnavailable) {
-				return;
+			if (!request) {
+				const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+				if (registered) {
+					const source = await this._resolveCatalogReconciliationSource(registered, database);
+					if (source.status === 'available') {
+						request = source.request;
+					}
+				}
 			}
-			throw error;
+			if (!request) {
+				throw new Error(`No catalog synchronization source is available for passive session metadata ${sessionKey}`);
+			}
+			let data = request.data;
+			const legacyMetadata = { ...request.legacyMetadata };
+			for (const update of updates) {
+				data = {
+					...data,
+					...(update.flag === SessionStatus.IsArchived ? { isArchived: update.set } : { isRead: update.set }),
+				};
+				legacyMetadata[update.key] = update.set ? 'true' : '';
+			}
+			return { data, legacyMetadata };
+		});
+		if (result.status !== 'acknowledged') {
+			throw new Error(`Catalog synchronization for passive session metadata ${session.toString()} remains pending: ${result.reason}`);
 		}
 	}
 
