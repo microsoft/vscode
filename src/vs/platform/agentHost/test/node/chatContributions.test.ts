@@ -65,8 +65,8 @@ import { TurnDelegationContribution } from '../../node/chatContributions/turnDel
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -131,6 +131,8 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
+	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+
 	constructor(private readonly _observed: string[] | undefined) { }
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
@@ -138,21 +140,28 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
+		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._observed?.push('githubReferences');
 	}
 }
 
 class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+	readonly metadata = new Map<string, IWorktreeMetadata>();
 
 	constructor(private readonly _observed: string[] | undefined) {
 		super();
 	}
 
-	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+	override async applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		this._observed?.push('worktreeAnnouncement');
-		return turns;
+		const metadata = this.metadata.get(sessionUri.toString());
+		return metadata ? prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(metadata.branchName)) : turns;
+	}
+
+	override async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
+		return this.metadata.get(sessionUri.toString());
 	}
 
 	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
@@ -865,13 +874,14 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
+	const gitStateService = new RecordingGitStateService(observed);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
-		[IAgentHostGitStateService, new RecordingGitStateService(observed)],
+		[IAgentHostGitStateService, gitStateService],
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -911,7 +921,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1545,6 +1555,37 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(observed.filter(entry => entry === 'githubReferences').length, 3);
 	});
 
+	test('reconciles the pull request of the folder the turn ran in', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const session = 'agent-host-session://folders';
+		const sessionFolder = 'file:///session';
+		const peerFolder = 'file:///peer';
+		contributions.stateManager.createSession({
+			resource: session,
+			provider: 'test',
+			title: 'Folders',
+			status: SessionStatus.IsRead,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+			workingDirectories: [sessionFolder],
+		});
+		const sessionFolderChat = buildChatUri(session, 'session-folder');
+		const peerFolderChat = buildChatUri(session, 'peer-folder');
+		contributions.stateManager.addChat(session, sessionFolderChat, { workingDirectories: [sessionFolder] });
+		contributions.stateManager.addChat(session, peerFolderChat, { workingDirectories: [peerFolder] });
+
+		for (const channel of [session, buildDefaultChatUri(session), sessionFolderChat, peerFolderChat]) {
+			contributions.service.turnEnd({ session, channel, turnId: channel, reason: { kind: 'success' } });
+		}
+
+		assert.deepStrictEqual(contributions.gitStateService.pullRequestAttachments, [
+			{ sessionKey: session, workingDirectory: sessionFolder },
+			{ sessionKey: session, workingDirectory: sessionFolder },
+			{ sessionKey: session, workingDirectory: sessionFolder },
+			{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
+		]);
+	});
+
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
@@ -2147,6 +2188,75 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['persistedTurnUsage']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
+	});
+
+	test('shows the created worktree announcement in its owning peer chat', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const ownerChat = buildChatUri(contributions.session, 'worktree-owner');
+		const otherChat = buildChatUri(contributions.session, 'other-chat');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const handle = generateUuid();
+		const branchName = 'agents/feature';
+		for (const chat of [ownerChat, otherChat]) {
+			contributions.stateManager.addChat(contributions.session, chat, {
+				title: 'Peer Chat',
+				origin: { kind: ChatOriginKind.User },
+				workingDirectories: [worktreeDirectory.toString()],
+			});
+		}
+		await writeSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+			handle,
+			workingDirectory: worktreeDirectory.toString(),
+			repositoryRoot: URI.file('/workspace/repository').toString(),
+			chat: ownerChat,
+		}]);
+		contributions.worktree.metadata.set(detachedWorktreeRecordUri(handle).toString(), { branchName });
+
+		const liveParts: { channel: string; content: string }[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+				liveParts.push({ channel: envelope.channel, content: envelope.action.part.content });
+			}
+		}));
+		contributions.stateManager.dispatchServerAction(ownerChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'owner-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'Fix it', origin: { kind: MessageKind.User } },
+		});
+		const outgoing = { session: contributions.session, chat: ownerChat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId: 'owner-turn' } as const;
+		await contributions.service.outgoingTurn(outgoing);
+		await contributions.service.outgoingTurn(outgoing);
+		await contributions.service.outgoingTurn({ ...outgoing, chat: otherChat });
+
+		const restored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: ownerChat },
+			[hydrationTurn('restored-owner-turn')],
+		);
+		const otherRestored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: otherChat },
+			[hydrationTurn('restored-other-turn')],
+		);
+
+		assert.deepStrictEqual({
+			liveParts,
+			restored: restored[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind }),
+			otherRestored: otherRestored[0].responseParts,
+			rawOwnership: await contributions.database.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY),
+		}, {
+			liveParts: [{ channel: ownerChat, content: buildWorktreeAnnouncementText(branchName) }],
+			restored: [{
+				kind: ResponsePartKind.Markdown,
+				content: buildWorktreeAnnouncementText(branchName),
+			}],
+			otherRestored: [],
+			rawOwnership: JSON.stringify([{
+				handle,
+				workingDirectory: worktreeDirectory.toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+				chat: ownerChat,
+			}]),
+		});
 	});
 
 	test('persists and restores agent-authored turn delegation through a provider turn id', async () => {

@@ -534,6 +534,22 @@ suite('Agents Window workspace handoff', () => {
 		assert.deepStrictEqual({ state: harness.states.at(-1), selections: harness.selections.length }, { state: 'applied', selections: 1 });
 	});
 
+	test('an inferred workspace replaces an automatic Chat fallback through the target view', async () => {
+		const harness = createHarness();
+		harness.activeSession.set(upcastPartial<IActiveSession>({
+			isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
+		}), undefined);
+		disposables.add(harness.composerService.registerComposer({
+			canApplyWorkspaceDefault: false,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
+
+		await harness.open(true);
+
+		assert.deepStrictEqual({ state: harness.states.at(-1), selections: harness.selections.length }, { state: 'applied', selections: 1 });
+	});
+
 	for (const protectedState of ['restoredSession', 'quickChat', 'composer'] as const) {
 		test(`an inferred default preserves ${protectedState}`, async () => {
 			const harness = createHarness();
@@ -543,6 +559,7 @@ suite('Agents Window workspace handoff', () => {
 				harness.activeSession.set(upcastPartial<IActiveSession>({
 					isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
 				}), undefined);
+				harness.defaultAllowed = false;
 			} else {
 				harness.defaultAllowed = false;
 			}

@@ -9,8 +9,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -56,29 +58,6 @@ suite('pluginListWidget', () => {
 			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
 			ContributionEnablementState.DisabledProfile,
 		);
-	});
-
-	test('partitions installed plugins by enablement scope', () => {
-		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
-			const plugin = new class extends mock<IAgentPlugin>() {
-				override readonly uri = URI.file(`/plugins/${name}`);
-				override readonly label = name;
-				override readonly enablement = constObservable(state);
-			}();
-			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
-		};
-		const profile = createItem('profile', ContributionEnablementState.EnabledProfile);
-		const workspace = createItem('workspace', ContributionEnablementState.DisabledWorkspace);
-
-		const result = partitionInstalledPluginItemsByScope([profile, workspace]);
-
-		assert.deepStrictEqual({
-			user: result.user.map(item => item.name),
-			workspace: result.workspace.map(item => item.name),
-		}, {
-			user: ['profile'],
-			workspace: ['workspace'],
-		});
 	});
 
 	test('installed metadata contains contribution counts without enablement copy', () => {
@@ -134,6 +113,26 @@ suite('pluginListWidget', () => {
 			shouldLoadPluginMarketplaceSnapshot(true, 'loaded', true),
 			shouldLoadPluginMarketplaceSnapshot(true, 'uninitialized', false),
 		], [false, true, false, false]);
+	});
+
+	test('legacy Available retains its marketplaces until Marketplace visibility is enabled', () => {
+		const cases = [
+			{ marketplace: false, available: true },
+			{ marketplace: true, available: false },
+		];
+		assert.deepStrictEqual(cases.map(({ marketplace }) =>
+			shouldShowLegacyPluginMarketplace(new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
+			}))), cases.map(({ available }) => available));
+	});
+
+	test('keeps empty group headers visible until search filtering starts', () => {
+		assert.deepStrictEqual([
+			shouldShowPluginTree('', 0),
+			shouldShowPluginTree('  ', 0),
+			shouldShowPluginTree('agent', 0),
+			shouldShowPluginTree('agent', 1),
+		], [true, true, false, true]);
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {

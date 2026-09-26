@@ -90,7 +90,7 @@ suite('Agents invitation widget ownership', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		instantiation.stub(IContextKeyService, contextService);
-		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({}));
+		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: Event.None }));
 		instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			get lastFocusedWidget() { return lastFocused; },
 			getAllWidgets: () => widgets,

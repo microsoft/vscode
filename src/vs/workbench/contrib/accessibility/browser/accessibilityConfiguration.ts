@@ -72,6 +72,7 @@ export const enum AccessibilityVerbositySettingId {
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -230,6 +231,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
 			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.NewSessionWelcome]: {
+			description: localize('verbosity.newSessionWelcome', "Announce the welcome message when a new session composer is shown."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
@@ -664,6 +669,16 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.confetti': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.confetti', "Plays a joyful sound / audio cue when confetti is shown."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.confetti.sound', "Plays a joyful sound when confetti is shown."),
 					...soundFeatureBase
 				},
 			}

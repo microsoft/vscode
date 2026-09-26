@@ -935,6 +935,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
 	readFile(): never { throw new Error('FakeQuery: readFile not modeled'); }
+	readMcpResource(): never { throw new Error('FakeQuery: readMcpResource not modeled'); }
 	seedReadState(): never { throw new Error('FakeQuery: seedReadState not modeled'); }
 	reconnectMcpServer(serverName: string): never {
 		this.mcpReconnectCalls.push(serverName);
@@ -955,6 +956,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
 	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
+	reloadOutputStyles(): never { throw new Error('FakeQuery: reloadOutputStyles not modeled'); }
 	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
 	close(): void { this.closeCount++; }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }

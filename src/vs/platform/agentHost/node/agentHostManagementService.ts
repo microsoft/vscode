@@ -72,6 +72,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
+	refreshCopilotConnectorSessions(): Promise<void> {
+		if (!this._agentService.refreshCopilotConnectorSessions) {
+			throw new Error('Copilot Connector session refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+	}
+
 	shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._shuttingDown = true;

@@ -22,7 +22,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -2521,6 +2521,29 @@ suite('stateToProgressAdapter', () => {
 			const pending: AnyToolCallState = { toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'confirm', status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Confirm?' };
 			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
 			assert.strictEqual(IChatToolInvocation.isComplete(streaming), true, 'completed invocation is not re-armed');
+		});
+	});
+
+	suite('completedToolCallToEditParts', () => {
+		test('keeps child attribution separate from the edit undo stop', () => {
+			const toolCall = createCompletedToolCall({
+				toolCallId: 'child-patch',
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					before: { uri: 'file:///workspace/file.ts', content: { uri: 'agenthost-content:///before' } },
+					after: { uri: 'file:///workspace/file.ts', content: { uri: 'agenthost-content:///after' } },
+					diff: { added: 4, removed: 1 },
+				}],
+			});
+			const [parentEdit] = completedToolCallToEditParts(toolCall, 'local');
+			const [childEdit] = completedToolCallToEditParts(toolCall, 'local', 'root-subagent');
+			assert.deepStrictEqual({
+				childEdit,
+				parentHasSubagentId: hasKey(parentEdit, { subAgentInvocationId: true }),
+			}, {
+				childEdit: { ...parentEdit, subAgentInvocationId: 'root-subagent' },
+				parentHasSubagentId: false,
+			});
 		});
 	});
 

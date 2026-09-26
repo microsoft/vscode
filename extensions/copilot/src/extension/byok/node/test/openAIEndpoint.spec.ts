@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import { CacheType, CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -297,6 +297,32 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
+		it('keeps explicit prompt caching off for BYOK Responses requests unless the user opts in', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					capabilities: { ...modelMetadata.capabilities, family: 'gpt-5.6-sol' }
+				},
+				'test-api-key',
+				'http://localhost:4000/v1/responses');
+			const createBody = () => endpoint.createRequestBody(createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+					{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: CacheType },
+				],
+			}]));
+
+			const defaultBody = createBody();
+			await accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+			const optedInBody = createBody();
+
+			expect([defaultBody, optedInBody].map(body => ({ options: body.prompt_cache_options, input: body.input }))).toEqual([
+				{ options: { mode: 'implicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] }] },
+				{ options: { mode: 'explicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello', prompt_cache_breakpoint: { mode: 'explicit' } }] }] },
+			]);
+		});
+
 		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{

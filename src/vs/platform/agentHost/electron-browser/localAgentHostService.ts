@@ -481,6 +481,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
+	refreshCopilotConnectorSessions(): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions();
+	}
+
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._requireClient().resolveSessionConfig(params);
 	}

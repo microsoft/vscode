@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -18,6 +19,8 @@ import { AuthRequiredReason, NotificationType, type INotification } from '../../
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -27,6 +30,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.js';
+import { IRemoteAgentHostConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { RemoteAgentHostLogForwarder } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
 import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
@@ -44,9 +48,10 @@ interface IRemoteAuthenticationState {
 interface IRemoteAuthNotificationHarness {
 	_connections: Map<string, IRemoteAuthenticationState>;
 	_instantiationService: TestInstantiationService;
-	_connectionCustomizations: { get(address: string): { readonly authenticate?: (request: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => Promise<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> } | undefined };
+	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_logService: NullLogService;
 	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
+	_authenticateCallback(address: string, connection: Pick<IAgentConnection, 'authenticate'>, reason?: AuthRequiredReason): IAgentConnection['authenticate'];
 }
 
 interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
@@ -58,11 +63,17 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 	_authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void>;
 }
 
+function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const service = store.add(new TestInstantiationService());
+	service.stub(IConfigurationService, new TestConfigurationService());
+	return service;
+}
+
 function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	const address = 'cloudsandbox:authentication-test';
 	const authenticationService = new RemoteAgentHostAuthenticationService();
 	const pending = store.add(authenticationService.acquire(address)).object;
-	const instantiationService = store.add(new TestInstantiationService());
+	const instantiationService = createAuthenticationInstantiationService(store);
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ILogService, new NullLogService());
@@ -170,7 +181,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{
@@ -218,7 +229,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	});
 
 	test('reauthenticates each host independently with the same current token', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
@@ -248,7 +259,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	});
 
 	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
@@ -262,6 +273,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			},
 		});
 		const envelopes: string[] = [];
+		const reasons: (AuthRequiredReason | undefined)[] = [];
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
@@ -269,7 +281,10 @@ suite('RemoteAgentHost auth notifications', () => {
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {
 			get: () => ({
-				authenticate: async request => ({ ...request, token: `${request.token}:sealed-${++envelopeNumber}` }),
+				authenticate: async (request, reason) => {
+					reasons.push(reason);
+					return { ...request, token: `${request.token}:sealed-${++envelopeNumber}` };
+				},
 			}),
 		};
 		contribution._logService = new NullLogService();
@@ -286,10 +301,52 @@ suite('RemoteAgentHost auth notifications', () => {
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 
-		assert.deepStrictEqual({ envelopes, promptCount }, {
+		assert.deepStrictEqual({ envelopes, promptCount, reasons }, {
 			envelopes: ['session-token:sealed-1', 'session-token:sealed-2'],
 			promptCount: 1,
+			reasons: [AuthRequiredReason.Expired, AuthRequiredReason.Expired],
 		});
+	});
+
+	test('does not authenticate after a connection is removed during credential renewal', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const renewed = new DeferredPromise<string>();
+		h.contribution._connectionCustomizations = {
+			get: () => ({
+				authenticate: async request => ({ ...request, token: await renewed.p }),
+			})
+		};
+		const authenticate = h.contribution._authenticateCallback(h.address, connection, AuthRequiredReason.Expired);
+		const cancelled = assert.rejects(authenticate({ resource: h.resource.resource, token: 'old' }), isCancellationError);
+		h.contribution._connections.delete(h.address);
+		await renewed.complete('new');
+		await cancelled;
+		assert.deepStrictEqual(forwarded, []);
+	});
+
+	test('revocation bypasses renewal and token transformation', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		let transforms = 0;
+		h.contribution._connectionCustomizations = {
+			get: () => ({
+				authenticate: async request => {
+					transforms++;
+					return { ...request, token: 'renewed' };
+				},
+			})
+		};
+		await h.contribution._authenticateCallback(h.address, connection, AuthRequiredReason.Expired)({ resource: h.resource.resource, token: '' });
+		assert.deepStrictEqual({ forwarded, transforms }, { forwarded: [''], transforms: 0 });
 	});
 });
 

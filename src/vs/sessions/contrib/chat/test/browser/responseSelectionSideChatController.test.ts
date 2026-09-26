@@ -61,6 +61,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const doc = dom.getActiveDocument();
 		const widgetDomNode = doc.createElement('div');
+		widgetDomNode.style.width = '600px';
 		doc.body.appendChild(widgetDomNode);
 		store.add(toDisposable(() => widgetDomNode.remove()));
 
@@ -78,6 +79,33 @@ suite('ResponseSelectionSideChatController', () => {
 		markdown.style.left = '0px';
 		const textNode = doc.createTextNode('hello world');
 		markdown.appendChild(textNode);
+		const firstEndpoint = doc.createElement('span');
+		firstEndpoint.style.position = 'absolute';
+		firstEndpoint.style.top = '0px';
+		firstEndpoint.style.left = '40px';
+		const firstEndpointTextNode = doc.createTextNode('selection start');
+		firstEndpoint.appendChild(firstEndpointTextNode);
+		markdown.appendChild(firstEndpoint);
+		const lastEndpoint = doc.createElement('span');
+		lastEndpoint.style.position = 'absolute';
+		lastEndpoint.style.top = '160px';
+		lastEndpoint.style.left = '240px';
+		lastEndpoint.dir = 'rtl';
+		const lastTextNode = doc.createTextNode('נקודת בחירה');
+		lastEndpoint.appendChild(lastTextNode);
+		markdown.appendChild(lastEndpoint);
+		const wrappedParagraph = doc.createElement('p');
+		wrappedParagraph.style.position = 'absolute';
+		wrappedParagraph.style.top = '260px';
+		wrappedParagraph.style.left = '40px';
+		wrappedParagraph.style.width = '110px';
+		wrappedParagraph.style.margin = '0';
+		wrappedParagraph.style.whiteSpace = 'normal';
+		const wrappedTextNode = doc.createTextNode('aaaa bbbb cccc ');
+		const wrappedCode = doc.createElement('code');
+		wrappedCode.textContent = 'dddd';
+		wrappedParagraph.append(wrappedTextNode, wrappedCode);
+		markdown.appendChild(wrappedParagraph);
 		transcriptDomNode.appendChild(markdown);
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
@@ -117,6 +145,12 @@ suite('ResponseSelectionSideChatController', () => {
 		const range = doc.createRange();
 		range.setStart(textNode, 0);
 		range.setEnd(textNode, textNode.data.length);
+		const directionalRange = doc.createRange();
+		directionalRange.setStart(firstEndpointTextNode, 0);
+		directionalRange.setEnd(lastTextNode, lastTextNode.data.length);
+		const wrappedRange = doc.createRange();
+		wrappedRange.setStart(wrappedTextNode, 0);
+		wrappedRange.setEnd(wrappedTextNode, wrappedTextNode.data.length);
 		// A selection in chat-view chrome outside the scrollable transcript.
 		const outsideNode = doc.createTextNode('unrelated text');
 		const outside = doc.createElement('div');
@@ -126,11 +160,14 @@ suite('ResponseSelectionSideChatController', () => {
 		outsideRange.setStart(outsideNode, 0);
 		outsideRange.setEnd(outsideNode, outsideNode.data.length);
 		let activeRange = range;
+		let selectionDirection: 'forward' | 'backward' = 'forward';
 		mutableWindow.getSelection = () => upcastPartial<Selection>({
 			toString: () => selectionText,
 			isCollapsed: selectionText.length === 0,
-			anchorNode: activeRange.startContainer,
-			focusNode: activeRange.endContainer,
+			anchorNode: selectionDirection === 'forward' ? activeRange.startContainer : activeRange.endContainer,
+			anchorOffset: selectionDirection === 'forward' ? activeRange.startOffset : activeRange.endOffset,
+			focusNode: selectionDirection === 'forward' ? activeRange.endContainer : activeRange.startContainer,
+			focusOffset: selectionDirection === 'forward' ? activeRange.endOffset : activeRange.startOffset,
 			rangeCount: 1,
 			getRangeAt: () => activeRange,
 		});
@@ -138,6 +175,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const setSelectionWithoutEvent = (text: string, selectionTop?: number) => {
 			activeRange = range;
+			selectionDirection = 'forward';
 			selectionText = text;
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
@@ -149,7 +187,21 @@ suite('ResponseSelectionSideChatController', () => {
 		};
 		const setSelectionOutsideTranscript = (text: string) => {
 			activeRange = outsideRange;
+			selectionDirection = 'forward';
 			selectionText = text;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setDirectionalSelection = (direction: 'forward' | 'backward', selectionTop: number) => {
+			activeRange = directionalRange;
+			selectionDirection = direction;
+			selectionText = 'hello world selection endpoint';
+			markdown.style.top = `${selectionTop}px`;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setWrappedSelection = () => {
+			activeRange = wrappedRange;
+			selectionDirection = 'forward';
+			selectionText = wrappedTextNode.data;
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const beginPointerSelection = (target: HTMLElement = markdown, pointerId = 1) => {
@@ -181,6 +233,9 @@ suite('ResponseSelectionSideChatController', () => {
 		const detachSelectedRow = () => {
 			markdown.remove();
 			selectionText = '';
+		};
+		const detachDirectionalFocusEndpoint = () => {
+			lastEndpoint.remove();
 		};
 		const scroll = (selectionTop?: number) => {
 			if (selectionTop !== undefined) {
@@ -245,6 +300,33 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			setSelectionWithoutEvent,
 			setSelectionOutsideTranscript,
+			setDirectionalSelection,
+			setWrappedSelection,
+			selectionFocusRects: () => {
+				const focusRect = (node: Text, offset: number) => {
+					const focusRange = doc.createRange();
+					focusRange.setStart(node, offset);
+					focusRange.collapse(true);
+					return focusRange.getBoundingClientRect();
+				};
+				return {
+					first: focusRect(firstEndpointTextNode, 0),
+					last: focusRect(lastTextNode, lastTextNode.data.length),
+				};
+			},
+			wrappedFocusCharacterRect: () => {
+				const focusRange = doc.createRange();
+				const endOffset = wrappedTextNode.data.trimEnd().length;
+				focusRange.setStart(wrappedTextNode, endOffset - 1);
+				focusRange.setEnd(wrappedTextNode, endOffset);
+				return focusRange.getBoundingClientRect();
+			},
+			remainingDirectionalFocusCharacterRect: () => {
+				const focusRange = doc.createRange();
+				focusRange.setStart(firstEndpointTextNode, firstEndpointTextNode.data.length - 1);
+				focusRange.setEnd(firstEndpointTextNode, firstEndpointTextNode.data.length);
+				return focusRange.getBoundingClientRect();
+			},
 			beginPointerSelection,
 			releasePointerSelection,
 			cancelPointerSelection,
@@ -253,6 +335,7 @@ suite('ResponseSelectionSideChatController', () => {
 			createPreventedMarkdownControl,
 			setTranscriptRect,
 			detachSelectedRow,
+			detachDirectionalFocusEndpoint,
 			scroll,
 			autoScrollHolds: () => autoScrollHolds,
 			callOrder,
@@ -267,6 +350,7 @@ suite('ResponseSelectionSideChatController', () => {
 			notificationService,
 			highlightedRanges,
 			inputHeight: () => inputDomNode(controller).offsetHeight,
+			inputWidth: () => inputDomNode(controller).offsetWidth,
 		};
 	}
 
@@ -280,6 +364,13 @@ suite('ResponseSelectionSideChatController', () => {
 
 	function menuDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
 		return (controller as unknown as { _menuDomNode: HTMLElement })._menuDomNode;
+	}
+
+	function position(top: number, left: number): { top: number; left: number } {
+		return {
+			top: Math.round(top * 100) / 100,
+			left: Math.round(left * 100) / 100,
+		};
 	}
 
 	function menuActionLabels(controller: ResponseSelectionSideChatController): string[] {
@@ -587,6 +678,292 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 	});
 
+	test('anchors the action menu to the pointer selection focus endpoint in either direction', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setDirectionalSelection,
+			selectionFocusRects,
+			setTranscriptRect,
+		} = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		beginPointerSelection();
+		setDirectionalSelection('forward', 120);
+		await finishPointerSelection();
+		const menu = menuDomNode(controller);
+		const forward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { last } = selectionFocusRects();
+
+		beginPointerSelection();
+		setDirectionalSelection('backward', 120);
+		await finishPointerSelection();
+		const backward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { first } = selectionFocusRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.left),
+			backward: position(first.top - menu.offsetHeight - 4, first.left),
+		});
+	});
+
+	test('anchors the ask-question input to the keyboard selection focus endpoint in either direction', () => {
+		const {
+			controller,
+			setDirectionalSelection,
+			selectionFocusRects,
+			setTranscriptRect,
+			inputHeight,
+		} = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const forward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { last } = selectionFocusRects();
+
+		setDirectionalSelection('backward', 120);
+		const backward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { first } = selectionFocusRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.left),
+			backward: position(first.top - inputHeight() - 4, first.left),
+		});
+	});
+
+	test('anchors a forward soft-wrap selection to the last selected character line', () => {
+		const { controller, setWrappedSelection, wrappedFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+
+		setWrappedSelection();
+
+		const menu = menuDomNode(controller);
+		const focusCharacterRect = wrappedFocusCharacterRect();
+		assert.deepStrictEqual({
+			menuVisible: menu.style.display !== 'none',
+			top: position(parseFloat(menu.style.top), 0).top,
+			left: position(0, parseFloat(menu.style.left)).left,
+		}, {
+			menuVisible: true,
+			top: position(focusCharacterRect.bottom + 4, 0).top,
+			left: position(0, focusCharacterRect.right).left,
+		});
+	});
+
+	test('reanchors a growing backward question input above the focus endpoint', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, inputHeight } = setup();
+		setDirectionalSelection('backward', 300);
+		const input = inputDomNode(controller);
+		const initialHeight = inputHeight();
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'first line\nsecond line\nthird line';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const { first } = selectionFocusRects();
+		assert.deepStrictEqual({
+			grew: inputHeight() > initialHeight,
+			bottom: position(parseFloat(input.style.top) + inputHeight(), 0).top,
+		}, {
+			grew: true,
+			bottom: position(first.top - 4, 0).top,
+		});
+	});
+
+	test('keeps the chosen side while the question input crosses a fit threshold', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll, inputHeight } = setup();
+		setDirectionalSelection('backward', 300);
+		const input = inputDomNode(controller);
+		const { first } = selectionFocusRects();
+		const preferredTop = first.top - inputHeight() - 4;
+		const transcriptTop = preferredTop - 1;
+		setTranscriptRect({ top: transcriptTop, left: 0, width: 600, height: 600 - transcriptTop });
+		scroll();
+		const initialTop = parseFloat(input.style.top);
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'first line\nsecond line\nthird line';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		const grownTop = parseFloat(input.style.top);
+		scroll();
+		const grownAfterScrollTop = parseFloat(input.style.top);
+
+		textArea.value = 'short';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		const shrunkTop = parseFloat(input.style.top);
+		scroll();
+		const shrunkAfterScrollTop = parseFloat(input.style.top);
+
+		assert.deepStrictEqual({
+			initialTop: position(initialTop, 0).top,
+			grownTop: position(grownTop, 0).top,
+			grownAfterScrollTop: position(grownAfterScrollTop, 0).top,
+			stayedAbove: grownTop < first.bottom + 4,
+			shrunkTop: position(shrunkTop, 0).top,
+			shrunkAfterScrollTop: position(shrunkAfterScrollTop, 0).top,
+		}, {
+			initialTop: position(preferredTop, 0).top,
+			grownTop: position(transcriptTop, 0).top,
+			grownAfterScrollTop: position(transcriptTop, 0).top,
+			stayedAbove: true,
+			shrunkTop: position(preferredTop, 0).top,
+			shrunkAfterScrollTop: position(preferredTop, 0).top,
+		});
+	});
+
+	test('re-evaluates the side when scrolling moves the focus to a constrained edge', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setDirectionalSelection('forward', 0);
+		const menu = menuDomNode(controller);
+		const initialTop = parseFloat(menu.style.top);
+		const initialFocus = selectionFocusRects().last;
+
+		scroll(100);
+
+		const { last } = selectionFocusRects();
+		const constrainedTop = parseFloat(menu.style.top);
+		scroll(0);
+		const restoredFocus = selectionFocusRects().last;
+		assert.deepStrictEqual({
+			initialBelow: initialTop >= initialFocus.bottom + 4,
+			constrainedTop: position(constrainedTop, 0).top,
+			restoredTop: position(parseFloat(menu.style.top), 0).top,
+		}, {
+			initialBelow: true,
+			constrainedTop: position(last.top - menu.offsetHeight - 4, 0).top,
+			restoredTop: position(restoredFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('re-evaluates the side when transcript bounds shrink around a stationary focus', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		setDirectionalSelection('forward', 120);
+		const menu = menuDomNode(controller);
+		const initialFocus = selectionFocusRects().last;
+		const initialTop = parseFloat(menu.style.top);
+
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: initialFocus.bottom + menu.offsetHeight / 2 });
+		scroll();
+
+		assert.deepStrictEqual({
+			initialTop: position(initialTop, 0).top,
+			shrunkTop: position(parseFloat(menu.style.top), 0).top,
+		}, {
+			initialTop: position(initialFocus.bottom + 4, 0).top,
+			shrunkTop: position(initialFocus.top - menu.offsetHeight - 4, 0).top,
+		});
+	});
+
+	test('keeps a draft when only the directional focus endpoint is re-rendered', () => {
+		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect, scroll } = setup();
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const textArea = inputTextArea(controller);
+		textArea.value = 'keep this draft';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		textArea.focus();
+
+		detachDirectionalFocusEndpoint();
+		scroll(140);
+		const remainingFocus = remainingDirectionalFocusCharacterRect();
+
+		assert.deepStrictEqual({
+			inputVisible: input.style.display !== 'none',
+			draft: textArea.value,
+			focused: textArea.ownerDocument.activeElement === textArea,
+			top: position(parseFloat(input.style.top), 0).top,
+		}, {
+			inputVisible: true,
+			draft: 'keep this draft',
+			focused: true,
+			top: position(remainingFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('positions the question input from surviving text after the focus endpoint is re-rendered', () => {
+		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+		setDirectionalSelection('forward', 120);
+
+		detachDirectionalFocusEndpoint();
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+
+		const remainingFocus = remainingDirectionalFocusCharacterRect();
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			top: position(parseFloat(inputDomNode(controller).style.top), 0).top,
+		}, {
+			inputVisible: true,
+			top: position(remainingFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('reclamps a widening forward question input within the transcript', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, inputWidth } = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const initialWidth = inputWidth();
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'A question long enough to widen the anchored input';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const { last } = selectionFocusRects();
+		assert.deepStrictEqual({
+			grew: inputWidth() > initialWidth,
+			top: position(parseFloat(input.style.top), 0).top,
+			insideTranscript: parseFloat(input.style.left) + inputWidth() <= 600,
+		}, {
+			grew: true,
+			top: position(last.bottom + 4, 0).top,
+			insideTranscript: true,
+		});
+	});
+
+	test('flips a forward selection above its focus endpoint when constrained below', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 350 });
+
+		setDirectionalSelection('forward', 160);
+
+		const menu = menuDomNode(controller);
+		const { last } = selectionFocusRects();
+		assert.strictEqual(parseFloat(menu.style.top), last.top - menu.offsetHeight - 4);
+	});
+
+	test('flips a backward selection below its focus endpoint when constrained above', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects } = setup();
+
+		setDirectionalSelection('backward', 0);
+
+		const { first } = selectionFocusRects();
+		assert.strictEqual(parseFloat(inputDomNode(controller).style.top), first.bottom + 4);
+	});
+
+	test('clamps to the preferred side when neither side fits', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		const menu = menuDomNode(controller);
+		setDirectionalSelection('forward', 0);
+		const { first, last } = selectionFocusRects();
+		const constrainedHeight = menu.offsetHeight + 20;
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: constrainedHeight });
+
+		setDirectionalSelection('forward', 10 - last.top);
+		const forwardTop = parseFloat(menu.style.top);
+
+		setDirectionalSelection('backward', 10 - first.top);
+		const backwardTop = parseFloat(menu.style.top);
+
+		assert.deepStrictEqual({ forwardTop, backwardTop }, {
+			forwardTop: constrainedHeight - menu.offsetHeight,
+			backwardTop: 0,
+		});
+	});
+
 	test('Escape dismisses the focused enhanced menu and restores transcript focus', () => {
 		const { controller, setSelection, focusResponseItemCalls } = setup({ enhancedSelectionMenu: true });
 		setSelection('hello world');
@@ -870,9 +1247,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setTranscriptRect({ top: 0, left: 40, width: 120, height: 300 });
 		setSelection('hello world');
 
-		const left = parseFloat(inputDomNode(controller).style.left);
-		assert.ok(left >= 40, `left ${left} must not start before the transcript's left edge`);
-		assert.ok(left <= 160, `left ${left} must not start past the transcript's right edge`);
+		assert.strictEqual(parseFloat(inputDomNode(controller).style.left), 40);
 	});
 
 	test('holds transcript auto-scroll while a selection is active and releases it on dismiss', () => {
@@ -1026,13 +1401,18 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('restores the entered question and re-enables the input when the side chat fails to create', async () => {
-		const { controller, setSelection, notificationService } = setup({
-			createSideChatInSession: async () => { throw new Error('boom'); },
+		let rejectCreate!: (error: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		const { controller, setSelection, detachSelectedRow, scroll, notificationService } = setup({
+			createSideChatInSession: async () => pending,
 		});
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 		assert.strictEqual(isInputBusy(controller), true);
 
+		detachSelectedRow();
+		scroll();
+		rejectCreate(new Error('boom'));
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.strictEqual(isInputBusy(controller), false, 'busy must clear on failure');

@@ -339,7 +339,7 @@ suite('Sessions rename', () => {
 			});
 		});
 
-		test('preserves rename drafts across rerenders and clears removed targets', () => {
+		test('preserves rename drafts, focus, and selection across rerenders and clears removed targets', () => {
 			const sessionData = createTestSession('Session');
 			const sessionHarness = createListHarness(disposables, [sessionData.session]);
 			const sessionContainer = sessionHarness.createContainer();
@@ -353,10 +353,19 @@ suite('Sessions rename', () => {
 			const sessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
 			assert.ok(sessionInput);
 			sessionInput.value = 'Session draft';
+			sessionInput.setSelectionRange(2, 7, 'forward');
 			sessionInput.dispatchEvent(new Event('input', { bubbles: true }));
 			sessionList.refresh();
 			sessionList.layout(300, 400);
 			const rerenderedSessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
+			const sessionRerenderState = {
+				draft: rerenderedSessionInput?.value,
+				inputRecreated: rerenderedSessionInput !== sessionInput,
+				focused: mainWindow.document.activeElement === rerenderedSessionInput,
+				selectionStart: rerenderedSessionInput?.selectionStart,
+				selectionEnd: rerenderedSessionInput?.selectionEnd,
+				selectionDirection: rerenderedSessionInput?.selectionDirection,
+			};
 
 			sessionHarness.managementService.sessions = [];
 			sessionList.refresh();
@@ -392,10 +401,19 @@ suite('Sessions rename', () => {
 			const chatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
 			assert.ok(chatInput);
 			chatInput.value = 'Chat draft';
+			chatInput.setSelectionRange(1, 5, 'forward');
 			chatInput.dispatchEvent(new Event('input', { bubbles: true }));
 			chatList.refresh();
 			chatList.layout(300, 400);
 			const rerenderedChatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
+			const chatRerenderState = {
+				draft: rerenderedChatInput?.value,
+				inputRecreated: rerenderedChatInput !== chatInput,
+				focused: mainWindow.document.activeElement === rerenderedChatInput,
+				selectionStart: rerenderedChatInput?.selectionStart,
+				selectionEnd: rerenderedChatInput?.selectionEnd,
+				selectionDirection: rerenderedChatInput?.selectionDirection,
+			};
 
 			chats.set([mainChat], undefined);
 			chatList.refresh();
@@ -403,18 +421,28 @@ suite('Sessions rename', () => {
 			chatList.refresh();
 
 			assert.deepStrictEqual({
-				sessionDraft: rerenderedSessionInput?.value,
-				sessionInputRecreated: rerenderedSessionInput !== sessionInput,
+				sessionRerenderState,
 				sessionRenameClearedAfterRemoval: sessionContainer.querySelector('.session-title-input input') === null,
-				chatDraft: rerenderedChatInput?.value,
-				chatInputRecreated: rerenderedChatInput !== chatInput,
+				chatRerenderState,
 				chatRenameClearedAfterRemoval: chatContainer.querySelector('.session-chat-title-input input') === null,
 			}, {
-				sessionDraft: 'Session draft',
-				sessionInputRecreated: true,
+				sessionRerenderState: {
+					draft: 'Session draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 2,
+					selectionEnd: 7,
+					selectionDirection: 'forward',
+				},
 				sessionRenameClearedAfterRemoval: true,
-				chatDraft: 'Chat draft',
-				chatInputRecreated: true,
+				chatRerenderState: {
+					draft: 'Chat draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 1,
+					selectionEnd: 5,
+					selectionDirection: 'forward',
+				},
 				chatRenameClearedAfterRemoval: true,
 			});
 		});

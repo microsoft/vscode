@@ -990,6 +990,10 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
+		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
+		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
+			? path.basename(activeRepositoryRoot) || undefined
+			: undefined;
 
 		this._sourceControl.quickDiffProvider = new GitQuickDiffProvider(this, this.repositoryResolver, logger);
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
