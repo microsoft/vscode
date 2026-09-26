@@ -6,8 +6,9 @@
 // Service implementation that manages remote agent host connections from
 // entries supplied by registered connection factories.
 
-import { Emitter } from '../../../base/common/event.js';
-import { isCancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -39,6 +40,7 @@ import {
 	type IRawRemoteAgentHostEntry,
 	type IRemoteAgentHostProtocolClient,
 	type IRemoteAgentHostPendingConnection,
+	type RemoteAgentHostConnectionObserver,
 	RemoteAgentHostEntryType,
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
@@ -56,6 +58,7 @@ import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
 	readonly store: DisposableStore;
+	readonly observer?: RemoteAgentHostConnectionObserver;
 	client?: IRemoteAgentHostProtocolClient;
 	/**
 	 * Optional teardown for the shared-process tunnel that this entry's
@@ -72,6 +75,13 @@ interface IConnectionEntry {
 	status: RemoteAgentHostConnectionStatus;
 	operatingSystemResolved?: boolean;
 	operatingSystemRequest?: Promise<void>;
+	operatingSystemRetryRequested?: boolean;
+}
+
+interface IPendingConnectionAttempt {
+	readonly promise: Promise<void>;
+	readonly info: IRemoteAgentHostPendingConnection;
+	readonly observer?: RemoteAgentHostConnectionObserver;
 }
 
 function disposeEntry(entry: IConnectionEntry): void {
@@ -174,8 +184,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		return entries;
 	});
+	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
-	private readonly _pendingConnects = new Map<string, { readonly promise: Promise<void>; readonly info: IRemoteAgentHostPendingConnection }>();
+	private readonly _pendingConnects = new Map<string, IPendingConnectionAttempt>();
 
 	get pendingConnections(): readonly IRemoteAgentHostPendingConnection[] {
 		if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
@@ -386,6 +397,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const entry = this._entries.get(normalized);
 		if (entry) {
 			this._entries.delete(normalized);
+			// An explicit redial can still belong to the pending connect/recovery.
+			if (entry.connected) {
+				entry.observer?.('disposed');
+			}
 			entry.store.dispose();
 			if (!entry.reconnectTransfersTransportOwnership) {
 				entry.transportDisposable?.dispose();
@@ -435,7 +450,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// timeout only guards the case where nothing is in flight to follow.
 		const pendingConnect = this._pendingConnects.get(normalizedAddress);
 		if (pendingConnect) {
-			await pendingConnect.promise;
+			await Promise.race([pendingConnect.promise, wait.p]);
 			const connected = this._getConnectionInfo(normalizedAddress);
 			if (connected) {
 				return connected;
@@ -470,9 +485,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _removeConnection(address: string): void {
+		const pending = this._pendingConnects.get(address);
+		if (pending) {
+			this._pendingConnects.delete(address);
+			pending.observer?.('disposed');
+			this._rejectPendingConnectionWait(address, new CancellationError());
+			this._onDidChangePendingConnections.fire();
+		}
 		const entry = this._entries.get(address);
 		if (entry) {
 			this._entries.delete(address);
+			entry.observer?.('disposed');
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
@@ -502,6 +525,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		if (!this._remoteAgentHostsEnabled.get()) {
+			for (const address of this._pendingConnects.keys()) {
+				this._cancelReconnect(address);
+				this._removeConnection(address);
+			}
 			// Disconnect all when disabled
 			for (const address of [...this._entries.keys()]) {
 				this._cancelReconnect(address);
@@ -521,6 +548,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const configuredEntries = this._configuredEntries.get();
 		const entriesWithAddress = configuredEntries.map(entry => ({ entry, address: this._entryAddress(entry) }));
 		const desired = new Set(entriesWithAddress.map(e => e.address));
+		for (const address of this._pendingConnects.keys()) {
+			if (!desired.has(address)) {
+				this._cancelReconnect(address);
+				this._reconnectAttempts.delete(address);
+				this._removeConnection(address);
+			}
+		}
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
 
@@ -582,15 +616,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const pendingConnect = new DeferredPromise<void>();
-		const userInitiated = this._connectionFactories.get(entryToCreate.connection.type)?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated } };
+		const factory = this._connectionFactories.get(entryToCreate.connection.type);
+		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
+		const observer = factory?.getConnectionObserver?.(entryToCreate);
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer };
 		this._pendingConnects.set(address, attempt);
+		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
 		void (async () => {
 			try {
-				await this._createAndConnect(entryToCreate, address, options);
+				await this._createAndConnect(entryToCreate, address, options, attempt);
 			} catch (err) {
 				this._logService.error(`[RemoteAgentHost] Unexpected error connecting to ${address}`, err);
+				observer?.(isCancellationError(err) ? 'disposed' : 'failed');
 			} finally {
 				if (this._pendingConnects.get(address) === attempt) {
 					this._pendingConnects.delete(address);
@@ -602,8 +640,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return pendingConnect.p;
 	}
 
-	private async _createAndConnect(entryToCreate: IRemoteAgentHostEntry, address: string, options: IRemoteAgentHostConnectOptions): Promise<void> {
+	private async _createAndConnect(entryToCreate: IRemoteAgentHostEntry, address: string, options: IRemoteAgentHostConnectOptions, attempt: IPendingConnectionAttempt): Promise<void> {
+		if (this._pendingConnects.get(address) !== attempt) {
+			return;
+		}
+		const observer = attempt.observer;
 		if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
+			observer?.('disposed');
 			return;
 		}
 
@@ -613,6 +656,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._logService.error(`[RemoteAgentHost] ${error.message} at ${address}`);
 			this._failedReconnects.set(address, error);
 			this._rejectPendingConnectionWait(address, error);
+			observer?.('failed');
 			return;
 		}
 
@@ -633,6 +677,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
 			diagnostic.failed(err);
+			if (this._pendingConnects.get(address) !== attempt) {
+				return;
+			}
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.
@@ -640,6 +687,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
 			this._entries.set(address, {
 				store: new DisposableStore(),
+				observer,
 				connected: false,
 				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason),
 				reconnectTransfersTransportOwnership: false,
@@ -656,9 +704,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// Nothing else reports this failure: no entry was created, so consumers
 			// only learn the address became unavailable from this notification.
 			this._onDidChangeConnections.fire();
-			if (!isTerminalConnectError(err) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get()) {
-				this._scheduleReconnect(address, entryToCreate.connectionToken);
+			if (isTerminalConnectError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+				observer?.(isCancellationError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() ? 'disposed' : 'failed');
 			}
+			return;
+		}
+
+		if (this._pendingConnects.get(address) !== attempt) {
+			createdConnection.connection.dispose();
+			createdConnection.transportDisposable?.dispose();
 			return;
 		}
 
@@ -668,6 +722,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			|| !this._configuredEntries.get().some(entry => this._entryAddress(entry) === address)
 			|| this._entries.has(address)
 		) {
+			observer?.('disposed');
 			createdConnection.connection.dispose();
 			createdConnection.transportDisposable?.dispose();
 			this._rejectPendingConnectionWait(address, new Error(`Connection attempt for ${address} was discarded because it is no longer active.`));
@@ -679,6 +734,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		store.add(client.onDidConnectionDiagnostic(event => this._diagnostics.record(address, event)));
 		const entry: IConnectionEntry = {
 			store,
+			observer,
 			client,
 			transportDisposable: createdConnection.transportDisposable,
 			reconnectTransfersTransportOwnership: createdConnection.reconnectTransfersTransportOwnership ?? false,
@@ -696,6 +752,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
+			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
 			entry.client = undefined;
@@ -705,7 +762,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// the "fatal" path — the protocol client already gave up its own
 			// soft-reconnect attempts (or it was never enabled), so we rebuild
 			// from scratch.
-			this._scheduleReconnect(address, entryToCreate.connectionToken);
+			if (createdConnection.reconnectManagedByClient) {
+				this._rejectPendingConnectionWait(address, new Error(localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
+				observer?.('failed');
+			} else if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+				observer?.('failed');
+			}
 		}));
 
 		// Surface self-healing transport drops separately so outer reconnect
@@ -725,12 +787,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			switch (state) {
 				case 'reconnecting':
+					observer?.('reconnecting');
 					entry.connected = false;
 					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
 					this._onDidChangeConnections.fire();
 					break;
 				case 'connected':
-					this._resolveHostOperatingSystem(address, entry, client);
+					observer?.('connected');
+					this._resolveHostOperatingSystem(address, entry, client, true);
 					entry.connected = true;
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					// A soft reconnect that restores the transport settles any
@@ -744,6 +808,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'closed':
 					break;
 				case 'incompatible':
+					observer?.('failed');
 					entry.connected = false;
 					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', [PROTOCOL_VERSION]);
 					this._reconnectAttempts.delete(address);
@@ -763,6 +828,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return; // removed before connect resolved
 			}
 			this._logService.info(`[RemoteAgentHost] Connected to ${address}`);
+			observer?.('connected');
 			this._resolveHostOperatingSystem(address, entry, client);
 			entry.connected = true;
 			entry.status = RemoteAgentHostConnectionStatus.connected;
@@ -788,6 +854,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? RemoteAgentHostConnectionStatus.incompatible(err.message, [PROTOCOL_VERSION])
 				: RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
 			if (incompatible) {
+				observer?.('failed');
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
 				entry.status = incompatible;
 				this._reconnectAttempts.delete(address);
@@ -816,7 +883,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			this._scheduleReconnect(address, entryToCreate.connectionToken);
+			if (createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+				observer?.('failed');
+			}
 		}
 	}
 
@@ -824,22 +893,22 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 * Schedule a reconnect attempt with exponential backoff.
 	 * Only reconnects if the address remains exposed by a configuration or factory.
 	 */
-	private _scheduleReconnect(address: string, connectionToken?: string): void {
+	private _scheduleReconnect(address: string, connectionToken?: string): boolean {
 		// Don't reconnect if the address is no longer exposed.
 		const configuredEntry = this._configuredEntries.get().find(entry => this._entryAddress(entry) === address);
 		if (!configuredEntry) {
 			this._logService.info(`[RemoteAgentHost] Not reconnecting to ${address}: no longer configured`);
-			return;
+			return false;
 		}
 
 		const reconnectPolicy = getEntryTypeConfig(configuredEntry.connection.type).reconnect;
 		if (!reconnectPolicy.autoRestore) {
 			this._logService.info(`[RemoteAgentHost] Not reconnecting to ${address}: automatic restore is disabled`);
-			return;
+			return false;
 		}
 		if (getEntryTypeConfig(configuredEntry.connection.type).dialedFromEntries && !this._shouldAutoConnect(configuredEntry)) {
 			this._logService.info(`[RemoteAgentHost] Not reconnecting to ${address}: automatic connection is disabled`);
-			return;
+			return false;
 		}
 
 		// Check the recorded count before adding this attempt, so a policy of
@@ -848,7 +917,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (hasExhaustedReconnectAttempts(reconnectPolicy, previousAttempts)) {
 			this._diagnostics.record(address, { operationId: generateUuid(), phase: 'factory.retry', outcome: 'info', timestamp: Date.now(), detail: `exhausted after ${previousAttempts} attempts` });
 			this._logService.warn(`[RemoteAgentHost] Stopped reconnecting to ${address}: reached attempt limit (${previousAttempts})`);
-			return;
+			return false;
 		}
 
 		const attempt = previousAttempts + 1;
@@ -871,6 +940,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}, delay);
 		this._reconnectTimeouts.set(address, timeout);
+		return true;
 	}
 
 	private _shouldAutoConnect(entry: IRemoteAgentHostEntry): boolean {
@@ -971,8 +1041,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._labelFormatters.set(address, handle);
 	}
 
-	private _resolveHostOperatingSystem(address: string, entry: IConnectionEntry, connection: IAgentConnection): void {
-		if (entry.operatingSystemResolved || entry.operatingSystemRequest) {
+	private _resolveHostOperatingSystem(address: string, entry: IConnectionEntry, connection: IAgentConnection, retryIfPending = false): void {
+		if (entry.operatingSystemResolved) {
+			return;
+		}
+		if (entry.operatingSystemRequest) {
+			entry.operatingSystemRetryRequested ||= retryIfPending;
 			return;
 		}
 
@@ -991,6 +1065,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}).finally(() => {
 			if (entry.operatingSystemRequest === request) {
 				entry.operatingSystemRequest = undefined;
+				const retry = entry.operatingSystemRetryRequested;
+				entry.operatingSystemRetryRequested = false;
+				if (retry && !entry.operatingSystemResolved && this._entries.get(address) === entry) {
+					this._resolveHostOperatingSystem(address, entry, connection);
+				}
 			}
 		});
 		entry.operatingSystemRequest = request;
@@ -1010,6 +1089,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._reconnectTimeouts.clear();
 		this._reconnectAttempts.clear();
+		for (const pending of this._pendingConnects.values()) {
+			pending.observer?.('disposed');
+		}
 		this._pendingConnects.clear();
 		this._onDidChangePendingConnections.fire();
 		for (const [address, wait] of this._pendingConnectionWaits) {
@@ -1017,6 +1099,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._pendingConnectionWaits.clear();
 		for (const entry of this._entries.values()) {
+			entry.observer?.('disposed');
 			disposeEntry(entry);
 		}
 		this._entries.clear();

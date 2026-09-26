@@ -47,6 +47,10 @@ export class McpGalleryManifestIPCService extends Disposable implements IMcpGall
 		return this._mcpGalleryManifest ?? null;
 	}
 
+	async getDefaultMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
+		return null;
+	}
+
 	private setMcpGalleryManifest(manifest: IMcpGalleryManifest | null): void {
 		this._mcpGalleryManifest = manifest;
 		this._onDidChangeMcpGalleryManifest.fire(manifest);

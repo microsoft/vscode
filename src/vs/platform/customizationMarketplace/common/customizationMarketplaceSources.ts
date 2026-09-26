@@ -9,23 +9,55 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
+	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
+	CopilotConnectorsEnabled = 'chat.customizations.copilotConnectors.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
+	PluginMarketplaces: {
+		id: 'pluginMarketplaces',
+		displayName: localize('customizationMarketplace.pluginMarketplaces', "Configured Plugin Marketplaces"),
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+	},
+	McpGallery: {
+		id: 'mcpGallery',
+		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
+	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+		requiresMarketplaceVisibility: true,
+	},
+	CopilotConnectors: {
+		id: 'copilotConnectors',
+		displayName: localize('customizationMarketplace.copilotConnectors', "Copilot Connectors"),
+		enablementSetting: CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
-	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
+		(!source.requiresMarketplaceVisibility || configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true));
+}
+
+export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+		? getEnabledCustomizationMarketplaceSources(configurationService, sources) : [];
+}
+
+export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
+	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
+		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
 }
 
 export async function queryEnabledCustomizationMarketplaceSources(
@@ -44,9 +76,12 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	}
 	const store = new DisposableStore();
 	const cancellation = store.add(new CancellationTokenSource(token));
+	const selectedSources = sources.filter(source => sourceIds.includes(source.id));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (sources.some(source => event.affectsConfiguration(source.enablementSetting)) &&
-			!equals(sourceIds, getSourceIds())) {
+		const queryConfigurationChanged = selectedSources.some(source =>
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+		if (queryConfigurationChanged ||
+			(affectsCustomizationMarketplaceSources(event, sources) && !equals(sourceIds, getSourceIds()))) {
 			cancellation.cancel();
 		}
 	}));

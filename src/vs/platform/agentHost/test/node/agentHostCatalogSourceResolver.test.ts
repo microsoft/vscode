@@ -10,6 +10,7 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
@@ -108,6 +109,20 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
+		const live = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
+		const persisted = { session: 'agent-host-copilotcli:/origin', chat: 'agent-host-copilotcli:/origin#original', depth: 3 };
+		const state = sourceState();
+		const resolver = createResolver({ [REMOTE_SESSION_ORIGIN_METADATA_KEY]: JSON.stringify(persisted) });
+		const results = await Promise.all([false, true].map(preferPersisted => resolver.buildCatalogSyncRequest(
+			session, { ...state, meta: withRemoteSessionOrigin(state.meta, live) }, {}, preferPersisted,
+		)));
+		assert.deepStrictEqual(results.map(result => ({
+			origin: readRemoteSessionOrigin(result.data),
+			persisted: result.legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY],
+		})), [live, persisted].map(origin => ({ origin, persisted: JSON.stringify(origin) })));
+	});
+
 	test('round-trips persisted folder-scoped Git state through the catalog payload', async () => {
 		const scopeId = 'folder-scope';
 		const gitState = { branchName: 'feature', baseBranchName: 'main' };
@@ -170,6 +185,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				uri: peer,
 				kind: 'peer',
 				origin: { kind: ChatOriginKind.User },
+				archived: true,
 				inheritedTurnId: 'inherited-turn',
 			}],
 		}, {}, true, undefined);
@@ -181,6 +197,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: undefined,
 			titleSource: 'auto',
 			origin: { kind: ChatOriginKind.User },
+			archived: true,
 			inheritedTurnId: 'inherited-turn',
 		}]);
 	});
@@ -346,7 +363,6 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
 				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: liveGitHub }),
-				[META_GITHUB_STATE]: '',
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(liveSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 1, deletions: 2, files: 3 }),
@@ -402,11 +418,24 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[SESSION_CUSTOM_TITLE_KEY]: 'Persisted title',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
 				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: persistedGitHub }),
-				[META_GITHUB_STATE]: '',
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(persistedSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 10, deletions: 20, files: 30 }),
 			},
+		});
+	});
+
+	test('ignores an empty legacy GitHub tombstone when preferring persisted metadata', async () => {
+		const result = await createResolver({
+			[META_GITHUB_STATE]: '',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			githubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
+			legacyGitHub: result.legacyMetadata[META_GITHUB_STATE],
+		}, {
+			githubData: { [liveFolderKey]: liveGitHub },
+			legacyGitHub: undefined,
 		});
 	});
 

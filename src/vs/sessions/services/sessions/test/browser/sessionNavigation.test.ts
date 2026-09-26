@@ -158,6 +158,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
+	getInFlightNewSessionRequest(): undefined { return undefined; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
@@ -176,10 +177,6 @@ class MockSessionStore implements ISessionsManagementService {
 				return { session, chat };
 			}
 		}
-		return undefined;
-	}
-
-	getSessionContextReference(_resource: URI): string | undefined {
 		return undefined;
 	}
 
@@ -246,7 +243,10 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	archiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }

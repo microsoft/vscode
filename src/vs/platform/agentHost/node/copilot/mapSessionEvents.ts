@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
@@ -12,17 +12,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
@@ -335,20 +336,41 @@ export async function mapSessionEvents(
 		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
 		return mapped ?? deprecatedParentToolCallId;
 	};
-	// Names are collected up front because a `read_agent` execution can be persisted before the
-	// `subagent.started` event that names its target, and the main pass labels tools as it visits them.
-	const agentDisplayNamesById = new Map<string, string>();
+	// Coordination calls can be persisted before the events that identify their recipients.
+	const agentDisplayNamesById = getCopilotSubagentDisplayNames(events);
 	const toolTitlesByCallId = new Map<string, string>();
 	const resolveAgentName: ToolAgentNameResolver = agentId => agentDisplayNamesById.get(agentId);
+	// Durable phase outcomes identify the phase tiles that own the committed phase conversation.
+	const fusionPhaseToolCallIds = new Set<string>();
+	const resolveFusionPhaseToolCallId = (agentId: string | undefined, fusion: { readonly fusionId: string; readonly phaseId?: string } | null | undefined): string | undefined => {
+		const toolCallId = !agentId && fusion?.phaseId ? getFusionPhaseToolCallId(fusion.fusionId, fusion.phaseId) : undefined;
+		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
+	};
 	for (const event of events) {
-		if (event.type === 'subagent.started' && event.agentId) {
-			agentDisplayNamesById.set(event.agentId, event.data.agentDisplayName);
-		} else if (event.type === 'assistant.message') {
+		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
+			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
+		}
+	}
+	const fusionMessageChunks = new CopilotFusionMessageChunks();
+	const fusionToolRoundMessages = new Set<SessionEventPayload<'assistant.message'>>();
+	for (const event of events) {
+		if (event.type === 'assistant.message') {
 			for (const request of event.data.toolRequests ?? []) {
 				if (request.toolTitle) {
 					toolTitlesByCallId.set(request.toolCallId, request.toolTitle);
 				}
 			}
+			const phaseToolCallId = resolveFusionPhaseToolCallId(event.agentId, event.data.fusion);
+			if (phaseToolCallId !== undefined && !isProvisionalFusionConversationEvent(event)) {
+				const call = fusionMessageChunks.accept(event, phaseToolCallId);
+				if (call?.hasToolRequests) {
+					for (const message of call.messages) {
+						fusionToolRoundMessages.add(message);
+					}
+				}
+			}
+		} else if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
+			fusionMessageChunks.clear();
 		}
 	}
 
@@ -371,7 +393,7 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
-			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d, resolveAgentName, toolTitlesByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
@@ -515,6 +537,12 @@ export async function mapSessionEvents(
 			if (parentBuilder && fusionReplay.drain(parentBuilder.responseParts)) {
 				touch(parentBuilder);
 			}
+			if (e.type === 'assistant.fusion_phase_completed' && !e.agentId && e.data.conversationScope === 'review') {
+				const content = formatFusionReviewContent(e.data.content);
+				if (content !== undefined) {
+					ensureSubagentBuilder(getFusionPhaseToolCallId(e.data.fusionId, e.data.phaseId)).responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
+				}
+			}
 			continue;
 		}
 		switch (e.type) {
@@ -644,7 +672,8 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const isPhaseWork = hasToolRequests || fusionToolRoundMessages.has(e);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (isPhaseWork ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -741,7 +770,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'tool.execution_start': {
-				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
 				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
@@ -756,7 +785,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -857,7 +886,7 @@ export async function mapSessionEvents(
 		flushSubagent(parentToolCallId);
 	}
 
-	return { turns, subagentTurnsByToolCallId: subagentTurns };
+	return { turns: linkFusionPhaseChats(turns, subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
 
 	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {
@@ -982,6 +1011,32 @@ function sdkAttachmentToProtocol(
 		default:
 			return undefined;
 	}
+}
+
+/** Marks restored phase tiles that own a conversation so their child chats are discovered like subagents. */
+function linkFusionPhaseChats(turns: Turn[], phaseTurns: ReadonlyMap<string, Turn[]>, sessionUriStr: string): Turn[] {
+	return turns.map(turn => ({
+		...turn,
+		responseParts: turn.responseParts.map(part => {
+			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed
+				|| readToolCallMeta(part.toolCall).toolKind !== 'fusionPhase' || !phaseTurns.has(part.toolCall.toolCallId)) {
+				return part;
+			}
+			const toolCall = part.toolCall;
+			return {
+				...part,
+				toolCall: {
+					...toolCall,
+					content: [...(toolCall.content ?? []), {
+						type: ToolResultContentType.Subagent,
+						resource: buildSubagentSessionUri(sessionUriStr, toolCall.toolCallId),
+						title: toolCall.displayName,
+						agentName: COPILOT_FUSION_PHASE_AGENT_NAME,
+					}],
+				},
+			};
+		}),
+	}));
 }
 
 /**

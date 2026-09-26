@@ -47,6 +47,7 @@ export function getSessionSummaryHoverData(
 	const isMultiFolder = (sessionWorkspace?.folders.length ?? 0) > 1;
 	const mainChat = isMultiFolder ? session.mainChat.get() : undefined;
 	const mainWorkspace = mainChat?.workspace.get() ?? sessionWorkspace;
+	const topPullRequestRefs = getPullRequestRefs([isMultiFolder ? mainWorkspace : sessionWorkspace]);
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
 		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
@@ -56,7 +57,7 @@ export function getSessionSummaryHoverData(
 			() => mainChat ? getChatBranchDiffStats(mainChat) : getSessionDiffStats(session),
 			labelService,
 		),
-		pullRequests: getPullRequests(isMultiFolder ? mainWorkspace : sessionWorkspace, openerService),
+		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
 		providerLabel: getProviderLabel(session, sessionsProvidersService),
@@ -64,7 +65,11 @@ export function getSessionSummaryHoverData(
 			sessionSummary: {
 				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
 				changes: getSessionDiffStats(session),
-				pullRequests: getSessionPullRequests(session, sessionWorkspace, openerService),
+				// The session-wide union includes the main chat's folders, whose pull requests are listed above.
+				pullRequests: toHoverPullRequests(
+					[...getSessionPullRequestRefs(session, sessionWorkspace)].filter(([uri]) => !topPullRequestRefs.has(uri)).map(([, ref]) => ref),
+					openerService,
+				),
 			},
 		} : {}),
 	};
@@ -86,7 +91,7 @@ export function getChatSummaryHoverData(
 		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
 		location: getLocation(
 			chat.workspace.get(),
-			session.worktreePending?.get() ?? false,
+			false,
 			() => getChatBranchDiffStats(chat),
 			labelService,
 		),
@@ -193,18 +198,21 @@ function getFolderLocation(
  * Excludes inherited checkout PRs and mere references when provider provenance is available.
  */
 function getPullRequests(workspace: ISessionWorkspace | undefined, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
-	return getPullRequestsForWorkspaces(workspace ? [workspace] : [], openerService);
+	return toHoverPullRequests(getPullRequestRefs([workspace]).values(), openerService);
 }
 
-function getSessionPullRequests(session: ISession, sessionWorkspace: ISessionWorkspace, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
-	return getPullRequestsForWorkspaces([
+function getSessionPullRequestRefs(session: ISession, sessionWorkspace: ISessionWorkspace): ReadonlyMap<string, SessionPullRequestRef> {
+	return getPullRequestRefs([
 		sessionWorkspace,
 		...session.chats.get().map(chat => chat.workspace.get()),
-	], openerService);
+	]);
 }
 
-function getPullRequestsForWorkspaces(workspaces: readonly (ISessionWorkspace | undefined)[], openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
-	const refsByUri = new Map<string, ReturnType<typeof getSessionOwnedGitHubPullRequestRefs>[number]>();
+type SessionPullRequestRef = ReturnType<typeof getSessionOwnedGitHubPullRequestRefs>[number];
+
+/** Session-owned pull request refs of the workspaces' folders, de-duplicated and keyed by PR URI. */
+function getPullRequestRefs(workspaces: readonly (ISessionWorkspace | undefined)[]): ReadonlyMap<string, SessionPullRequestRef> {
+	const refsByUri = new Map<string, SessionPullRequestRef>();
 	for (const workspace of workspaces) {
 		for (const folder of workspace?.folders ?? []) {
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
@@ -216,15 +224,17 @@ function getPullRequestsForWorkspaces(workspaces: readonly (ISessionWorkspace | 
 			}
 		}
 	}
+	return refsByUri;
+}
 
-	return refsByUri.size
-		? [...refsByUri.values()].map(ref => ({
-			title: ref.title ?? `#${ref.number}`,
-			icon: ref.icon,
-			uri: ref.uri,
-			onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
-		}))
-		: undefined;
+function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
+	const pullRequests = [...refs].map(ref => ({
+		title: ref.title ?? `#${ref.number}`,
+		icon: ref.icon,
+		uri: ref.uri,
+		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+	}));
+	return pullRequests.length ? pullRequests : undefined;
 }
 
 /** Links a session still treated as external to its visibility setting. */

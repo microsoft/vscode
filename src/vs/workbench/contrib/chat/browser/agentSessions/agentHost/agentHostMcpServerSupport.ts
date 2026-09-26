@@ -18,7 +18,7 @@ import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration
 import { CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX, extensionMcpCollectionPrefix, extensionPrefixedIdentifier, getMcpCollectionProvenance, IMcpConfigPath, IMcpServer, LazyCollectionState, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportType, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 
 const COPILOT_CHAT_EXTENSION_ID = 'github.copilot-chat';
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
@@ -57,6 +57,7 @@ export const enum AgentHostMcpServerSourceKind {
 	WorkspaceConfiguration = 'workspaceConfiguration',
 	WorkspaceDotMcp = 'workspaceDotMcp',
 	ClaudeDesktop = 'claudeDesktop',
+	CopilotHome = 'copilotHome',
 	Windsurf = 'windsurf',
 	CursorUser = 'cursorUser',
 	CursorWorkspace = 'cursorWorkspace',
@@ -164,12 +165,13 @@ export async function assessMcpServersForCopilotAgentHost(
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
 	lazyCollectionState: LazyCollectionState,
+	windowRemoteAuthority: string | null,
 ): Promise<IAgentHostMcpServerSupportAssessment | undefined> {
 	if (!isCopilotCliSessionType(sessionType)) {
 		return undefined;
 	}
 
-	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
+	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	return {
 		servers: resolved.map(({ server, source, applicability, delivery, compatibility, projectedConfiguration }) => ({
 			id: server.definition.id,
@@ -215,13 +217,15 @@ export async function mergeInstalledMcpServersIntoAgentHostSupportAssessment(
 	};
 }
 
+/** The window's own agent host runs on `windowRemoteAuthority`, or locally when it is `null`. */
 export function resolveMcpServersForAgentHostDelivery(
 	servers: readonly IMcpServer[],
 	configurationResolverService: IConfigurationResolverService,
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
+	windowRemoteAuthority: string | null,
 ): Promise<readonly IAgentHostMcpServerDeliveryResolution[]> {
-	return Promise.all(servers.map(server => resolveMcpServerForAgentHostDelivery(server, configurationResolverService, sessionType, workingDirectories)));
+	return Promise.all(servers.map(server => resolveMcpServerForAgentHostDelivery(server, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority)));
 }
 
 async function resolveMcpServerForAgentHostDelivery(
@@ -229,6 +233,7 @@ async function resolveMcpServerForAgentHostDelivery(
 	configurationResolverService: IConfigurationResolverService,
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
+	windowRemoteAuthority: string | null,
 ): Promise<IAgentHostMcpServerDeliveryResolution> {
 	const definitions = server.readDefinitions().get();
 	const definition = definitions.server;
@@ -257,6 +262,13 @@ async function resolveMcpServerForAgentHostDelivery(
 			applicability === AgentHostMcpServerApplicability.Applicable ? AgentHostMcpServerDelivery.RuntimeDiscovered : deliveryForInapplicable(applicability),
 			supported(),
 		);
+	}
+
+	// Only the window's own Copilot runtime is known to read the same machine's Copilot-home config.
+	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome
+		&& sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+		&& collection?.remoteAuthority === windowRemoteAuthority) {
+		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
 	}
 
 	if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection) && !McpCollectionDefinition.isVscodeMcpJson(collection)) {
@@ -402,6 +414,8 @@ function getExternalConfigurationSourceKind(discoverySource: ExternalDiscoverySo
 	switch (discoverySource) {
 		case ExternalDiscoverySource.ClaudeDesktop:
 			return AgentHostMcpServerSourceKind.ClaudeDesktop;
+		case ExternalDiscoverySource.Copilot:
+			return AgentHostMcpServerSourceKind.CopilotHome;
 		case ExternalDiscoverySource.Windsurf:
 			return AgentHostMcpServerSourceKind.Windsurf;
 		case ExternalDiscoverySource.CursorGlobal:
@@ -418,6 +432,7 @@ function getMcpServerSourceGroup(kind: AgentHostMcpServerSourceKind): AICustomiz
 		case AgentHostMcpServerSourceKind.UserProfile:
 		case AgentHostMcpServerSourceKind.RemoteUser:
 		case AgentHostMcpServerSourceKind.ClaudeDesktop:
+		case AgentHostMcpServerSourceKind.CopilotHome:
 		case AgentHostMcpServerSourceKind.Windsurf:
 		case AgentHostMcpServerSourceKind.CursorUser:
 			return AICustomizationSources.user;

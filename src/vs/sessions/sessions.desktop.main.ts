@@ -51,6 +51,7 @@ import '../workbench/services/host/electron-browser/nativeHostService.js';
 import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
+import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
 import '../workbench/services/contextmenu/electron-browser/contextmenuService.js';
@@ -197,6 +198,9 @@ import '../workbench/contrib/splash/electron-browser/splash.contribution.js';
 
 // Local History
 import '../workbench/contrib/localHistory/electron-browser/localHistory.contribution.js';
+
+// Onboarding
+import '../workbench/contrib/onboarding/electron-browser/onboardingTryout.contribution.js';
 
 // Merge Editor
 import '../workbench/contrib/mergeEditor/electron-browser/mergeEditor.contribution.js';

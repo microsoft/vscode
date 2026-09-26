@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { $, append, hide, isHTMLElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../base/common/iconLabels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -31,6 +33,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
+import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { Link } from '../../../../../../platform/opener/browser/link.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -44,6 +48,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	protected currentContent: IMarkdownString;
 	protected progressIconElement: HTMLElement | undefined;
+	private readonly progressId: string | undefined;
+	private readonly progressAction: IChatContentPartRenderContext['progressMessageAction'];
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
@@ -61,6 +67,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	) {
 		super();
 		this.currentContent = progress.content;
+		this.progressId = hasKey(progress, { kind: true }) && progress.kind === 'progressMessage' ? progress.id : undefined;
+		this.progressAction = context.progressMessageAction;
 		this.persistentProgress = !!context.suppressProgressShimmer;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
@@ -103,6 +111,34 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			this.domNode.classList.add('shimmer-progress');
 		}
 		this.renderedMessage.value = result;
+		if (this.progressAction && this.showSpinner && (!this.persistentProgress || isWorkingProgress)) {
+			const detail = append(this.domNode, $('span.chat-progress-action'));
+			append(detail, $('span', { 'aria-hidden': 'true' }, '\u00b7 '));
+			const link = this._register(instantiationService.createInstance(Link, detail, { label: '', href: '#' }, {
+				opener: () => this.progressAction?.get()?.run(),
+			}));
+			this._register(autorun(reader => {
+				const action = this.progressAction!.read(reader);
+				detail.hidden = !action;
+				if (action) {
+					link.link = { label: action.label, href: '#' };
+				}
+			}));
+		}
+	}
+
+	tryUpdateProgress(progress: IChatProgressMessage, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		if (!this.progressAction?.get() || !this.progressId || progress.id !== this.progressId
+			|| followingContent.some(part => part.kind !== 'progressMessage') || this.isHidden
+			|| shouldShowSpinner(followingContent, element) !== this.showSpinner) {
+			return false;
+		}
+		if (this.showSpinner && progress.content.value !== this.currentContent.value
+			&& this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(stripIcons(renderAsPlaintext(progress.content)));
+		}
+		this.updateMessage(progress.content);
+		return true;
 	}
 
 	private renderToolOrigin(messageElement: HTMLElement): void {
@@ -187,9 +223,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.persistentProgress) {
-			this.currentContent = content;
-		}
+		this.currentContent = content;
 		// Render the new message
 		const previousElement = this.renderedMessage.value?.element;
 		const result = this.chatContentMarkdownRenderer.render(content);
@@ -321,6 +355,7 @@ export class ChatProgressSubPart extends Disposable {
 }
 
 const WORKING_LABEL_MIN_DWELL_MS = 1200;
+const DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS = 90_000;
 const lastPickedWorkingLabelByElement = new WeakMap<ChatTreeItem, { label: string; pickedAt: number; progressStep?: number }>();
 const lastPickedLegacyWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
 
@@ -374,8 +409,12 @@ export function pickWorkingLabel(element: ChatTreeItem, configurationService: IC
 export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
 	private explicitContent: IMarkdownString | undefined;
 	private isActive: boolean;
+	private progressStep: number | undefined;
+	private showDelayedProgressMessage: boolean;
+	private showingDelayedProgressMessage = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
+	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
 
 	constructor(
 		workingProgress: IChatWorkingProgress,
@@ -392,7 +431,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		const isInsiders = productService.quality === 'insider';
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element, workingConfigurationService))
+			content: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element, workingConfigurationService, workingProgress.progressStep))
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context,
 			context.suppressProgressShimmer ? isActive : undefined,
@@ -417,11 +456,28 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.explicitContent = explicitContent;
 		this.isActive = isActive;
+		this.progressStep = workingProgress.progressStep;
+		this.showDelayedProgressMessage = workingProgress.showDelayedProgressMessage ?? false;
 		this.contextElement = context.element;
+		this.delayedProgressMessageScheduler = this.workingLogo
+			? this._register(new RunOnceScheduler(() => this.showDelayedProgress(), DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS))
+			: undefined;
+		if (this.workingLogo && isResponseVM(context.element)) {
+			this._register(context.element.model.onDidChange(() => this.onResponseActivity()));
+		}
+		this.updateDelayedProgressMessageScheduler();
+
+		// Keep the replacement anchor, but never leave completed or disposed progress visible.
+		this._register(toDisposable(() => hide(this.domNode)));
+		const response = context.element;
+		if (isResponseVM(response)) {
+			const isComplete = observableFromEvent(this, response.model.onDidChange, () => response.isComplete || response.isCanceled);
+			this._register(autorun(reader => setVisibility(!isComplete.read(reader), this.domNode)));
+		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
-				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
+				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)), true, false, this.progressStep, false);
 			}
 		}));
 	}
@@ -430,17 +486,30 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce = false): void {
-		const resolvedContent = content ?? new MarkdownString().appendText(pickWorkingLabel(this.contextElement, this.workingConfigurationService));
-		if (this.workingLogo && content?.value === this.explicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === this.isActive) {
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+		const previousExplicitContent = this.explicitContent;
+		const previousIsActive = this.isActive;
+		const previousProgressStep = this.progressStep;
+		const previousShowDelayedProgressMessage = this.showDelayedProgressMessage;
+		const shouldResetDelayedProgress = previousExplicitContent?.value !== content?.value
+			|| previousProgressStep !== progressStep
+			|| (!previousShowDelayedProgressMessage && showDelayedProgressMessage);
+		this.explicitContent = content;
+		this.isActive = isActive;
+		this.progressStep = progressStep;
+		this.showDelayedProgressMessage = showDelayedProgressMessage;
+		if (!showDelayedProgressMessage || !isActive || shouldResetDelayedProgress) {
+			this.showingDelayedProgressMessage = false;
+		}
+		this.updateDelayedProgressMessageScheduler(shouldResetDelayedProgress);
+		const resolvedContent = this.resolveWorkingContent();
+		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive) {
 			return;
 		}
 		// The retained footer swaps its text in place, so a new blocking state ("1 confirmation pending",
 		// "Authentication required") must be announced the way a freshly created row would be.
-		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== this.explicitContent?.value
+		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== previousExplicitContent?.value
 			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
-		this.explicitContent = content;
-		this.isActive = isActive;
 		if (this.workingLogo) {
 			this.domNode.classList.toggle('chat-working-progress-active', isActive);
 			this.workingLogo.setActive(isActive);
@@ -452,9 +521,55 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 	}
 
+	private resolveWorkingContent(): IMarkdownString {
+		if (this.showingDelayedProgressMessage) {
+			return new MarkdownString().appendText(localize('persistentProgress.takingLonger', "This is taking a little longer than usual"));
+		}
+		return this.explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(this.contextElement, this.workingConfigurationService, this.progressStep));
+	}
+
+	private updateDelayedProgressMessageScheduler(reset = false): void {
+		if (!this.delayedProgressMessageScheduler) {
+			return;
+		}
+		if (!this.showDelayedProgressMessage || !this.isActive) {
+			this.delayedProgressMessageScheduler.cancel();
+			return;
+		}
+		if (reset || (!this.showingDelayedProgressMessage && !this.delayedProgressMessageScheduler.isScheduled())) {
+			this.delayedProgressMessageScheduler.schedule();
+		}
+	}
+
+	private onResponseActivity(): void {
+		if (!this.showDelayedProgressMessage || !this.isActive) {
+			return;
+		}
+		const wasShowingDelayedProgress = this.showingDelayedProgressMessage;
+		this.showingDelayedProgressMessage = false;
+		if (wasShowingDelayedProgress) {
+			this.updateMessage(this.resolveWorkingContent());
+		}
+		this.updateDelayedProgressMessageScheduler(true);
+	}
+
+	private showDelayedProgress(): void {
+		if (!this.showDelayedProgressMessage || !this.isActive) {
+			return;
+		}
+		this.showingDelayedProgressMessage = true;
+		const content = this.resolveWorkingContent();
+		this.updateMessage(content);
+		if (this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			status(stripIcons(renderAsPlaintext(content)));
+		}
+	}
+
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'working'
 			&& other.content?.value === this.explicitContent?.value
-			&& (other.isActive ?? true) === this.isActive;
+			&& (other.isActive ?? true) === this.isActive
+			&& other.progressStep === this.progressStep
+			&& (other.showDelayedProgressMessage ?? false) === this.showDelayedProgressMessage;
 	}
 }

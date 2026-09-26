@@ -90,13 +90,28 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container {
+	display: flex;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container > .session-workspace-picker-slot {
+	flex: 1;
+	min-width: 0;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
+	min-height: var(--vscode-spacing-size280);
 	margin: 0;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size40);
 	background-color: transparent;
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+	box-sizing: border-box;
+	align-items: center;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-input-container {
+	margin-top: var(--vscode-spacing-size40);
 }
 
 .new-chat-widget-content {
@@ -108,31 +123,45 @@
 	align-self: center;
 }
 
-.new-session-contextual-message {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	align-self: center;
-	margin-bottom: var(--vscode-spacing-size400);
-	text-align: center;
-}
-
-.new-session-contextual-message[hidden] {
-	display: none;
-}
-
-.new-session-contextual-message-title {
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1.4;
-	margin: 0;
-}
-
 /* Flex centering shares attachment growth above and below the midpoint. Offset
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
+}
+
+.new-session-welcome-message {
+	align-self: center;
+	align-items: center;
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	justify-content: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	position: relative;
+	text-align: center;
+}
+
+.new-session-welcome-message[hidden] {
+	display: none;
+}
+
+.new-session-welcome-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	margin: 0;
+}
+
+.new-session-welcome-message-actions {
+	left: 100%;
+	opacity: 0;
+	padding-left: var(--vscode-spacing-size40);
+	position: absolute;
+}
+
+.new-session-welcome-message:hover .new-session-welcome-message-actions,
+.new-session-welcome-message:focus-within .new-session-welcome-message-actions {
+	opacity: 1;
 }
 
 .new-chat-widget-container .new-chat-bottom-container {
@@ -240,7 +269,8 @@
 	overflow: visible;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator {
 	min-width: 0;
 }
 
@@ -309,7 +339,8 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. Each item carries its own opaque
  * surface so a chat background cannot show through it. */
-.new-chat-widget-container .new-chat-bottom-container .action-label {
+.new-chat-widget-container .new-chat-bottom-container .action-label,
+.experimental-new-session-composer .new-chat-repo-config-container .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;

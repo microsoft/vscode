@@ -47,6 +47,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
+const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -394,6 +395,9 @@ export class ChatListWidget extends Disposable {
 	private readonly _useTreeHierarchy: boolean;
 	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
 	private _paddingBottom: number;
+	private _effectivePaddingBottom: number;
+	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
+	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
 
 	//#endregion
 
@@ -491,6 +495,7 @@ export class ChatListWidget extends Disposable {
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
 		this._paddingBottom = options.paddingBottom ?? 0;
+		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
@@ -543,6 +548,8 @@ export class ChatListWidget extends Disposable {
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
+			preserveScrollPosition: target => this.preserveScrollPosition(target),
+			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};
 
 		// Create renderer
@@ -742,7 +749,8 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
-				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}
@@ -889,6 +897,9 @@ export class ChatListWidget extends Disposable {
 	 * Set the view model for the list to render.
 	 */
 	setViewModel(viewModel: IChatViewModel | undefined): void {
+		if (this._viewModel !== viewModel) {
+			this.clearScrollHeightReservation();
+		}
 		this._viewModel = viewModel;
 		this._renderer.updateViewModel(viewModel);
 	}
@@ -1073,7 +1084,15 @@ export class ChatListWidget extends Disposable {
 		if (this._tree.hasElement(element) && this._visible) {
 			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
 			if (userToggleResizeTracker) {
+				const scrollTop = this._tree.scrollTop;
+				const previousContentHeight = this._tree.contentHeight;
+				const reservation = this._scrollHeightReservation;
 				this._tree.updateElementHeight(element, height);
+				if (reservation && this._scrollHeightReservation === reservation) {
+					// Manual collapses must not refill the space reserved by an automatic collapse.
+					reservation.height -= Math.max(0, previousContentHeight - this._tree.contentHeight);
+				}
+				this.updateBottomPadding(scrollTop);
 				userToggleResizeTracker.restoreScrollAnchor();
 				return;
 			}
@@ -1083,7 +1102,68 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	private preserveScrollPosition(target: HTMLElement): void {
+		if (!this._container.contains(target)) {
+			return;
+		}
+		const response = this._renderer.getElementFromNode(target);
+		if (!response || !isResponseVM(response) || response.isComplete || response.isCanceled) {
+			return;
+		}
+		const viewport = this._tree.getHTMLElement().getBoundingClientRect();
+		const sticky = this._tree.stickyScrollDomNode?.getBoundingClientRect();
+		// Leave the normal item gap below the pinned prompt and its shadow.
+		const viewportTop = sticky?.height ? Math.max(viewport.top, sticky.bottom + CHAT_COLLAPSE_ANCHOR_PADDING) : viewport.top;
+		const bounds = target.getBoundingClientRect();
+		if (bounds.top < viewport.bottom && bounds.bottom > viewportTop) {
+			const maximumScrollHeight = this._tree.scrollTop + bounds.top - viewportTop + this._tree.renderHeight;
+			this._scrollHeightReservation = { response, height: Math.min(this._tree.scrollHeight, maximumScrollHeight) };
+			this._pendingScrollHeightRelease.clear();
+		}
+	}
+
+	private clearScrollHeightReservation(): void {
+		this._scrollHeightReservation = undefined;
+		this._pendingScrollHeightRelease.clear();
+		this.updateBottomPadding();
+	}
+
+	private updateBottomPadding(scrollTop = this._tree.scrollTop): void {
+		const reservation = this._scrollHeightReservation;
+		if (reservation && !this._tree.hasElement(reservation.response)) {
+			this._scrollHeightReservation = undefined;
+		} else if (reservation
+			&& (reservation.response.isComplete || reservation.response.isCanceled)
+			&& !this._renderer.hasPendingProgressContent(reservation.response)
+			&& !this._userToggleResizeTrackers.has(reservation.response)
+			&& !this._pendingScrollHeightRelease.value) {
+			// Measure the flushed content before releasing space; pending collapse content remains off-DOM.
+			this._pendingScrollHeightRelease.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._container), () => {
+				this._pendingScrollHeightRelease.clear();
+				if (this._scrollHeightReservation === reservation && !this._renderer.hasPendingProgressContent(reservation.response)) {
+					this.clearScrollHeightReservation();
+				}
+			});
+		}
+		const minimumScrollHeight = this._scrollHeightReservation?.height ?? 0;
+		const paddingBottom = Math.max(this._paddingBottom, Math.min(this._tree.renderHeight, minimumScrollHeight - this._tree.contentHeight));
+		if (paddingBottom !== this._effectivePaddingBottom) {
+			this._effectivePaddingBottom = paddingBottom;
+			if (paddingBottom === this._paddingBottom) {
+				this._scrollHeightReservation = undefined;
+			}
+			this._tree.updateOptions({ paddingBottom });
+		}
+		if (paddingBottom > this._paddingBottom) {
+			// Updating item heights can clamp the scroll position before the reserved space is applied.
+			this._tree.scrollTop = Math.min(scrollTop, minimumScrollHeight - this._tree.renderHeight);
+		}
+	}
+
 	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
+		if (this._scrollHeightReservation?.response === element) {
+			this._pendingScrollHeightRelease.clear();
+		}
 		const anchorTargetTop = this.isScrolledToBottom ? target.getBoundingClientRect().top : undefined;
 		const restoreScrollPosition = anchorTargetTop === undefined ? undefined : () => {
 			if (target.isConnected) {
@@ -1093,6 +1173,7 @@ export class ChatListWidget extends Disposable {
 		const tracker: UserToggleResizeTracker = new UserToggleResizeTracker(target, restoreScrollPosition, () => {
 			if (this._userToggleResizeTrackers.get(element) === tracker) {
 				this._userToggleResizeTrackers.deleteAndDispose(element);
+				this.updateBottomPadding();
 			}
 		});
 		this._userToggleResizeTrackers.set(element, tracker);
@@ -1171,17 +1252,22 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
+		this.clearScrollHeightReservation();
+		this.revealLastItem();
+	}
+
+	private revealLastItem(): void {
 		// Reveal the tree's actual last visible item rather than the held `_lastItem`. `reveal` reliably
 		// scrolls all the way down even while item heights are still settling (see #234089)
 		const lastElement = this.getItems().at(-1);
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
-			if (this._paddingBottom) {
+			if (this._effectivePaddingBottom) {
 				// `reveal` stops at the last item's edge, leaving the padding
 				// unscrolled - which would keep the list from ever reporting that
 				// it is at the bottom. Overshoot is clamped.
-				this._tree.scrollTop += this._paddingBottom;
+				this._tree.scrollTop += this._effectivePaddingBottom;
 			}
 		}
 	}
@@ -1202,14 +1288,12 @@ export class ChatListWidget extends Disposable {
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {
-		if (this.isAutoScrollHeld) {
-			fn();
-			return;
-		}
-		const wasScrolledToBottom = this.isScrolledToBottom;
+		const wasScrolledToBottom = !this.isAutoScrollHeld && this.isScrolledToBottom;
+		const scrollTop = this._tree.scrollTop;
 		fn();
+		this.updateBottomPadding(scrollTop);
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 
@@ -1299,9 +1383,9 @@ export class ChatListWidget extends Disposable {
 		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
-		this._tree.updateOptions({ paddingBottom: value });
+		this.updateBottomPadding();
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 
@@ -1347,6 +1431,7 @@ export class ChatListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
+		this.updateBottomPadding();
 		this._tree.refreshStickyScroll();
 	}
 

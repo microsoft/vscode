@@ -402,6 +402,16 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
 	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
 }
 
+/** Refreshes a phase tile from protocol state while keeping the child chat the observer attached. */
+function updateFusionPhaseToolSpecificData(invocation: ChatToolInvocation, tc: ToolCallState, sessionResource: URI): void {
+	const previous = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
+	const data = getSubagentToolSpecificData(tc, sessionResource);
+	invocation.toolSpecificData = data && previous?.chatResource
+		? { ...data, chatResource: previous.chatResource, isChatAvailable: previous.isChatAvailable }
+		: data;
+	invocation.notifyToolSpecificDataChanged();
+}
+
 function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
 	const phase = readToolCallMeta(tc).fusionPhase;
 	if (getToolKind(tc) === 'fusionPhase' && phase) {
@@ -602,6 +612,12 @@ export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): 
  */
 export function isSubagentTool(tc: ToolCallState): boolean {
 	return getToolKind(tc) === 'subagent' || isSubagentToolName(tc.toolName);
+}
+
+/** Returns whether the tool call can own a child chat: a subagent launch, a Fusion phase, or a call carrying discovery content. */
+export function canOwnSubagentChat(tc: ToolCallState): boolean {
+	return isSubagentTool(tc) || getToolKind(tc) === 'fusionPhase'
+		|| ((tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) && getToolSubagentContent(tc) !== undefined);
 }
 
 /** Returns whether the tool call can have a child chat worth observing. */
@@ -1975,6 +1991,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
+			resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
@@ -2040,22 +2057,15 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
+		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 	};
 }
 
 /**
- * Builds {@link IChatExternalEdit} progress parts for a completed tool call
- * that produced file edits. Returns an empty array if the tool call has no
- * edits. Each emitted part carries the URI, edit kind, before/after content
- * URIs, and the diff stats already known from the agent host protocol —
- * downstream rendering can produce a static "edit pill" without re-deriving
- * any of this from an editing session.
- *
- * `connectionAuthority` is required so all emitted URIs are wrapped via
- * {@link toAgentHostUri}; otherwise the chat session would receive raw
- * remote URIs that its file system providers cannot resolve.
+ * Builds per-file edit pills with protocol diff metadata and connection-scoped resource URIs.
+ * An optional root subagent id keeps child edits out of the parent's own content flow.
  */
-export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string): IChatProgress[] {
+export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string, subAgentInvocationId?: string): IChatExternalEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -2063,10 +2073,13 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
 	if (fileEdits.length === 0) {
 		return [];
 	}
-	const parts: IChatProgress[] = [];
+	const parts: IChatExternalEdit[] = [];
 	for (const edit of fileEdits) {
 		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority);
 		if (part) {
+			if (subAgentInvocationId !== undefined) {
+				part.subAgentInvocationId = subAgentInvocationId;
+			}
 			parts.push(part);
 		}
 	}
@@ -2727,8 +2740,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	applyToolCallProgress(existing, tc);
 
 	if (getToolKind(tc) === 'fusionPhase') {
-		existing.toolSpecificData = getSubagentToolSpecificData(tc, sessionResource);
-		existing.notifyToolSpecificDataChanged();
+		updateFusionPhaseToolSpecificData(existing, tc, sessionResource);
 		return;
 	}
 
@@ -2853,8 +2865,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
 	if (getToolKind(tc) === 'fusionPhase') {
-		invocation.toolSpecificData = getSubagentToolSpecificData(tc, backendSession);
-		invocation.notifyToolSpecificDataChanged();
+		updateFusionPhaseToolSpecificData(invocation, tc, backendSession);
 	} else if (isCompleted) {
 		const subagentContent = getToolSubagentContent(tc);
 		if (subagentContent) {
@@ -2970,7 +2981,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails
-		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		? { content: [], toolResultError: isFailure ? errorString || (isCompleted ? true : undefined) : undefined, toolResultDetails: resultDetails }
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });
