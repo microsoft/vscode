@@ -70,7 +70,7 @@ import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IPreparedChatWorkingDirectory, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
@@ -1491,7 +1491,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				: undefined),
 			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
-			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
+			renameChat: (session, chat, title, options) => this._renameChatFromTool(session, chat, title, options?.automatic === true),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
@@ -1779,11 +1779,17 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
+	private async _renameChatFromTool(session: URI, chat: URI, title: string, automatic = false): Promise<IRenameTitleResult> {
 		validateRenameTitle(title, SessionServerToolName.RenameChat);
 		const isDefaultChat = isDefaultChatUri(chat.toString());
 		if (!isDefaultChat && !await this._peerChatExists(session, chat)) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
+		}
+
+		// An automatic title never replaces one the user chose; an explicit rename still does. The persisted source covers
+		// a restored session, and the in-memory one, read after it, a user rename whose own writes are still on their way.
+		if (automatic && (await this._hasPersistedUserTitle(session, chat, isDefaultChat) || this._isUserTitle(session, chat, isDefaultChat))) {
+			return { title: this._stateManager.getChatState(chat.toString())?.title ?? title };
 		}
 
 		if (isDefaultChat) {
@@ -1794,6 +1800,10 @@ export class AgentService extends Disposable implements IAgentService {
 			[SESSION_CUSTOM_TITLE_KEY]: title,
 			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
 		});
+		// Renamed by the user during the chat's own write: the user's writes land after it, so nothing more is written.
+		if (automatic && this._isUserTitle(session, chat, isDefaultChat)) {
+			return { title: this._stateManager.getChatState(chat.toString())?.title ?? title };
+		}
 		await this._persistOrderedListVisibleSessionState(session, {
 			[customChatTitleMetadataKey(chat.toString())]: title,
 			[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AGENT,
@@ -1802,6 +1812,11 @@ export class AgentService extends Disposable implements IAgentService {
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
 			} : {}),
 		});
+		// Renamed by the user while the session's write was queued, which then landed over the user's: the user's title is written back.
+		if (automatic && this._isUserTitle(session, chat, isDefaultChat)) {
+			await this._rewriteUserTitle(session, chat, isDefaultChat);
+			return { title: this._stateManager.getChatState(chat.toString())?.title ?? title };
+		}
 		const state = this._stateManager.getSessionState(session.toString());
 		if (state) {
 			if (isDefaultChat && state.title !== title) {
@@ -3119,6 +3134,54 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		await this._peerChatStore.replaceForMigration(session, entries);
 		return entries;
+	}
+
+	/** Whether the user gave {@link chat} its title in this process. A rename of the session itself titles its default chat. */
+	private _isUserTitle(session: URI, chat: URI, isDefaultChat: boolean): boolean {
+		return this._titleController.isTitleSetByUser(session.toString(), chat.toString())
+			|| (isDefaultChat && this._titleController.isTitleSetByUser(session.toString()));
+	}
+
+	/** Writes the user's live titles back over an automatic rename's; a rename made during a write is written by another pass. */
+	private async _rewriteUserTitle(session: URI, chat: URI, isDefaultChat: boolean): Promise<void> {
+		const sessionKey = session.toString();
+		const chatKey = chat.toString();
+		let written: string | undefined;
+		while (true) {
+			const values: Record<string, string> = {};
+			const chatTitle = this._stateManager.getChatState(chatKey)?.title;
+			if (chatTitle !== undefined && this._titleController.isTitleSetByUser(sessionKey, chatKey)) {
+				values[customChatTitleMetadataKey(chatKey)] = chatTitle;
+				values[customChatTitleSourceMetadataKey(chatKey)] = AGENT_HOST_TITLE_SOURCE_USER;
+			}
+			const sessionTitle = this._stateManager.getSessionState(sessionKey)?.title;
+			if (isDefaultChat && sessionTitle !== undefined && this._titleController.isTitleSetByUser(sessionKey)) {
+				values[SESSION_CUSTOM_TITLE_KEY] = sessionTitle;
+				values[SESSION_CUSTOM_TITLE_SOURCE_KEY] = AGENT_HOST_TITLE_SOURCE_USER;
+			}
+			const snapshot = JSON.stringify(values);
+			if (snapshot === '{}' || snapshot === written) {
+				return;
+			}
+			await this._persistOrderedListVisibleSessionState(session, values);
+			written = snapshot;
+		}
+	}
+
+	/** Whether {@link chat}'s persisted title came from the user, as {@link _isUserTitle} asks of a restored session. */
+	private async _hasPersistedUserTitle(session: URI, chat: URI, isDefaultChat: boolean): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+
+		try {
+			const db = ref.object;
+			return await db.getMetadata(customChatTitleSourceMetadataKey(chat.toString())) === AGENT_HOST_TITLE_SOURCE_USER
+				|| (isDefaultChat && await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_USER);
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	private async _isExternalProviderChat(session: URI): Promise<boolean> {

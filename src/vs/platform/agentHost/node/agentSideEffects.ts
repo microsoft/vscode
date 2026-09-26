@@ -88,7 +88,7 @@ import type { IAgentHostCustomizationEnablementService } from './agentHostCustom
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -1911,8 +1911,9 @@ export class AgentSideEffects extends Disposable {
 		return this._titleController.generateExternalSessionTitle(session, userPrompt);
 	}
 
+	/** A rename the agent made through its tools, which a later automatic rename may replace. */
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
-		this._titleController.markTitleRenamed(channel, chatChannel);
+		this._titleController.markTitleRenamed(channel, chatChannel, undefined, AGENT_HOST_TITLE_SOURCE_AGENT);
 	}
 
 	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {

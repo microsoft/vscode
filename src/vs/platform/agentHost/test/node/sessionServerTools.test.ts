@@ -2088,6 +2088,29 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('rename_chat tells the accessor whether the rename is automatic', async () => {
+		const received: [string, boolean | undefined][] = [];
+		const bothReceived = new DeferredPromise<void>();
+		const accessor = createAccessor({
+			getSession: async () => sessionMeta('s1', SessionStatus.Idle, workspace),
+			renameChat: async (_session, _chat, title, options) => {
+				received.push([title, options?.automatic]);
+				if (received.length === 2) {
+					await bothReceived.complete();
+				}
+				return { title };
+			},
+		});
+		const defaultChat = buildDefaultChatUri('copilot:/s1');
+		await applyRenameChatTool(accessor, { title: 'Automatic title', automatic: true }, defaultChat);
+		await applyRenameChatTool(accessor, { title: 'Requested title' }, defaultChat);
+		await bothReceived.p;
+		assert.deepStrictEqual(received.sort(([left], [right]) => left.localeCompare(right)), [
+			['Automatic title', true],
+			['Requested title', false],
+		]);
+	});
+
 	test('rename_chat uses the invoking chat while server-tool state remains session-scoped', async () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const session = 'copilot:/s1';
