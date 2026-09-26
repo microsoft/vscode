@@ -8,7 +8,9 @@ import path from 'path';
 
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
 
-// Şema için katı tip güvenliği sağlayan interface
+/**
+ * Schema definition for known CSS variables loaded from JSON.
+ */
 export interface IKnownVariablesSchema {
 	colors: string[];
 	others: string[];
@@ -19,7 +21,6 @@ let knownVariables: Set<string> | undefined;
 function getKnownVariableNames() {
 	if (!knownVariables) {
 		const knownVariablesFileContent = readFileSync(path.join(import.meta.dirname, './vscode-known-variables.json'), 'utf8').toString();
-		// JSON.parse sonucunu IKnownVariablesSchema ile tiplendiriyoruz
 		const knownVariablesInfo: IKnownVariablesSchema = JSON.parse(knownVariablesFileContent);
 		knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others, ...(knownVariablesInfo.sizes || [])] as string[]);
 	}
