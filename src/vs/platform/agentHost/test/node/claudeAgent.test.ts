@@ -20,6 +20,7 @@ import {
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
+	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeSystemInitMessage,
@@ -476,6 +477,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * deterministically. Resolves immediately when undefined.
 	 */
 	queryAdvance: ((index: number) => Promise<void>) | undefined;
+	promptReceived: ((message: SDKUserMessage) => void) | undefined;
 
 	/**
 	 * Optional gate awaited by {@link FakeQuery.return}. Models the SDK's
@@ -842,6 +844,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 					return;
 				}
 				this.drainedPrompts.push(r.value);
+				this._sdk.promptReceived?.(r.value);
 			}
 		})();
 	}
@@ -3072,6 +3075,8 @@ suite('ClaudeAgent', () => {
 		const created = await createSession(agent, { workingDirectories: [primary, secondary] });
 		const sessionId = created.sdkSessionId;
 		const nextTurn = new DeferredPromise<void>();
+		let receivedPrompts = 0;
+		sdk.promptReceived = () => { if (++receivedPrompts === 2) { nextTurn.complete(); } };
 		sdk.queryAdvance = async index => {
 			if (index === 2) {
 				await nextTurn.p;
@@ -3083,7 +3088,6 @@ suite('ClaudeAgent', () => {
 		];
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', [primary, secondary], undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		nextTurn.complete();
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', [primary, secondary], undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.strictEqual(sdk.startupCallCount, 1);
@@ -4524,20 +4528,24 @@ suite('ClaudeAgent', () => {
 			createdAt: 4900,
 			cwd: URI.file('/work').fsPath,
 		}];
-		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		const nextTurn = new DeferredPromise<void>();
+		let receivedPrompts = 0;
+		sdk.promptReceived = () => { if (++receivedPrompts === 2) { nextTurn.complete(); } };
+		sdk.queryAdvance = async index => { if (index === 2) { await nextTurn.p; } };
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId), makeResultSuccess(sessionId)];
 		await bindDefaultChat(agent, sessionUri);
 		await agent.chats.sendMessage(defaultChatUri(sessionUri), 'turn-1', undefined, undefined, 't1', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
 
-		sdk.nextQueryMessages = [makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(sessionUri), 'turn-2', undefined, undefined, 't2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
 
+		assert.strictEqual(sdk.startupCallCount, 1);
 		const fakeQuery = sdk.warmQueries.at(-1)?.produced;
 		assert.deepStrictEqual({
 			optionsPermissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
 			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
 		}, {
 			optionsPermissionMode: 'plan',
-			recordedModes: ['plan'],
+			recordedModes: [],
 		});
 	});
 
@@ -5905,6 +5913,8 @@ suite('ClaudeAgent', () => {
 		const sessionId = created.sdkSessionId;
 
 		const advance = new DeferredPromise<void>();
+		let receivedPrompts = 0;
+		sdk.promptReceived = () => { if (++receivedPrompts === 2) { advance.complete(); } };
 		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
 		sdk.nextQueryMessages = [
 			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
@@ -5917,7 +5927,6 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
 
 		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
-		advance.complete();
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.strictEqual(sdk.startupCallCount, 1, 'equal snapshot should NOT yield-restart');
@@ -8195,6 +8204,114 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			models: reboundQuery.recordedModels,
 			efforts: reboundQuery.recordedFlagSettings.map(s => s.effortLevel),
 		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
+	});
+
+	for (const ending of ['abort', 'failure'] as const) {
+		test(`steering state is cleared after ${ending} and before recovery`, async () => {
+			const { agent, sdk } = createTestContext(disposables);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+			const sid = created.sdkSessionId;
+			const chat = defaultChatUri(created.session);
+			const ready = new DeferredPromise<void>();
+			const advance = new DeferredPromise<void>();
+			const interrupted = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			sdk.queryAdvance = async index => {
+				if (index === 3) { ready.complete(); await advance.p; }
+				if (index === 4) { interrupted.complete(); await finish.p; throw new Error('stream failed'); }
+			};
+			sdk.nextQueryMessages = [
+				makeSystemInitMessage(sid),
+				makeStreamEvent(sid, makeContentBlockStartToolUse(0, 'task-1', 'Task')),
+				makeAssistantMessage(sid, [{ type: 'tool_use', id: 'task-1', name: 'Task', input: { description: 'Inspect', subagent_type: 'Explore', prompt: 'inspect' } }]),
+				makeResultError(sid, ['[ede_diagnostic] interrupted']),
+			];
+			const sent = agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat)).catch(() => { });
+			await ready.p;
+			agent.setPendingMessages!(chat, { id: 'steer-1', message: { text: 'tests too', origin: { kind: MessageKind.User } } }, []);
+			await tick();
+			advance.complete();
+			await interrupted.p;
+			const session = agent.getSessionForTesting(created.session)!;
+			assert.ok(session.subagents.getSpawn('task-1'));
+			if (ending === 'abort') { await agent.chats.abort(chat, chatContext(chat)); }
+			finish.complete();
+			await sent;
+			assert.strictEqual(session.subagents.getSpawn('task-1'), undefined);
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			sdk.queryAdvance = undefined;
+			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeUserToolResultMessage(sid, 'task-1', 'late result'), makeResultSuccess(sid)];
+			await agent.chats.sendMessage(chat, 'retry', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+			assert.ok(!signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'task-1'));
+		});
+	}
+
+	test('result classification and settlement cannot split around a steering microtask', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const chat = defaultChatUri(created.session);
+		const ready = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		sdk.queryAdvance = async index => { if (index === 2) { ready.complete(); await finish.p; } };
+		const actions: ActionType[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind !== 'action') { return; }
+			actions.push(signal.action.type);
+			if (signal.action.type === ActionType.ChatUsage) {
+				queueMicrotask(() => agent.setPendingMessages!(chat, { id: 'late-steer', message: { text: 'more', origin: { kind: MessageKind.User } } }, []));
+			}
+		}));
+		const sent = agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat)).catch(() => { });
+		await ready.p;
+		try {
+			assert.strictEqual(actions.filter(type => type === ActionType.ChatTurnComplete).length, 1);
+			assert.ok(actions.indexOf(ActionType.ChatUsage) < actions.indexOf(ActionType.ChatTurnComplete));
+		} finally {
+			await agent.chats.abort(chat, chatContext(chat));
+			finish.complete();
+			await sent;
+		}
+	});
+
+	test('steering preserves a foreground subagent until its tool result arrives', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work')] });
+		const sid = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const ready = new DeferredPromise<void>();
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async index => {
+			if (index === 3) {
+				ready.complete();
+				await advance.p;
+			}
+		};
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, 'task-1', 'Task')),
+			makeAssistantMessage(sid, [{ type: 'tool_use', id: 'task-1', name: 'Task', input: { description: 'Inspect', subagent_type: 'Explore', prompt: 'inspect' } }]),
+			makeResultError(sid, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			makeUserToolResultMessage(sid, 'task-1', 'done'),
+			makeResultSuccess(sid),
+		];
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const sent = ctx.agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		ctx.agent.setPendingMessages!(chat, { id: 'steer-1', message: { text: 'also check tests', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		advance.complete();
+		await sent;
+
+		assert.ok(signals.some(signal => signal.kind === 'subagent_completed' && signal.toolCallId === 'task-1'));
+		assert.ok(signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'task-1'));
+		assert.strictEqual(signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete).length, 1);
+		assert.ok(!signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError));
 	});
 
 	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {
