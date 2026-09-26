@@ -72,6 +72,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INTENT_TO_RENAME:
 				return 'R';
 			case Status.TYPE_CHANGED:
+			case Status.INDEX_TYPE_CHANGED:
 				return 'T';
 			case Status.UNTRACKED:
 				return 'U';
@@ -106,6 +107,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
 			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
 			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
+			case Status.INDEX_TYPE_CHANGED: return l10n.t('Index Type Changed');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -120,6 +122,7 @@ export class Resource implements SourceControlResourceState {
 	static getStatusColor(type: Status): ThemeColor {
 		switch (type) {
 			case Status.INDEX_MODIFIED:
+			case Status.INDEX_TYPE_CHANGED:
 				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
 			case Status.MODIFIED:
 			case Status.TYPE_CHANGED:
@@ -232,6 +235,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
 			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
 			case Status.TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
+			case Status.INDEX_TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -291,6 +295,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
 			case Status.TYPE_CHANGED:
+			case Status.INDEX_TYPE_CHANGED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
@@ -600,6 +605,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_RENAMED:
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED:
+			case Status.INDEX_TYPE_CHANGED:
 				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
@@ -618,6 +624,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
+			case Status.INDEX_TYPE_CHANGED:
 				return { modified: toGitUri(resource.resourceUri, '') };
 
 			case Status.INDEX_DELETED:
@@ -660,6 +667,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
+			case Status.INDEX_TYPE_CHANGED:
 				return l10n.t('{0} (Index)', basename);
 
 			case Status.MODIFIED:
@@ -3081,6 +3089,7 @@ export class Repository implements Disposable {
 				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
 				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
 				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
+				case 'T': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_TYPE_CHANGED, useIcons, undefined, this.kind)); break;
 			}
 
 			switch (raw.y) {
