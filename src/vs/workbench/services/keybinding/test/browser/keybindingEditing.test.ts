@@ -199,6 +199,18 @@ suite('KeybindingsEditing', () => {
 		assert.deepStrictEqual(await getUserKeybindings(), []);
 	});
 
+	test('remove a user keybinding with args', async () => {
+		await writeToKeybindingsFile({ key: 'alt+a', command: 'b', args: { text: 'a' } }, { key: 'alt+c', command: 'b', args: { text: 'c' } });
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', args: { text: 'c' }, firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
+		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'alt+a', command: 'b', args: { text: 'a' } }]);
+	});
+
+	test('remove a user keybinding without args when another one has null args', async () => {
+		await writeToKeybindingsFile({ key: 'alt+a', command: 'b', args: null }, { key: 'alt+c', command: 'b' });
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
+		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'alt+a', command: 'b', args: null }]);
+	});
+
 	test('reset an edited keybinding', async () => {
 		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
 		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
@@ -262,7 +274,7 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(userDataProfileService.currentProfile.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, args, when, isDefault, firstChord, secondChord }: { command?: string; args?: object; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -275,6 +287,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', args, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
 	}
 });
