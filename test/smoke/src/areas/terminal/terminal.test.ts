@@ -13,6 +13,7 @@ import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 import { setup as setupTerminalSplitCwdTests } from './terminal-splitCwd.test';
 import { setup as setupTerminalStickyScrollTests } from './terminal-stickyScroll.test';
 import { setup as setupTerminalShellIntegrationTests } from './terminal-shellIntegration.test';
+import { setup as setupTerminalMouseModesTests } from './terminal-mouseModes.test';
 
 export function setup(logger: Logger) {
 	describe('Terminal', function () {
@@ -32,8 +33,25 @@ export function setup(logger: Logger) {
 		});
 
 		afterEach(async () => {
-			// Kill all terminals between every test for a consistent testing environment
-			await terminal.runCommand(TerminalCommandId.KillAll);
+			// Kill all terminals between every test for a consistent testing environment.
+			// Mouse-modes can leave the profile picker open (newWithProfile). runCommand
+			// then hangs forever on waitForQuickInputClosed — dismiss quick input first,
+			// and never block the suite for more than a few seconds.
+			try {
+				const page = app.code.driver.currentPage;
+				await page.keyboard.press('Escape').catch(() => { });
+				await page.keyboard.press('Escape').catch(() => { });
+			} catch {
+				// ignore
+			}
+			try {
+				await Promise.race([
+					terminal.runCommand(TerminalCommandId.KillAll),
+					new Promise<void>(resolve => setTimeout(resolve, 8_000)),
+				]);
+			} catch {
+				// ignore — flaky kill is acceptable between tests
+			}
 		});
 
 		// https://github.com/microsoft/vscode/issues/216564
@@ -49,5 +67,8 @@ export function setup(logger: Logger) {
 		// https://github.com/microsoft/vscode/pull/141974
 		// Windows is skipped here as well as it was never enabled from the start
 		setupTerminalSplitCwdTests({ skipSuite: process.platform === 'linux' || process.platform === 'win32' });
+		// Sticky DEC mouse / Reload — local A/B (real Electron). Skipped when CI=1.
+		// Filter: npm run smoketest-no-compile -- -f "Terminal Mouse Modes"
+		setupTerminalMouseModesTests({ skipSuite: process.platform === 'linux' });
 	});
 }
