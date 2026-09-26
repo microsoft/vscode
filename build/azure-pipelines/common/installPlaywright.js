@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 "use strict";
 process.env.DEBUG = 'pw:install'; // enable logging for this (https://github.com/microsoft/playwright/issues/17394)
-const { registry: { installBrowsersForNpmInstall, registry } } = require('playwright-core/lib/coreBundle');
+const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/server');
 async function install() {
-	await installBrowsersForNpmInstall(registry.defaultExecutables().map(executable => executable.name));
+	await installDefaultBrowsersForNpmInstall();
 }
 install();
 //# sourceMappingURL=installPlaywright.js.map
