@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { enterpriseUriSetting } from '../common/enterpriseConfiguration';
 import { activate } from '../extension';
 import { GitHubSessionEngine } from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';
@@ -13,8 +14,6 @@ import { GitHubServer } from '../githubServer';
 import { TestMemento } from './testMemento';
 import { TestSecretStorage } from './testSecretStorage';
 import { createTestExtensionContext } from './testExtensionContext';
-
-const enterpriseUriSetting = 'github-enterprise.uri';
 
 suite('GitHub authentication activation', () => {
 	const disposables: vscode.Disposable[] = [];
@@ -126,6 +125,56 @@ suite('GitHub authentication activation', () => {
 			errorCount: errors.callCount,
 			attempts: read.callCount
 		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1, attempts: 2 });
+	});
+
+	for (const failure of ['secret read', 'mapping write'] as const) {
+		test(`enterprise ${failure} failure leaves public GitHub active and registers an actionable enterprise error`, async () => {
+			const secrets = new TestSecretStorage();
+			disposables.push(secrets);
+			await secrets.store('github.auth', JSON.stringify([publicSession]));
+			const state = new TestMemento();
+			configure('https://tenant.example/Team');
+			if (failure === 'secret read') {
+				sinon.stub(secrets, 'get').callThrough().withArgs('tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+			} else {
+				state.updateError = new Error('Namespace mapping is unavailable');
+			}
+
+			await activate(context(secrets, state));
+
+			const publicProvider = providers.get('github');
+			const enterpriseProvider = providers.get('github-enterprise');
+			assert.ok(publicProvider && enterpriseProvider);
+			const message = failure === 'secret read' ? /Secret storage is unavailable/ : /Namespace mapping is unavailable/;
+			assert.match(errors.firstCall.args[0], message);
+			await assert.rejects(Promise.resolve(enterpriseProvider.createSession(['repo'], {})), message);
+			assert.deepStrictEqual({
+				publicTokens: (await publicProvider.getSessions(['repo'], {})).map(session => session.accessToken),
+				enterpriseSessions: await enterpriseProvider.getSessions(undefined, {}),
+				providers: [...providers.keys()],
+				errorCount: errors.callCount
+			}, { publicTokens: [publicSession.accessToken], enterpriseSessions: [], providers: ['github', 'github-enterprise'], errorCount: 1 });
+		});
+	}
+
+	test('a configuration change can recover enterprise authentication after an initial storage failure', async () => {
+		const secrets = new TestSecretStorage();
+		disposables.push(secrets);
+		configure('https://tenant.example/Team');
+		const read = sinon.stub(secrets, 'get').callThrough().withArgs('tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
+		await activate(context(secrets, new TestMemento()));
+		const publicProvider = providers.get('github');
+		read.resolves(undefined);
+
+		configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUriSetting });
+		await update.lastCall.returnValue;
+
+		assert.deepStrictEqual({
+			samePublicProvider: providers.get('github') === publicProvider,
+			issuers: registration.lastCall.args[3].supportedAuthorizationServers.map((uri: vscode.Uri) => uri.toString()),
+			errorCount: errors.callCount
+		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1 });
 	});
 
 	for (const { changes, replacementFails } of [
