@@ -399,13 +399,12 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
 		}
 
-		// mapper lower-case ascii letter onto upper-case varinats
-		// [97-122] (lower ascii) --> [65-90] (upper ascii)
-		if (isLowerAsciiLetter(codeA)) {
-			codeA -= 32;
+		// map upper-case ascii letters onto lower-case variants
+		if (isUpperAsciiLetter(codeA)) {
+			codeA += 32;
 		}
-		if (isLowerAsciiLetter(codeB)) {
-			codeB -= 32;
+		if (isUpperAsciiLetter(codeB)) {
+			codeB += 32;
 		}
 
 		// compare both code points
