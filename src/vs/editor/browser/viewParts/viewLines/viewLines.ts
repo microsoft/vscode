@@ -28,6 +28,22 @@ import { ViewLineOptions } from './viewLineOptions.js';
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { TextDirection } from '../../../common/model.js';
 
+/**
+ * Supplies real, glyph-measured horizontal metrics for `editorView` GPU mode,
+ * so `ViewLines` bookkeeping (scroll extent + horizontal reveal) can use the
+ * widths the Rust renderer actually paints instead of a monospace
+ * `columns × typicalCharWidth` approximation. All positions are in CSS px and
+ * lines/columns are **1-based** (VS Code view coordinates). A method returns
+ * `undefined` when the measurement is unavailable (e.g. the renderer has not
+ * initialized yet), in which case the caller falls back to the approximation.
+ */
+export interface IEditorViewLineWidthProvider {
+	/** Max full-line width across the inclusive 1-based line range, or `undefined`. */
+	getMaxLineWidth(startLineNumber: number, endLineNumber: number): number | undefined;
+	/** Horizontal offset of a 1-based `column` on a 1-based `lineNumber`, or `undefined`. */
+	getColumnOffset(lineNumber: number, column: number): number | undefined;
+}
+
 class LastRenderedData {
 
 	private _currentVisibleRange: Range;
@@ -676,6 +692,88 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 	}
 
+	public renderTextInEditorView(viewportData: ViewportData, widthProvider?: IEditorViewLineWidthProvider): void {
+		// In `editorView` mode, text is painted by the GPU renderer. Keep only the
+		// non-DOM bookkeeping that ViewLines historically performed. Horizontal
+		// metrics come from the renderer (`widthProvider`), which measures the
+		// glyphs it actually paints — no monospace approximation. While the
+		// renderer is still initializing the provider returns `undefined`, in
+		// which case we simply skip the width/reveal bookkeeping and retry on a
+		// later frame (it self-corrects within a frame or two of startup).
+		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
+		this.domNode.setWidth(this._context.viewLayout.getScrollWidth());
+		this.domNode.setHeight(Math.min(this._context.viewLayout.getScrollHeight(), 1000000));
+		this._computeHorizontalScrollInEditorView(viewportData, widthProvider);
+		this._updateLineWidthsInEditorView(viewportData, widthProvider);
+		this._applyLinesContentScroll(viewportData);
+	}
+
+	private _applyLinesContentScroll(viewportData: ViewportData): void {
+		this._linesContent.setLayerHinting(this._canUseLayerHinting);
+		this._linesContent.setContain('strict');
+		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
+		this._linesContent.setTop(-adjustedScrollTop);
+		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+	}
+
+	private _updateLineWidthsInEditorView(viewportData: ViewportData, widthProvider?: IEditorViewLineWidthProvider): void {
+		const measured = widthProvider?.getMaxLineWidth(viewportData.startLineNumber, viewportData.endLineNumber);
+		if (measured === undefined) {
+			// Renderer not ready to measure; leave the extent unchanged this frame.
+			return;
+		}
+		// `_ensureMaxLineWidth` only ever grows the extent (it can't see off-screen
+		// lines). When the whole document is visible the measured max is exact, so
+		// reset first to let the extent shrink — mirroring the DOM `_updateLineWidths`.
+		if (viewportData.startLineNumber === 1 && viewportData.endLineNumber === this._context.viewModel.getLineCount()) {
+			this._maxLineWidth = 0;
+		}
+		this._ensureMaxLineWidth(Math.max(1, measured));
+	}
+
+	private _computeHorizontalScrollInEditorView(viewportData: ViewportData, widthProvider?: IEditorViewLineWidthProvider): void {
+		if (!this._horizontalRevealRequest) {
+			return;
+		}
+		const horizontalRevealRequest = this._horizontalRevealRequest;
+		if (viewportData.startLineNumber > horizontalRevealRequest.minLineNumber || horizontalRevealRequest.maxLineNumber > viewportData.endLineNumber) {
+			return;
+		}
+		const newScrollLeft = this._computeScrollLeftToRevealInEditorView(horizontalRevealRequest, widthProvider);
+		if (newScrollLeft === undefined) {
+			// Renderer not ready to measure; keep the request pending and retry next frame.
+			return;
+		}
+		// The request has now been resolved (whether or not it moves the scroll).
+		this._horizontalRevealRequest = null;
+		if (newScrollLeft === null) {
+			return;
+		}
+		if (!this._isViewportWrapping && !newScrollLeft.hasRTL) {
+			this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
+		}
+		this._context.viewModel.viewLayout.setScrollPosition({ scrollLeft: newScrollLeft.scrollLeft }, horizontalRevealRequest.scrollType);
+	}
+
+	private _computeScrollLeftToRevealInEditorView(horizontalRevealRequest: HorizontalRevealRequest, widthProvider?: IEditorViewLineWidthProvider): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null | undefined {
+		return this._computeScrollLeftToRevealCore(
+			horizontalRevealRequest,
+			(lineNumber, startColumn, endColumn) => {
+				const lineMaxColumn = this._context.viewModel.getLineMaxColumn(lineNumber);
+				const clampedStart = Math.min(Math.max(1, startColumn), lineMaxColumn);
+				const clampedEnd = Math.min(Math.max(1, endColumn), lineMaxColumn);
+				const a = widthProvider?.getColumnOffset(lineNumber, clampedStart);
+				const b = widthProvider?.getColumnOffset(lineNumber, clampedEnd);
+				if (a === undefined || b === undefined) {
+					// Renderer not ready to measure.
+					return undefined;
+				}
+				return { startX: Math.round(Math.min(a, b)), endX: Math.round(Math.max(a, b)) };
+			},
+			lineNumber => this._context.viewModel.getTextDirection(lineNumber) === TextDirection.RTL,
+		);
+	}
+
 	// --- width
 
 	private _ensureMaxLineWidth(lineWidth: number): void {
@@ -781,8 +879,22 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return newScrollTop;
 	}
 
-	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null {
-
+	/**
+	 * Shared skeleton for horizontal reveal: turns a reveal request into a scroll
+	 * target, delegating only the per-line horizontal extent (`getExtent`) and RTL
+	 * test (`isRTL`) to the caller — the DOM path measures rendered line spans, the
+	 * `editorView` path asks the GPU renderer. Returns `null` when there is nothing
+	 * to reveal (e.g. a multi-line selection), or `undefined` when a measurement is
+	 * unavailable (renderer not ready — caller should keep the request and retry).
+	 *
+	 * `getExtent` returns the `[startX, endX]` box (line-relative CSS px) for a
+	 * single-line sub-range, `null` to bail, or `undefined` if it cannot measure.
+	 */
+	private _computeScrollLeftToRevealCore(
+		horizontalRevealRequest: HorizontalRevealRequest,
+		getExtent: (lineNumber: number, startColumn: number, endColumn: number) => { startX: number; endX: number } | null | undefined,
+		isRTL: (lineNumber: number) => boolean,
+	): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null | undefined {
 		const viewport = this._context.viewLayout.getCurrentViewport();
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 		const viewportStartX = viewport.left;
@@ -791,29 +903,32 @@ export class ViewLines extends ViewPart implements IViewLines {
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
 		let hasRTL = false;
-		if (horizontalRevealRequest.type === 'range') {
-			hasRTL = this._lineIsRenderedRTL(horizontalRevealRequest.lineNumber);
-			const visibleRanges = this._visibleRangesForLineRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
-			if (!visibleRanges) {
-				return null;
+
+		// 'ok' | null (bail) | undefined (renderer not ready).
+		const addRange = (lineNumber: number, startColumn: number, endColumn: number): 'ok' | null | undefined => {
+			const extent = getExtent(lineNumber, startColumn, endColumn);
+			if (extent === undefined || extent === null) {
+				return extent;
 			}
-			for (const visibleRange of visibleRanges.ranges) {
-				boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
-				boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
+			boxStartX = Math.min(boxStartX, extent.startX);
+			boxEndX = Math.max(boxEndX, extent.endX);
+			hasRTL ||= isRTL(lineNumber);
+			return 'ok';
+		};
+
+		if (horizontalRevealRequest.type === 'range') {
+			const status = addRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
+			if (status !== 'ok') {
+				return status;
 			}
 		} else {
 			for (const selection of horizontalRevealRequest.selections) {
 				if (selection.startLineNumber !== selection.endLineNumber) {
 					return null;
 				}
-				const visibleRanges = this._visibleRangesForLineRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
-				hasRTL ||= this._lineIsRenderedRTL(selection.startLineNumber);
-				if (!visibleRanges) {
-					return null;
-				}
-				for (const visibleRange of visibleRanges.ranges) {
-					boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
-					boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
+				const status = addRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
+				if (status !== 'ok') {
+					return status;
 				}
 			}
 		}
@@ -828,11 +943,29 @@ export class ViewLines extends ViewPart implements IViewLines {
 		}
 
 		const newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
-		return {
-			scrollLeft: newScrollLeft,
-			maxHorizontalOffset: boxEndX,
-			hasRTL
-		};
+		return { scrollLeft: newScrollLeft, maxHorizontalOffset: boxEndX, hasRTL };
+	}
+
+	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null {
+		// The DOM path always has rendered line spans to measure, so it never
+		// reports "not ready" (`undefined`); coalesce it to `null` for the caller.
+		return this._computeScrollLeftToRevealCore(
+			horizontalRevealRequest,
+			(lineNumber, startColumn, endColumn) => {
+				const visibleRanges = this._visibleRangesForLineRange(lineNumber, startColumn, endColumn);
+				if (!visibleRanges) {
+					return null;
+				}
+				let startX = Constants.MAX_SAFE_SMALL_INTEGER;
+				let endX = 0;
+				for (const visibleRange of visibleRanges.ranges) {
+					startX = Math.min(startX, Math.round(visibleRange.left));
+					endX = Math.max(endX, Math.round(visibleRange.left + visibleRange.width));
+				}
+				return { startX, endX };
+			},
+			lineNumber => this._lineIsRenderedRTL(lineNumber),
+		) ?? null;
 	}
 
 	private _computeMinimumScrolling(viewportStart: number, viewportEnd: number, boxStart: number, boxEnd: number, revealAtStart?: boolean, revealAtEnd?: boolean): number {

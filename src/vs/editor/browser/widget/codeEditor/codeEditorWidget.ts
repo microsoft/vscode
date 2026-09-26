@@ -312,6 +312,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.fontSize)) {
 				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
+			if (e.hasChanged(EditorOption.experimentalGpuAcceleration)) {
+				// The rendering strategy (GPU vs DOM) is only decided when the view is
+				// constructed, so rebuild the view to react to the change at runtime.
+				this._recreateView();
+			}
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
@@ -540,6 +545,36 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._removeDecorationTypes();
 			this._onDidChangeModel.fire(e);
 			this._postDetachModelCleanup(detachedModel);
+
+			this._contributionsDisposable = this._contributions.onAfterModelAttached();
+		} finally {
+			this._endUpdate();
+		}
+	}
+
+	/**
+	 * Rebuilds the view for the currently attached model, preserving the view
+	 * state (cursor, selection, scroll) and focus. This is required to react to
+	 * options that are only applied while constructing the view, such as
+	 * `experimentalGpuAcceleration`.
+	 */
+	private _recreateView(): void {
+		if (!this._modelData) {
+			return;
+		}
+		try {
+			this._beginUpdate();
+			const model = this._modelData.model;
+			const hasTextFocus = this.hasTextFocus();
+			const viewState = this.saveViewState();
+
+			this._detachModel();
+			this._attachModel(model);
+			this.restoreViewState(viewState);
+
+			if (hasTextFocus && this.hasModel()) {
+				this.focus();
+			}
 
 			this._contributionsDisposable = this._contributions.onAfterModelAttached();
 		} finally {
