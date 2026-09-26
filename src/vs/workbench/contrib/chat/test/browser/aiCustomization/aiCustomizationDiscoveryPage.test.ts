@@ -132,6 +132,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
+		const cancellations: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
@@ -160,6 +161,9 @@ suite('AICustomizationDiscoveryPage', () => {
 				const result = new DeferredPromise<void>();
 				installs.push({ identifier: resource.identifier, result });
 				await result.p;
+			}
+			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
+				cancellations.push(resource.identifier);
 			}
 		}());
 		const sentimentChanged = store.add(new Emitter<void>());
@@ -208,7 +212,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, deletions, installs, repairs,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, deletions, installs, repairs, cancellations,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -218,6 +222,7 @@ suite('AICustomizationDiscoveryPage', () => {
 					recordedResources.delete(key);
 				}
 			},
+			notifyInstallChange: () => installChanges.fire(),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
 			selectImport: async (id: string) => {
@@ -626,6 +631,49 @@ suite('AICustomizationDiscoveryPage', () => {
 			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
 			repairs: ['repair-mail'],
 			actionsAfter: ['Uninstall'],
+		});
+	});
+
+	test('uses connection terminology and offers cancellation for a pending Connector repair', async () => {
+		const candidate = resource('mail', {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			displayName: 'Mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		});
+		const target = { kind: 'copilotConnector' as const, name: 'mail' };
+		const fixture = createPage([CustomizationMarketplaceSources.CopilotConnectors.id]);
+		fixture.setInstallState(candidate, { kind: 'missing', target });
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getConnectorRow = () => [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-results .monaco-list-row')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'Mail');
+		const disconnectedRow = getConnectorRow();
+		assert.ok(disconnectedRow);
+		const disconnected = {
+			detail: disconnectedRow.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...disconnectedRow.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		};
+
+		fixture.setInstallState(candidate, { kind: 'repairing', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
+		const repairingRow = getConnectorRow();
+		assert.ok(repairingRow);
+		const cancel = [...repairingRow.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Cancel');
+		assert.ok(cancel);
+		cancel.click();
+
+		assert.deepStrictEqual({
+			disconnected,
+			repairingDetail: repairingRow.querySelector('.customization-discovery-result-detail')?.textContent,
+			cancelAriaLabel: cancel.getAttribute('aria-label'),
+			cancellations: fixture.cancellations,
+		}, {
+			disconnected: { detail: 'MCP server · Copilot Connectors · Disconnected', actions: ['Reconnect', 'Disconnect'] },
+			repairingDetail: 'MCP server · Copilot Connectors · Reconnecting',
+			cancelAriaLabel: 'Cancel reconnecting Mail',
+			cancellations: ['mail'],
 		});
 	});
 

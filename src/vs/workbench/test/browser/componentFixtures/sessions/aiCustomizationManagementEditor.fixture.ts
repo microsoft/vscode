@@ -2708,17 +2708,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers page shows a Connectors section above the Installed tree with connected, connect, retry, and review states. Connected connector MCP servers also appear under Installed.'],
+		expectedVisualDescriptions: ['The MCP Servers Installed tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
+			mcpSearchQuery: 'workiq',
 		}),
 	}),
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['When no connectors are available, the MCP Servers page omits the empty Connectors section and keeps the Installed tree usable.'],
+		expectedVisualDescriptions: ['When no connectors are connected, the MCP Servers page keeps the existing Installed tree without an empty Connector section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3243,10 +3244,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with the standard Install action.'],
+		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with a Connect action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			copilotConnectorsEnabled: true,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
 		}),
 	}),
@@ -3516,8 +3518,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
+			mcpSearchQuery: 'workiq',
 			openFirstItem: true,
-			openItemLabel: 'Work IQ Mail',
+			openItemLabel: 'workiq-mail-mcp',
 		}),
 	}),
 

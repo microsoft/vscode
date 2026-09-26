@@ -3542,8 +3542,29 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('queues Connector refresh behind in-flight chat work', async () => {
+	test('ignores Connector refresh while the feature is disabled', async () => {
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const calls: string[] = [];
+		try {
+			setDefaultSessionStub(agent, 'connector-refresh-disabled', {
+				isDisposed: false,
+				markConnectorConfigurationChanged() { calls.push('refresh'); },
+				dispose() { },
+			});
+
+			await agent.refreshConnectorSessions();
+
+			assert.deepStrictEqual(calls, []);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('queues Connector refresh behind in-flight chat work', async () => {
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+		});
 		const calls: string[] = [];
 		const session = {
 			isDisposed: false,
@@ -3571,7 +3592,10 @@ suite('CopilotAgent', () => {
 	});
 
 	test('marks live sessions for Connector refresh and skips disposed sessions', async () => {
-		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+		});
 		const session = AgentSession.uri('copilotcli', 'connector-reconciliation');
 		const calls: string[] = [];
 		try {
@@ -3600,7 +3624,10 @@ suite('CopilotAgent', () => {
 	});
 
 	test('marks sessions when a Connector changes while they initialize', async () => {
-		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+		});
 		const initializeStarted = new DeferredPromise<void>();
 		const initializeGate = new DeferredPromise<void>();
 		const calls: string[] = [];

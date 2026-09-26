@@ -1780,6 +1780,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async refreshConnectorSessions(): Promise<void> {
+		if (!this._areCopilotConnectorsEnabled()) {
+			return;
+		}
 		this._connectorRefreshGeneration++;
 		await Promise.all(this._allLiveSessions().map(session =>
 			this._queueChat(AgentSession.id(session.ownerSessionUri), session.sessionId, 'refreshConnectorSession', async () => {

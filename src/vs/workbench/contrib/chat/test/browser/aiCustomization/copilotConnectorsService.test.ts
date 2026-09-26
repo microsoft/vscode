@@ -947,12 +947,49 @@ suite('CopilotConnectorsService', () => {
 		assert.strictEqual(fixture.reconciliations.length, 2);
 	});
 
+	test('drops a queued live session refresh after the experiment is disabled', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected') },
+			{ body: catalogResponse('available') },
+		]);
+		const firstReconciliation = new DeferredPromise<void>();
+		fixture.queueReconciliationWait(firstReconciliation.p);
+
+		const firstRefresh = fixture.service.refresh(CancellationToken.None);
+		await timeout(0);
+		const secondRefresh = fixture.service.refresh(CancellationToken.None);
+		await timeout(0);
+		await setEnabled(fixture.configurationService, false);
+		firstReconciliation.complete();
+		await Promise.all([firstRefresh, secondRefresh]);
+
+		assert.deepStrictEqual({
+			connectors: fixture.service.connectors,
+			reconciliations: fixture.reconciliations.length,
+		}, {
+			connectors: [],
+			reconciliations: 1,
+		});
+	});
+
 	test('does not initialize or request connectors while the experiment is disabled', async () => {
 		const fixture = createFixture([{ body: catalogResponse('connected') }], false);
 
 		const connectors = await fixture.service.getConnectors(CancellationToken.None);
 
-		assert.deepStrictEqual({ connectors, requests: fixture.requests }, { connectors: [], requests: [] });
+		assert.deepStrictEqual({
+			connectors,
+			requests: fixture.requests,
+			reconciliations: fixture.reconciliations,
+			accountListeners: fixture.accountChanged.hasListeners(),
+			sessionListeners: fixture.sessionsChanged.hasListeners(),
+		}, {
+			connectors: [],
+			requests: [],
+			reconciliations: [],
+			accountListeners: false,
+			sessionListeners: false,
+		});
 	});
 
 	test('does not send a GitHub Enterprise token to the dotcom connectors endpoint', async () => {

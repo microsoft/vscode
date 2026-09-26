@@ -32,6 +32,8 @@ export interface ICustomizationMarketplaceInstallService {
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
+	/** Cancels an in-progress Connector install or repair. */
+	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void;
 	/** Removes a previously installed marketplace resource through its owning service. */
 	uninstall(resource: ICustomizationMarketplaceResource): Promise<void>;
 }

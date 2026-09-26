@@ -376,6 +376,26 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
+	test('connector recovery does not inspect Connector state while the experiment is disabled', () => {
+		const configuration = createConfiguration([]);
+		let authorizationReads = 0;
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override get authorizationRequired() {
+				authorizationReads++;
+				return true;
+			}
+		}();
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() { }(), connectorsService);
+
+		assert.deepStrictEqual({
+			action: service.getSourceRecoveryAction(CustomizationMarketplaceSources.CopilotConnectors.id),
+			authorizationReads,
+		}, {
+			action: undefined,
+			authorizationReads: 0,
+		});
+	});
+
 
 	test('composes the built-in catalog with Copilot connectors', async () => {
 		const configuration = new TestConfigurationService({

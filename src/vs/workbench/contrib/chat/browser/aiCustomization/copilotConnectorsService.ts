@@ -145,6 +145,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	readonly onDidDisconnect = this._onDidDisconnect.event;
 	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly authorizationCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly enabledListeners = this._register(new MutableDisposable<DisposableStore>());
 	private authorizationPromise: Promise<void> | undefined;
 	private enabled = false;
 	private accountIdentity: string | undefined;
@@ -173,15 +174,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
 				this.updateEnablement();
-			}
-		}));
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this.updateAccountIdentity(account)));
-		this._register(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
-			const account = this.defaultAccountService.currentDefaultAccount;
-			if (account?.authenticationProvider.id === providerId &&
-				[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
-					session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
-				this.resetCatalogContext();
 			}
 		}));
 	}
@@ -415,7 +407,21 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return;
 		}
 		this.enabled = enabled;
-		if (!enabled) {
+		if (enabled) {
+			const listeners = new DisposableStore();
+			this.enabledListeners.value = listeners;
+			listeners.add(this.defaultAccountService.onDidChangeDefaultAccount(account => this.updateAccountIdentity(account)));
+			listeners.add(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
+				const account = this.defaultAccountService.currentDefaultAccount;
+				if (account?.authenticationProvider.id === providerId &&
+					[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
+						session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
+					this.resetCatalogContext();
+				}
+			}));
+			this.updateAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+		} else {
+			this.enabledListeners.clear();
 			this.authorizationCancellation.value?.cancel();
 		}
 		this.resetCatalogContext();
@@ -554,10 +560,13 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private refreshAgentHostConnectorSessions(): Promise<void> {
-		if (!this.agentHostService.refreshCopilotConnectorSessions) {
+		if (!this.isEnabled() || !this.agentHostService.refreshCopilotConnectorSessions) {
 			return Promise.resolve();
 		}
 		return this.agentHostRefresh.queue(async () => {
+			if (!this.isEnabled()) {
+				return;
+			}
 			try {
 				await this.agentHostService.refreshCopilotConnectorSessions?.();
 			} catch (error) {

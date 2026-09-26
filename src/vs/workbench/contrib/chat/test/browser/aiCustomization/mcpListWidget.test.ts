@@ -6,12 +6,11 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -19,11 +18,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
@@ -176,9 +175,7 @@ type McpAccessTestWidget = {
 	configurationService: IConfigurationService;
 	connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
 	connectorActionCancellation: MutableDisposable<CancellationTokenSource>;
-	connectorSignIn: MutableDisposable<Disposable>;
 	connectorsCancelCount: number;
-	connectorsLoading: boolean;
 	searchInput: { hideMessage(): void };
 	disabledIcon: HTMLElement;
 	disabledMessage: HTMLElement;
@@ -191,7 +188,7 @@ type McpAccessTestWidget = {
 	updateAccessState(): void;
 };
 
-function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false): McpAccessTestWidget {
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false, connectorsEnabled = false): McpAccessTestWidget {
 	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
 	widget.element = document.createElement('div');
 	widget.mcpAccessEnabled = false;
@@ -205,7 +202,11 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.access = access;
 	widget.policyAccess = policyAccess;
 	widget.configurationService = {
-		getValue: () => galleryDiscoveryEnabled,
+		getValue: (key: string) => key === CustomizationMarketplaceConfiguration.MarketplaceEnabled
+			? galleryDiscoveryEnabled
+			: key === CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled
+				? connectorsEnabled
+				: undefined,
 		inspect: (key: string) => key === mcpAccessConfig ? {
 			value: widget.access,
 			defaultValue: McpAccessValue.All,
@@ -215,8 +216,6 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.connectorsCancelCount = 0;
 	widget.connectorsCancellation = store.add(new MutableDisposable());
 	widget.connectorActionCancellation = store.add(new MutableDisposable());
-	widget.connectorSignIn = store.add(new MutableDisposable());
-	widget.connectorsLoading = false;
 	widget.searchInput = { hideMessage() { } };
 	widget.disabledIcon = document.createElement('div');
 	widget.disabledMessage = document.createElement('div');
@@ -232,138 +231,82 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const scenario of ['sign-in', 'network failure', 'refresh during sign-in', 'hide during sign-in'] as const) {
-		test(`connector recovery: ${scenario}`, async () => {
-			const authorizationRequired = scenario !== 'network failure';
-			const widget = Object.create(McpListWidget.prototype) as {
-				isConnectorsEnabled(): boolean;
-				filteredConnectors: readonly ICopilotConnector[];
-				connectorsLoading: boolean;
-				connectorsError: string | undefined;
-				connectorsService: ICopilotConnectorsService;
-				cardDisposables: DisposableStore;
-				connectorSignIn: MutableDisposable<Disposable>;
-				connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
-				connectorActionCancellation: MutableDisposable<CancellationTokenSource>;
-				visible: boolean;
-				cardListControllers: WeakMap<HTMLElement, { finalize(): void }>;
-				firstCardFocusElement: HTMLElement | undefined;
-				notificationService: INotificationService;
-				refreshConnectors(): Promise<void>;
-				renderCardSection(parent: HTMLElement): HTMLElement;
-				renderConnectorSection(parent: HTMLElement): void;
-				setVisible(visible: boolean): void;
-				clearMcpServerCompatibilityScope(): void;
-			};
-			const container = DOM.append(document.body, DOM.$('.mcp-connector-signin-test'));
-			disposables.add(toDisposable(() => container.remove()));
-			const authorizations: CancellationToken[] = [];
-			const notifications: Parameters<INotificationService['error']>[0][] = [];
-			const authorization = new DeferredPromise<void>();
-			let refreshes = 0;
-			widget.isConnectorsEnabled = () => true;
-			widget.filteredConnectors = [];
-			widget.connectorsLoading = false;
-			widget.connectorsError = 'Unable to load connectors.';
-			widget.cardDisposables = disposables.add(new DisposableStore());
-			widget.connectorSignIn = disposables.add(new MutableDisposable());
-			widget.connectorsCancellation = disposables.add(new MutableDisposable());
-			widget.connectorActionCancellation = disposables.add(new MutableDisposable());
-			widget.visible = true;
-			widget.clearMcpServerCompatibilityScope = () => { };
-			widget.cardListControllers = new WeakMap();
-			widget.renderCardSection = parent => DOM.append(parent, DOM.$('.plugin-inventory-list'));
-			widget.refreshConnectors = async () => { refreshes++; };
-			widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
-				override readonly authorizationRequired = authorizationRequired;
-				override async signIn(token: CancellationToken) {
-					authorizations.push(token);
-					await authorization.p;
-				}
-			}();
-			widget.notificationService = new class extends mock<INotificationService>() {
-				override error(error: Parameters<INotificationService['error']>[0]) { notifications.push(error); }
-			}();
-			widget.renderConnectorSection(container);
-			const action = container.querySelector<HTMLElement>('.monaco-button');
-			assert.ok(action);
-			const initial = {
-				authorizations: authorizations.length,
-				signIn: container.querySelector('.customization-marketplace-source-message')?.textContent,
-				failure: container.querySelector('.plugin-inventory-empty')?.textContent,
-				primary: !action.classList.contains('secondary'),
-				focusTarget: widget.firstCardFocusElement === action,
-			};
-			action.click();
-			if (scenario === 'refresh during sign-in') {
-				widget.cardDisposables.clear();
-				DOM.clearNode(container);
-				widget.renderConnectorSection(container);
-			} else if (scenario === 'hide during sign-in') {
-				widget.setVisible(false);
-			}
-			const cancelledWhilePending = authorizations[0]?.isCancellationRequested;
-			const busyAfterRefresh = scenario === 'refresh during sign-in' ? container.querySelector('.monaco-button')?.getAttribute('aria-disabled') : undefined;
-			await authorization.complete();
-			await timeout(0);
-			assert.deepStrictEqual({ initial, authorizations: authorizations.length, cancelledWhilePending, busyAfterRefresh, refreshes, notifications }, {
-				initial: {
-					authorizations: 0,
-					signIn: authorizationRequired ? 'Sign in to view connectors.' : undefined,
-					failure: authorizationRequired ? undefined : 'Unable to load connectors.',
-					primary: authorizationRequired,
-					focusTarget: true,
-				},
-				authorizations: authorizationRequired ? 1 : 0,
-				cancelledWhilePending: authorizationRequired ? scenario === 'hide during sign-in' : undefined,
-				busyAfterRefresh: scenario === 'refresh during sign-in' ? 'true' : undefined,
-				refreshes: scenario === 'hide during sign-in' ? 0 : 1,
-				notifications: [],
-			});
-		});
-	}
-
-	test('connector section explains empty and filtered catalogs', () => {
+	test('observes Connector changes only while the experiment is enabled', () => {
+		let enabled = false;
+		const changes = disposables.add(new Emitter<void>());
 		const widget = Object.create(McpListWidget.prototype) as {
-			isConnectorsEnabled(): boolean;
-			filteredConnectors: readonly ICopilotConnector[];
-			connectorsLoading: boolean;
-			connectorsError: string | undefined;
+			connectorChangeListener: MutableDisposable<{ dispose(): void }>;
 			connectorsService: ICopilotConnectorsService;
-			cardDisposables: DisposableStore;
-			connectorSignIn: MutableDisposable<Disposable>;
-			cardListControllers: WeakMap<HTMLElement, { finalize(): void }>;
-			searchQuery: string;
-			renderCardSection(parent: HTMLElement): HTMLElement;
-			renderConnectorSection(parent: HTMLElement): void;
+			visible: boolean;
+			isConnectorsEnabled(): boolean;
+			refreshConnectors(): Promise<void>;
+			updateConnectorChangeListener(): void;
 		};
-		const container = DOM.append(document.body, DOM.$('.mcp-connector-empty-test'));
-		disposables.add(toDisposable(() => container.remove()));
-		widget.isConnectorsEnabled = () => true;
-		widget.filteredConnectors = [];
-		widget.connectorsLoading = false;
-		widget.connectorsError = undefined;
+		widget.connectorChangeListener = disposables.add(new MutableDisposable());
 		widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
-			override readonly authorizationRequired = false;
+			override readonly onDidChange = changes.event;
 		}();
-		widget.cardDisposables = disposables.add(new DisposableStore());
-		widget.connectorSignIn = disposables.add(new MutableDisposable());
-		widget.cardListControllers = new WeakMap();
-		widget.renderCardSection = parent => DOM.append(parent, DOM.$('.plugin-inventory-list'));
-		widget.searchQuery = '';
-		widget.renderConnectorSection(container);
-		const emptyCatalog = container.querySelector('.plugin-inventory-empty')?.textContent;
+		widget.visible = false;
+		widget.isConnectorsEnabled = () => enabled;
+		widget.refreshConnectors = async () => { };
 
-		DOM.clearNode(container);
-		widget.searchQuery = 'mail';
-		widget.renderConnectorSection(container);
+		widget.updateConnectorChangeListener();
+		const disabled = changes.hasListeners();
+		enabled = true;
+		widget.updateConnectorChangeListener();
+		const enabledState = changes.hasListeners();
+		enabled = false;
+		widget.updateConnectorChangeListener();
+
+		assert.deepStrictEqual({ disabled, enabled: enabledState, disabledAgain: changes.hasListeners() }, {
+			disabled: false,
+			enabled: true,
+			disabledAgain: false,
+		});
+	});
+
+	test('renders Connector controls in the installed MCP row without an enablement toggle', () => {
+		const connector: ICopilotConnector = {
+			name: 'mail',
+			displayName: 'Mail',
+			description: 'Search mail',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'connected',
+			scopes: [],
+			mcpServers: [{ name: 'mail-mcp', type: 'http' }],
+		};
+		const entry: IMcpInstalledEntry = {
+			type: 'builtin-item',
+			id: 'copilot-connector:mail:mail-mcp',
+			label: 'mail-mcp',
+			description: 'Connector: Mail',
+			connector: { id: 'mail:mail-mcp', connector, serverName: 'mail-mcp' },
+		};
+		const opened: string[] = [];
+		const widget = Object.create(McpListWidget.prototype) as {
+			showConnectorActions(connector: ICopilotConnector, anchor: HTMLElement): void;
+			renderMcpListActions(getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void;
+		};
+		widget.showConnectorActions = selected => opened.push(selected.name);
+		const actions = DOM.$('.actions');
+		const store = disposables.add(new DisposableStore());
+
+		widget.renderMcpListActions(() => entry, actions, store, () => { });
+		const more = actions.querySelector<HTMLButtonElement>('.plugin-card-icon-button');
+		assert.ok(more);
+		more.click();
 
 		assert.deepStrictEqual({
-			emptyCatalog,
-			emptySearch: container.querySelector('.plugin-inventory-empty')?.textContent,
+			hasToggle: actions.querySelector('[role="switch"]') !== null,
+			moreAriaLabel: more.getAttribute('aria-label'),
+			opened,
 		}, {
-			emptyCatalog: 'No connectors are available.',
-			emptySearch: 'No connectors match \'mail\'',
+			hasToggle: false,
+			moreAriaLabel: 'More actions for mail-mcp',
+			opened: ['mail'],
 		});
 	});
 
@@ -810,9 +753,11 @@ suite('mcpListWidget', () => {
 		assert.deepStrictEqual({
 			queryCount: widget.queryCount,
 			refreshCount: widget.refreshCount,
+			refreshConnectorsCount: widget.refreshConnectorsCount,
 		}, {
 			queryCount: 1,
 			refreshCount: 0,
+			refreshConnectorsCount: 0,
 		});
 	});
 
@@ -823,7 +768,6 @@ suite('mcpListWidget', () => {
 			cancel: () => widget.connectorsCancelCount++,
 			dispose() { },
 		};
-		widget.connectorsLoading = true;
 
 		widget.access = McpAccessValue.None;
 		widget.updateAccessState();
@@ -831,11 +775,9 @@ suite('mcpListWidget', () => {
 		assert.deepStrictEqual({
 			accessEnabled: widget.mcpAccessEnabled,
 			connectorsCancelCount: widget.connectorsCancelCount,
-			connectorsLoading: widget.connectorsLoading,
 		}, {
 			accessEnabled: false,
 			connectorsCancelCount: 1,
-			connectorsLoading: false,
 		});
 	});
 
@@ -854,38 +796,8 @@ suite('mcpListWidget', () => {
 		}, { cancelled: true, active: undefined });
 	});
 
-	test('row connection passes the widget-owned token and cancels it when hidden', async () => {
-		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables) as McpAccessTestWidget & {
-			connectorsService: ICopilotConnectorsService;
-			notificationService: INotificationService;
-			runConnectorRowAction(connector: ICopilotConnector, action: 'connect'): Promise<void>;
-			setVisible(visible: boolean): void;
-			clearMcpServerCompatibilityScope(): void;
-		};
-		const pending = new DeferredPromise<void>();
-		let token: CancellationToken | undefined;
-		widget.visible = true;
-		widget.clearMcpServerCompatibilityScope = () => { };
-		widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
-			override async connect(_name: string, actionToken: CancellationToken): Promise<void> {
-				token = actionToken;
-				await pending.p;
-			}
-		}();
-		widget.notificationService = new class extends mock<INotificationService>() { }();
-		const action = widget.runConnectorRowAction({
-			name: 'mail', displayName: 'Mail', description: '', tags: [], keywords: [], capabilities: [],
-			representativeQueries: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
-		}, 'connect');
-		widget.setVisible(false);
-		pending.complete();
-		await action;
-
-		assert.deepStrictEqual({ passed: token !== undefined, cancelled: token?.isCancellationRequested }, { passed: true, cancelled: true });
-	});
-
 	test('refreshes installed servers and connectors when access is restored', () => {
-		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables, false, true);
 		widget.visible = true;
 		widget.updateAccessState();
 

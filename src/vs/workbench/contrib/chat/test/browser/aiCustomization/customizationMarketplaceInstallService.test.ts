@@ -585,6 +585,31 @@ suite('CustomizationMarketplaceInstallService', () => {
 	}
 
 	suite('source gates', () => {
+		test('observes Connector state only while the experiment is enabled', async () => {
+			const fixture = await createFixture({ enabled: false });
+			const readListeners = () => ({
+				change: fixture.connectorChanges.hasListeners(),
+				account: fixture.connectorAccountChanges.hasListeners(),
+				disconnect: fixture.connectorDisconnected.hasListeners(),
+			});
+			const disabled = readListeners();
+
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
+			const enabled = readListeners();
+
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
+
+			assert.deepStrictEqual({ disabled, enabled, disabledAgain: readListeners() }, {
+				disabled: { change: false, account: false, disconnect: false },
+				enabled: { change: true, account: true, disconnect: true },
+				disabledAgain: { change: false, account: false, disconnect: false },
+			});
+		});
+
 		test('Marketplace visibility blocks installs without disabling the source', async () => {
 			const fixture = await createFixture();
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
@@ -1957,15 +1982,21 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('Copilot connectors', () => {
-		test('unknown connection status cannot start an installation or claim the service is disconnected', async () => {
+		test('unknown connection status can start an explicit Marketplace connection', async () => {
 			const fixture = await createFixture();
 			fixture.connectorsService.statusOverride = 'unknown';
 			const candidate = connectorResource();
 			const state = fixture.service.getInstallState(candidate);
-			await assert.rejects(fixture.service.install(candidate), /Check the connection status/);
-			assert.deepStrictEqual({ state, connects: fixture.connectorsService.connectCalls }, {
-				state: { kind: 'unavailable', message: 'Check the connection status in MCP Servers before connecting this resource.' },
-				connects: [],
+			fixture.connectorsService.onConnect = async name => {
+				fixture.connectorsService.statusOverride = undefined;
+				fixture.connectedConnectors.add(name);
+				fixture.connectorChanges.fire();
+			};
+			await fixture.service.install(candidate);
+			assert.deepStrictEqual({ state, connects: fixture.connectorsService.connectCalls, installed: fixture.service.getInstallState(candidate).kind }, {
+				state: { kind: 'available' },
+				connects: ['mail'],
+				installed: 'installed',
 			});
 		});
 
@@ -1988,8 +2019,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 				connects: fixture.connectorsService.connectCalls,
 			}, {
 				states: [
-					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Connection pending\'. Open MCP Servers to review it.' },
-					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Currently unavailable\'. Open MCP Servers to review it.' },
+					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Connection pending\'. Refresh and try again.' },
+					{ kind: 'unavailable', message: 'This connector cannot be connected while its status is \'Currently unavailable\'. Refresh and try again.' },
 				],
 				connects: [],
 			});
@@ -2270,6 +2301,36 @@ suite('CustomizationMarketplaceInstallService', () => {
 				connectCalls: ['mail', 'mail'],
 				after: { kind: 'installed', target: connectorInstallationTarget },
 				recorded: ['mail'],
+			});
+		});
+
+		test('cancels a pending connector repair and restores the disconnected state', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectedConnectors.delete('mail');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			let operationToken: CancellationToken | undefined;
+			fixture.connectorsService.onConnect = async (_name, token) => new Promise<void>((_resolve, reject) => {
+				operationToken = token;
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					reject(new CancellationError());
+				});
+			});
+
+			const repair = fixture.service.repair(candidate);
+			assert.strictEqual(fixture.service.getInstallState(candidate).kind, 'repairing');
+			fixture.service.cancelConnectorOperation(candidate);
+			await assert.rejects(repair, isCancellationError);
+
+			assert.deepStrictEqual({
+				cancelled: operationToken?.isCancellationRequested,
+				state: fixture.service.getInstallState(candidate),
+			}, {
+				cancelled: true,
+				state: { kind: 'missing', target: connectorInstallationTarget, repairUnavailableMessage: undefined },
 			});
 		});
 
