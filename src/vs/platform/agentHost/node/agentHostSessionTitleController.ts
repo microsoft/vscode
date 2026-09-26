@@ -18,7 +18,7 @@ import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, type AgentHostTitleSource } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -112,7 +112,9 @@ export interface IAgentHostSessionTitleController {
 	cancelTitleGeneration(session: ProtocolURI): void;
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string, source?: AgentHostTitleSource): void;
+	/** Whether the user gave this session or chat its current title in this process, before or after that title is persisted. */
+	isTitleSetByUser(channel: ProtocolURI, chatChannel?: ProtocolURI): boolean;
 	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
 }
 
@@ -140,6 +142,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private readonly _provisionalTitles = new Set<ProtocolURI>();
 	private readonly _autoTitles = new Set<ProtocolURI>();
 	private readonly _renamedTitles = new Set<ProtocolURI>();
+	private readonly _userTitles = new Set<ProtocolURI>();
 	private readonly _titleGenerationStrategies = new Map<ProtocolURI, AutomaticTitleGenerationStrategy>();
 	private readonly _unpersistedTitleStrategies = new Set<ProtocolURI>();
 	private readonly _restoringTitleStrategies = new Map<ProtocolURI, Promise<void>>();
@@ -508,6 +511,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._provisionalTitles.delete(key);
 			this._autoTitles.delete(key);
 			this._renamedTitles.delete(key);
+			this._userTitles.delete(key);
 			this._deferredRefinementStarted.delete(key);
 			this._deferredFirstTurnIndices.delete(key);
 			this._restoringDeferredSeeds.delete(key);
@@ -523,16 +527,22 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._lastAppliedTitle.set(key, title);
 		this._autoTitles.add(key);
 		this._renamedTitles.delete(key);
+		this._userTitles.delete(key);
 		this._persistAutoTitle(channel, independentChat, title);
 	}
 
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void {
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string, source: AgentHostTitleSource = AGENT_HOST_TITLE_SOURCE_USER): void {
 		const independentChat = this._independentChatChannel(channel, chatChannel);
 		const key = independentChat ?? channel;
 		this._cancelTitleGeneration(key);
 		this._autoTitles.delete(key);
 		this._provisionalTitles.delete(key);
 		this._renamedTitles.add(key);
+		if (source === AGENT_HOST_TITLE_SOURCE_USER) {
+			this._userTitles.add(key);
+		} else {
+			this._userTitles.delete(key);
+		}
 		if (this._titleGenerationStrategies.get(channel) === 'deferred') {
 			this._clearDeferredTitleSeed(channel, independentChat);
 		}
@@ -542,6 +552,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_USER,
 			});
 		}
+	}
+
+	isTitleSetByUser(channel: ProtocolURI, chatChannel?: ProtocolURI): boolean {
+		return this._userTitles.has(this._independentChatChannel(channel, chatChannel) ?? channel);
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
@@ -559,7 +573,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
 		const source = await this._readPersistedTitleMetadata(channel, sourceKey);
 		if (source === AGENT_HOST_TITLE_SOURCE_USER || source === AGENT_HOST_TITLE_SOURCE_AGENT) {
-			this.markTitleRenamed(channel, independentChat);
+			this.markTitleRenamed(channel, independentChat, undefined, source);
 			return undefined;
 		}
 		if (source !== AGENT_HOST_TITLE_SOURCE_AUTO && !this._autoTitles.has(key)) {

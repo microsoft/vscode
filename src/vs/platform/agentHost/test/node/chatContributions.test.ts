@@ -117,6 +117,7 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	cancelTitleGeneration(): void { }
 	clearSession(): void { }
 	markTitleAuto(): void { }
+	isTitleSetByUser(): boolean { return false; }
 	markTitleRenamed(channel: string, chatChannel?: string): void {
 		this.renamedTitles.push({ channel, chatChannel });
 	}

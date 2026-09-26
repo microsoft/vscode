@@ -21922,65 +21922,137 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('an automatic rename_chat keeps a title the user set, which an explicit rename_chat still replaces', async () => {
-			// The automatic rename runs in the background: it settles by reading the title's source, or by writing a title.
-			class RenameObservingDatabase extends TestSessionDatabase {
-				watching = false;
-				readonly automaticRenameSettled = new DeferredPromise<void>();
-
-				override async getMetadata(key: string): Promise<string | undefined> {
-					const value = await super.getMetadata(key);
-					if (this.watching && key === SESSION_CUSTOM_TITLE_SOURCE_KEY) {
-						void this.automaticRenameSettled.complete();
-					}
-					return value;
+		async function waitForMetadata(db: TestSessionDatabase, key: string, expected: string): Promise<void> {
+			for (let i = 0; i < 50; i++) {
+				if (await db.getMetadata(key) === expected) {
+					return;
 				}
-
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					await super.setMetadataValues(values);
-					this.observeWrite(values);
-				}
-
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
-					const result = await super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
-					this.observeWrite(values);
-					return result;
-				}
-
-				private observeWrite(values: Readonly<Record<string, string>>): void {
-					if (this.watching && values[SESSION_CUSTOM_TITLE_KEY] !== undefined) {
-						void this.automaticRenameSettled.complete();
-					}
-				}
+				await timeout(0);
 			}
-			class ServerToolAgent extends MockAgent {
-				serverToolHost: IAgentServerToolHost | undefined;
+			assert.fail(`Metadata '${key}' did not become '${expected}'`);
+		}
 
-				setServerToolHost(host: IAgentServerToolHost): void {
-					this.serverToolHost = host;
+		// An automatic rename runs in the background; each settles once it has read a title source or written its title.
+		class RenameObservingDatabase extends TestSessionDatabase {
+			automaticSettled: DeferredPromise<void> | undefined;
+			userWritesHeld: DeferredPromise<void> | undefined;
+
+			override async getMetadata(key: string): Promise<string | undefined> {
+				const value = await super.getMetadata(key);
+				if (key === SESSION_CUSTOM_TITLE_SOURCE_KEY || key.startsWith('customChatTitleSource:')) {
+					void this.automaticSettled?.complete();
 				}
+				return value;
 			}
 
+			override async setMetadata(key: string, value: string): Promise<void> {
+				await this.holdUserWrite([value]);
+				await super.setMetadata(key, value);
+			}
+
+			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+				await this.holdUserWrite(Object.values(values));
+				await super.setMetadataValues(values);
+				this.observeWrite(values);
+			}
+
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				await this.holdUserWrite(Object.values(values));
+				const result = await super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				this.observeWrite(values);
+				return result;
+			}
+
+			private async holdUserWrite(values: readonly string[]): Promise<void> {
+				if (this.userWritesHeld && values.some(value => value === AGENT_HOST_TITLE_SOURCE_USER || value.startsWith('User'))) {
+					await this.userWritesHeld.p;
+				}
+			}
+
+			private observeWrite(values: Readonly<Record<string, string>>): void {
+				if (Object.values(values).some(value => value.startsWith('Automatic'))) {
+					void this.automaticSettled?.complete();
+				}
+			}
+		}
+
+		class RenameToolAgent extends MockAgent {
+			serverToolHost: IAgentServerToolHost | undefined;
+
+			setServerToolHost(host: IAgentServerToolHost): void {
+				this.serverToolHost = host;
+			}
+
+			override async createChat(): Promise<void> { }
+		}
+
+		async function renameAutomatically(db: RenameObservingDatabase, agent: RenameToolAgent, chat: string, title: string): Promise<string> {
+			db.automaticSettled = new DeferredPromise<void>();
+			const result = await agent.serverToolHost!.executeTool(chat, SessionServerToolName.RenameChat, { title, automatic: true });
+			await db.automaticSettled.p;
+			await timeout(0);
+			return result;
+		}
+
+		test('an automatic rename_chat keeps a title the user just gave the default or a peer chat, before the user\'s title is persisted', async () => {
 			const db = new RenameObservingDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new ServerToolAgent('copilot'));
+			const agent = disposables.add(new RenameToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
-			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'User title' });
-			await db.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'User title');
-			await db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const otherChat = buildChatUri(sessionUri, 'other');
+			await localService.createChat(session, URI.parse(peerChat));
+			await localService.createChat(session, URI.parse(otherChat));
 
-			db.watching = true;
-			const automaticResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Automatic title', automatic: true });
-			await db.automaticRenameSettled.p;
-			await timeout(0);
-			const afterAutomatic = {
-				live: getStateManager(localService).getSessionState(sessionUri)?.title,
-				persisted: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY),
-				source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
-			};
+			// Each automatic rename runs while the user's own writes are still held back.
+			db.userWritesHeld = new DeferredPromise<void>();
+			localService.dispatchAction(defaultChat, { type: ActionType.SessionTitleChanged, title: 'User default title' }, 'test-client', 1);
+			const defaultResult = await renameAutomatically(db, agent, defaultChat, 'Automatic default title');
+			localService.dispatchAction(peerChat, { type: ActionType.SessionTitleChanged, title: 'User peer title' }, 'test-client', 2);
+			const peerResult = await renameAutomatically(db, agent, peerChat, 'Automatic peer title');
+			await db.userWritesHeld.complete();
+			// The session's catalog writes run in order, so this one settles only after both automatic renames have.
+			await agent.serverToolHost!.executeTool(otherChat, SessionServerToolName.RenameChat, { title: 'Other title' });
+
+			assert.deepStrictEqual({
+				defaultResult,
+				peerResult,
+				liveSessionTitle: getStateManager(localService).getSessionState(sessionUri)?.title,
+				liveDefaultTitle: getStateManager(localService).getChatState(defaultChat)?.title,
+				livePeerTitle: getStateManager(localService).getChatState(peerChat)?.title,
+				persistedDefaultTitle: await db.getMetadata(customChatTitleMetadataKey(defaultChat)),
+				persistedPeerTitle: await db.getMetadata(customChatTitleMetadataKey(peerChat)),
+			}, {
+				defaultResult: 'Renaming chat.',
+				peerResult: 'Renaming chat.',
+				liveSessionTitle: 'User default title',
+				liveDefaultTitle: 'User default title',
+				livePeerTitle: 'User peer title',
+				persistedDefaultTitle: 'User default title',
+				persistedPeerTitle: 'User peer title',
+			});
+		});
+
+		test('an automatic rename_chat keeps a user title a restored session persisted, which an explicit rename_chat still replaces', async () => {
+			const db = new RenameObservingDatabase();
+			const createService = () => disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RenameToolAgent('copilot'));
+			const first = createService();
+			registerTestAgentProvider(first, agent);
+			const session = await first.createSession({ provider: 'copilot' });
+			first.dispatchAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'User title' }, 'test-client', 1);
+			await waitForMetadata(db, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+
+			// A new process knows the user's title only from what was persisted.
+			const restored = createService();
+			registerTestAgentProvider(restored, agent);
+			await restored.restoreSession(session);
+			const defaultChat = buildDefaultChatUri(session);
+			const automaticResult = await renameAutomatically(db, agent, defaultChat, 'Automatic title');
+			const afterAutomatic = { persisted: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY), source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) };
 			const explicitResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Requested title' });
 
 			assert.deepStrictEqual({
@@ -21990,7 +22062,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterExplicit: { persisted: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY), source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) },
 			}, {
 				automaticResult: 'Renaming chat.',
-				afterAutomatic: { live: 'User title', persisted: 'User title', source: AGENT_HOST_TITLE_SOURCE_USER },
+				afterAutomatic: { persisted: 'User title', source: AGENT_HOST_TITLE_SOURCE_USER },
 				explicitResult: 'Renamed chat to "Requested title".',
 				afterExplicit: { persisted: 'Requested title', source: AGENT_HOST_TITLE_SOURCE_AGENT },
 			});

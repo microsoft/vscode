@@ -1786,12 +1786,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
 
-		// An automatic title never replaces one the user chose; an explicit rename still does.
-		if (automatic) {
-			const userTitle = await this._readUserChatTitle(session, chat, isDefaultChat);
-			if (userTitle !== undefined) {
-				return { title: userTitle };
-			}
+		// An automatic title never replaces one the user chose; an explicit rename still does. The persisted source covers
+		// a restored session, and the in-memory one, read after it, a user rename whose own writes are still on their way.
+		if (automatic && (await this._hasPersistedUserTitle(session, chat, isDefaultChat) || this._isUserTitle(session, chat, isDefaultChat))) {
+			return { title: this._stateManager.getChatState(chat.toString())?.title ?? title };
 		}
 
 		if (isDefaultChat) {
@@ -1810,6 +1808,10 @@ export class AgentService extends Disposable implements IAgentService {
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
 			} : {}),
 		});
+		// Renamed by the user while this was persisted: the user's own writes land after these, so only the live title is left to keep.
+		if (automatic && this._isUserTitle(session, chat, isDefaultChat)) {
+			return { title: this._stateManager.getChatState(chat.toString())?.title ?? title };
+		}
 		const state = this._stateManager.getSessionState(session.toString());
 		if (state) {
 			if (isDefaultChat && state.title !== title) {
@@ -3129,25 +3131,23 @@ export class AgentService extends Disposable implements IAgentService {
 		return entries;
 	}
 
-	/**
-	 * The title the user gave {@link chat}, if its persisted title came from the user. A rename of the session itself
-	 * is recorded on the session and titles its default chat.
-	 */
-	private async _readUserChatTitle(session: URI, chat: URI, isDefaultChat: boolean): Promise<string | undefined> {
+	/** Whether the user gave {@link chat} its title in this process. A rename of the session itself titles its default chat. */
+	private _isUserTitle(session: URI, chat: URI, isDefaultChat: boolean): boolean {
+		return this._titleController.isTitleSetByUser(session.toString(), chat.toString())
+			|| (isDefaultChat && this._titleController.isTitleSetByUser(session.toString()));
+	}
+
+	/** Whether {@link chat}'s persisted title came from the user, as {@link _isUserTitle} asks of a restored session. */
+	private async _hasPersistedUserTitle(session: URI, chat: URI, isDefaultChat: boolean): Promise<boolean> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
-			return undefined;
+			return false;
 		}
 
 		try {
 			const db = ref.object;
-			if (await db.getMetadata(customChatTitleSourceMetadataKey(chat.toString())) === AGENT_HOST_TITLE_SOURCE_USER) {
-				return await db.getMetadata(customChatTitleMetadataKey(chat.toString()));
-			}
-			if (isDefaultChat && await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_USER) {
-				return await db.getMetadata(SESSION_CUSTOM_TITLE_KEY);
-			}
-			return undefined;
+			return await db.getMetadata(customChatTitleSourceMetadataKey(chat.toString())) === AGENT_HOST_TITLE_SOURCE_USER
+				|| (isDefaultChat && await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_USER);
 		} finally {
 			ref.dispose();
 		}
