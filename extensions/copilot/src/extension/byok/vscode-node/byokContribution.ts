@@ -2,18 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
+import { commands, LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { BYOKKnownModels, isClientBYOKAllowed } from '../../byok/common/byokProvider';
+import { BYOKKnownModels } from '../../byok/common/byokProvider';
 import { IExtensionContribution } from '../../common/contributions';
 import { AbstractLanguageModelChatProvider } from './abstractLanguageModelChatProvider';
 import { AnthropicLMProvider } from './anthropicProvider';
 import { AzureBYOKModelProvider } from './azureProvider';
+import { resolveClientBYOKAllowed } from './byokPolicy';
 import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
@@ -23,6 +25,8 @@ import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
 import { XAIBYOKLMProvider } from './xAIProvider';
 
+const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
+
 export class BYOKContrib extends Disposable implements IExtensionContribution {
 	public readonly id: string = 'byok-contribution';
 	private readonly _byokStorageService: IBYOKStorageService;
@@ -30,19 +34,33 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private readonly _providerRegistrations = this._register(new DisposableStore());
 	private _providersRegistered = false;
 	private _knownModelsRefreshed = false;
+	private _policyApplyGeneration = 0;
 	private _knownModelsRefreshTargets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]> = [];
 
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
 		@ILogService private readonly _logService: ILogService,
-		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._byokStorageService = new BYOKStorageService(extensionContext);
-		this._applyPolicy();
-		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
+		this._byokStorageService = new BYOKStorageService(this._extensionContext);
+		void this._applyPolicy();
+		this._register(this._authService.onDidAuthenticationChange(() => void this._applyPolicy()));
+		this._register(this._authService.onDidCopilotTokenChange(() => void this._applyPolicy()));
+		this._register(this._configurationService.onDidChangeConfiguration(event => {
+			const hasGitHubAccount = !!this._authService.anyGitHubSession?.account.id;
+			if (event.affectsConfiguration(ConfigKey.Shared.AuthProvider.fullyQualifiedId)
+				|| event.affectsConfiguration('github-enterprise.uri')
+				|| (!hasGitHubAccount && (
+					event.affectsConfiguration(ConfigKey.Shared.DebugOverrideProxyUrl.fullyQualifiedId)
+					|| event.affectsConfiguration(ConfigKey.Shared.DebugOverrideCAPIUrl.fullyQualifiedId)
+					|| event.affectsConfiguration(ConfigKey.Shared.DebugOverrideAuthType.fullyQualifiedId)))) {
+				void this._applyPolicy();
+			}
+		}));
 	}
 
 	private _buildProviders(): void {
@@ -71,8 +89,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		];
 	}
 
-	private _applyPolicy(): void {
-		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken);
+	private async _applyPolicy(): Promise<void> {
+		const generation = ++this._policyApplyGeneration;
+		const isCurrent = () => generation === this._policyApplyGeneration;
+		const allowed = await resolveClientBYOKAllowed(this._authService, this._extensionContext, this._logService, this._configurationService, isCurrent);
+		if (!isCurrent() || this._store.isDisposed) {
+			return;
+		}
 		if (allowed && !this._providersRegistered) {
 			if (this._providers.size === 0) {
 				this._buildProviders();
@@ -94,6 +117,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			this._providersRegistered = false;
 			this._logService.info('BYOK: unregistered providers due to enterprise policy.');
 		}
+		void commands.executeCommand('setContext', clientByokEnabledContextKey, allowed);
 	}
 
 	private async _refreshKnownModels(): Promise<void> {
