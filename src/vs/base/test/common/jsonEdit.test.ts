@@ -193,4 +193,10 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '// This is a comment\n[\n  1,\n  "foo"\n]');
 	});
 
+	test('remove last item in compact array without whitespace', () => {
+		const content = '[1,2]';
+		const edits = setProperty(content, [1], undefined, formatterOptions);
+		assertEdit(content, edits, '[1]');
+	});
+
 });
