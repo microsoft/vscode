@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +23,7 @@ import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from '../../common/extHostTesting.js';
 import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTestItem.js';
 import * as convert from '../../common/extHostTypeConverters.js';
-import { Location, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
+import { FileCoverage, Location, Position, Range, StatementCoverage, TestCoverageCount, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from '../../../contrib/testing/common/testTypes.js';
@@ -693,6 +693,23 @@ suite('ExtHost Testing', () => {
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
 			assert.strictEqual(tracker.hasRunningTasks, false);
+		});
+
+		test('keeps coverage available after a task ends until result disposal', async () => {
+			const details = [new StatementCoverage(1, new Position(0, 0))];
+			const loadDetailedCoverage = sinon.stub().resolves(details);
+			Object.assign(configuration, { loadDetailedCoverage });
+			const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			task.addCoverage(new FileCoverage(URI.file('/coverage.ts'), new TestCoverageCount(1, 1)));
+			const coverageId = proxy.$appendCoverage.args[0]?.[2].id;
+			task.end();
+
+			assert.deepStrictEqual(await c.getCoverageDetails(coverageId, undefined, CancellationToken.None), details);
+			assert.strictEqual(loadDetailedCoverage.calledOnce, true);
+
+			c.disposeTestRun(tracker.id);
+			assert.deepStrictEqual(await c.getCoverageDetails(coverageId, undefined, CancellationToken.None), []);
 		});
 
 		test('run cancel force ends after a timeout', () => {
