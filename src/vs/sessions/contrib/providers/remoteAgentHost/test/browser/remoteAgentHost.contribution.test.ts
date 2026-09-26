@@ -18,6 +18,8 @@ import { AuthRequiredReason, NotificationType, type INotification } from '../../
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -58,11 +60,17 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 	_authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void>;
 }
 
+function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const service = store.add(new TestInstantiationService());
+	service.stub(IConfigurationService, new TestConfigurationService());
+	return service;
+}
+
 function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	const address = 'cloudsandbox:authentication-test';
 	const authenticationService = new RemoteAgentHostAuthenticationService();
 	const pending = store.add(authenticationService.acquire(address)).object;
-	const instantiationService = store.add(new TestInstantiationService());
+	const instantiationService = createAuthenticationInstantiationService(store);
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ILogService, new NullLogService());
@@ -170,7 +178,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{
@@ -218,7 +226,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	});
 
 	test('reauthenticates each host independently with the same current token', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
@@ -248,7 +256,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	});
 
 	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],

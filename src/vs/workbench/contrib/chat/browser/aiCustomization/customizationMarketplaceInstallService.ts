@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../../../base/common/async.js';
-import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,9 +15,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CopilotConnectorsError } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
-import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -41,6 +42,8 @@ import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocat
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
+import { getConnectorRowPresentation } from './connectorPresentation.js';
+import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
 import { getPluginMarketplaceIdentifier, isPluginMarketplaceReferenceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
@@ -52,13 +55,18 @@ type InstallationRecordState =
 	| { readonly kind: 'checking' | 'installed' | 'missing' }
 	| { readonly kind: 'error'; readonly message: string };
 
+interface IPendingOperation {
+	readonly promise: Promise<void>;
+	cancel(): void;
+}
+
 export class CustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
-	private readonly pending = new Map<string, Promise<void>>();
-	private readonly pendingRepairs = new Map<string, Promise<void>>();
+	private readonly pending = new Map<string, IPendingOperation>();
+	private readonly pendingRepairs = new Map<string, IPendingOperation>();
 	private readonly pendingUninstalls = new Map<string, Promise<void>>();
 	private readonly manualMcpSetups = new Map<string, { readonly sourceId: string; readonly url?: URI }>();
 	private readonly recordStates = new Map<string, InstallationRecordState>();
@@ -67,6 +75,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly recordStore: CustomizationMarketplaceInstallationRecordStore;
 	private readonly lifetimeToken = cancelOnDispose(this._store);
 	private readonly enabledDisposables = this._register(new DisposableStore());
+	private readonly connectorListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly sourceFolderRequest = this._register(new MutableDisposable<DisposableStore>());
 	private readonly locationPicker: CustomizationLocationPicker;
 	private readonly skillInstaller: CustomizationMarketplaceSkillInstaller;
@@ -81,6 +90,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IAgentPluginRepositoryService private readonly repositoryService: IAgentPluginRepositoryService,
 		@IPluginGitService private readonly pluginGitService: IPluginGitService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
@@ -103,7 +113,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (affectsCustomizationMarketplaceSources(event, this.customizationMarketplaceService.allSources ?? this.customizationMarketplaceService.sources)) {
 				this.updateEnablement();
-			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
+			} else if (this.isEnabled() && (event.affectsConfiguration(ChatConfiguration.PluginsEnabled) ||
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled))) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -114,11 +125,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.synchronizeRecordStates(true);
 			this._onDidChange.fire();
 			if (this.isEnabled()) {
-				void this.reconcileRecords([...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp')]);
+				void this.reconcileRecords([...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableConnectorRecords()]);
 				void this.refreshActiveSkillSourceFolders();
 			}
 		}));
-
 		this.updateEnablement();
 	}
 
@@ -158,6 +168,31 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private updateEnablement(): void {
+		if (this.isSourceEnabled(CustomizationMarketplaceSources.CopilotConnectors.id)) {
+			if (!this.connectorListeners.value) {
+				const listeners = new DisposableStore();
+				this.connectorListeners.value = listeners;
+				listeners.add(this.copilotConnectorsService.onDidChange(() => {
+					this._onDidChange.fire();
+					void this.synchronizeConnectedConnectorRecords();
+				}));
+				listeners.add(this.copilotConnectorsService.onDidChangeAccount(() => {
+					this.synchronizeRecordStates();
+					this._onDidChange.fire();
+					void this.reconcileRecords(this.getApplicableConnectorRecords());
+				}));
+				listeners.add(this.copilotConnectorsService.onDidDisconnect(name => {
+					const account = this.copilotConnectorsService.account;
+					const record = account ? this.findConnectorRecord(name, account) : undefined;
+					if (record) {
+						this.removeRecord(record);
+						this._onDidChange.fire();
+					}
+				}));
+			}
+		} else {
+			this.connectorListeners.clear();
+		}
 		for (const [key, setup] of this.manualMcpSetups) {
 			if (!this.isSourceEnabled(setup.sourceId)) {
 				this.manualMcpSetups.delete(key);
@@ -166,6 +201,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const enabled = this.isEnabled();
 		if (enabled === this.observingInstallations) {
 			this._onDidChange.fire();
+			void this.synchronizeConnectedConnectorRecords();
 			return;
 		}
 		this.observingInstallations = enabled;
@@ -206,6 +242,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 		}));
 		void this.reconcileRecords(this.getRecordsByKind('mcp'));
+		void this.synchronizeConnectedConnectorRecords();
 	}
 
 	private async refreshActiveSkillSourceFolders(): Promise<void> {
@@ -280,8 +317,81 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return this.getRecordsByKind('skill').filter(record => this.isRecordApplicable(record));
 	}
 
+	private getApplicableConnectorRecords(): ICustomizationMarketplaceInstallationRecord[] {
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true
+			? this.getRecordsByKind('copilotConnector').filter(record => this.isRecordApplicable(record))
+			: [];
+	}
+
 	private getRelevantRecords(): ICustomizationMarketplaceInstallationRecord[] {
-		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableSkillRecords()];
+		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableSkillRecords(), ...this.getApplicableConnectorRecords()];
+	}
+
+	private async synchronizeConnectedConnectorRecords(): Promise<void> {
+		if (!this.isSourceEnabled(CustomizationMarketplaceSources.CopilotConnectors.id)) {
+			return;
+		}
+		const account = this.copilotConnectorsService.account;
+		if (!account) {
+			return;
+		}
+		for (const connector of this.copilotConnectorsService.connectors) {
+			if (connector.connectionStatus !== 'connected') {
+				continue;
+			}
+			try {
+				const resource: ICustomizationMarketplaceResource = {
+					...toCopilotConnectorMarketplaceEntry(connector),
+					sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+				};
+				const existing = this.findConnectorRecord(connector.name, account);
+				const record = await this.createConnectorRecord(resource, account, existing?.id);
+				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description;
+				if (didChange) {
+					this.recordStore.upsert(record);
+					this.recordStates.set(record.id, { kind: 'checking' });
+				}
+			} catch (error) {
+				this.logService.error(`[CustomizationMarketplace] Unable to record connected Copilot connector '${connector.name}'`, error);
+			}
+		}
+		await this.reconcileRecords(this.getApplicableConnectorRecords());
+	}
+
+	private async createConnectorRecord(resource: ICustomizationMarketplaceResource, account: ICopilotConnectorAccount, existingId?: string): Promise<ICustomizationMarketplaceInstallationRecord> {
+		const installation = resource.installation;
+		if (installation?.kind !== 'copilotConnector') {
+			throw new Error(localize('customizationMarketplace.connectorInstallationMetadataUnavailable', "Copilot connector installation metadata is unavailable."));
+		}
+		return {
+			id: existingId ?? await createInstallationRecordId([
+				getCustomizationMarketplaceResourceKey(resource),
+				account.providerId,
+				account.enterprise ? 'enterprise' : 'public',
+				account.accountName,
+			]),
+			sourceId: resource.sourceId,
+			identifier: resource.identifier,
+			version: resource.version,
+			displayName: resource.displayName,
+			description: resource.description,
+			mediaType: resource.mediaType,
+			installation,
+			target: {
+				kind: 'copilotConnector',
+				name: installation.name,
+				providerId: account.providerId,
+				accountName: account.accountName,
+				enterprise: account.enterprise,
+			},
+		};
+	}
+
+	private findConnectorRecord(name: string, account: ICopilotConnectorAccount): ICustomizationMarketplaceInstallationRecord | undefined {
+		return this.getRecordsByKind('copilotConnector').find(record =>
+			record.target.kind === 'copilotConnector'
+			&& record.target.name === name
+			&& isConnectorAccountEqual(record.target, account));
 	}
 
 	private async addRecord(record: ICustomizationMarketplaceInstallationRecord): Promise<void> {
@@ -297,11 +407,19 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private findRecord(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceInstallationRecord | undefined {
+		if (resource.installation?.kind === 'copilotConnector') {
+			const account = this.copilotConnectorsService.account;
+			return account ? this.findConnectorRecord(resource.installation.name, account) : undefined;
+		}
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
 		return [...this.recordStore.records.values()].find(record => getInstallationRecordResourceKey(record) === resourceKey && this.isRecordApplicable(record));
 	}
 
 	private isRecordApplicable(record: ICustomizationMarketplaceInstallationRecord): boolean {
+		if (record.target.kind === 'copilotConnector') {
+			const account = this.copilotConnectorsService.account;
+			return !!account && isConnectorAccountEqual(record.target, account);
+		}
 		if (record.target.kind !== 'skill') {
 			return true;
 		}
@@ -329,6 +447,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			case 'skill': return { kind: 'skill', uri: record.target.uri };
 			case 'plugin': return { kind: 'plugin', uri: record.target.uri };
 			case 'mcp': return { kind: 'mcp', id: record.target.id };
+			case 'copilotConnector': return { kind: 'copilotConnector', name: record.target.name };
 		}
 	}
 
@@ -342,7 +461,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		let record = original;
 		let state: InstallationRecordState;
 		try {
-			if (record.target.kind === 'skill') {
+			if (record.target.kind === 'copilotConnector') {
+				const target = record.target;
+				const connector = this.copilotConnectorsService.connectors.find(candidate => candidate.name === target.name);
+				state = {
+					kind: !this.copilotConnectorsService.connectionStateKnown || connector?.connectionStatus === 'unknown'
+						? 'checking'
+						: connector?.connectionStatus === 'connected' ? 'installed' : 'missing',
+				};
+			} else if (record.target.kind === 'skill') {
 				state = { kind: await this.isSkillInstallationComplete(record.target) ? 'installed' : 'missing' };
 			} else if (record.target.kind === 'plugin') {
 				const target = record.target;
@@ -423,6 +550,17 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if ((record.installation.kind === 'plugin' || record.installation.kind === 'configuredPlugin') && !this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 			return localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.");
 		}
+		if (record.target.kind === 'copilotConnector') {
+			const target = record.target;
+			const connector = this.copilotConnectorsService.connectors.find(candidate => candidate.name === target.name);
+			if (!connector) {
+				return localize('customizationMarketplace.connectorNoLongerAvailable', "This connector is no longer available from the Copilot Connectors catalog.");
+			}
+			const presentation = getConnectorRowPresentation(connector);
+			if (connector.connectionStatus !== 'connected' && !presentation.action) {
+				return localize('customizationMarketplace.connectorRepairUnavailable', "This connector cannot be reconnected while its status is '{0}'.", presentation.statusLabel);
+			}
+		}
 		return undefined;
 	}
 
@@ -431,10 +569,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+		if (resource.installation?.kind === 'copilotConnector' &&
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
+		}
 		const record = this.findRecord(resource);
 		if (record) {
 			const target = this.toInstallationTarget(record);
-			if (this.pendingUninstalls.has(record.id)) {
+			if (this.pendingUninstalls.has(record.target.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : record.id)) {
 				return { kind: 'uninstalling', target };
 			}
 			if (this.pendingRepairs.has(record.id)) {
@@ -457,7 +599,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return { kind: 'unavailable', message: localize('customizationMarketplace.aiDisabled', "Enable AI features to install customizations.") };
 		}
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
-		if (this.pending.has(resourceKey)) {
+		const operationKey = resource.installation?.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : resourceKey;
+		if (this.pending.has(operationKey)) {
 			return { kind: 'installing' };
 		}
 		const source = resource.installation;
@@ -483,6 +626,26 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
 			return { kind: 'available' };
+		}
+		if (source.kind === 'copilotConnector') {
+			const target: CustomizationMarketplaceInstallationTarget = { kind: 'copilotConnector', name: source.name };
+			if (this.pendingUninstalls.has(operationKey)) {
+				return { kind: 'uninstalling', target };
+			}
+			if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
+			}
+			const connector = this.copilotConnectorsService.connectors.find(connector => connector.name === source.name);
+			if (!connector) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorStatusUnavailable', "This connector is no longer available. Refresh Discover and try again.") };
+			}
+			if (connector.connectionStatus === 'connected') {
+				return { kind: 'installed', target };
+			}
+			const presentation = getConnectorRowPresentation(connector);
+			return presentation.action
+				? { kind: 'available' }
+				: { kind: 'unavailable', message: localize('customizationMarketplace.connectorNotActionable', "This connector cannot be connected while its status is '{0}'. Refresh and try again.", presentation.statusLabel) };
 		}
 		if (source.kind === 'mcp') {
 			const manualSetup = this.manualMcpSetups.get(resourceKey);
@@ -511,14 +674,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (state.kind === 'unavailable') {
 			throw new Error(state.message);
 		}
-		const key = getCustomizationMarketplaceResourceKey(resource);
+		const key = resource.installation?.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : getCustomizationMarketplaceResourceKey(resource);
 		const pending = this.pending.get(key);
 		if (pending) {
-			return pending;
+			return pending.promise;
 		}
 		if (state.kind !== 'available') {
 			return;
 		}
+		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
 		this.recordStore.ensureCanAdd();
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
@@ -540,11 +704,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				operationDisposables.dispose();
 			}
 		}));
-		const operation = (async () => {
-			const record = await this.doInstall(resource, token);
-			await this.addRecord(record);
-		})();
-		this.pending.set(key, operation);
+		const operation = connector
+			? (async () => {
+				await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
+				const account = this.copilotConnectorsService.account;
+				if (!account) {
+					throw new Error(localize('customizationMarketplace.connectorAccountUnavailable', "The GitHub account used to connect this resource is no longer available."));
+				}
+				await this.addRecord(await this.createConnectorRecord(resource, account));
+			})()
+			: (async () => {
+				const record = await this.doInstall(resource, token);
+				await this.addRecord(record);
+			})();
+		this.pending.set(key, { promise: operation, cancel: () => operationDisposables.dispose() });
 		this._onDidChange.fire();
 		let didComplete = false;
 		try {
@@ -575,7 +748,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const pending = this.pendingRepairs.get(record.id);
 		if (pending) {
-			return pending;
+			return pending.promise;
 		}
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
@@ -591,10 +764,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.recordStates.set(record.id, { kind: 'checking' });
 			await this.reconcileRecords([repaired]);
 			if (this.recordStates.get(record.id)?.kind !== 'installed') {
-				throw new Error(localize('customizationMarketplace.repairIncomplete', "The customization could not be fully repaired. Review the installation and try again."));
+				throw new Error(record.target.kind === 'copilotConnector'
+					? localize('customizationMarketplace.connectorRepairIncomplete', "The connector could not be reconnected. Refresh its status and try again.")
+					: localize('customizationMarketplace.repairIncomplete', "The customization could not be fully repaired. Review the installation and try again."));
 			}
 		})();
-		this.pendingRepairs.set(record.id, operation);
+		this.pendingRepairs.set(record.id, { promise: operation, cancel: () => operationDisposables.dispose() });
 		this._onDidChange.fire();
 		try {
 			await operation;
@@ -610,7 +785,64 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 	}
 
+	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
+		if (resource.installation?.kind !== 'copilotConnector') {
+			return;
+		}
+		this.pending.get(getConnectorOperationKey(resource))?.cancel();
+		const record = this.findRecord(resource);
+		if (record) {
+			this.pendingRepairs.get(record.id)?.cancel();
+		}
+	}
+
 	async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
+		if (connector) {
+			const record = this.findRecord(resource);
+			const key = getConnectorOperationKey(resource);
+			const pending = this.pendingUninstalls.get(key);
+			if (pending) {
+				return pending;
+			}
+			const state = this.getInstallState(resource);
+			if (state.kind === 'unavailable') {
+				throw new Error(state.message);
+			}
+			if (state.kind !== 'installed' && state.kind !== 'missing' && state.kind !== 'error') {
+				return;
+			}
+			if (record && this.copilotConnectorsService.connectionStateKnown &&
+				!this.copilotConnectorsService.connectors.some(candidate => candidate.name === connector.name)) {
+				this.removeRecord(record);
+				this._onDidChange.fire();
+				return;
+			}
+			const operation = (async () => {
+				try {
+					await this.runConnectorOperation(resource.sourceId, token => this.copilotConnectorsService.disconnect(connector.name, token), this.lifetimeToken);
+					if (record && this.recordStore.records.has(record.id)) {
+						this.removeRecord(record);
+						this._onDidChange.fire();
+					}
+				} catch (error) {
+					if (!record || !(error instanceof CopilotConnectorsError) || error.statusCode !== 404) {
+						throw error;
+					}
+					this.removeRecord(record);
+					this._onDidChange.fire();
+				}
+			})();
+			this.pendingUninstalls.set(key, operation);
+			this._onDidChange.fire();
+			try {
+				await operation;
+			} finally {
+				this.pendingUninstalls.delete(key);
+				this._onDidChange.fire();
+			}
+			return;
+		}
 		const record = this.findRecord(resource);
 		if (!record) {
 			return;
@@ -690,11 +922,36 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 	}
 
+	private async runConnectorOperation(sourceId: string, operation: (token: CancellationToken) => Promise<void>, token: CancellationToken): Promise<void> {
+		this.checkEnabled(sourceId, token);
+		const operationDisposables = new DisposableStore();
+		const cancellation = operationDisposables.add(new CancellationTokenSource(token));
+		operationDisposables.add(this.entitlementService.onDidChangeSentiment(() => {
+			if (this.entitlementService.sentiment.hidden) {
+				cancellation.cancel();
+			}
+		}));
+		operationDisposables.add(this.configurationService.onDidChangeConfiguration(() => {
+			if (!this.isSourceEnabled(sourceId)) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			await operation(cancellation.token);
+			this.checkEnabled(sourceId, cancellation.token);
+		} finally {
+			operationDisposables.dispose();
+		}
+	}
+
 	private async doInstall(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<ICustomizationMarketplaceInstallationRecord> {
 		this.checkEnabled(resource.sourceId, token);
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
+		}
+		if (source.kind === 'copilotConnector') {
+			throw new Error(localize('customizationMarketplace.connectorInstallTargetUnavailable', "Copilot connectors do not have a local installation target."));
 		}
 		const target = await this.installTarget({ ...resource, installation: source }, token);
 		const slot = target.kind === 'skill'
@@ -715,6 +972,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async doRepair(resource: ICustomizationMarketplaceResource, record: ICustomizationMarketplaceInstallationRecord, token: CancellationToken): Promise<ICustomizationMarketplaceInstallationRecord> {
 		this.checkEnabled(record.sourceId, token);
+		if (record.target.kind === 'copilotConnector' && record.installation.kind === 'copilotConnector') {
+			const target = record.target;
+			await this.runConnectorOperation(record.sourceId, operationToken => this.copilotConnectorsService.connect(target.name, operationToken), token);
+			return record;
+		}
 		if (record.target.kind === 'skill') {
 			await this.skillInstaller.repair(record, token, () => this.isRecordApplicable(record));
 			return record;
@@ -803,6 +1065,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			return { kind: 'mcp', id: installed.id };
 		}
+		if (source.kind === 'copilotConnector') {
+			throw new Error(localize('customizationMarketplace.connectorInstallTargetUnavailable', "Copilot connectors do not have a local installation target."));
+		}
 		if (source.kind === 'plugin') {
 			const result = await this.pluginInstallService.installPluginFromSource(`${source.repository}#${source.ref}`, { path: source.path });
 			if (!result.success) {
@@ -879,6 +1144,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new CancellationError();
 		}
 	}
+}
+
+function isConnectorAccountEqual(
+	target: Extract<CustomizationMarketplaceInstallationRecordTarget, { kind: 'copilotConnector' }>,
+	account: ICopilotConnectorAccount,
+): boolean {
+	return target.providerId === account.providerId
+		&& target.accountName === account.accountName
+		&& target.enterprise === account.enterprise;
+}
+
+function getConnectorOperationKey(resource: ICustomizationMarketplaceResource): string {
+	const connectorName = resource.installation?.kind === 'copilotConnector' ? resource.installation.name : resource.identifier;
+	return JSON.stringify([resource.sourceId, 'copilotConnector', connectorName]);
 }
 
 async function createInstallationRecordId(slot: readonly (string | null)[]): Promise<string> {

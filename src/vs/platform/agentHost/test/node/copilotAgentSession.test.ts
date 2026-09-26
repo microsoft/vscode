@@ -1043,7 +1043,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				options.captureRuntime.current = runtime;
 			}
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService);
-		}
+		},
 	};
 
 	const services = new ServiceCollection();
@@ -17680,6 +17680,14 @@ Use the attached image as context.
 				enabledResult: { kind: 'token', accessToken: 'enabled-token' },
 				unknownResult: { kind: 'token', accessToken: 'unknown-token' },
 			});
+		});
+
+		test('Connector changes require an MCP launch configuration refresh', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			session.markConnectorConfigurationChanged();
+
+			assert.strictEqual(session.requiresMcpLaunchConfigurationRefresh, true);
 		});
 
 		test('MCP authentication only clears auth-required after all matching server challenges resolve', async () => {
