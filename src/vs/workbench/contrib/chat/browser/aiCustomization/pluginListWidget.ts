@@ -11,6 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -39,6 +40,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
@@ -50,7 +52,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { asTreeRenderer, CustomizationListLayout, CustomizationTreeTabs, getCustomizationListLayout, getSelectedCustomizationGroup, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 
 const $ = DOM.$;
@@ -99,6 +101,14 @@ export class PluginMarketplaceSnapshotModel {
 
 export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: PluginMarketplaceSnapshotState, marketplaceAvailable: boolean): boolean {
 	return visible && state === 'uninitialized' && marketplaceAvailable;
+}
+
+export function shouldShowLegacyPluginMarketplace(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
+}
+
+export function shouldShowPluginTree(searchQuery: string, itemCount: number): boolean {
+	return itemCount > 0 || searchQuery.trim().length === 0;
 }
 
 export function isCurrentPluginMarketplaceRequest(
@@ -629,17 +639,6 @@ function compareInstalledPluginItems(a: IInstalledPluginItem, b: IInstalledPlugi
 	return formatDisplayName(a.name).localeCompare(formatDisplayName(b.name));
 }
 
-export function partitionInstalledPluginItemsByScope(items: readonly IInstalledPluginItem[]): { readonly user: IInstalledPluginItem[]; readonly workspace: IInstalledPluginItem[] } {
-	const workspace = items.filter(item => {
-		const state = item.plugin.enablement.get();
-		return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
-	});
-	return {
-		user: items.filter(item => !workspace.includes(item)),
-		workspace,
-	};
-}
-
 export function getInstalledPluginMetadata(item: IInstalledPluginItem): string {
 	const metadata: string[] = [];
 	const contributionSummary = getInstalledPluginContributionSummary(item);
@@ -747,7 +746,6 @@ export class PluginListWidget extends Disposable {
 	private sectionLayoutContainer: HTMLElement | undefined;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchObjectTree<IPluginListEntry>;
-	private treeTabs!: CustomizationTreeTabs;
 	private emptyContainer!: HTMLElement;
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
@@ -755,16 +753,9 @@ export class PluginListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
-	private buttonContainer!: HTMLElement;
 	private backButtonContainer!: HTMLElement;
 	private backButton!: Button;
-	private browseButton!: Button;
-	private addButtonContainer!: HTMLElement;
-	private addButtonSimple!: Button;
-	private addButton!: ButtonWithDropdown;
 	private installedCreateButton: Button | undefined;
-	private updatePluginsButton!: Button;
-	private readonly addDropdownActions = this._register(new DisposableStore());
 	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
@@ -775,7 +766,6 @@ export class PluginListWidget extends Disposable {
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
-	private selectedGroupKey: string | undefined;
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IPluginListEntry>[] = [];
 	private browseMode: boolean = false;
 	private visible = false;
@@ -824,9 +814,15 @@ export class PluginListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsListLayout)) {
-				this.renderPluginTree();
-				this.layout(this.lastHeight, this.lastWidth);
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				this.marketplaceCts?.dispose(true);
+				this.marketplaceSnapshotCts?.dispose(true);
+				this.marketplaceSnapshot.reset();
+				this.marketplaceItems = [];
+				if (!shouldShowLegacyPluginMarketplace(this.configurationService) && this.browseMode) {
+					this.toggleBrowseMode(false);
+				}
+				void this.refresh();
 			}
 		}));
 		this._register({
@@ -930,45 +926,6 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace + Add actions + Create Plugin + Update Plugins)
-		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
-
-		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		const browseMarketplaceLabel = localize('browseMarketplace', "Browse Marketplace");
-		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseMarketplaceLabel, ariaLabel: browseMarketplaceLabel }));
-		this.browseButton.element.classList.add('list-add-button');
-		browseButtonContainer.style.display = 'none';
-
-		this.addButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		const addPluginLabel = localize('addPlugin', "Add Plugin");
-		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, title: addPluginLabel, ariaLabel: addPluginLabel }));
-		this.addButtonSimple.element.classList.add('list-add-button');
-		this._register(this.addButtonSimple.onDidClick(() => this.runPrimaryAddAction()));
-
-		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
-			...defaultButtonStyles,
-			secondary: true,
-			contextMenuProvider: this.contextMenuService,
-			addPrimaryActionToDropdown: false,
-			actions: { getActions: () => this.getAddDropdownActions() },
-			title: addPluginLabel,
-			ariaLabel: addPluginLabel,
-		}));
-		this.addButton.element.classList.add('list-add-button');
-		this._register(this.addButton.onDidClick(() => this.runPrimaryAddAction()));
-
-		const updatePluginsLabel = localize('updatePlugins', "Update Plugins");
-		this.updatePluginsButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updatePluginsLabel, ariaLabel: updatePluginsLabel }));
-		this.updatePluginsButton.element.classList.add('list-icon-button');
-		this.updatePluginsButton.label = `$(${Codicon.refresh.id})`;
-		this._register(this.updatePluginsButton.onDidClick(() => this.runUpdatePluginsAction()));
-
-		this.treeTabs = this._register(new CustomizationTreeTabs(this.element, localize('pluginGroups', "Plugin Groups")));
-		this._register(this.treeTabs.onDidSelect(groupKey => {
-			this.selectedGroupKey = groupKey;
-			this.renderPluginTree();
-		}));
-
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
@@ -1034,7 +991,9 @@ export class PluginListWidget extends Disposable {
 			],
 			{
 				indent: 8,
+				renderIndentGuides: RenderIndentGuides.None,
 				hideTwistiesOfChildlessElements: false,
+				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
@@ -1187,18 +1146,6 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.marketplaceBackContainer.style.display = this.browseMode ? '' : 'none';
-		this.browseButton.element.parentElement!.style.display = 'none';
-		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
-		this.browseButton.enabled = browseMarketplaceAvailable;
-		const browseTitle = browseMarketplaceAvailable
-			? localize('browseMarketplace', "Browse Marketplace")
-			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web.");
-		this.browseButton.setTitle(browseTitle);
-		this.browseButton.element.setAttribute('aria-label', browseTitle);
-
-		this.addButton.element.style.display = 'none';
-		this.addButtonSimple.element.style.display = 'none';
-		this.updatePluginsButton.element.style.display = 'none';
 		this.updateInstalledCreateButtonLabel();
 	}
 
@@ -1250,19 +1197,7 @@ export class PluginListWidget extends Disposable {
 		];
 	}
 
-	private getAddDropdownActions(): Action[] {
-		this.addDropdownActions.clear();
-		return this.buildAddActions().slice(1).map((action, index) => this.addDropdownActions.add(new Action(`plugin_add_${index}`, this.formatActionLabel(action), undefined, action.enabled !== false, () => this.runPluginAction(action))));
-	}
-
-	private async runPrimaryAddAction(): Promise<void> {
-		const [primary] = this.buildAddActions();
-		if (primary) {
-			await this.runPluginAction(primary);
-		}
-	}
-
-	private async runUpdatePluginsAction(button = this.updatePluginsButton): Promise<void> {
+	private async runUpdatePluginsAction(button: Button): Promise<void> {
 		button.enabled = false;
 		try {
 			await this.commandService.executeCommand(UpdateAgentPluginsCommandId);
@@ -1428,67 +1363,35 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderPluginTree(): void {
-		if (!this.treeTabs || !this.list) {
+		if (!this.list) {
 			return;
 		}
 
-		const layout = getCustomizationListLayout(this.configurationService);
-		this.element.classList.toggle('tabs-layout', layout === CustomizationListLayout.Tabs);
-		this.element.classList.toggle('tree-layout', layout === CustomizationListLayout.Tree);
-		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
 		const installedEntries = this.installedItems.map(item => ({ type: 'plugin-item' as const, item }));
-		const workspaceEntries = partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item }));
-		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteEntries = this.remoteItems
 			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
 			.map(item => ({ type: 'remote-item' as const, item }));
-		const availableItems = this.browseMode || this.searchQuery.trim()
-			? this.marketplaceItems
-			: this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
+		const showLegacyMarketplace = shouldShowLegacyPluginMarketplace(this.configurationService);
+		const availableItems = !showLegacyMarketplace ? [] : this.browseMode || this.searchQuery.trim()
+			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
-		const tabDefinitions = [
+		const definitions = [
 			{
-				id: 'user',
-				label: localize('userPluginsGroup', "User"),
-				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
-				icon: Codicon.account,
-				children: userEntries,
+				id: 'installed',
+				label: localize('installedPluginsSection', "Installed"),
+				description: localize('installedPluginsSectionDescription', "Plugins installed locally or configured by the active remote session."),
+				icon: Codicon.plug,
+				children: [...installedEntries, ...remoteEntries],
 			},
-			{
-				id: 'workspace',
-				label: localize('workspacePluginsGroup', "Workspace"),
-				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
-				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
-			{
-				id: 'remote',
-				label: localize('remotePluginsSection', "Remote Session"),
-				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
-				icon: Codicon.remote,
-				children: remoteEntries,
-			},
-			{
+			...(showLegacyMarketplace ? [{
 				id: 'available',
 				label: localize('availablePluginsSection', "Available"),
 				description: localize('availablePluginsSectionDescription', "Browse and install plugins from your marketplaces."),
 				icon: Codicon.extensions,
 				children: availableEntries,
-			},
-		].filter(group => group.id === 'user' || group.id === 'workspace' || group.id === 'available' || group.children.length > 0);
-		const definitions = layout === CustomizationListLayout.Tree
-			? [
-				{
-					id: 'installed',
-					label: localize('installedPluginsSection', "Installed"),
-					description: localize('installedPluginsSectionDescription', "Plugins installed locally or configured by the active remote session."),
-					icon: Codicon.plug,
-					children: [...installedEntries, ...remoteEntries],
-				},
-				tabDefinitions.find(group => group.id === 'available')!,
-			]
-			: tabDefinitions;
+			}] : []),
+		];
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1513,76 +1416,30 @@ export class PluginListWidget extends Disposable {
 		});
 
 		this.cardScrollableNode.style.display = 'none';
-		this.treeTabs.element.style.display = layout === CustomizationListLayout.Tabs ? '' : 'none';
-		if (layout === CustomizationListLayout.Tabs) {
-			const selected = getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey);
-			this.selectedGroupKey = selected?.id;
-			if (selected) {
-				this.treeTabs.setGroups(this.currentTreeGroups, selected.id);
-				this.list.setChildren(null, selected.children.map(element => ({ element })));
-				this.updatePluginTabActions(selected.id);
-				this.updatePluginTreeEmptyState(selected.children.length);
-			}
-		} else {
-			this.buttonContainer.style.display = 'none';
-			const children: IObjectTreeElement<IPluginListEntry>[] = this.currentTreeGroups.map(group => ({
-				element: group.element,
-				collapsible: true,
-				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: group.children.map(element => ({ element })),
-			}));
-			this.list.setChildren(null);
-			this.list.setChildren(null, children);
-			this.updateToolbarActions();
-			this.updatePluginTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
-		}
-	}
-
-	private updatePluginTabActions(groupId: string): void {
-		this.treeTabs.clearActions();
-		this.treeTabs.actionsElement.appendChild(this.buttonContainer);
-		this.buttonContainer.style.display = '';
+		const children: IObjectTreeElement<IPluginListEntry>[] = this.currentTreeGroups.map(group => ({
+			element: group.element,
+			collapsible: true,
+			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: group.children.map(element => ({ element })),
+		}));
+		this.list.setChildren(null);
+		this.list.setChildren(null, children);
 		this.updateToolbarActions();
-		const available = groupId === 'available';
-		const remote = groupId === 'remote';
-		this.browseButton.element.parentElement!.style.display = available && this.isBrowseMarketplaceAvailable() ? '' : 'none';
-		this.updatePluginAddButtons(!remote);
-		this.updatePluginsButton.element.style.display = !available && !remote && this.pluginMarketplaceService.installedPlugins.get().length > 0 ? '' : 'none';
+		this.updatePluginTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
 	}
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (getCustomizationListLayout(this.configurationService) !== CustomizationListLayout.Tree) {
-			return;
-		}
+		const actions = DOM.append(container, $('.plugin-card-section-actions'));
 		if (entry.group === 'installed') {
-			this.renderPluginAddAction(container, disposables);
+			this.renderPluginAddAction(actions, disposables);
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
-				this.renderPluginUpdateAction(container, disposables);
+				this.renderPluginUpdateAction(actions, disposables);
 			}
 		} else if (entry.group === 'available') {
-			this.renderPluginAddAction(container, disposables);
+			this.renderPluginAddAction(actions, disposables);
 			if (this.isBrowseMarketplaceAvailable()) {
-				this.renderBrowseMarketplaceAction(container, disposables);
+				this.renderBrowseMarketplaceAction(actions, disposables);
 			}
-		}
-	}
-
-	private updatePluginAddButtons(visible: boolean): void {
-		const actions = this.buildAddActions();
-		const [primary, ...dropdown] = actions;
-		this.addButtonContainer.style.display = visible && primary ? '' : 'none';
-		this.addButton.element.style.display = visible && primary && dropdown.length > 0 ? '' : 'none';
-		this.addButtonSimple.element.style.display = visible && primary && dropdown.length === 0 ? '' : 'none';
-		if (!primary) {
-			return;
-		}
-		const label = this.formatActionLabel(primary);
-		if (dropdown.length > 0) {
-			this.addButton.label = label;
-			this.addButton.enabled = primary.enabled !== false;
-		} else {
-			this.addButtonSimple.label = label;
-			this.addButtonSimple.enabled = primary.enabled !== false;
 		}
 	}
 
@@ -1657,22 +1514,16 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
-		const empty = itemCount === 0;
-		this.listContainer.style.display = empty ? 'none' : '';
-		this.emptyContainer.style.display = empty ? 'flex' : 'none';
-		if (empty) {
-			this.emptyText.textContent = this.searchQuery.trim()
-				? localize('noMatchingPlugins', "No plugins match '{0}'", this.searchQuery)
-				: localize('noPluginsInGroup', "No plugins in this group");
-			this.emptySubtext.textContent = this.searchQuery.trim() ? localize('tryDifferentSearch', "Try a different search term") : '';
+		const showTree = shouldShowPluginTree(this.searchQuery, itemCount);
+		this.listContainer.style.display = showTree ? '' : 'none';
+		this.emptyContainer.style.display = showTree ? 'none' : 'flex';
+		if (!showTree) {
+			this.emptyText.textContent = localize('noMatchingPlugins', "No plugins match '{0}'", this.searchQuery);
+			this.emptySubtext.textContent = localize('tryDifferentSearch', "Try a different search term");
 		}
 	}
 
 	private getVisiblePluginEntries(): readonly IPluginListEntry[] {
-		const layout = getCustomizationListLayout(this.configurationService);
-		if (layout === CustomizationListLayout.Tabs) {
-			return getSelectedCustomizationGroup(this.currentTreeGroups, this.selectedGroupKey)?.children ?? [];
-		}
 		return this.currentTreeGroups.flatMap(group => [group.element, ...group.children]);
 	}
 
@@ -1683,7 +1534,7 @@ export class PluginListWidget extends Disposable {
 
 		this.renderPluginTree();
 
-		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
+		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable() && shouldShowLegacyPluginMarketplace(this.configurationService))) {
 			void this.queryMarketplaceSnapshot();
 		}
 	}
@@ -1907,7 +1758,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
-		if (!this.isBrowseMarketplaceAvailable()) {
+		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			return;
 		}
 		if (!this.browseMode) {
@@ -1955,6 +1806,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplace(): Promise<void> {
+		if (!shouldShowLegacyPluginMarketplace(this.configurationService)) {
+			return;
+		}
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		const query = this.searchQuery.toLowerCase().trim();
@@ -2014,7 +1868,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryPluginSearch(): Promise<void> {
-		if (!this.isBrowseMarketplaceAvailable()) {
+		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			this.marketplaceItems = [];
 			await this.filterPlugins();
 			return;
@@ -2086,7 +1940,6 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private updateMarketplaceList(): void {
-		this.selectedGroupKey = 'available';
 		this.renderPluginTree();
 	}
 
@@ -2215,9 +2068,7 @@ export class PluginListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const backHeight = this.marketplaceBackContainer.offsetHeight;
-		const tabsHeight = this.treeTabs.element.style.display === 'none' ? 0 : this.treeTabs.element.offsetHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - headerHeight - backHeight - tabsHeight);
+		const listHeight = getCustomizationTreeContentHeight(this.element, this.listContainer, height);
 
 		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;

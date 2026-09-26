@@ -16,6 +16,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesStatsTelemetry } from '../../../telemetry/common/editTelemetry.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
@@ -45,10 +46,12 @@ interface IAttributedInterval {
 }
 
 interface ISourceStatistics {
+	readonly trackingKey: string;
 	readonly sourceKey: string;
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
 	readonly conversationId: string;
+	readonly chatSessionId: string | undefined;
 	readonly requestId: string;
 	readonly harness: string;
 	insertedCount: number;
@@ -303,18 +306,24 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const provider = getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
 		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
-		let source = resource.sources.get(sourceKey);
+		const conversationId = AgentSession.id(edit.sessionUri);
+		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
+		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
+		const trackingKey = chatSessionId === undefined ? sourceKey : JSON.stringify([sourceKey, conversationId, chatSessionId]);
+		let source = resource.sources.get(trackingKey);
 		if (!source) {
 			source = {
+				trackingKey,
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
-				conversationId: AgentSession.id(edit.sessionUri),
+				conversationId,
+				chatSessionId,
 				requestId: edit.turnId,
 				harness: provider,
 				insertedCount: 0,
 			};
-			resource.sources.set(sourceKey, source);
+			resource.sources.set(trackingKey, source);
 		}
 		this._applyChanges(resource, edit.changes, source, edit.afterText);
 		resource.trackedEditCount++;
@@ -326,7 +335,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			afterDigest: createFileEditContentDigest(edit.afterText),
 			source: {
 				modelId: edit.modelId,
-				conversationId: AgentSession.id(edit.sessionUri),
+				conversationId,
+				...(chatSessionId !== undefined ? { chatSessionId } : {}),
 				requestId: edit.turnId,
 				harness: provider,
 			},
@@ -590,7 +600,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				intervals.push({
 					start,
 					endExclusive: start + change.newText.length,
-					sourceKey: source === 'external' ? undefined : source.sourceKey,
+					sourceKey: source === 'external' ? undefined : source.trackingKey,
 				});
 				if (source !== 'external') {
 					source.insertedCount += change.newText.length;
@@ -749,7 +759,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				statsUuid,
 				languageId: undefined,
 				sources: Array.from(resource.sources.values())
-					.toSorted((a, b) => (retainedBySource.get(b.sourceKey) ?? 0) - (retainedBySource.get(a.sourceKey) ?? 0))
+					.toSorted((a, b) => (retainedBySource.get(b.trackingKey) ?? 0) - (retainedBySource.get(a.trackingKey) ?? 0))
 					.slice(0, 30),
 				retainedBySource,
 				agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
@@ -791,10 +801,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
 				conversationId: source.conversationId,
+				...(source.chatSessionId !== undefined ? { chatSessionId: source.chatSessionId } : {}),
 				requestId: source.requestId,
 				origin: 'agentHost',
 				harness: source.harness,
-				modifiedCount: prepared.retainedBySource.get(source.sourceKey) ?? 0,
+				modifiedCount: prepared.retainedBySource.get(source.trackingKey) ?? 0,
 				deltaModifiedCount: source.insertedCount,
 				totalModifiedCount,
 			} as const;
@@ -812,6 +823,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,
 					conversationId: data.conversationId,
+					...(data.chatSessionId !== undefined ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					origin: data.origin,
 					harness: data.harness,
@@ -1167,11 +1179,11 @@ function combinePreparedFlushes(
 			retainedBySource.set(sourceKey, (retainedBySource.get(sourceKey) ?? 0) + retainedCount);
 		}
 		for (const source of flush.sources) {
-			const existing = sources.get(source.sourceKey);
+			const existing = sources.get(source.trackingKey);
 			if (existing) {
 				existing.insertedCount += source.insertedCount;
 			} else {
-				sources.set(source.sourceKey, { ...source });
+				sources.set(source.trackingKey, { ...source });
 			}
 		}
 		untrackedEditCount += flush.coverageGap?.editCount ?? 0;
@@ -1184,7 +1196,7 @@ function combinePreparedFlushes(
 		statsUuid,
 		languageId,
 		sources: Array.from(sources.values())
-			.toSorted((a, b) => (retainedBySource.get(b.sourceKey) ?? 0) - (retainedBySource.get(a.sourceKey) ?? 0))
+			.toSorted((a, b) => (retainedBySource.get(b.trackingKey) ?? 0) - (retainedBySource.get(a.trackingKey) ?? 0))
 			.slice(0, 30),
 		retainedBySource,
 		agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),

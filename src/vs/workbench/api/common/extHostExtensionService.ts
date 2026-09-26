@@ -816,8 +816,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			.then(() => {
 				this._eagerExtensionsActivated.open();
 				this._logService.info(`Eager extensions activated`);
+				this._onEagerExtensionsActivated();
 			});
 	}
+
+	protected _onEagerExtensionsActivated(): void { }
 
 	// -- called by extensions
 

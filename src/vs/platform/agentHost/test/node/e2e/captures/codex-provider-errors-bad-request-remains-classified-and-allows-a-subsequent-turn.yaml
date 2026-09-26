@@ -1,0 +1,36 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - method: POST
+    path: /responses
+    response:
+      status: 400
+      headers:
+        content-type: application/json
+        x-should-retry: 'false'
+        retry-after: '0'
+      body: '{"type":"error","error":{"type":"invalid_request_error","code":"invalid_request_error","message":"Injected E2E bad request failure."},"request_id":"e2e-classified-error"}'
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+        - role: assistant
+          content: READY
+        - role: user
+          content: Reply exactly "UNEXPECTED_SUCCESS".
+        - role: user
+          content: Reply exactly "RECOVERED".
+    response:
+      content: RECOVERED
+      stopReason: end_turn

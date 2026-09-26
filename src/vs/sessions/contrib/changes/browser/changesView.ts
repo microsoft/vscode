@@ -14,7 +14,8 @@ import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../..
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -92,8 +93,9 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
+import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
@@ -672,13 +674,22 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<string | undefined> {
-	return derivedObservableWithCache<string | undefined>(owner, (reader, lastValue) => {
+interface IChangesPickerLabel {
+	readonly label: string;
+	readonly isNonDefault: boolean;
+}
+
+function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<IChangesPickerLabel | undefined> {
+	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
 		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
 		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
 			return lastValue;
 		}
-		return changeset?.label;
+		if (!changeset) {
+			return undefined;
+		}
+		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
+		return { label: changeset.label, isNonDefault: changeset.id !== defaultChangeset?.id };
 	});
 }
 
@@ -690,17 +701,19 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChangesViewService changesViewService: IChangesViewService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const onDidRegister = this._register(new Emitter<void>());
 		const headerLabelObs = createChangesPickerLabelObservable(this, changesViewService);
+		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary));
 
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesPickerActionItem, action, true, headerLabelObs);
+			return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs);
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
@@ -1676,7 +1689,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, false, undefined);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, undefined, undefined);
 				}
 				return undefined;
 			},
@@ -2099,21 +2112,111 @@ class VersionsPickerAction extends Action2 {
 }
 registerAction2(VersionsPickerAction);
 
+/** A {@link ChangesPickerSummary} lease: the summary elements to host in a picker label. */
+interface IChangesPickerSummaryLease extends IDisposable {
+	readonly elements: readonly HTMLElement[];
+}
+
+/** The `· N Files +x -y` elements of the Changes picker, rendered with animated counters. */
+class ChangesPickerSummaryContent extends Disposable {
+
+	readonly elements: readonly HTMLElement[];
+
+	constructor(
+		summaryObs: IObservable<ISessionChangesSummary | undefined>,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const separator = dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7');
+		const summaryElement = dom.$('span.changes-picker-summary', { 'aria-hidden': 'true' });
+		this.elements = [separator, summaryElement];
+
+		this._register(instantiationService.createInstance(ChangesStatsWidget, summaryElement, derived(reader => {
+			const summary = summaryObs.read(reader);
+			return summary ? { files: summary.files, insertions: summary.additions, deletions: summary.deletions } satisfies IChangesStats : undefined;
+		}), true));
+		this._register(autorun(reader => {
+			dom.setVisibility(!!summaryObs.read(reader), separator, summaryElement);
+		}));
+	}
+}
+
+/**
+ * The active session's changes summary, shared by the Changes picker instances.
+ *
+ * Editor headers re-create their action view items whenever the active editor
+ * changes, which happens several times while switching sessions. Leasing one
+ * summary to consecutive pickers (moving its elements into each new label) lets
+ * counter animations continue across those re-creations. The summary outlives
+ * its last lease briefly so that the next picker can pick it up.
+ */
+export class ChangesPickerSummary extends Disposable {
+
+	private static readonly RELEASE_DELAY = 1000;
+
+	private readonly _content = this._register(new MutableDisposable<ChangesPickerSummaryContent>());
+	private readonly _releaseScheduler = this._register(new RunOnceScheduler(() => this._content.clear(), ChangesPickerSummary.RELEASE_DELAY));
+	private _leased = false;
+
+	constructor(
+		@IChangesViewService private readonly _changesViewService: IChangesViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	/**
+	 * Leases the shared summary. While it is leased (e.g. two editor headers show
+	 * a picker at once), additional callers receive a summary of their own.
+	 */
+	acquire(): IChangesPickerSummaryLease {
+		if (this._leased) {
+			const content = this._createContent();
+			return { elements: content.elements, dispose: () => content.dispose() };
+		}
+
+		this._leased = true;
+		this._releaseScheduler.cancel();
+		const content = this._content.value ??= this._createContent();
+		let released = false;
+		return {
+			elements: content.elements,
+			dispose: () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				this._leased = false;
+				if (!this._store.isDisposed) {
+					this._releaseScheduler.schedule();
+				}
+			},
+		};
+	}
+
+	private _createContent(): ChangesPickerSummaryContent {
+		return this._instantiationService.createInstance(ChangesPickerSummaryContent, this._changesViewService.activeSessionChangesSummaryObs);
+	}
+}
+
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
+	private readonly _summaryLease = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
+	private _labelElement: HTMLElement | undefined;
 
 	constructor(
 		action: MenuItemAction,
-		private readonly _showSummary: boolean,
-		labelObs: IObservable<string | undefined> | undefined,
+		private readonly _summary: ChangesPickerSummary | undefined,
+		labelObs: IObservable<IChangesPickerLabel | undefined> | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -2158,17 +2261,16 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
-		this._summaryObs = this._showSummary
+		this._summaryObs = this._summary
 			? changesViewService.activeSessionChangesSummaryObs
 			: undefined;
-
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
 			const pickerEnabled = this._pickerEnabledObs.read(reader);
 
 			if (this.element) {
-				this.renderLabel(this.element);
+				this.updatePickerLabel();
 				this.updateTooltip();
 				this.updateAvailability(pickerEnabled);
 			}
@@ -2180,7 +2282,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		super.render(container);
 
 		container.classList.add('changes-picker-action-rich');
-		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
+		container.classList.toggle('changes-picker-action-with-summary', !!this._summary);
 		this.updateAvailability(this._pickerEnabledObs.get());
 	}
 
@@ -2197,32 +2299,38 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		this.updateAvailability(this._pickerEnabledObs?.get() ?? false);
 	}
 
+	/**
+	 * Builds the label structure once; {@link updatePickerLabel} updates it in place.
+	 */
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const label = this._labelObs.get();
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label ?? this.action.label)];
-		const summary = this._summaryObs?.get();
-		if (summary) {
-			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));
-			const summaryElement = dom.$('span.changes-picker-summary', { 'aria-hidden': 'true' });
-			dom.append(
-				summaryElement,
-				dom.$('span.changes-picker-summary-files', undefined, getChangesSummaryFilesLabel(summary.files)),
-				dom.$('span.working-set-lines-added', undefined, `+${summary.additions}`),
-				dom.$('span.working-set-lines-removed', undefined, `-${summary.deletions}`)
-			);
-			contents.push(summaryElement);
+		this._labelElement = dom.$('span.changes-picker-label');
+		const contents: HTMLElement[] = [this._labelElement];
+		this._summaryLease.clear();
+		if (this._summary) {
+			const lease = this._summary.acquire();
+			this._summaryLease.value = lease;
+			contents.push(...lease.elements);
 		}
 
 		const chevron = renderIcon(Codicon.chevronDownCompact);
 		chevron.setAttribute('aria-hidden', 'true');
 		contents.push(chevron);
 		dom.reset(element, ...contents);
+		this.updatePickerLabel();
 
 		return null;
 	}
 
+	private updatePickerLabel(): void {
+		if (this._labelElement) {
+			const label = this._labelObs.get();
+			this._labelElement.textContent = label?.label ?? this.action.label;
+			this._labelElement.classList.toggle('non-default', label?.isNonDefault ?? false);
+		}
+	}
+
 	protected override getTooltip(): string {
-		const label = this._labelObs.get();
+		const label = this._labelObs.get()?.label;
 		const title = super.getTooltip() || this.action.label;
 		if (!label) {
 			return title;

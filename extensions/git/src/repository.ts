@@ -8,9 +8,10 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
@@ -32,6 +33,7 @@ import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemD
 import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
+import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -988,6 +990,10 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
+		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
+		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
+			? path.basename(activeRepositoryRoot) || undefined
+			: undefined;
 
 		this._sourceControl.quickDiffProvider = new GitQuickDiffProvider(this, this.repositoryResolver, logger);
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
@@ -2014,99 +2020,93 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
+	/**
+	 * Resolves the git-ignored paths to copy into a worktree. The
+	 * `git.worktreeIncludeFiles` patterns are matched by git using
+	 * `.gitignore` semantics.
+	 */
+	private async _getWorktreeIncludePaths(worktreePath: string): Promise<string[]> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
-		if (worktreeIncludeFiles.length === 0) {
-			return new Set<string>();
+		const includePatterns = sanitizeWorktreeIncludePatterns(worktreeIncludeFiles);
+		if (includePatterns.length !== worktreeIncludeFiles.length) {
+			this.logger.warn(`[Repository][_getWorktreeIncludePaths] Ignoring ${worktreeIncludeFiles.length - includePatterns.length} pattern(s) containing line breaks.`);
+		}
+		if (includePatterns.length === 0) {
+			return [];
 		}
 
-		const filePattern = worktreeIncludeFiles
-			.map(pattern => new RelativePattern(this.root, pattern));
+		// Git reads the patterns from a file so that they are parsed exactly
+		// like a `.gitignore` file (comments, blank lines, trailing spaces).
+		const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-worktree-include-'));
+		const includePatternsFile = path.join(tempDir, 'patterns');
 
-		// Get all files matching the globs (no ignore files applied)
-		const allFiles = await workspace.findFiles2(filePattern, {
-			useExcludeSettings: ExcludeSettingOptions.None,
-			useIgnoreFiles: { local: false, parent: false, global: false }
-		});
+		try {
+			await fsPromises.writeFile(includePatternsFile, includePatterns.join('\n') + '\n', 'utf8');
 
-		// Get files matching the globs with git ignore files applied
-		const nonIgnoredFiles = await workspace.findFiles2(filePattern, {
-			useExcludeSettings: ExcludeSettingOptions.None,
-			useIgnoreFiles: { local: true, parent: true, global: true }
-		});
-
-		// Files that are git ignored = all files - non-ignored files
-		const gitIgnoredFiles = new Set(allFiles.map(uri => uri.fsPath));
-		for (const uri of nonIgnoredFiles) {
-			gitIgnoredFiles.delete(uri.fsPath);
-		}
-
-		// Compute the base directory for each glob pattern (the fixed
-		// prefix before any wildcard characters). This will be used to
-		// optimize the upward traversal when adding parent directories.
-		const filePatternBases = new Set<string>();
-		for (const pattern of worktreeIncludeFiles) {
-			const segments = pattern.split(/[\/\\]/);
-			const fixedSegments: string[] = [];
-			for (const seg of segments) {
-				if (/[*?{}[\]]/.test(seg)) {
-					break;
+			const tryExec = async (cwd: string, args: string[]): Promise<string | undefined> => {
+				try {
+					return (await this.repository.git.exec(cwd, args)).stdout;
+				} catch (err) {
+					this.logger.warn(`[Repository][_getWorktreeIncludePaths] Failed to execute 'git ${args.join(' ')}': ${err}`);
+					return undefined;
 				}
-				fixedSegments.push(seg);
+			};
+
+			// List the git-ignored (but untracked) files: `--others` selects
+			// untracked files, `--ignored` restricts to those matched by an exclude
+			// source, and `--exclude-standard` uses the standard sources (.gitignore,
+			// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
+			// paths containing spaces or other special characters survive intact.
+			//
+			// The `--directory` variant additionally collapses a *wholly*-ignored
+			// directory (one containing no tracked files) into a single `dir/`
+			// entry. It is used to copy such directories as one recursive unit
+			// rather than file-by-file.
+			//
+			// The `--exclude-from` variant uses *only* the include patterns as the
+			// exclude source (no standard sources), so it lists the untracked files
+			// matching `git.worktreeIncludeFiles`. Passing both sources to a single
+			// invocation would yield their union, hence the separate call.
+			const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
+			const [ignoredOutput, directoryOutput, includedOutput, worktreeOutput] = await Promise.all([
+				tryExec(this.root, baseArgs),
+				tryExec(this.root, [...baseArgs, '--directory', '--no-empty-directory']),
+				tryExec(this.root, ['ls-files', '--others', '--ignored', `--exclude-from=${includePatternsFile}`, '-z']),
+				tryExec(worktreePath, ['ls-files', '-z'])
+			]);
+			if (ignoredOutput === undefined || includedOutput === undefined || worktreeOutput === undefined) {
+				return [];
 			}
-			filePatternBases.add(path.join(this.root, ...fixedSegments));
-		}
 
-		// Add the folder paths for git ignored files, walking
-		// up only to the nearest file pattern base directory.
-		const gitIgnoredPaths = new Set(gitIgnoredFiles);
-
-		for (const filePath of gitIgnoredFiles) {
-			let dir = path.dirname(filePath);
-			while (dir !== this.root && !gitIgnoredPaths.has(dir)) {
-				gitIgnoredPaths.add(dir);
-				if (filePatternBases.has(dir)) {
-					break;
-				}
-				dir = path.dirname(dir);
+			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput);
+		} finally {
+			try {
+				await fsPromises.rm(tempDir, { recursive: true, force: true });
+			} catch {
+				// best-effort
 			}
 		}
-
-		// Find minimal set of paths (folders and files) to copy. Keep only topmost
-		// paths — if a directory is already in the set, all its descendants are
-		// implicitly included and don't need separate entries.
-		let lastTopmost: string | undefined;
-		const pathsToCopy = new Set<string>();
-		for (const p of Array.from(gitIgnoredPaths).sort()) {
-			if (lastTopmost && (p === lastTopmost || p.startsWith(lastTopmost + path.sep))) {
-				continue;
-			}
-			pathsToCopy.add(p);
-			lastTopmost = p;
-		}
-
-		return pathsToCopy;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const worktreeIncludePaths = await this._getWorktreeIncludePaths();
-		if (worktreeIncludePaths.size === 0) {
-			return;
-		}
-
 		try {
+			const files = await this._getWorktreeIncludePaths(worktreePath);
+			if (files.length === 0) {
+				return;
+			}
+
 			const startTime = performance.now();
 			const limiter = new Limiter<void>(15);
-			const files = Array.from(worktreeIncludePaths);
 
-			// Copy files
-			const results = await Promise.allSettled(files.map(sourceFile => {
+			// Copy files and folders
+			const results = await Promise.allSettled(files.map(file => {
 				return limiter.queue(async () => {
-					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
-					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-					await cp(sourceFile, targetFile, { force: true, recursive: true, verbatimSymlinks: true });
+					const sourcePath = path.join(this.root, file);
+					const targetPath = path.join(worktreePath, file);
+					await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
+					await cp(sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
 				});
 			}));
 

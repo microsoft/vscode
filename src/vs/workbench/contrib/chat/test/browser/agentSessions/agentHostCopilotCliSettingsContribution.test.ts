@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IPolicyData } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -17,6 +18,7 @@ import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, 
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
 
@@ -59,6 +61,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 }
 
+class MockDefaultAccountService extends mock<IDefaultAccountService>() {
+	private readonly _onDidChangePolicyData = new Emitter<IPolicyData | null>();
+	override readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+
+	constructor(override policyData: IPolicyData | null) {
+		super();
+	}
+
+	setPreviewFeaturesEnabled(enabled: boolean): void {
+		this.policyData = { chat_preview_features_enabled: enabled };
+		this._onDidChangePolicyData.fire(this.policyData);
+	}
+
+	dispose(): void {
+		this._onDidChangePolicyData.dispose();
+	}
+}
+
 function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema>, values: Record<string, unknown> = {}): RootState {
 	return {
 		agents: [],
@@ -90,17 +110,20 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
+	const defaultAccountService = new MockDefaultAccountService(policyData);
 	disposables.add({ dispose: () => agentHostService.dispose() });
+	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService(settings);
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
-	return { agentHostService };
+	return { agentHostService, defaultAccountService };
 }
 
 suite('AgentHostCopilotCliSettingsContribution', () => {
@@ -166,6 +189,28 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
+		});
+	});
+
+	test('disables HydraFusion when preview features are disabled', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables, {
+			[AgentHostHydraFusionEnabledSettingId]: true,
+		}, { chat_preview_features_enabled: false });
+		agentHostService.setRootState(makeRootStateWithSchema({
+			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
+		}));
+		await flush();
+
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[CopilotCliConfigKey.HydraFusion]: false,
+		});
+
+		agentHostService.dispatchedActions.length = 0;
+		defaultAccountService.setPreviewFeaturesEnabled(true);
+		await flush();
+
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[CopilotCliConfigKey.HydraFusion]: true,
 		});
 	});
 

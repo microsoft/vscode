@@ -89,9 +89,9 @@ const scenarios: Record<string, Scenario> = {
 	ChildStartsAfterParentComplete: { phase: 'lateStart', description: 'The child starts after the parent finished. Its pill is appended after the original answer, not into the newer response below it.' },
 	LateSubagentClassification: { phase: 'lateClassification', description: 'A completed generic task is identified as a running background agent after the parent finishes. It becomes a rich pill at its original position, before the final answer.' },
 	ChildCompletesAfterParent: { phase: 'childComplete', description: 'The child completes after its parent. The existing pill settles in place and completed earlier work can fold again.' },
-	RetainedFollowUpFullConversation: { phase: 'followUp', description: 'Log-derived case: a later write_agent sends a follow-up to an older, already-running background worker. Its original pill is active above; the newest parent response still says Working. No new child turn starts.' },
-	RetainedFollowUpLatestTurn: { phase: 'followUp', latestTurnOnly: true, description: 'Known visibility gap from the supplied logs: this viewport shows the latest turn, while the active worker pill belongs to an earlier response. Use Show Original Agent to find it.' },
-	ResumedIdleBackgroundAgent: { phase: 'resumedFollowUp', description: 'A different case: the older background worker completed before the follow-up. Resuming it reactivates its original pill, without adding a launch to the latest parent response.' },
+	RetainedFollowUpFullConversation: { phase: 'followUp', description: 'Log-derived case: a later write_agent sends a follow-up to an older, already-running background worker. Its original pill is active above, and the newest parent response reports that it is waiting for the retained subagent. No new child turn starts.' },
+	RetainedFollowUpLatestTurn: { phase: 'followUp', latestTurnOnly: true, description: 'This viewport shows only the latest turn while the active worker pill belongs to an earlier response. Persistent progress still reports that the parent is waiting for the retained subagent.' },
+	ResumedIdleBackgroundAgent: { phase: 'resumedFollowUp', description: 'The older background worker completed before the follow-up. Resuming it reactivates its original pill and the latest parent response reports the retained wait, without adding a launch to that response.' },
 	OffscreenSubagentApprovals: { phase: 'resumedFollowUp', latestTurnOnly: true, confirmations: true, description: 'Request approvals from two retained agents while their original launch response is virtualized away. The real input carousel must expose both commands; Allow or the Accept/Skip commands act only on the selected mock agent.' },
 	BackgroundCompletionNotification: { phase: 'notified', description: 'The retained worker finishes while the latest parent is waiting. The old pill settles, and the current response receives the background-completion notice.' },
 	CompletionWakesIdleParent: { phase: 'idleNotice', description: 'A background-completion notification starts a new system-initiated turn. The old parent response remains complete; it is not reopened.' },
@@ -223,7 +223,6 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	config.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 	config.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	config.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
-	config.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	config.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 	config.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, scenario.confirmations === true);
 	config.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
@@ -720,8 +719,9 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	}
 	if ((scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp') && !scenario.confirmations) {
 		const latestResponse = preview.querySelector('.chat-most-recent-response');
-		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || latestResponse?.querySelector('.shimmer-progress')?.textContent !== 'Working') {
-			throw new Error(`${name}: the latest turn must expose the current generic Working visibility gap`);
+		const progress = latestResponse?.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || progress !== 'Waiting for 1 subagent') {
+			throw new Error(`${name}: the latest turn must report the retained subagent wait, got ${JSON.stringify(progress)}`);
 		}
 	}
 	if (scenario.confirmations && preview.querySelector('.chat-subagent-pill-widget')) {
@@ -774,7 +774,8 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 export default defineThemedFixtureGroup({ path: 'chat/agent-lifecycle/' }, Object.fromEntries(
 	Object.entries(scenarios).map(([name, scenario]) => [name, defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: !scenario.confirmations, durationMs: 2000 },
+		// Section handoffs must allow real CSS collapse transitions to finish.
+		virtualTime: { enabled: !scenario.confirmations && !scenario.sectionTail, durationMs: 2000 },
 		additionalThemes: name === 'RetainedFollowUpLatestTurn' || name === 'ParentCompleteChildRunning' ? ['darkHighContrast', 'lightHighContrast'] : [],
 		expectedVisualDescriptions: [scenario.description],
 		render: context => renderLifecycle(context, name, scenario),

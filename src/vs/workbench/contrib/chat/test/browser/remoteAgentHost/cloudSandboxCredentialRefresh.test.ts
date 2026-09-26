@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -14,11 +16,13 @@ import {
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxApiService,
+	type ICloudSandboxConnectionRequest,
 	type IHostEncryptionKey,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import {
 	CloudSandboxCredentialRefresher,
+	CloudSandboxCredentialRefreshState,
 	credentialRefreshDelayMs,
 	MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 	type ICloudSandboxCreds,
@@ -67,14 +71,18 @@ class RecordingTelemetry extends mock<ICloudSandboxTelemetryService>() {
 }
 
 /** Answers every `reconnect` from a single scripted step, so a loop can run as long as it likes. */
-class ScriptedCredentialsService {
+class ScriptedCredentialsService extends mock<ICloudSandboxApiService>() {
 	callCount = 0;
+	readonly requests: { request: ICloudSandboxConnectionRequest; clientId: string; token: CancellationToken }[] = [];
 
-	constructor(private readonly _step: () => CloudSandboxConnectResult | Promise<never>) { }
+	constructor(private readonly _step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>) {
+		super();
+	}
 
-	async reconnect(): Promise<CloudSandboxConnectResult> {
+	override async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 		this.callCount++;
-		return this._step() as CloudSandboxConnectResult;
+		this.requests.push({ request, clientId, token });
+		return this._step();
 	}
 }
 
@@ -87,7 +95,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 	 * disposed before returning so nothing survives into the next test.
 	 */
 	async function runRefresher(
-		step: () => CloudSandboxConnectResult | Promise<never>,
+		step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>,
 		durationMs: number,
 		initialToken = tokenExpiringIn(40, START_TIME),
 	): Promise<{ calls: number; stops: RecordingTelemetry['stops']; creds: ICloudSandboxCreds }> {
@@ -101,7 +109,8 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			credentials as unknown as ICloudSandboxApiService,
+			new CloudSandboxCredentialRefreshState(),
+			credentials,
 			telemetry,
 			new NullLogService(),
 		));
@@ -221,7 +230,8 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			credentials as unknown as ICloudSandboxApiService,
+			new CloudSandboxCredentialRefreshState(),
+			credentials,
 			telemetry,
 			new NullLogService(),
 		));
@@ -343,6 +353,255 @@ suite('CloudSandboxCredentialRefresher', () => {
 			stops: [{ reason: 'unusableToken', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
 			creds: { token: initialToken },
 			callTimes: Array.from({ length: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES }, (_, index) => 39 * 60_000 + index * 30_000),
+		});
+	}));
+});
+
+suite('CloudSandboxCredentialRefresher recovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createRefresher(
+		initialToken: ICloudSandboxClientToken,
+		step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>,
+	) {
+		const credentials = new ScriptedCredentialsService(step);
+		const creds: ICloudSandboxCreds = { token: initialToken };
+		const telemetry = new RecordingTelemetry();
+		const refresher = store.add(new CloudSandboxCredentialRefresher(
+			'cloudsandbox:env_1',
+			{ environmentId: 'env_1', sessionId: 'session-1' },
+			'client-1',
+			creds,
+			new CloudSandboxCredentialRefreshState(),
+			credentials,
+			telemetry,
+			new NullLogService(),
+		));
+		return { refresher, credentials, creds, telemetry };
+	}
+
+	test('reuses still-valid credentials without a refresh, even inside the refresh lead time', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const initialToken = tokenExpiringIn(0.5, START_TIME);
+		const { refresher, credentials, creds } = createRefresher(initialToken, () => {
+			throw new Error('No refresh expected');
+		});
+		await refresher.ensureUnexpiredCredentials();
+		refresher.dispose();
+
+		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token }, { calls: 0, token: initialToken });
+	}));
+
+	test('does not wait for a background refresh while the cached token is still valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const initialToken = tokenExpiringIn(1, START_TIME);
+		const { refresher, credentials, creds } = createRefresher(initialToken, () => response.p);
+		await timeout(30_000);
+		await refresher.ensureUnexpiredCredentials();
+		const tokenWhileRefreshing = creds.token;
+		refresher.dispose();
+		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now()) });
+
+		assert.deepStrictEqual({ calls: credentials.callCount, tokenWhileRefreshing }, { calls: 1, tokenWhileRefreshing: initialToken });
+	}));
+
+	test('repairs connection setup with a scoped refresh despite a valid expiry', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, creds } = createRefresher(
+			tokenExpiringIn(40, START_TIME),
+			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'refreshed' }) }),
+		);
+		await refresher.refreshConnectionCredentials();
+		refresher.dispose();
+
+		assert.deepStrictEqual({
+			token: creds.token.access_token,
+			requests: credentials.requests.map(({ request, clientId }) => ({ request, clientId })),
+		}, {
+			token: 'refreshed',
+			requests: [{ request: { environmentId: 'env_1', sessionId: 'session-1' }, clientId: 'client-1' }],
+		});
+	}));
+
+	test('connection repair shares a background refresh even while cached credentials are valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(1, START_TIME), () => response.p);
+		await timeout(30_000);
+		const first = refresher.refreshConnectionCredentials();
+		const second = refresher.refreshConnectionCredentials();
+		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
+		await Promise.all([first, second]);
+		refresher.dispose();
+
+		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token.access_token }, { calls: 1, token: 'shared' });
+	}));
+
+	for (const { name, step } of [
+		{ name: 'transient rejection', step: () => Promise.reject(new CloudSandboxRequestError(503, 'unavailable')) },
+		{ name: 'permanent rejection', step: () => Promise.reject(new CloudSandboxRequestError(403, 'forbidden')) },
+		{ name: 'waking', step: () => ({ kind: 'waking', waking: { retryAfterSeconds: 5 } }) },
+		{ name: 'invalid expiry', step: () => ({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { expires_at: 'invalid' }) }) },
+		{ name: 'inconsistent host key', step: () => ({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { host_encryption_key: REPLACEMENT_HOST_KEY }) }) },
+	] satisfies { name: string; step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult> }[]) {
+		test(`does not mistake cached valid credentials for a successful connection repair after ${name}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const { refresher, credentials } = createRefresher(
+				tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
+				step,
+			);
+			await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed|usable future expiry/);
+			await assert.rejects(refresher.refreshConnectionCredentials(), /stopped or waiting to retry/);
+			refresher.dispose();
+			assert.strictEqual(credentials.callCount, 1);
+		}));
+	}
+
+	test('rate limits repeated successful connection repairs', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials } = createRefresher(
+			tokenExpiringIn(40, START_TIME),
+			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now()) }),
+		);
+		await refresher.refreshConnectionCredentials();
+		await timeout(29_999);
+		await assert.rejects(refresher.refreshConnectionCredentials(), /waiting to retry/);
+		const beforeDeadline = credentials.callCount;
+		await timeout(1);
+		await refresher.refreshConnectionCredentials();
+		refresher.dispose();
+
+		assert.deepStrictEqual({ beforeDeadline, calls: credentials.callCount }, { beforeDeadline: 1, calls: 2 });
+	}));
+
+	for (const retryAfterSeconds of [45, 7_200]) {
+		for (const response of ['rate limited', 'waking'] as const) {
+			test(`does not shorten a ${retryAfterSeconds}-second ${response} response`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+				let requests = 0;
+				const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+					if (++requests === 1) {
+						if (response === 'rate limited') {
+							throw new CloudSandboxRequestError(429, 'rate limited', retryAfterSeconds);
+						}
+						return { kind: 'waking', waking: { retryAfterSeconds } };
+					}
+					return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
+				});
+				await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+				await timeout(retryAfterSeconds * 1000 - 1);
+				await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+				const callsBeforeDeadline = credentials.callCount;
+				await timeout(1);
+				await refresher.ensureUnexpiredCredentials();
+				refresher.dispose();
+				assert.deepStrictEqual({ callsBeforeDeadline, calls: credentials.callCount }, { callsBeforeDeadline: 1, calls: 2 });
+			}));
+		}
+	}
+
+	for (const expiresAt of [new Date(START_TIME).toISOString(), '', 'not-a-date']) {
+		test(`refreshes credentials immediately when expiry is ${expiresAt}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const refreshed = tokenExpiringIn(40, START_TIME, { access_token: 'fresh' });
+			const { refresher, credentials, creds } = createRefresher(
+				tokenExpiringIn(40, START_TIME, { expires_at: expiresAt }),
+				() => ({ kind: 'token', token: refreshed }),
+			);
+			await refresher.ensureUnexpiredCredentials();
+			refresher.dispose();
+
+			assert.deepStrictEqual({
+				calls: credentials.callCount,
+				token: creds.token,
+				requests: credentials.requests.map(({ request, clientId }) => ({ request, clientId })),
+			}, {
+				calls: 1,
+				token: { ...refreshed, encrypted_github_token: undefined, host_encryption_key: undefined },
+				requests: [{ request: { environmentId: 'env_1', sessionId: 'session-1' }, clientId: 'client-1' }],
+			});
+		}));
+	}
+
+	for (const backgroundRefresh of [false, true]) {
+		test(`shares ${backgroundRefresh ? 'a background' : 'a recovery'} refresh across concurrent reconnect waits`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const response = new DeferredPromise<CloudSandboxConnectResult>();
+			const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(backgroundRefresh ? 1 : 0, START_TIME), () => response.p);
+			if (backgroundRefresh) {
+				await timeout(60_000);
+			}
+			const first = refresher.ensureUnexpiredCredentials();
+			const second = refresher.ensureUnexpiredCredentials();
+			const callsWhilePending = credentials.callCount;
+			const refreshed = tokenExpiringIn(40, Date.now(), { access_token: 'fresh' });
+			await response.complete({ kind: 'token', token: refreshed });
+			await Promise.all([first, second]);
+			refresher.dispose();
+
+			assert.deepStrictEqual({ callsWhilePending, calls: credentials.callCount, token: creds.token.access_token }, {
+				callsWhilePending: 1, calls: 1, token: 'fresh',
+			});
+		}));
+	}
+
+	test('keeps refresh retries bounded when reconnect keeps asking for expired credentials', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, telemetry } = createRefresher(
+			tokenExpiringIn(0, START_TIME),
+			() => { throw new CloudSandboxRequestError(503, 'unavailable'); },
+		);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+		await timeout(29_999);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+		const callsBeforeRetry = credentials.callCount;
+		await timeout(30_000 * MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped/);
+		refresher.dispose();
+
+		assert.deepStrictEqual({ callsBeforeRetry, calls: credentials.callCount, stops: telemetry.stops }, {
+			callsBeforeRetry: 1,
+			calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
+			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
+		});
+	}));
+
+	for (const { name, result } of [
+		{ name: 'waking', result: { kind: 'waking', waking: { retryAfterSeconds: 5 } } },
+		{ name: 'already expired', result: { kind: 'token', token: tokenExpiringIn(-1, START_TIME) } },
+		{ name: 'invalid expiry', result: { kind: 'token', token: tokenExpiringIn(40, START_TIME, { expires_at: 'not-a-date' }) } },
+	] satisfies { name: string; result: CloudSandboxConnectResult }[]) {
+		test(`rejects unusable credentials during recovery: ${name}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => result);
+			await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+			await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+			refresher.dispose();
+
+			assert.strictEqual(credentials.callCount, 1);
+		}));
+	}
+
+	test('does not restart a permanently rejected refresh during recovery', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, telemetry } = createRefresher(
+			tokenExpiringIn(0, START_TIME),
+			() => { throw new CloudSandboxRequestError(404, 'environment gone'); },
+		);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+		await timeout(60_000);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped/);
+		refresher.dispose();
+
+		assert.deepStrictEqual({ calls: credentials.callCount, stops: telemetry.stops }, {
+			calls: 1, stops: [{ reason: 'permanentError', consecutiveFailures: 0, statusCode: 404 }],
+		});
+	}));
+
+	test('disposal cancels recovery waits and prevents a late refresh from replacing credentials', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const initialToken = tokenExpiringIn(0, START_TIME);
+		const { refresher, credentials, creds, telemetry } = createRefresher(initialToken, () => response.p);
+		const rejected = assert.rejects(refresher.ensureUnexpiredCredentials(), isCancellationError);
+		refresher.dispose();
+		await rejected;
+		await response.complete({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { access_token: 'late' }) });
+		await timeout(60_000);
+		await assert.rejects(refresher.ensureUnexpiredCredentials(), isCancellationError);
+
+		assert.deepStrictEqual({
+			calls: credentials.callCount, cancelled: credentials.requests[0].token.isCancellationRequested, token: creds.token, stops: telemetry.stops,
+		}, {
+			calls: 1, cancelled: true, token: initialToken, stops: [],
 		});
 	}));
 });

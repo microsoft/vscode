@@ -308,6 +308,8 @@ export interface IRemoteAgentHostCreatedConnection {
 	 * Defaults to `false`.
 	 */
 	readonly reconnectTransfersTransportOwnership?: boolean;
+	/** The client owns automatic recovery; its terminal close must not start an outer retry cycle. */
+	readonly reconnectManagedByClient?: boolean;
 }
 
 /** Observes readiness across inner and outer retries; disposal is intentional, failure is terminal. */

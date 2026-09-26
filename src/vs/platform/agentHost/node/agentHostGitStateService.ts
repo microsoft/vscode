@@ -10,6 +10,10 @@ import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
+import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionPullRequestUrlKey, getSessionRelatedPullRequestUrls, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -51,6 +55,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	/** Serializes GitHub state saves per session so the persisted folder map is never older than a previous save. */
 	private readonly _gitHubStateSaves = new SequencerByKey<string>();
 	private readonly _pullRequestAssociationResolver: AgentHostPullRequestAssociationResolver;
+	/** Set while a lookup reached the auto-attach experiment's divergence before the assignment context arrived. */
+	private _autoAttachExperimentTriggerPending = false;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -61,6 +67,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -72,6 +79,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		let automaticPullRequestAttachmentEnabled = this._isAutomaticPullRequestAttachmentEnabled();
 		this._register(this._configurationService.onDidRootConfigChange(() => {
+			if (this._autoAttachExperimentTriggerPending) {
+				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
+				queueMicrotask(() => {
+					if (this._autoAttachExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportAutoAttachExperimentTrigger();
+					}
+				});
+			}
 			const nextEnabled = this._isAutomaticPullRequestAttachmentEnabled();
 			if (automaticPullRequestAttachmentEnabled === nextEnabled) {
 				return;
@@ -128,6 +143,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		// Git state
 		const gitState = readSessionGitState(state._meta);
 		const branchName = gitState?.branchName;
+
+		// Automatic association looks up the pull request of a branch other than the base, unless an
+		// explicitly associated one is already resolved, which restricted association keeps as well.
+		// Restricted association also drops pull requests that are not artifacts or explicitly associated.
+		const lookupDiverges = !!branchName && branchName !== gitState?.baseBranchName && !this._pullRequestAssociationResolver.hasExplicitCurrentPullRequest(state._meta, gitHubState, branchName);
+		if (lookupDiverges || this._pullRequestAssociationResolver.wouldRestrictPullRequests(state._meta, gitHubState)) {
+			this._reportAutoAttachExperimentTrigger();
+		}
 
 		if (!this._isAutomaticPullRequestAttachmentEnabled()) {
 			try {
@@ -224,13 +247,21 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 */
 	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder): Promise<void> {
 		const state = this._stateManager.getSessionState(folder.sessionUri);
-		if (state?.lifecycle !== SessionLifecycle.Ready || !this._isAutomaticPullRequestAttachmentEnabled()) {
+		if (state?.lifecycle !== SessionLifecycle.Ready) {
 			return;
 		}
 		const gitHubState = this.getGitHubState(folder.sourceUri);
 		const gitState = this.getSessionGitState(folder.sourceUri);
 		const branchName = gitState?.branchName;
-		if (!gitHubState?.owner || !gitHubState.repo || !branchName || branchName === gitState?.baseBranchName || gitHubState.pullRequestBranchName === branchName) {
+		if (!gitHubState?.owner || !gitHubState.repo || !branchName || branchName === gitState?.baseBranchName) {
+			return;
+		}
+		// Restricted association leaves other folders alone, so only a lookup that automatic association makes diverges.
+		if (gitHubState.pullRequestBranchName === branchName) {
+			return;
+		}
+		this._reportAutoAttachExperimentTrigger();
+		if (!this._isAutomaticPullRequestAttachmentEnabled()) {
 			return;
 		}
 
@@ -269,6 +300,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private _isAutomaticPullRequestAttachmentEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoAttachPullRequestsConfigKey) !== false;
+	}
+
+	/**
+	 * Reports where automatic and restricted pull request association diverge. Agent host
+	 * telemetry only carries the assignment context that ExP attributes the event by once the
+	 * workbench has forwarded it, so until then the trigger stays pending.
+	 */
+	private _reportAutoAttachExperimentTrigger(): void {
+		this._autoAttachExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._autoAttachExperimentTriggerPending) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostAutoAttachPullRequestsSettingId);
+		}
 	}
 
 	private _getGitHubAuthToken(): string | undefined {
@@ -331,6 +374,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (primaryWorkingDirectoryChanged) {
 					return;
 				}
+				// An `undefined` result is inconclusive: it is returned both when
+				// Git could not be queried (e.g. `git status` timed out) and when
+				// no repository was found. Keep the last known state so a
+				// transient failure does not drop the Git-backed changesets from
+				// the catalogue.
 				if (gitState) {
 					const previousGitState = this.getSessionGitState(sessionKey);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
@@ -377,8 +425,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 							await this._queuePullRequestLookup(sessionKey);
 						}
 					}
-				} else if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
-					await this._setChatGitState(sessionKey, undefined);
 				}
 
 				this._onDidRefreshSessionGitState.fire(sessionKey);
