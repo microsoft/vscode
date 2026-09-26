@@ -11,6 +11,7 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { killTree } from '../../../base/node/processes.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -1117,7 +1118,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			const timer = setTimeout(() => {
 				didTimeOut = true;
-				child.kill();
+				if (child.pid === undefined) {
+					child.kill();
+					return;
+				}
+				void killTree(child.pid, true).catch(() => child.kill('SIGKILL'));
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
