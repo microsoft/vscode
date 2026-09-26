@@ -49,10 +49,15 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	/** The Auto routing tier a request was resolved with. */
+	export type ChatAutoModeTier = 'efficiency' | 'balance' | 'intelligence' | 'fast';
+
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
@@ -61,6 +66,8 @@ declare module 'vscode' {
 		uri: Uri;
 		edits: NotebookEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}

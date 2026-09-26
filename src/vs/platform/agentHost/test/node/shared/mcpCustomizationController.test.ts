@@ -152,6 +152,67 @@ suite('McpCustomizationController', () => {
 		});
 	});
 
+	test('publishes source locations without changing identity and retains them across lifecycle updates', () => {
+		const { controller, actions } = harness(store);
+		store.add(controller);
+		const id = 'mcp-top-level:copilot:session-1:search';
+		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			id: item.id, uri: item.uri, state: item.state.kind,
+		}));
+
+		controller.applyOne(server('search', starting()));
+		controller.applyAll([{ ...server('search', starting()), source: 'user', sourceUri: uri }]);
+		const afterInventory = snapshot();
+		controller.applyOne(server('search', ready()));
+		const afterLifecycle = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'builtin', sourceUri: null }]);
+		const afterClearing = snapshot();
+		controller.applyOne(server('search', stopped()));
+
+		assert.deepStrictEqual({
+			afterInventory,
+			afterLifecycle,
+			afterClearing,
+			afterNextLifecycle: snapshot(),
+			publishedUris: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated ? [action.customization.uri] : []),
+		}, {
+			afterInventory: [{ id, uri, state: McpServerStatus.Starting }],
+			afterLifecycle: [{ id, uri, state: McpServerStatus.Ready }],
+			afterClearing: [{ id, uri: id, state: McpServerStatus.Ready }],
+			afterNextLifecycle: [{ id, uri: id, state: McpServerStatus.Stopped }],
+			publishedUris: [id, uri, uri, id, id],
+		});
+	});
+
+	test('preserves restored source locations and ranges until the location changes', () => {
+		const id = 'restored-search';
+		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
+		const range = { start: { line: 2, character: 1 }, end: { line: 4, character: 2 } };
+		const { controller } = harness(store, {
+			customizations: [{
+				type: CustomizationType.McpServer, id, uri, range, name: 'search', state: stopped(),
+			}],
+		});
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			id: item.id, uri: item.uri, range: item.range,
+		}));
+
+		controller.applyOne(server('search', ready()));
+		const restored = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: uri }]);
+		const unchanged = snapshot();
+		const newUri = URI.file('/custom/copilot/mcp-config.json').toString();
+		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: newUri }]);
+
+		assert.deepStrictEqual({ restored, unchanged, relocated: snapshot() }, {
+			restored: [{ id, uri, range }],
+			unchanged: [{ id, uri, range }],
+			relocated: [{ id, uri: newUri, range: undefined }],
+		});
+	});
+
 	test('retains restored sources and opaque metadata while replacing only the source slot', () => {
 		const restored = (id: string, name: string, meta: Record<string, unknown> | undefined): McpServerCustomization => ({
 			type: CustomizationType.McpServer,

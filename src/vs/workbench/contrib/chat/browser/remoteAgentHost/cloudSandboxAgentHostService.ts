@@ -5,7 +5,7 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
+import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -38,13 +38,10 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 /** Maximum number of `/connect` "waking" retries before giving up. */
 const MAX_WAKING_RETRIES = 20;
 
-/**
- * Maximum number of `/connect` re-mints while the sealed token is missing, sized to cover the
- * backend's own registration retry cycle.
- */
+/** Maximum number of credential refreshes while waiting for a sealed token. */
 export const MAX_SEALED_TOKEN_RETRIES = 12;
 
-/** Delay between `/connect` re-mints while waiting for complete credentials. */
+/** Delay between credential refreshes while waiting for complete credentials. */
 const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
 
 interface IStagedCloudSandboxConnection {
@@ -52,6 +49,7 @@ interface IStagedCloudSandboxConnection {
 	readonly options: ICloudSandboxConnectOptions;
 	readonly creds: ICloudSandboxCreds;
 	readonly clientId: string;
+	readonly refreshState: CloudSandboxCredentialRefreshState;
 }
 
 /** Builds cloud sandbox protocol clients from credentials staged by the caller. */
@@ -133,6 +131,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			options,
 			creds: { token: clientToken },
 			clientId: clientToken.client_id,
+			refreshState: new CloudSandboxCredentialRefreshState(),
 		});
 		this._updateEntries();
 		return entry;
@@ -157,47 +156,49 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new Error(`No cloud sandbox connection is staged for ${address}.`);
 		}
 
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const telemetry = this._connectionTelemetry.get(address);
-		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
-			url: buildWpsUrl(staged.creds.token),
-			toHostGroup: staged.creds.token.groups.to_host,
-			joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
-			groupValidation: { expected: { cid: staged.creds.token.client_id } },
-			onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
-			ahpLogger: ahpLoggingEnabled
-				? this._instantiationService.createInstance(AhpJsonlLogger, {
-					logsHome: this._environmentService.logsHome,
-					logId: address,
-					connectionId: staged.clientId,
-					transport: 'webpubsub',
-				})
-				: undefined,
-		});
-		const client = this._instantiationService.createInstance(
-			AgentHostProtocolClient,
-			address,
-			transportFactory,
-			{
-				clientId: staged.clientId,
-				clientInfo: editorWindowAgentHostClientInfo,
-				resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
-			},
-		);
 		const store = new DisposableStore();
-		const refresher = store.add(new MutableDisposable<CloudSandboxCredentialRefresher>());
-		store.add(client.onDidChangeConnectionState(state => {
-			if (state === 'connected' && !refresher.value) {
-				refresher.value = this._instantiationService.createInstance(
-					CloudSandboxCredentialRefresher,
-					address,
-					{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
-					staged.clientId,
-					staged.creds,
-				);
-			}
-		}));
-		return { connection: client, transportDisposable: store };
+		try {
+			const refresher = store.add(this._instantiationService.createInstance(
+				CloudSandboxCredentialRefresher,
+				address,
+				{ environmentId: staged.options.environmentId, sessionId: staged.options.sessionId },
+				staged.clientId,
+				staged.creds,
+				staged.refreshState,
+			));
+			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const telemetry = this._connectionTelemetry.get(address);
+			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
+				url: buildWpsUrl(staged.creds.token),
+				toHostGroup: staged.creds.token.groups.to_host,
+				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
+				groupValidation: { expected: { cid: staged.creds.token.client_id } },
+				onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
+				ahpLogger: ahpLoggingEnabled
+					? this._instantiationService.createInstance(AhpJsonlLogger, {
+						logsHome: this._environmentService.logsHome,
+						logId: address,
+						connectionId: staged.clientId,
+						transport: 'webpubsub',
+					})
+					: undefined,
+			});
+			const client = this._instantiationService.createInstance(
+				AgentHostProtocolClient,
+				address,
+				transportFactory,
+				{
+					clientId: staged.clientId,
+					clientInfo: editorWindowAgentHostClientInfo,
+					prepareReconnect: () => refresher.ensureUnexpiredCredentials(),
+					resolveInitialAuthentication: () => this._resolveInitialAuthentication(address),
+				},
+			);
+			return { connection: client, transportDisposable: store };
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
 	}
 
 	private async _resolveInitialAuthentication(address: string): Promise<{ readonly resource: string; readonly token: string } | undefined> {
@@ -350,11 +351,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
 	}
 
-	/**
-	 * Re-mint credentials until they carry a sealed token, which a freshly provisioned environment
-	 * can omit for a short window after it comes up. Returns the last credentials either way, since
-	 * an environment may legitimately never seal one.
-	 */
+	/** Refresh the initial client's credentials until a sealed token arrives or the bounded wait ends. */
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
@@ -362,18 +359,18 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; refreshing in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
 			await timeout(this.sealedTokenRetryDelayMs, token);
 
 			let result: CloudSandboxConnectResult;
 			try {
-				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+				result = await this._apiService.reconnect({ environmentId: options.environmentId, sessionId: options.sessionId }, minted.client_id, token);
 			} catch (err) {
 				if (isCancellationError(err) || token.isCancellationRequested) {
 					throw err;
 				}
 				// The initial mint still works, so degrade rather than discard it.
-				this._logService.warn(`${LOG_PREFIX} Re-mint for ${options.environmentId} failed; continuing without a sealed token`, err);
+				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${options.environmentId} failed; continuing without a sealed token`, err);
 				break;
 			}
 			if (result.kind !== 'token') {
