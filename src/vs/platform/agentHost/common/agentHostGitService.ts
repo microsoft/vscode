@@ -250,6 +250,12 @@ export interface IAgentHostGitService {
 	 */
 	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
+	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
+	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
+	 * git itself. `sessionId` scopes the temporary files used while matching.
+	 */
+	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<void>;
+	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
 	 * whose worktree was previously cleaned up on archive).

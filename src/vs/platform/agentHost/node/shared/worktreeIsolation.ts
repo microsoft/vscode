@@ -229,6 +229,8 @@ export const enum WorktreeCreationPhase {
 	NamingBranch,
 	/** `git worktree add` — the phase that reports file-level progress. */
 	CheckingOut,
+	/** Symlinking the git-ignored folders the client asked to share. */
+	SymlinkingFolders,
 	/** Copying the git-ignored files the client asked to carry over. */
 	CopyingIncludeFiles,
 }
@@ -248,6 +250,8 @@ export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?
 			return percent === undefined
 				? localize('agentHost.worktreeCheckingOut', "Creating isolated worktree (checking out files)")
 				: localize('agentHost.worktreeCheckingOutPercent', "Creating isolated worktree (checking out files, {0}%)", percent);
+		case WorktreeCreationPhase.SymlinkingFolders:
+			return localize('agentHost.worktreeSymlinkingFolders', "Creating isolated worktree (symlinking folders)");
 		case WorktreeCreationPhase.CopyingIncludeFiles:
 			return percent === undefined
 				? localize('agentHost.worktreeCopyingIncludeFiles', "Creating isolated worktree (copying additional files)")
@@ -358,6 +362,8 @@ export interface IIsolationConfigContribution {
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 	/** Read-only carrier for the client's `git.worktreeIncludeFiles`. */
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+	/** Read-only carrier for the client's `git.worktreeSymlinkFolders`. */
+	readonly worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
 	/** Read-only carrier for the programmatic worktree branch tracking preference. */
 	readonly worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 	/** Read-only carrier for checking out the selected branch directly. */
@@ -759,6 +765,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
@@ -830,9 +837,21 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				readOnly: true,
 				sessionMutable: false,
 			});
+
+			worktreeSymlinkFoldersProperty = schemaProperty<readonly string[]>({
+				type: 'array',
+				title: localize('agentHost.sessionConfig.worktreeSymlinkFolders', "Worktree Symlink Folders"),
+				description: localize('agentHost.sessionConfig.worktreeSymlinkFoldersDescription', "Patterns, in .gitignore syntax, for git-ignored folders to symlink into the isolated worktree."),
+				items: {
+					type: 'string',
+					title: localize('agentHost.sessionConfig.worktreeSymlinkFoldersItem', "Pattern"),
+				},
+				readOnly: true,
+				sessionMutable: false,
+			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeCreateNewBranchProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeCreateNewBranchProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
@@ -950,6 +969,18 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			&& config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
 			? config[SessionConfigKey.WorktreeIncludeFiles] as readonly string[]
 			: undefined;
+		const worktreeSymlinkFolders = Array.isArray(config[SessionConfigKey.WorktreeSymlinkFolders])
+			&& config[SessionConfigKey.WorktreeSymlinkFolders].every(pattern => typeof pattern === 'string')
+			? config[SessionConfigKey.WorktreeSymlinkFolders] as readonly string[]
+			: undefined;
+		if (worktreeSymlinkFolders?.length) {
+			try {
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.SymlinkingFolders));
+				await this._gitService.symlinkWorktreeFolders(checkoutRoot, worktreePath, worktreeSymlinkFolders, sessionId);
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to symlink worktree folders: ${errorMessage(error)}`);
+			}
+		}
 		if (worktreeIncludeFiles?.length) {
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));

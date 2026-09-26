@@ -19,6 +19,7 @@ import { buildGitBlobUri } from './gitDiffContent.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { createWorktreeSymlink } from './worktreeSymlink.js';
 
 /**
  * `git worktree remove`/`prune` can transiently fail — or, worse, exit 0 while
@@ -187,19 +188,33 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const startTime = performance.now();
-			const limiter = new Limiter<void>(15);
+			const limiter = new Limiter<boolean>(15);
 			const filesTotal = worktreeIncludePaths.reduce((total, entry) => total + entry.fileCount, 0);
 			let filesDone = 0;
 			const results = await Promise.allSettled(worktreeIncludePaths.map(entry => limiter.queue(async () => {
 				const targetPath = path.join(worktree.fsPath, path.relative(repositoryRoot.fsPath, entry.sourcePath));
+
+				try {
+					await fsPromises.lstat(targetPath);
+					filesDone += entry.fileCount;
+					onProgress?.({ filesDone, filesTotal });
+					return false;
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+						throw error;
+					}
+				}
+
 				await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
 				await copyFile(entry.sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
 				filesDone += entry.fileCount;
 				onProgress?.({ filesDone, filesTotal });
+				return true;
 			})));
 
 			const failedOperations = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
-			this._logService.info(`[AgentHostGitService][copyWorktreeIncludeFiles] Copied ${worktreeIncludePaths.length - failedOperations.length}/${worktreeIncludePaths.length} folder(s)/file(s) to worktree ${worktree.fsPath}. [${(performance.now() - startTime).toFixed(2)}ms]`);
+			const copiedEntries = results.filter(result => result.status === 'fulfilled' && result.value).length;
+			this._logService.info(`[AgentHostGitService][copyWorktreeIncludeFiles] Copied ${copiedEntries}/${worktreeIncludePaths.length} folder(s)/file(s) to worktree ${worktree.fsPath}. [${(performance.now() - startTime).toFixed(2)}ms]`);
 
 			if (failedOperations.length > 0) {
 				this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree ${worktree.fsPath}.`);
@@ -209,6 +224,32 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree ${worktree.fsPath}: ${error}`);
+		}
+	}
+
+	async symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<void> {
+		try {
+			const folders = await this._getWorktreeSymlinkFolders(repositoryRoot, patterns, sessionId);
+			if (folders.length === 0) {
+				return;
+			}
+
+			const startTime = performance.now();
+			const limiter = new Limiter<boolean>(15);
+			const results = await Promise.allSettled(folders.map(folder => limiter.queue(() =>
+				createWorktreeSymlink(repositoryRoot, worktree, folder))));
+			const failedOperations = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			const symlinkedFolders = results.filter(result => result.status === 'fulfilled' && result.value).length;
+			this._logService.info(`[AgentHostGitService][symlinkWorktreeFolders] Symlinked ${symlinkedFolders}/${folders.length} folder(s) to worktree ${worktree.fsPath}. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			if (failedOperations.length > 0) {
+				this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] Failed to symlink ${failedOperations.length} folder(s) to worktree ${worktree.fsPath}.`);
+				for (const error of failedOperations) {
+					this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] ${error.reason}`);
+				}
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] Failed to symlink folders to worktree ${worktree.fsPath}: ${error}`);
 		}
 	}
 
@@ -633,7 +674,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, patterns: readonly string[], sessionId: string): Promise<IWorktreeIncludeEntry[]> {
 		// Each setting entry must stay a single `.gitignore` line; an embedded
 		// line break would inject additional patterns (e.g. a `!` negation).
-		const includePatterns = patterns.filter(pattern => !/[\r\n]/.test(pattern));
+		const includePatterns = sanitizeWorktreePatterns(patterns);
 		if (includePatterns.length !== patterns.length) {
 			this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Ignoring ${patterns.length - includePatterns.length} pattern(s) containing line breaks.`);
 		}
@@ -683,6 +724,54 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			return resolveWorktreeIncludeEntries(repositoryRoot, ignoredFiles, includedOutput, directoryOutput, worktreeOutput);
+		} finally {
+			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
+		}
+	}
+
+	private async _getWorktreeSymlinkFolders(repositoryRoot: URI, patterns: readonly string[], sessionId: string): Promise<string[]> {
+		const symlinkPatterns = sanitizeWorktreePatterns(patterns);
+		if (symlinkPatterns.length !== patterns.length) {
+			this._logService.warn(`[AgentHostGitService][symlinkWorktreeFolders] Ignoring ${patterns.length - symlinkPatterns.length} pattern(s) containing line breaks.`);
+		}
+		if (symlinkPatterns.length === 0) {
+			return [];
+		}
+
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-worktree-symlink-${toFileNameSafeSessionId(sessionId)}`);
+		const patternsFile = URI.joinPath(tempDir, 'patterns');
+		const matcherRoot = URI.joinPath(tempDir, 'matcher');
+		await this._fileService.createFolder(matcherRoot);
+
+		try {
+			await this._fileService.writeFile(patternsFile, VSBuffer.fromString(symlinkPatterns.join('\n') + '\n'));
+
+			const baseArgs = ['ls-files', '--others', '--ignored', '-z'];
+			const [ignoredOutput, matchedOutput, directoryOutput] = await Promise.all([
+				this._runGit(repositoryRoot, [...baseArgs, '--exclude-standard'], { timeout: 60_000 }),
+				this._runGit(repositoryRoot, [...baseArgs, `--exclude-from=${patternsFile.fsPath}`], { timeout: 60_000 }),
+				this._runGit(repositoryRoot, [...baseArgs, '--exclude-standard', '--directory'], { timeout: 60_000 }),
+			]);
+			if (ignoredOutput === undefined || matchedOutput === undefined || directoryOutput === undefined) {
+				return [];
+			}
+
+			const candidates = getWorktreeSymlinkFolderCandidates(ignoredOutput, matchedOutput);
+			if (candidates.length === 0) {
+				return [];
+			}
+
+			if (await this._runGit(matcherRoot, ['init', '--quiet'], { timeout: 60_000 }) === undefined) {
+				return [];
+			}
+
+			const candidateInput = candidates.map(candidate => `${candidate}/`).join('\0');
+			const [ignoredFoldersOutput, matchedFoldersOutput] = await Promise.all([
+				this._runGit(repositoryRoot, ['check-ignore', '--no-index', '-z', '--stdin'], { timeout: 60_000, input: candidateInput }),
+				this._runGit(matcherRoot, ['-c', `core.excludesFile=${patternsFile.fsPath}`, 'check-ignore', '--no-index', '-z', '--stdin'], { timeout: 60_000, input: candidateInput }),
+			]);
+
+			return filterWorktreeSymlinkFolders(candidates, ignoredFoldersOutput ?? '', matchedFoldersOutput ?? '', directoryOutput);
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
@@ -1047,7 +1136,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
 	}
 
-	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {
+	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		return new Promise((resolve, reject) => {
@@ -1093,6 +1182,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			const onStderr = options?.onStderr;
 			if (onStderr) {
 				child.stderr?.on('data', (chunk: Buffer | string) => onStderr(chunk.toString()));
+			}
+			if (options?.input !== undefined) {
+				child.stdin?.end(options.input, 'utf8');
 			}
 			const timer = setTimeout(() => {
 				didTimeOut = true;
@@ -1227,6 +1319,61 @@ function toWorktreeIncludeEntries(repositoryRoot: URI, matchedFiles: readonly st
  */
 function toFileNameSafeSessionId(sessionId: string): string {
 	return sessionId.replace(/[^\w.-]/g, '_');
+}
+
+function sanitizeWorktreePatterns(patterns: readonly string[]): string[] {
+	return patterns.filter(pattern => !/[\r\n]/.test(pattern));
+}
+
+function getWorktreeSymlinkFolderCandidates(ignoredOutput: string, matchedOutput: string): string[] {
+	const matchedFiles = new Set(splitNulSeparated(matchedOutput));
+	const candidates = new Set<string>();
+
+	for (const file of splitNulSeparated(ignoredOutput)) {
+		if (!matchedFiles.has(file)) {
+			continue;
+		}
+
+		let index = file.lastIndexOf('/');
+		while (index !== -1) {
+			candidates.add(file.slice(0, index));
+			index = file.lastIndexOf('/', index - 1);
+		}
+	}
+
+	return Array.from(candidates);
+}
+
+function filterWorktreeSymlinkFolders(candidates: readonly string[], ignoredOutput: string, matchedOutput: string, directoryOutput: string): string[] {
+	const ignoredFolders = new Set(splitNulSeparated(ignoredOutput));
+	const matchedFolders = new Set(splitNulSeparated(matchedOutput));
+	const whollyIgnoredFolders = new Set(splitNulSeparated(directoryOutput).filter(folder => folder.endsWith('/')));
+
+	const folders = candidates.filter(folder =>
+		ignoredFolders.has(`${folder}/`) &&
+		matchedFolders.has(`${folder}/`) &&
+		hasContainingFolder(folder, whollyIgnoredFolders)
+	);
+	const folderSet = new Set(folders.map(folder => `${folder}/`));
+
+	return folders.filter(folder =>
+		!hasContainingFolder(folder, folderSet, false)
+	);
+}
+
+function splitNulSeparated(output: string): string[] {
+	return output.split('\x00').filter(entry => entry.length > 0);
+}
+
+function hasContainingFolder(folder: string, folders: ReadonlySet<string>, includeSelf = true): boolean {
+	let index = includeSelf ? folder.length : folder.lastIndexOf('/');
+	while (index > 0) {
+		if (folders.has(`${folder.slice(0, index)}/`)) {
+			return true;
+		}
+		index = folder.lastIndexOf('/', index - 1);
+	}
+	return false;
 }
 
 /**
