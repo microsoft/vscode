@@ -1,0 +1,140 @@
+{
+	"name": "dotnet",
+	"displayName": ".NET Run and Debug",
+	"description": "Detects .NET projects and solutions and runs or debugs ASP.NET Core apps using launch profiles.",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"private": true,
+	"engines": {
+		"vscode": "^1.140.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Debuggers"
+	],
+	"main": "./out/extension",
+	"activationEvents": [
+		"workspaceContains:**/*.csproj",
+		"workspaceContains:**/*.sln",
+		"onCommand:dotnet.selectStartupProject",
+		"onCommand:dotnet.selectLaunchProfile",
+		"onCommand:dotnet.run",
+		"onCommand:dotnet.debug",
+		"onCommand:dotnet.fetchNetcoredbg"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "dotnet.selectStartupProject",
+				"title": "Select Startup Project",
+				"category": ".NET"
+			},
+			{
+				"command": "dotnet.selectLaunchProfile",
+				"title": "Select Launch Profile",
+				"category": ".NET"
+			},
+			{
+				"command": "dotnet.run",
+				"title": "Run Startup Project",
+				"category": ".NET",
+				"icon": "$(play)"
+			},
+			{
+				"command": "dotnet.debug",
+				"title": "Debug Startup Project",
+				"category": ".NET",
+				"icon": "$(debug-alt)"
+			},
+			{
+				"command": "dotnet.fetchNetcoredbg",
+				"title": "Download Debug Adapter (netcoredbg)",
+				"category": ".NET"
+			}
+		],
+		"menus": {
+			"editor/title/run": [
+				{
+					"command": "dotnet.run",
+					"when": "resourceExtname == .csproj || resourceFilename == launchSettings.json",
+					"group": "navigation@10"
+				},
+				{
+					"command": "dotnet.debug",
+					"when": "resourceExtname == .csproj || resourceFilename == launchSettings.json",
+					"group": "navigation@11"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "dotnet.selectStartupProject",
+					"when": "resourceExtname == .csproj",
+					"group": "9_dotnet@1"
+				},
+				{
+					"command": "dotnet.run",
+					"when": "resourceExtname == .csproj || resourceExtname == .sln || resourceFilename == launchSettings.json",
+					"group": "9_dotnet@2"
+				},
+				{
+					"command": "dotnet.debug",
+					"when": "resourceExtname == .csproj || resourceExtname == .sln || resourceFilename == launchSettings.json",
+					"group": "9_dotnet@3"
+				}
+			]
+		},
+		"debuggers": [
+			{
+				"type": "dotnet",
+				"label": ".NET (netcoredbg)",
+				"languages": [
+					"csharp",
+					"razor"
+				],
+				"initialConfigurations": [],
+				"configurationAttributes": {
+					"launch": {
+						"required": [],
+						"properties": {
+							"project": {
+								"type": "string",
+								"description": "Path to the .csproj to run. Defaults to the Startup Project."
+							},
+							"profile": {
+								"type": "string",
+								"description": "Launch profile name from Properties/launchSettings.json."
+							},
+							"program": {
+								"type": "string",
+								"description": "Path to the built application DLL. Resolved from the project when omitted."
+							}
+						}
+					}
+				}
+			}
+		],
+		"configuration": {
+			"title": ".NET",
+			"properties": {
+				"dotnet.autoOpenBrowser": {
+					"type": "boolean",
+					"default": true,
+					"description": "Open a browser automatically when a Web Project starts listening."
+				},
+				"dotnet.netcoredbgPath": {
+					"type": "string",
+					"description": "Path to the netcoredbg executable. Defaults to the bundled download under the extension folder."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"compile": "npx gulp compile-extension:dotnet",
+		"watch": "npx gulp watch-extension:dotnet",
+		"fetch-netcoredbg": "node ./scripts/fetch-netcoredbg.mjs"
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}
