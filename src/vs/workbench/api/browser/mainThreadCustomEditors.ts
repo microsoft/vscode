@@ -521,6 +521,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
+	private _extensionHostStopped = false;
 	private _isDirtyFromContentChange: boolean;
 
 	private _ongoingSave?: CancelablePromise<void>;
@@ -590,6 +591,21 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		// so that dirty state is correct when first queried).
 		this._isDirtyFromContentChange = startDirty;
 
+		this._register(extensionService.onDidStop(() => {
+			this._extensionHostStopped = true;
+			this._onDidChangeReadonly.fire();
+			for (const editor of this._getEditors()) {
+				editor.webview.setHtml(`<!DOCTYPE html>
+					<html>
+						<head>
+							<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+							<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+						</head>
+						<body>${localize('extensionHostStopped', "The extension host stopped. This custom editor is disconnected and cannot save changes. Unsaved changes may be lost if you close this editor.")}</body>
+					</html>`);
+			}
+		}));
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 
@@ -658,12 +674,13 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidSave: Emitter<IWorkingCopySaveEvent> = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
 
-	readonly onDidChangeReadonly = Event.None;
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	//#endregion
 
 	public isReadonly(): boolean {
-		return !this._editable;
+		return !this._editable || this._extensionHostStopped;
 	}
 
 	public get viewType() {
@@ -675,7 +692,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public pushEdit(editId: number, label: string | undefined) {
-		if (!this._editable) {
+		if (!this._editable || this._extensionHostStopped) {
 			throw new Error('Document is not editable');
 		}
 
@@ -695,13 +712,16 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public changeContent() {
+		if (this._extensionHostStopped) {
+			return;
+		}
 		this.change(() => {
 			this._isDirtyFromContentChange = true;
 		});
 	}
 
 	private async undo(): Promise<void> {
-		if (!this._editable) {
+		if (!this._editable || this._extensionHostStopped) {
 			return;
 		}
 
@@ -718,7 +738,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	private async redo(): Promise<void> {
-		if (!this._editable) {
+		if (!this._editable || this._extensionHostStopped) {
 			return;
 		}
 
@@ -758,7 +778,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async revert(options?: IRevertOptions) {
-		if (!this._editable) {
+		if (!this._editable || this._extensionHostStopped) {
 			return;
 		}
 
@@ -790,7 +810,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
-		if (!this._editable) {
+		if (!this._editable || this._extensionHostStopped) {
 			return undefined;
 		}
 
@@ -839,6 +859,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
+		if (this._extensionHostStopped) {
+			return false;
+		}
 		if (this._editable) {
 			// TODO: handle cancellation
 			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
