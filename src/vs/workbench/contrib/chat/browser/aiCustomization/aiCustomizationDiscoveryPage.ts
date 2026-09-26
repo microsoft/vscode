@@ -394,16 +394,16 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 			button.setAriaLabel(cancellable
 				? localize('customizationDiscovery.cancelConnectorOperationLabel', "Cancel connecting {0}", element.resource.displayName)
 				: setupUrl
-				? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", element.resource.displayName)
-				: state.kind === 'missing'
-					? state.repairUnavailableMessage
-						? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", button.label, element.resource.displayName, state.repairUnavailableMessage)
-						: localize('customizationDiscovery.repairLabel', "{0} {1}", button.label, element.resource.displayName)
-					: state.kind === 'error'
-						? localize('customizationDiscovery.installVerificationError', "{0}. {1}", element.resource.displayName, state.message)
-						: state.kind === 'unavailable'
-							? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
-							: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
+					? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", element.resource.displayName)
+					: state.kind === 'missing'
+						? state.repairUnavailableMessage
+							? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", button.label, element.resource.displayName, state.repairUnavailableMessage)
+							: localize('customizationDiscovery.repairLabel', "{0} {1}", button.label, element.resource.displayName)
+						: state.kind === 'error'
+							? localize('customizationDiscovery.installVerificationError', "{0}. {1}", element.resource.displayName, state.message)
+							: state.kind === 'unavailable'
+								? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
+								: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
 			button.element.setAttribute('aria-busy', String(isInstallActionBusy(state) && !cancellable));
 			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 			templateData.elementDisposables.add(button.onDidClick(() => cancellable
@@ -411,8 +411,8 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 				: setupUrl
 					? this.onOpen(setupUrl)
 					: state.kind === 'missing'
-							? this.onRepair(element.resource)
-							: this.onInstall(element.resource)));
+						? this.onRepair(element.resource)
+						: this.onInstall(element.resource)));
 			const actionError = getInstallActionError(state, installError);
 			if (actionError) {
 				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: actionError }));
@@ -441,15 +441,15 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 				? localize('customizationDiscovery.connectorCancel', "Cancel")
 				: state.kind === 'repairing'
 					? localize('customizationDiscovery.repairingProgress', "Repairing...")
-				: state.kind === 'checking'
-					? localize('customizationDiscovery.checkingProgress', "Checking...")
-					: state.kind === 'uninstalling'
-						? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-						: error && state.kind === 'installed'
-							? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
-							: connector
-								? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
-								: localize('customizationDiscovery.uninstall', "Uninstall");
+					: state.kind === 'checking'
+						? localize('customizationDiscovery.checkingProgress', "Checking...")
+						: state.kind === 'uninstalling'
+							? localize('customizationDiscovery.uninstalling', "Uninstalling...")
+							: error && state.kind === 'installed'
+								? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
+								: connector
+									? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
+									: localize('customizationDiscovery.uninstall', "Uninstall");
 			button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
 			button.setAriaLabel(cancellable
 				? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", element.name)
@@ -1480,16 +1480,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		install.setAriaLabel(cancellable
 			? localize('customizationDiscovery.cancelConnectorOperationLabel', "Cancel connecting {0}", item.displayName)
 			: setupUrl
-			? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", item.displayName)
-			: state.kind === 'missing'
-				? state.repairUnavailableMessage
-					? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", install.label, item.displayName, state.repairUnavailableMessage)
-					: localize('customizationDiscovery.repairLabel', "{0} {1}", install.label, item.displayName)
-				: state.kind === 'error'
-					? localize('customizationDiscovery.installVerificationError', "{0}. {1}", item.displayName, state.message)
-					: state.kind === 'unavailable'
-						? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
-						: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
+				? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", item.displayName)
+				: state.kind === 'missing'
+					? state.repairUnavailableMessage
+						? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", install.label, item.displayName, state.repairUnavailableMessage)
+						: localize('customizationDiscovery.repairLabel', "{0} {1}", install.label, item.displayName)
+					: state.kind === 'error'
+						? localize('customizationDiscovery.installVerificationError', "{0}. {1}", item.displayName, state.message)
+						: state.kind === 'unavailable'
+							? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
+							: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
 		install.element.setAttribute('aria-busy', String(isInstallActionBusy(state) && !cancellable));
 		this.browseDisposables.add(install.onDidClick(() => cancellable
 			? this.installService.cancelConnectorOperation(item)

@@ -276,20 +276,20 @@ function serializeInstallationRecord(record: ICustomizationMarketplaceInstallati
 				accountName: record.target.accountName,
 				enterprise: record.target.enterprise,
 			}
-		: record.target.kind === 'plugin'
-			? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
-			: {
-				kind: 'skill',
-				uri: record.target.uri.toString(),
-				files: record.target.files,
-				resolvedRevision: record.target.resolvedRevision,
-				source: record.target.source,
-				harness: record.target.harness,
-				sourceFolder: record.target.sourceFolder.toString(),
-				destinationGroupId: record.target.destinationGroupId,
-				project: record.target.project?.toString(),
-				session: record.target.session?.toString(),
-			};
+			: record.target.kind === 'plugin'
+				? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
+				: {
+					kind: 'skill',
+					uri: record.target.uri.toString(),
+					files: record.target.files,
+					resolvedRevision: record.target.resolvedRevision,
+					source: record.target.source,
+					harness: record.target.harness,
+					sourceFolder: record.target.sourceFolder.toString(),
+					destinationGroupId: record.target.destinationGroupId,
+					project: record.target.project?.toString(),
+					session: record.target.session?.toString(),
+				};
 	return {
 		version: installationRecordSchemaVersion,
 		record: {
