@@ -1421,8 +1421,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		});
 
 		const commonHeaders = await this.commonHeadersPromise;
+		const authHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(extensionsQueryApi);
 		const headers = {
 			...commonHeaders,
+			...authHeader,
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
@@ -1560,8 +1562,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		try {
 			const commonHeaders = await this.commonHeadersPromise;
+			const authHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(uri.toString(true));
 			const headers = {
 				...commonHeaders,
+				...authHeader,
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
@@ -1665,7 +1669,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const Accept = '*/*;api-version=4.0-preview.1';
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept };
+		const authHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(url);
+		const headers = { ...commonHeaders, ...authHeader, Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
@@ -1862,7 +1867,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: this.getRequestTimeout(), callSite };
+		// The primary and fallback URLs can differ in origin, so the guard is evaluated for each.
+		const primaryAuthHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(url);
+		const firstOptions = { ...options, headers: { ...headers, ...primaryAuthHeader }, url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
@@ -1908,7 +1915,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
+			const fallbackAuthHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(fallbackUrl);
+			const fallbackOptions = { ...options, headers: { ...headers, ...fallbackAuthHeader }, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1924,9 +1932,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
+		const authHeader = await this.extensionGalleryManifestService.getAuthorizationHeaders(this.extensionsControlUrl);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
+			headers: authHeader,
 			timeout: this.getRequestTimeout(),
 			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);

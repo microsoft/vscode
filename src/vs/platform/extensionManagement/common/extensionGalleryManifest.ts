@@ -80,6 +80,13 @@ export interface IExtensionGalleryManifestService {
 	readonly onDidChangeExtensionGalleryManifestStatus: Event<ExtensionGalleryManifestStatus>;
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
+
+	/**
+	 * Headers authenticating a request to `targetUrl`, empty when the marketplace does not gate its
+	 * requests. Resolved here rather than by callers so the rule that decides which origins may
+	 * receive the marketplace bearer has one implementation.
+	 */
+	getAuthorizationHeaders(targetUrl: string): Promise<Record<string, string>>;
 }
 
 export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: string): string | undefined {
@@ -100,3 +107,9 @@ export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalle
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';
 
 export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';
+
+/** The subset of RFC 9728 Protected Resource Metadata the marketplace negotiation needs. */
+export interface IMarketplaceProtectedResource {
+	readonly authorizationServer: string;
+	readonly scopes: readonly string[];
+}
