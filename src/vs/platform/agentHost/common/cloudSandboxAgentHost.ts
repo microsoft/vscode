@@ -371,6 +371,6 @@ export interface ICloudSandboxAgentHostService {
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
 
-	/** Renew a live connection's sealed credential, sharing its refresh and retry budget. */
+	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
 	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;
 }

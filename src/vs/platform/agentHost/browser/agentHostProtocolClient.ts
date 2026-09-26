@@ -1131,7 +1131,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		let initialAuthenticationKey: string | undefined;
 		if (this._resolveInitialAuthentication) {
 			try {
-				const initialAuthentication = await this._resolveInitialAuthentication();
+				const initialAuthentication = await this._raceClose(this._resolveInitialAuthentication());
+				if (this._state !== state || this._state.kind !== expectedState) {
+					return;
+				}
 				if (initialAuthentication) {
 					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
 					initialAuthenticationKey = this._authenticationKey(normalizedParams);
@@ -1139,10 +1142,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._authentication.set(initialAuthenticationKey, { params: normalizedParams, expiresAt });
 				}
 			} catch (error) {
+				if (this._state !== state || isConnectionClosedError(error)) {
+					throw error;
+				}
 				throw new InitialAuthenticationError(error);
-			}
-			if (this._state !== state || this._state.kind !== expectedState) {
-				return;
 			}
 		}
 		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
