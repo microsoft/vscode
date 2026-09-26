@@ -16,6 +16,44 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Codex context snapshots and selected-model observations are intermittent
+
+The context scenario receives the expected remembered word, but its protocol snapshot intermittently differs around session-added, title-changed, and ready notifications. The selected-model scenario receives the expected response text but observes `gpt-5.3-codex` instead of `gpt-5.6-terra`. These failures recur across unrelated PR branches and pass on unchanged workflow retries; their shared cause, if any, is not established.
+
+- Issue: [#338152](https://github.com/microsoft/vscode/issues/338152).
+- Tests: `retains context across consecutive turns` and `client-selected model is used for the turn`.
+- Scope: Codex context snapshots on Linux/macOS; Codex selected-model observations on Linux.
+- Expected: stable protocol snapshots and an observed model request matching the client-selected model.
+- Observed: context failures in 9 runs across 8 branches and model failures in 7 runs across 6 branches in the September 24–26, 2026 Code OSS survey. All model-failing runs also failed the context test.
+- Gate: provider/platform-specific `test.skip` registrations in `coreSuite.ts`; unaffected providers and platforms remain enabled.
+- Reproduce: temporarily remove only these registration gates, then repeat strict replay without recording or updating snapshots:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "retains context across consecutive turns|client-selected model is used for the turn"
+  ```
+
+- Re-enable after establishing the notification/request attribution contract and repeated clean executions on the affected platforms. Preserve both response assertions and model-selection checks.
+
+### Codex session changeset aggregation is intermittent on Windows
+
+When the default chat and a peer chat edit files in the same session, the test sometimes never observes both chats' edits in the aggregate session changeset. This can represent incomplete change reporting or a synchronization problem; the failure does not establish that edited files were lost. The same test passes on unchanged workflow retries.
+
+- Issue: [#338153](https://github.com/microsoft/vscode/issues/338153).
+- Test: `session changeset aggregates provider edits from default and peer chats`.
+- Scope: Codex on Windows.
+- Expected: the aggregate session changeset includes provider edits from both chats.
+- Observed: `Session changeset has not aggregated both provider chats` in 6 runs across 6 branches in the September 24–26, 2026 Code OSS survey.
+- Gate: the Windows/Codex registration in `changesetSuite.ts`; existing capability gates and other provider/platform variants remain unchanged.
+- Reproduce: temporarily remove only the Windows/Codex gate, then repeat strict replay:
+
+  ```bat
+  scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
+  ```
+
+- Re-enable after identifying the missing update or synchronization boundary and repeated clean Windows executions, retaining the assertion that both chats' edits appear.
+
 ### Copilot managed-settings diagnostics cannot return an account snapshot
 
 A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
