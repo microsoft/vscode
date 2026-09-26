@@ -2113,6 +2113,7 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
+		const symlinkFolders = ['node_modules/**', '.cache/**'];
 
 		const initialWorktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
@@ -2122,12 +2123,12 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 		const folder = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 
 		assert.deepStrictEqual({
@@ -2136,16 +2137,24 @@ suite('AgentService (node dispatcher)', () => {
 			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+			worktreeSymlinkReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			worktreeSymlinkValue: worktree.values[SessionConfigKey.WorktreeSymlinkFolders],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+			folderSymlinkReadOnly: folder.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			folderSymlinkValue: folder.values[SessionConfigKey.WorktreeSymlinkFolders],
 		}, {
 			initialWorktreeBranch: 'origin/main',
 			initialWorktreeDefault: 'origin/main',
 			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
+			worktreeSymlinkReadOnly: true,
+			worktreeSymlinkValue: symlinkFolders,
 			folderReadOnly: true,
 			folderValue: includeFiles,
+			folderSymlinkReadOnly: true,
+			folderSymlinkValue: symlinkFolders,
 		});
 	});
 
@@ -2213,6 +2222,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'selected',
@@ -2231,6 +2241,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'completion',
@@ -2267,6 +2278,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				symlinkFolders: selected.values[SessionConfigKey.WorktreeSymlinkFolders],
 				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				createNewBranch: selected.values[SessionConfigKey.WorktreeCreateNewBranch],
 				providerSetting: selected.values.providerSetting,
@@ -2299,7 +2311,7 @@ suite('AgentService (node dispatcher)', () => {
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
 			},
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], symlinkFolders: ['node_modules/**'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
@@ -13581,6 +13593,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -13692,6 +13705,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,

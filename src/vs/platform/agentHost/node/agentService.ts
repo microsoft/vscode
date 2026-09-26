@@ -214,6 +214,7 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 ] as const;
@@ -5685,6 +5686,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
 		}
+		if (iso.worktreeSymlinkFoldersProperty) {
+			properties[SessionConfigKey.WorktreeSymlinkFolders] = iso.worktreeSymlinkFoldersProperty.protocol;
+		}
 		const values = omitHostOwnedSessionConfig(result.values);
 		values[SessionConfigKey.Isolation] = iso.isolationValue;
 		if (iso.branchProperty && iso.branchValue !== undefined) {
@@ -5703,6 +5707,11 @@ export class AgentService extends Disposable implements IAgentService {
 			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])
 			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
 			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
+		}
+		if (iso.worktreeSymlinkFoldersProperty
+			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeSymlinkFolders])
+			&& params.config[SessionConfigKey.WorktreeSymlinkFolders].every(pattern => typeof pattern === 'string')) {
+			values[SessionConfigKey.WorktreeSymlinkFolders] = params.config[SessionConfigKey.WorktreeSymlinkFolders];
 		}
 		return { schema: { ...result.schema, properties }, values };
 	}

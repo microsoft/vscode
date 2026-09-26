@@ -88,8 +88,11 @@ suite('WorktreeIsolation', () => {
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let commitCalls: { worktree: URI; message: string }[];
 	let commitError: Error | undefined;
-	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string }[];
+	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string; excludedFolders: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
+	let symlinkFolderCalls: { repositoryRoot: URI; worktree: URI; patterns: readonly string[]; sessionId: string }[];
+	let symlinkFolderError: Error | undefined;
+	let worktreeSetupCalls: string[];
 	let branchName: string;
 	let hasUncommittedChanges: boolean;
 	let branchExists: boolean;
@@ -123,11 +126,20 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 			},
-			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId) => {
-				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId });
+			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId, _onProgress, excludedFolders = []) => {
+				worktreeSetupCalls.push('includeFiles');
+				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId, excludedFolders: [...excludedFolders] });
 				if (copyIncludeError) {
 					throw copyIncludeError;
 				}
+			},
+			symlinkWorktreeFolders: async (repositoryRoot, worktree, patterns, sessionId) => {
+				worktreeSetupCalls.push('symlinkFolders');
+				symlinkFolderCalls.push({ repositoryRoot, worktree, patterns: [...patterns], sessionId });
+				if (symlinkFolderError) {
+					throw symlinkFolderError;
+				}
+				return patterns.map(pattern => pattern.endsWith('/**') ? pattern.slice(0, -3) : pattern);
 			},
 			addExistingWorktree: async (_root, worktree, branch) => {
 				addExistingCalls.push({ worktree, branchName: branch });
@@ -183,6 +195,9 @@ suite('WorktreeIsolation', () => {
 		commitError = undefined;
 		copyIncludeCalls = [];
 		copyIncludeError = undefined;
+		symlinkFolderCalls = [];
+		symlinkFolderError = undefined;
+		worktreeSetupCalls = [];
 		branchName = 'agents/my-feature';
 		hasUncommittedChanges = false;
 		branchExists = true;
@@ -223,19 +238,19 @@ suite('WorktreeIsolation', () => {
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
-			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
+			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, symlinkFolders: noRepo.worktreeSymlinkFoldersProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, symlinkFoldersReadOnly: repoWorktree.worktreeSymlinkFoldersProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasSymlinkFolders: !!repoFolder.worktreeSymlinkFoldersProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
 			repoFolderSelected: { branchDefault: repoFolderSelected.branchDefault, branchValue: repoFolderSelected.branchValue },
-			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
+			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, symlinkFolders: noCommits.worktreeSymlinkFoldersProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
-			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
+			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, branchTrack: undefined, createNewBranch: undefined },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, symlinkFoldersReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasSymlinkFolders: true, hasBranchTrack: true, hasCreateNewBranch: true },
 			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
-			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
+			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});
 
@@ -647,7 +662,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({ dataIds: [...dataIds], removeCalls }, { dataIds: [], removeCalls: [] });
 	});
 
-	test('resolveWorkingDirectory creates from the primary worktree while copying include files from the selected checkout', async () => {
+	test('resolveWorkingDirectory creates from the primary worktree while setting up files from the selected checkout', async () => {
 		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
 		const gitService = createGitService();
 		let addWorktreeRoot: URI | undefined;
@@ -660,6 +675,7 @@ suite('WorktreeIsolation', () => {
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const includeFiles = ['.env'];
+		const symlinkFolders = ['node_modules/**'];
 
 		const worktree = await isolation.resolveWorkingDirectory({
 			sessionUri,
@@ -669,6 +685,7 @@ suite('WorktreeIsolation', () => {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.Branch]: 'main',
 				[SessionConfigKey.WorktreeIncludeFiles]: includeFiles,
+				[SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders,
 			},
 		});
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
@@ -678,17 +695,62 @@ suite('WorktreeIsolation', () => {
 			worktree: worktree?.toString(),
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
+			includeExcludedFolders: copyIncludeCalls[0]?.excludedFolders,
+			symlinkFolderRoot: symlinkFolderCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			metaSymlinkSourceRoot: meta?.symlinkSourceRoot?.toString(),
+			metaSymlinkPatterns: meta?.symlinkPatterns,
 			project: worktreeInfo && { uri: worktreeInfo.project.uri.toString(), displayName: worktreeInfo.project.displayName },
 			branchName: worktreeInfo?.branchName,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
+			includeExcludedFolders: ['node_modules'],
+			symlinkFolderRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
+			metaSymlinkSourceRoot: checkoutRoot.toString(),
+			metaSymlinkPatterns: symlinkFolders,
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 			branchName,
 		});
+	});
+
+	test('replays persisted symlink setup after missing-worktree recovery and unarchive', async () => {
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => checkoutRoot;
+		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
+		const isolation = createIsolation(disposables, { gitService });
+		const symlinkPatterns = ['node_modules/**'];
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: checkoutRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+				[SessionConfigKey.WorktreeSymlinkFolders]: symlinkPatterns,
+			},
+		});
+		assert.ok(worktree);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		symlinkFolderCalls = [];
+
+		const restoredIsolation = createIsolation(disposables, { gitService });
+		await restoredIsolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, worktree);
+		await restoredIsolation.cleanupWorktree(sessionUri, sessionId);
+		await restoredIsolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual(symlinkFolderCalls.map(call => ({
+			repositoryRoot: call.repositoryRoot.toString(),
+			worktree: call.worktree.toString(),
+			patterns: call.patterns,
+			sessionId: call.sessionId,
+		})), [
+			{ repositoryRoot: checkoutRoot.toString(), worktree: worktree.toString(), patterns: symlinkPatterns, sessionId },
+			{ repositoryRoot: checkoutRoot.toString(), worktree: worktree.toString(), patterns: symlinkPatterns, sessionId },
+		]);
 	});
 
 	test('resolveWorkingDirectory falls back to the selected checkout when primary worktree resolution fails', async () => {
@@ -742,6 +804,7 @@ suite('WorktreeIsolation', () => {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.Branch]: 'main',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 			},
 			prompt: 'do a thing',
 			onProgress: activity => activities.push(activity),
@@ -753,6 +816,7 @@ suite('WorktreeIsolation', () => {
 			'Creating isolated worktree (checking out files)',
 			'Creating isolated worktree (checking out files, 12%)',
 			'Creating isolated worktree (checking out files, 100%)',
+			'Creating isolated worktree (symlinking folders)',
 			'Creating isolated worktree (copying additional files)',
 			'Creating isolated worktree (copying additional files, 100%)',
 		]);
@@ -885,10 +949,12 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('resolveWorkingDirectory copies configured include files and tolerates copy failures', async () => {
+	test('resolveWorkingDirectory sets up configured symlinks and include files in order and tolerates failures', async () => {
 		const isolation = createIsolation(disposables);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
+		const symlinkFolders = ['node_modules/**', '.cache/**'];
 		copyIncludeError = new Error('copy failed');
+		symlinkFolderError = new Error('symlink failed');
 
 		const worktree = await isolation.resolveWorkingDirectory({
 			sessionUri,
@@ -898,6 +964,7 @@ suite('WorktreeIsolation', () => {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.Branch]: 'main',
 				[SessionConfigKey.WorktreeIncludeFiles]: includeFiles,
+				[SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders,
 			},
 		});
 
@@ -908,7 +975,15 @@ suite('WorktreeIsolation', () => {
 				worktree: call.worktree.toString(),
 				globs: call.globs,
 				sessionId: call.sessionId,
+				excludedFolders: call.excludedFolders,
 			})),
+			symlinkFolderCalls: symlinkFolderCalls.map(call => ({
+				repositoryRoot: call.repositoryRoot.toString(),
+				worktree: call.worktree.toString(),
+				patterns: call.patterns,
+				sessionId: call.sessionId,
+			})),
+			worktreeSetupCalls,
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
@@ -917,7 +992,15 @@ suite('WorktreeIsolation', () => {
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
 				sessionId,
+				excludedFolders: [],
 			}],
+			symlinkFolderCalls: [{
+				repositoryRoot: repoRoot.toString(),
+				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
+				patterns: symlinkFolders,
+				sessionId,
+			}],
+			worktreeSetupCalls: ['symlinkFolders', 'includeFiles'],
 			resolvedWorktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 		});
 	});
@@ -1349,6 +1432,8 @@ suite('WorktreeIsolation', () => {
 				'copilot.worktree.branchName': true,
 				'copilot.worktree.path': true,
 				'copilot.worktree.repositoryRoot': true,
+				'copilot.worktree.symlinkPatterns': true,
+				'copilot.worktree.symlinkSourceRoot': true,
 				[META_DIFF_BASE_BRANCH]: true,
 			}),
 		}, {
@@ -1357,6 +1442,8 @@ suite('WorktreeIsolation', () => {
 				'copilot.worktree.branchName': undefined,
 				'copilot.worktree.path': undefined,
 				'copilot.worktree.repositoryRoot': undefined,
+				'copilot.worktree.symlinkPatterns': undefined,
+				'copilot.worktree.symlinkSourceRoot': undefined,
 				[META_DIFF_BASE_BRANCH]: undefined,
 			},
 		});
