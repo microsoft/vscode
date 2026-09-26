@@ -665,8 +665,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// the sessions to migrate away from the bad number usage.
 		// TODO@TylerLeonhardt: Remove this after we are confident that all users have migrated to the new id.
 		let seenNumberAccountId: boolean = false;
-		// TODO: eventually remove this Set because we should only have one session per set of scopes.
-		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
@@ -683,8 +681,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
-			scopesSeen.add(scopesStr);
-
 			let accountId: string;
 			if (session.account?.id) {
 				if (typeof session.account.id === 'number') {
