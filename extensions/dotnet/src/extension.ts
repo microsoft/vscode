@@ -123,6 +123,7 @@ function makeProject(csproj: string, folder: vscode.WorkspaceFolder): DotnetProj
 	return { name: path.basename(csproj, '.csproj'), csproj, dir: path.dirname(csproj), folder, kind };
 }
 
+/** Walk a directory tree, visiting .csproj/.sln/.slnx files (skipping build-output folders). */
 async function walk(_root: string, dir: string, onFile: (file: string) => void | Promise<void>): Promise<void> {
 	let entries: fs.Dirent[];
 	try {
@@ -143,7 +144,11 @@ async function walk(_root: string, dir: string, onFile: (file: string) => void |
 	}
 }
 
-/** The project list is solution-centric: when an Active Solution is set, its projects are the workspace. */
+/** The project list is solution-centric: when an Active Solution is set, its projects are the workspace.
+ *
+ * If the Active Solution cannot be read (deleted, renamed, inaccessible), discovery falls back to
+ * the direct csproj scan so the workspace stays usable.
+ */
 async function getProjects(): Promise<{ projects: DotnetProject[]; solution: string | undefined }> {
 	const scan = await scanWorkspace();
 	const solution = await getActiveSolution(scan.solutions);
@@ -169,6 +174,9 @@ async function getProjects(): Promise<{ projects: DotnetProject[]; solution: str
 		if (folder) {
 			projects.push(makeProject(abs, folder));
 		}
+	}
+	if (projects.length === 0) {
+		return { projects: scan.projects, solution: undefined };
 	}
 	projects.sort((a, b) => a.name.localeCompare(b.name));
 	return { projects, solution };
@@ -416,60 +424,100 @@ async function ensureSdk(): Promise<boolean> {
 	}
 }
 
+/** Build via a task so compiler errors surface in the Problems panel ($msCompile). */
 async function buildProject(project: DotnetProject): Promise<boolean> {
-	const definition = { type: 'dotnet-build' };
 	const task = new vscode.Task(
-		definition,
+		{ type: 'dotnet-build' },
 		project.folder,
 		`build ${project.name}`,
 		'dotnet',
-		new vscode.ShellExecution(`dotnet build "${project.csproj}"`),
+		// Argument-array form: paths are passed literally, never interpreted by the shell.
+		new vscode.ShellExecution('dotnet', ['build', project.csproj]),
 		['$msCompile'],
 	);
-	const execution = await vscode.tasks.executeTask(task);
-	const exitCode = await new Promise<number | undefined>(resolve => {
+	// Register the completion listener before the task starts: fast-failing builds
+	// would otherwise finish before we begin listening.
+	const exitPromise = new Promise<number | undefined>(resolve => {
 		const d = vscode.tasks.onDidEndTaskProcess(e => {
-			if (e.execution === execution) {
+			if (e.execution.task === task) {
 				d.dispose();
 				resolve(e.exitCode);
 			}
 		});
 	});
-	if (exitCode !== 0) {
+	await vscode.tasks.executeTask(task);
+	const exitCode = await exitPromise;
+	if (exitCode === undefined || exitCode !== 0) {
 		vscode.window.showErrorMessage(`Build failed for ${project.name}. See the Problems panel for details.`);
 		return false;
 	}
 	return true;
 }
 
+/** Run the Startup Project's profile as a task; argument-array form keeps paths and
+ *  profile names literal (no shell interpretation). */
+function runTask(project: DotnetProject, profile: LaunchProfile | undefined): Thenable<vscode.TaskExecution> {
+	const args = ['run', '--no-build', '--project', project.csproj];
+	if (profile && !profile.synthesized) {
+		args.push('--launch-profile', profile.name);
+	}
+	if (profile?.commandLineArgs) {
+		args.push(...profile.commandLineArgs.split(' ').filter(a => a.length > 0));
+	}
+	const task = new vscode.Task(
+		{ type: 'dotnet-run' },
+		project.folder,
+		`run ${project.name}${profile ? ` (${profile.name})` : ''}`,
+		'dotnet',
+		new vscode.ShellExecution('dotnet', args),
+	);
+	task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, panel: vscode.TaskPanelKind.Dedicated };
+	task.isBackground = true;
+	return vscode.tasks.executeTask(task);
+}
+
 // ---------- Run / Debug ----------
 
 async function runOrDebug(mode: 'run' | 'debug', arg?: { fsPath?: string }): Promise<void> {
-	const { projects } = await getProjects();
+	let { projects, solution } = await getProjects();
 	if (projects.length === 0) {
 		vscode.window.showErrorMessage('No .NET projects found in this workspace.');
 		return;
 	}
 
-	// A context-menu / editor-title invocation on a specific project overrides the stored Startup Project.
-	let project: DotnetProject | undefined;
-	if (arg?.fsPath && /\.csproj$/i.test(arg.fsPath)) {
-		project = projects.find(p => p.csproj === path.normalize(arg.fsPath!));
-		if (project && project.kind === 'LIBRARY') {
-			vscode.window.showErrorMessage(`${project.name} is a Library Project — it has no entry point and cannot be run.`);
-			return;
-		}
-		if (project) {
-			context.workspaceState.update(STARTUP_KEY, project.csproj);
+	// A context-menu / editor-title invocation carries explicit user intent:
+	// a .sln/.slnx becomes the Active Solution; a .csproj is run directly, even
+	// when it is not part of the Active Solution.
+	if (arg?.fsPath && fs.existsSync(arg.fsPath)) {
+		const target = path.normalize(arg.fsPath);
+		if (/\.slnx?$/i.test(target)) {
+			if (target !== solution) {
+				await setActiveSolution(target);
+				({ projects } = await getProjects());
+			}
+		} else if (/\.csproj$/i.test(target)) {
+			const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(target)) ?? vscode.workspace.workspaceFolders?.[0];
+			if (!folder) {
+				vscode.window.showErrorMessage('The selected project is outside the current workspace.');
+				return;
+			}
+			projects = [makeProject(target, folder)];
+			context.workspaceState.update(STARTUP_KEY, target);
 			refreshStatusBar();
 		}
 	}
+
+	let project: DotnetProject | undefined = projects.find(p => p.csproj === storedStartupPath() && isRunnableKind(p.kind));
 	if (!project) {
 		project = await ensureStartupProject(projects);
 		if (!project) {
 			vscode.window.showErrorMessage('Pick a Startup Project first (.NET: Select Startup Project).');
 			return;
 		}
+	}
+	if (project.kind === 'LIBRARY') {
+		vscode.window.showErrorMessage(`${project.name} is a Library Project — it has no entry point and cannot be run.`);
+		return;
 	}
 	if (!await ensureSdk()) {
 		return;
@@ -478,41 +526,46 @@ async function runOrDebug(mode: 'run' | 'debug', arg?: { fsPath?: string }): Pro
 		return;
 	}
 	const profile = await getProfile(project);
+	if (!profile) {
+		// The user dismissed the Launch Profile picker: cancel the launch entirely
+		// rather than starting the app without the settings they intended.
+		return;
+	}
 
 	if (mode === 'debug') {
 		await debugProject(project, profile);
 		return;
 	}
 
-	const term = vscode.window.createTerminal({
-		name: `dotnet: ${project.name}${profile ? ` (${profile.name})` : ''}`,
-	});
-	term.show();
-	let command = `dotnet run --no-build --project "${project.csproj}"`;
-	if (profile && !profile.synthesized) {
-		command += ` --launch-profile "${profile.name}"`;
-	}
-	term.sendText(command);
+	await runTask(project, profile);
 	await autoOpenBrowser(project.kind, profile);
 }
 
-async function debugProject(project: DotnetProject, profile: LaunchProfile | undefined): Promise<void> {
+async function debugProject(project: DotnetProject, profile: LaunchProfile): Promise<void> {
 	const program = await resolveProgram(project);
 	if (!program) {
 		return;
+	}
+	const env: Record<string, string> = { ...(profile.environmentVariables ?? {}) };
+	// Kestrel honours ASPNETCORE_URLS; Debug does not read the launch profile itself,
+	// so hand it the profile's URLs explicitly.
+	if (project.kind === 'WEB' && profile.applicationUrl) {
+		env.ASPNETCORE_URLS = profile.applicationUrl;
 	}
 	const folder = project.folder;
 	await vscode.debug.startDebugging(folder, {
 		type: 'dotnet',
 		request: 'launch',
-		name: `${project.name}${profile ? ` (${profile.name})` : ''}`,
+		name: `${project.name} (${profile.name})`,
 		program,
 		cwd: project.dir,
-		env: { ...(profile?.environmentVariables ?? {}) },
+		env,
+		args: profile.commandLineArgs ? profile.commandLineArgs.split(' ').filter(a => a.length > 0) : [],
 	});
 	await autoOpenBrowser(project.kind, profile);
 }
 
+/** Locate the built application DLL, tolerating custom output paths and multi-targeting. */
 async function resolveProgram(project: DotnetProject): Promise<string | undefined> {
 	let csprojXml = '';
 	try {
@@ -526,12 +579,55 @@ async function resolveProgram(project: DotnetProject): Promise<string | undefine
 		return undefined;
 	}
 	const assembly = assemblyNameOf(csprojXml) ?? project.name;
-	const program = path.join(project.dir, 'bin', 'Debug', tfm, `${assembly}.dll`);
-	if (!fs.existsSync(program)) {
-		vscode.window.showErrorMessage(`Build output not found: ${program}. Build the project first.`);
+
+	const baseOut = /<BaseOutputPath>\s*([^<\s]+)\s*<\/BaseOutputPath>/i.exec(csprojXml)?.[1];
+	const candidates = baseOut
+		? [path.resolve(project.dir, baseOut.trim(), tfm, `${assembly}.dll`)]
+		: [path.join(project.dir, 'bin', 'Debug', tfm, `${assembly}.dll`)];
+	for (const candidate of candidates) {
+		if (fs.existsSync(candidate)) {
+			return candidate;
+		}
+	}
+	// Last resort: newest matching DLL anywhere under the build output tree.
+	const binDir = baseOut ? path.resolve(project.dir, baseOut.trim()) : path.join(project.dir, 'bin');
+	const found = findNewestDll(binDir, `${assembly}.dll`, 4);
+	if (found) {
+		return found;
+	}
+	vscode.window.showErrorMessage(`Build output not found (${assembly}.dll under ${binDir}). Build the project first.`);
+	return undefined;
+}
+
+function findNewestDll(dir: string, fileName: string, depth: number): string | undefined {
+	if (depth <= 0) {
 		return undefined;
 	}
-	return program;
+	let entries: fs.Dirent[];
+	try {
+		entries = fs.readdirSync(dir, { withFileTypes: true });
+	} catch {
+		return undefined;
+	}
+	let best: { file: string; mtime: number } | undefined;
+	for (const entry of entries) {
+		const full = path.join(dir, entry.name);
+		if (entry.isDirectory() && entry.name !== 'ref') {
+			const nested = findNewestDll(full, fileName, depth - 1);
+			if (nested) {
+				const mtime = fs.statSync(nested).mtimeMs;
+				if (!best || mtime > best.mtime) {
+					best = { file: nested, mtime };
+				}
+			}
+		} else if (entry.isFile() && entry.name === fileName) {
+			const mtime = fs.statSync(full).mtimeMs;
+			if (!best || mtime > best.mtime) {
+				best = { file: full, mtime };
+			}
+		}
+	}
+	return best?.file;
 }
 
 /** Poll the profile URLs until the server answers, then open the browser (Q12: auto-open). */
@@ -582,7 +678,8 @@ async function resolveDebugConfiguration(
 	}
 
 	const { projects } = await getProjects();
-	const project = await ensureStartupProject(projects, { silent: true });
+	// Interactive: with several runnable projects and no remembered choice, the picker appears.
+	const project = await ensureStartupProject(projects);
 	if (!project) {
 		vscode.window.showErrorMessage('No runnable .NET project found. Open a folder with a .csproj or .sln.');
 		return undefined;
@@ -594,17 +691,25 @@ async function resolveDebugConfiguration(
 		return undefined;
 	}
 	const profile = await getProfile(project);
+	if (!profile) {
+		return undefined;
+	}
 	const program = await resolveProgram(project);
 	if (!program) {
 		return undefined;
 	}
+	const env: Record<string, string> = { ...(profile.environmentVariables ?? {}) };
+	if (project.kind === 'WEB' && profile.applicationUrl) {
+		env.ASPNETCORE_URLS = profile.applicationUrl;
+	}
 	return {
 		type: 'dotnet',
 		request: 'launch',
-		name: `${project.name}${profile ? ` (${profile.name})` : ''}`,
+		name: `${project.name} (${profile.name})`,
 		program,
 		cwd: project.dir,
-		env: { ...(profile?.environmentVariables ?? {}) },
+		env,
+		args: profile.commandLineArgs ? profile.commandLineArgs.split(' ').filter(a => a.length > 0) : [],
 		...config,
 	};
 }
@@ -627,15 +732,6 @@ function netcoredbgPlatform(): string {
 		: (process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64');
 }
 
-async function fetchNetcoredbgCommand(): Promise<void> {
-	try {
-		await fetchNetcoredbg();
-		vscode.window.showInformationMessage('netcoredbg downloaded. Debugging is ready.');
-	} catch (err) {
-		vscode.window.showErrorMessage(`netcoredbg download failed: ${(err as Error).message}`);
-	}
-}
-
 function netcoredbgAsset(platform: string): string {
 	const asset = ({
 		'win-x64': 'netcoredbg-win64.zip',
@@ -647,6 +743,15 @@ function netcoredbgAsset(platform: string): string {
 		throw new Error(`No netcoredbg asset exists for platform ${platform}. Use the dotnet.netcoredbgPath setting to point at a self-built binary.`);
 	}
 	return asset;
+}
+
+async function fetchNetcoredbgCommand(): Promise<void> {
+	try {
+		await fetchNetcoredbg();
+		vscode.window.showInformationMessage('netcoredbg downloaded. Debugging is ready.');
+	} catch (err) {
+		vscode.window.showErrorMessage(`netcoredbg download failed: ${(err as Error).message}`);
+	}
 }
 
 async function fetchNetcoredbg(): Promise<string> {

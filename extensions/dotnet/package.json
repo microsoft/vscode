@@ -17,8 +17,10 @@
 	"activationEvents": [
 		"workspaceContains:**/*.csproj",
 		"workspaceContains:**/*.sln",
+		"workspaceContains:**/*.slnx",
 		"onCommand:dotnet.selectStartupProject",
 		"onCommand:dotnet.selectLaunchProfile",
+		"onCommand:dotnet.selectSolution",
 		"onCommand:dotnet.run",
 		"onCommand:dotnet.debug",
 		"onCommand:dotnet.fetchNetcoredbg"
