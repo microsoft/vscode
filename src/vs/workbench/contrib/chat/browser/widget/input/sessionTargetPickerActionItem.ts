@@ -31,12 +31,13 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionTelemetryContext } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { hasAgentSdkSetupForSessionType } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
-import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
+import { ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -51,6 +52,50 @@ export interface ISessionTypeItem {
 
 const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
 const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
+
+type CopilotHarnessTargetCategory = 'copilot' | 'local' | 'claude' | 'codex' | 'cloud' | 'other';
+
+type CopilotHarnessTargetChangedEvent = {
+	mode: CopilotHarnessIntroductionMode;
+	fromHarness: CopilotHarnessTargetCategory;
+	toHarness: CopilotHarnessTargetCategory;
+	surface: 'sidebar' | 'editor';
+	chatSessionId: string | undefined;
+	sessionType: string | undefined;
+	harness: string | undefined;
+};
+
+type CopilotHarnessTargetChangedClassification = {
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective Copilot harness introduction experiment mode when the target changed.' };
+	fromHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The categorized harness selected before the change.' };
+	toHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The categorized harness selected after the change.' };
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the harness picker was in the sidebar or editor.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The random identifier of the chat session represented by the picker, when available.' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat session type represented by the picker, when available.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The underlying Agent Host harness represented by the picker, when applicable.' };
+	owner: 'justschen';
+	comment: 'Tracks explicit switches into or away from the Copilot harness for the introduction experiment.';
+};
+
+function getCopilotHarnessTargetCategory(target: AgentSessionTarget, chatSessionsService: IChatSessionsService): CopilotHarnessTargetCategory {
+	const provider = chatSessionsService.getChatSessionContribution(target)?.agentHostProviderId;
+	if (target === AgentSessionProviders.AgentHostCopilot || target === AgentSessionProviders.Background || provider === SessionType.CopilotCLI || provider === 'copilot') {
+		return 'copilot';
+	}
+	if (target === AgentSessionProviders.Local) {
+		return 'local';
+	}
+	if (target === AgentSessionProviders.AgentHostClaude || provider === 'claude') {
+		return 'claude';
+	}
+	if (target === AgentSessionProviders.Codex || target === AgentSessionProviders.AgentHostCodex || provider === 'codex') {
+		return 'codex';
+	}
+	if (target === AgentSessionProviders.Cloud) {
+		return 'cloud';
+	}
+	return 'other';
+}
 
 export function createSessionTypePickerAction(
 	action: IAction,
@@ -128,7 +173,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -230,6 +275,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
+
 		if (!this._isSessionsWindow) {
 			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
 		}
@@ -243,6 +290,23 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 		if (this.element) {
 			this.renderLabel(this.element);
+		}
+	}
+
+	protected _reportCopilotHarnessTargetChanged(target: AgentSessionTarget): void {
+		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+		const fromHarness = getCopilotHarnessTargetCategory(previousTarget, this.chatSessionsService);
+		const toHarness = getCopilotHarnessTargetCategory(target, this.chatSessionsService);
+		if (previousTarget !== target && (fromHarness === 'copilot' || toHarness === 'copilot')) {
+			const sessionResource = this.delegate.getSessionResource?.();
+			const session = sessionResource ? getChatSessionTelemetryContext(sessionResource) : { chatSessionId: undefined, sessionType: undefined, harness: undefined };
+			this.telemetryService.publicLog2<CopilotHarnessTargetChangedEvent, CopilotHarnessTargetChangedClassification>('copilotHarnessTargetChanged', {
+				mode: getCopilotHarnessIntroductionMode(this.configurationService),
+				fromHarness,
+				toHarness,
+				surface: this.chatSessionPosition,
+				...session,
+			});
 		}
 	}
 

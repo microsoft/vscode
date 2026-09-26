@@ -77,6 +77,7 @@
 		"--vscode-chat-inputWorkingBorderColor3",
 		"--vscode-chat-linesAddedForeground",
 		"--vscode-chat-linesRemovedForeground",
+		"--vscode-chat-mcpCompatibilityWarningForeground",
 		"--vscode-chat-requestBackground",
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-requestBubbleBackground",

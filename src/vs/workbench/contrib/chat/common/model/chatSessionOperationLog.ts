@@ -63,6 +63,7 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'elicitationSerialized':
 				case 'progressTaskSerialized':
 				case 'textEditGroup':
+				case 'notebookEditGroup':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
@@ -80,7 +81,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'hook':
 				case 'inlineReference':
 				case 'markdownVuln':
-				case 'notebookEditGroup':
 				case 'progressMessage':
 				case 'systemNotification':
 				case 'pullRequest':

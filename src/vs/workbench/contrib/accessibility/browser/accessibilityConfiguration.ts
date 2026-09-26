@@ -72,6 +72,7 @@ export const enum AccessibilityVerbositySettingId {
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -230,6 +231,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
 			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.NewSessionWelcome]: {
+			description: localize('verbosity.newSessionWelcome', "Announce the welcome message when a new session composer is shown."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {

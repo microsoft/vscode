@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -290,6 +291,38 @@ suite('ChatModel', () => {
 			completionTokenCount: 5,
 			responseContent: '',
 		});
+	});
+
+	suite('Auto tier attribution', () => {
+		for (const isNotebook of [false, true]) {
+			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
+				const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const request = model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
+				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(model)];
+
+				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
+					model.acceptResponseProgress(request, {
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false, autoTier,
+					}, true);
+					const mutation = operationLog.write(model);
+					if (mutation.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(mutation.data);
+					operationLog.confirmWrite();
+				}
+
+				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
+				assert.deepStrictEqual(serialized.map(value => {
+					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					return restored.getRequests()[0].response!.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+						? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+						: { kind: part.kind });
+				}), serialized.map(() => [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }]));
+			});
+		}
 	});
 
 	test('retained terminal identity survives chat serialization and restoration', () => {
