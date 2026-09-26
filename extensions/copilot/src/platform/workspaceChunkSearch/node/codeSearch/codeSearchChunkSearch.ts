@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatResponseWarningPart } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../authentication/common/authenticationUpgrade';
+import { authenticationSessionIdentityEquals } from '../../../authentication/common/enterprise';
 import { FileChunkAndScore } from '../../../chunking/common/chunk';
 import { ConfigKey, ConfigTarget, IConfigurationService } from '../../../configuration/common/configurationService';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
@@ -171,18 +172,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the github authentication state changes, update repos only if the session actually changed
+		// Refresh repository authorization when the session or its account/issuer identity changes.
 		{
-			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
-			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			let lastAnyGitHubSession = this._authenticationService.anyGitHubSession;
+			let lastPermissiveGitHubSession = this._authenticationService.permissiveGitHubSession;
 			this._register(this._authenticationService.onDidAuthenticationChange(() => {
-				const anySessionId = this._authenticationService.anyGitHubSession?.id;
-				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
-				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+				const anySession = this._authenticationService.anyGitHubSession;
+				const permissiveSession = this._authenticationService.permissiveGitHubSession;
+				if (anySession?.id === lastAnyGitHubSession?.id
+					&& permissiveSession?.id === lastPermissiveGitHubSession?.id
+					&& authenticationSessionIdentityEquals(anySession, lastAnyGitHubSession)
+					&& authenticationSessionIdentityEquals(permissiveSession, lastPermissiveGitHubSession)) {
 					return;
 				}
-				lastAnyGitHubSessionId = anySessionId;
-				lastPermissiveGitHubSessionId = permissiveSessionId;
+				lastAnyGitHubSession = anySession;
+				lastPermissiveGitHubSession = permissiveSession;
 				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
 			}));
 		}
