@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -194,6 +195,10 @@ suite('ExtensionService', () => {
 		public readonly activationEvents: { event: string; activationKind: ActivationKind; kind: ExtensionHostKind }[] = [];
 		public remoteExtHostIsReady = true;
 		public localExtHostIsReady = true;
+		public crashRemoteHost(): void {
+			const remoteHost = this._getExtensionHostManagers(ExtensionHostKind.Remote)[0];
+			this._onExtensionHostCrashed(remoteHost, 1, null);
+		}
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
@@ -290,18 +295,35 @@ suite('ExtensionService', () => {
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
-	test('Extension host disposed when awaited', async () => {
+	test('Extension host stop event fires after hosts are disposed', async () => {
+		const order = extService.order;
+		disposables.add(extService.onDidStop(() => order.push('stopped')));
 		await extService.stopExtensionHosts('foo');
-		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+		assert.deepStrictEqual(order, ['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1', 'stopped']);
+		await extService.startExtensionHosts();
+		assert.strictEqual(order.filter(entry => entry === 'stopped').length, 1);
+	});
+
+	test('remote host crash reports its stop after disposal without stopping local hosts', async () => {
+		const order = extService.order;
+		disposables.add(extService.onDidStop(() => order.push('all stopped')));
+		disposables.add(extService.onDidStopExtensionHost(() => order.push('remote stopped')));
+		extService.crashRemoteHost();
+		await timeout(0);
+		assert.deepStrictEqual(order.slice(0, 3), ['create 1', 'create 2', 'create 3']);
+		assert.match(order[3], /^dispose [123]$/);
+		assert.strictEqual(order[4], 'remote stopped');
+		assert.strictEqual(order.length, 5);
 	});
 
 	test('Extension host not disposed when vetoed (sync)', async () => {
-
+		const events: string[] = [];
+		disposables.add(extService.onDidStop(() => events.push('stopped')));
 		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
 
 		await extService.stopExtensionHosts('foo');
-		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+		assert.deepStrictEqual({ order: extService.order, events }, { order: ['create 1', 'create 2', 'create 3'], events: [] });
 	});
 
 	test('Extension host not disposed when vetoed (async)', async () => {
