@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
-import { dirname, isEqual, joinPath } from '../../../util/vs/base/common/resources';
+import { dirname, isEqual, joinPath, resolvePath } from '../../../util/vs/base/common/resources';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -180,7 +180,8 @@ export class AgentInstructionsLocator extends Disposable {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found. Returns the
+	 * repository root (a folder containing a `.git` directory or worktree
+	 * pointer) is found. Returns the
 	 * intermediate parent folders only when a repo root is found.
 	 */
 	private async findParentRepoFolders(folderUri: URI, userHome: URI, seen: ResourceSet, logger?: AgentInstructionsLogger): Promise<URI[]> {
@@ -190,7 +191,8 @@ export class AgentInstructionsLocator extends Disposable {
 			try {
 				const gitFolder = joinPath(current, '.git');
 				const gitStat = await this.fileSystemService.stat(gitFolder).then(stat => stat, () => undefined);
-				const isRepoRoot = gitStat !== undefined && (gitStat.type & FileType.Directory) !== 0;
+				const isRepoRoot = gitStat !== undefined && ((gitStat.type & FileType.Directory) !== 0
+					|| (gitStat.type & FileType.File) !== 0 && await this.isWorktreeRoot(current));
 				if (isRepoRoot) {
 					// Only include the repo root (and any intermediate parents) if the user has explicitly trusted it.
 					const trusted = await this.workspaceService.isResourceTrusted(current);
@@ -216,6 +218,20 @@ export class AgentInstructionsLocator extends Disposable {
 		}
 		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
 		return [];
+	}
+
+	private async isWorktreeRoot(folderUri: URI): Promise<boolean> {
+		try {
+			const gitFile = await this.fileSystemService.readFile(joinPath(folderUri, '.git'));
+			const gitDirPath = /^\s*gitdir:\s*(.+?)\s*$/im.exec(new TextDecoder().decode(gitFile))?.[1];
+			if (!gitDirPath) {
+				return false;
+			}
+			const commonDirStat = await this.fileSystemService.stat(joinPath(resolvePath(folderUri, gitDirPath), 'commondir'));
+			return (commonDirStat.type & FileType.File) !== 0;
+		} catch {
+			return false;
+		}
 	}
 
 	/**
