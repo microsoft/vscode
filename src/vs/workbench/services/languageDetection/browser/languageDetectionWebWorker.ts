@@ -12,8 +12,112 @@ import { WorkerTextModelSyncServer } from '../../../../editor/common/services/te
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
+/**
+ * The minimum confidence a result must reach before we are willing to report it, and also the
+ * largest confidence gap two neighbouring results may have for both to still be plausible.
+ */
+const expectedRelativeConfidence = 0.2;
+
+/** Confidence boost for languages that are commonly used in VS Code and well supported by the model. */
+const positiveConfidenceCorrectionBucket1 = 0.05;
+const positiveConfidenceCorrectionBucket2 = 0.025;
+
+/**
+ * Languages whose syntax is simple or ambiguous enough that a low confidence guess is usually
+ * wrong (see #131912), so they are held to a much higher bar than everything else.
+ *
+ * This bar has to stay reachable: an earlier version subtracted 0.5 from the score instead, which
+ * put these languages permanently below `expectedRelativeConfidence` and meant they were never
+ * detected at all. Other candidates that aren't built in but are supported by the model include
+ * Assembly and TeX (no clear language modes in the community) and Markdown and Dockerfile (simple
+ * languages, but they embed other languages).
+ */
+const strictConfidenceThreshold = 0.5;
+const strictConfidenceLanguages = new Set([
+	// languages that are provided by default in VS Code
+	'bat', 'ini', 'makefile', 'sql',
+	// languages that aren't provided by default in VS Code
+	'csv', 'toml'
+]);
+
 export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
 	return new LanguageDetectionWorker(workerServer);
+}
+
+/**
+ * The minimum confidence `languageId` has to reach before we are willing to report it.
+ */
+export function minimumConfidenceFor(languageId: string): number {
+	return strictConfidenceLanguages.has(languageId) ? strictConfidenceThreshold : expectedRelativeConfidence;
+}
+
+/**
+ * Adjusts the confidence score of a result to be more accurate based on VS Code's language usage.
+ * Returns a copy so a result can be evaluated more than once without compounding the correction.
+ */
+export function adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
+	let correction = 0;
+	switch (modelResult.languageId) {
+		case 'js':
+		case 'html':
+		case 'json':
+		case 'ts':
+		case 'css':
+		case 'py':
+		case 'xml':
+		case 'php':
+			correction = positiveConfidenceCorrectionBucket1;
+			break;
+		// case 'yaml': // YAML has been know to cause incorrect language detection because the language is pretty simple. We don't want to increase the confidence for this.
+		case 'cpp':
+		case 'sh':
+		case 'java':
+		case 'cs':
+		case 'c':
+			correction = positiveConfidenceCorrectionBucket2;
+			break;
+		default:
+			break;
+	}
+
+	return { ...modelResult, confidence: modelResult.confidence + correction };
+}
+
+/**
+ * Ranks the model's raw results, yielding the most likely language first followed by any runners up
+ * that are close enough to still be plausible, and stopping at the first clear drop-off.
+ *
+ * Every result that clears its minimum confidence is yielded as soon as it is accepted. Do not go
+ * back to accumulating candidates to yield later: the previous implementation collected them into
+ * an array that two of its three exit paths dropped on the floor, so anything short of a runaway
+ * winner was silently detected as nothing at all.
+ */
+export function* rankModelResults(modelResults: ModelResult[] | undefined): Generator<ModelResult, void, unknown> {
+	if (!modelResults?.length) {
+		return;
+	}
+
+	const top = adjustLanguageConfidence(modelResults[0]);
+	if (top.confidence < minimumConfidenceFor(top.languageId)) {
+		return;
+	}
+	yield top;
+
+	let previous = top;
+	for (let i = 1; i < modelResults.length; i++) {
+		const current = adjustLanguageConfidence(modelResults[i]);
+
+		// A clear drop-off in confidence means everything worth reporting was already yielded.
+		if (previous.confidence - current.confidence >= expectedRelativeConfidence) {
+			return;
+		}
+		if (current.confidence < minimumConfidenceFor(current.languageId)) {
+			return;
+		}
+
+		yield current;
+		previous = current;
+	}
 }
 
 /**
@@ -21,11 +125,6 @@ export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestH
  */
 export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	_requestHandlerBrand: void = undefined;
-
-	private static readonly expectedRelativeConfidence = 0.2;
-	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
-	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
-	private static readonly negativeConfidenceCorrection = 0.5;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
@@ -114,7 +213,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
-			// console.warn('error loading language detection model', e);
+			console.warn('error loading language detection model', e);
 			return;
 		}
 	}
@@ -166,59 +265,6 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return this._modelOperations;
 	}
 
-	// This adjusts the language confidence scores to be more accurate based on:
-	// * VS Code's language usage
-	// * Languages with 'problematic' syntaxes that have caused incorrect language detection
-	private adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
-		switch (modelResult.languageId) {
-			// For the following languages, we increase the confidence because
-			// these are commonly used languages in VS Code and supported
-			// by the model.
-			case 'js':
-			case 'html':
-			case 'json':
-			case 'ts':
-			case 'css':
-			case 'py':
-			case 'xml':
-			case 'php':
-				modelResult.confidence += LanguageDetectionWorker.positiveConfidenceCorrectionBucket1;
-				break;
-			// case 'yaml': // YAML has been know to cause incorrect language detection because the language is pretty simple. We don't want to increase the confidence for this.
-			case 'cpp':
-			case 'sh':
-			case 'java':
-			case 'cs':
-			case 'c':
-				modelResult.confidence += LanguageDetectionWorker.positiveConfidenceCorrectionBucket2;
-				break;
-
-			// For the following languages, we need to be extra confident that the language is correct because
-			// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
-			// negativeConfidenceCorrection from the confidence.
-
-			// languages that are provided by default in VS Code
-			case 'bat':
-			case 'ini':
-			case 'makefile':
-			case 'sql':
-			// languages that aren't provided by default in VS Code
-			case 'csv':
-			case 'toml':
-				// Other considerations for negativeConfidenceCorrection that
-				// aren't built in but suported by the model include:
-				// * Assembly, TeX - These languages didn't have clear language modes in the community
-				// * Markdown, Dockerfile - These languages are simple but they embed other languages
-				modelResult.confidence -= LanguageDetectionWorker.negativeConfidenceCorrection;
-				break;
-
-			default:
-				break;
-
-		}
-		return modelResult;
-	}
-
 	private async * detectLanguagesImpl(content: string): AsyncGenerator<ModelResult, void, unknown> {
 		if (this._loadFailed) {
 			return;
@@ -241,43 +287,6 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 			console.warn(e);
 		}
 
-		if (!modelResults
-			|| modelResults.length === 0
-			|| modelResults[0].confidence < LanguageDetectionWorker.expectedRelativeConfidence) {
-			return;
-		}
-
-		const firstModelResult = this.adjustLanguageConfidence(modelResults[0]);
-		if (firstModelResult.confidence < LanguageDetectionWorker.expectedRelativeConfidence) {
-			return;
-		}
-
-		const possibleLanguages: ModelResult[] = [firstModelResult];
-
-		for (let current of modelResults) {
-			if (current === firstModelResult) {
-				continue;
-			}
-
-			current = this.adjustLanguageConfidence(current);
-			const currentHighest = possibleLanguages[possibleLanguages.length - 1];
-
-			if (currentHighest.confidence - current.confidence >= LanguageDetectionWorker.expectedRelativeConfidence) {
-				while (possibleLanguages.length) {
-					yield possibleLanguages.shift()!;
-				}
-				if (current.confidence > LanguageDetectionWorker.expectedRelativeConfidence) {
-					possibleLanguages.push(current);
-					continue;
-				}
-				return;
-			} else {
-				if (current.confidence > LanguageDetectionWorker.expectedRelativeConfidence) {
-					possibleLanguages.push(current);
-					continue;
-				}
-				return;
-			}
-		}
+		yield* rankModelResults(modelResults);
 	}
 }

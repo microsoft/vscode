@@ -17,7 +17,7 @@ import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Disposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorAction } from '../../../../editor/common/editorCommon.js';
-import { EndOfLineSequence } from '../../../../editor/common/model.js';
+import { EndOfLineSequence, ModelConstants } from '../../../../editor/common/model.js';
 import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
 import { BaseBinaryResourceEditor } from './binaryEditor.js';
@@ -40,6 +40,7 @@ import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBro
 import { Schemas } from '../../../../base/common/network.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { getIconClassesForLanguageId } from '../../../../editor/common/services/getIconClasses.js';
 import { Promises, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -1144,6 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 		const galleryService = accessor.get(IExtensionGalleryService);
+		const notificationService = accessor.get(INotificationService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1256,13 +1258,18 @@ export class ChangeLanguageAction extends Action2 {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let languageId: string | undefined = languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)) ?? undefined;
+							const firstLine = textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
+							let languageId: string | undefined = languageService.guessLanguageIdByFilepathOrFirstLine(resource, firstLine) ?? undefined;
 							if (!languageId || languageId === 'unknown') {
 								detectedLanguage = await languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
 							}
 							if (languageId) {
 								languageSelection = languageService.createById(languageId);
+							} else {
+								// Detection came up empty. Say so, otherwise picking "Auto Detect"
+								// looks like it did nothing at all.
+								notificationService.warn(localize('noDetection', "Unable to detect editor language"));
 							}
 						}
 					}
