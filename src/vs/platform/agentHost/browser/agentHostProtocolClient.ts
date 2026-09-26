@@ -390,6 +390,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
+	private _firstSessionRequestPending = false;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 
 	/**
@@ -575,6 +576,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			reconnect.nextAttemptAt = undefined;
 		}
 		this._state = next;
+		if (next.kind === AgentHostClientState.Connected) {
+			this._firstSessionRequestPending = true;
+		}
 		if (next.kind === AgentHostClientState.Reconnecting && next.reconnect.deadline !== undefined) {
 			this._reconnectDeadlineTimer.setIfNotSet(() => {
 				if (this._state === next) {
@@ -2398,6 +2402,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		const { request, result } = this._createRequest<TResult>(method, params);
+		if (this._firstSessionRequestPending && current.kind === AgentHostClientState.Connected && (method === 'createSession' || method === 'listSessions' || method === 'subscribe')) {
+			this._firstSessionRequestPending = false;
+			return this._traceConnection('protocol.firstSessionRequest', async () => {
+				this._transport.send(request);
+				return result;
+			});
+		}
 		this._transport.send(request);
 		return result;
 	}

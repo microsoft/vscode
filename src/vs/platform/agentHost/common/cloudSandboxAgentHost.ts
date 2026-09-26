@@ -226,6 +226,8 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
+	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
@@ -335,6 +337,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly sessionId?: string;
 	/** Human-readable display name for the connection. */
 	readonly name: string;
+	/** Caller provenance, not a claim about warm or cold compute. */
+	readonly connectionSource?: 'created' | 'existing';
 }
 
 /**

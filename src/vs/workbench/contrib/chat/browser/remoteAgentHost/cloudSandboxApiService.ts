@@ -242,14 +242,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 		return this._connectRequest('connect', request.environmentId, token, {
 			...(request.sessionId && { session_id: request.sessionId }),
-		});
+		}, request.onRequest);
 	}
 
 	async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 		const result = await this._connectRequest('reconnect', request.environmentId, token, {
 			client_id: clientId,
 			...(request.sessionId && { session_id: request.sessionId }),
-		});
+		}, request.onRequest);
 		if (result.kind === 'token' && result.token.client_id !== clientId) {
 			throw new Error('Cloud sandbox reconnect returned credentials for a different client');
 		}
@@ -585,10 +585,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		environmentId: string,
 		token: CancellationToken,
 		searchParams: Record<string, string>,
+		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<CloudSandboxConnectResult> {
-		const context = await this._sendEnvironment(action, environmentId, token, searchParams);
+		const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
 
 		if (context.res.statusCode === 202) {
+			onRequest?.('waking');
 			const retryAfterSeconds = parseRetryAfter(context.res.headers?.['retry-after']);
 			this._logService.debug(`${LOG_PREFIX} ${action}: environment waking, retry after ${retryAfterSeconds}s`);
 			return { kind: 'waking', waking: { retryAfterSeconds } };
@@ -613,12 +615,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		environmentId: string,
 		token: CancellationToken,
 		searchParams?: Record<string, string>,
+		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<IRequestContext> {
 		const path = action === 'get' ? '' : `/${action}`;
 		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token);
+		}, token, REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
@@ -663,7 +666,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
 		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -672,6 +675,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const started = Date.now();
 		const requestMethod = method ?? (body === undefined ? 'GET' : 'POST');
 		try {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			onRequest?.('issued');
 			const context = await this._requestService.request({
 				type: requestMethod,
 				url,
