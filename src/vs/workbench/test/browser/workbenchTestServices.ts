@@ -1885,6 +1885,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	hidePanel(): void { throw new Error('Method not implemented.'); }
 	focusTabs(): void { throw new Error('Method not implemented.'); }
+	getSelectedTabInstances(): ITerminalInstance[] | undefined { throw new Error('Method not implemented.'); }
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }

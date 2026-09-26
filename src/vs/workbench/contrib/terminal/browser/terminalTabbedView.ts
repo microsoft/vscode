@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
-import { TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
+import { ITerminalChatService, ITerminalConfigurationService, ITerminalEditingService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
+import { TerminalTabsDragAndDrop, TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -25,9 +25,13 @@ import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
-import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
-import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
+import { ITerminalConfiguration } from '../common/terminal.js';
+import { getSelectedTerminalTabInstances, ITerminalTabsWidget } from './terminalTabsWidget.js';
+import { TerminalTabsBar } from './terminalTabsBar.js';
+import { NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 const $ = dom.$;
 
@@ -43,15 +47,20 @@ const enum WidthConstants {
 export class TerminalTabbedView extends Disposable {
 
 	private _splitView: SplitView;
+	private readonly _layoutDisposables = this._register(new DisposableStore());
+	private readonly _tabsDisposables = this._register(new DisposableStore());
+	private readonly _tabActionsDisposables = this._register(new DisposableStore());
+	private _location: ITerminalConfiguration['tabs']['location'];
 
 	private _terminalContainer: HTMLElement;
 	private _tabListElement: HTMLElement;
 	private _tabContainer: HTMLElement;
 
-	private _tabList: TerminalTabList;
+	private _tabList: ITerminalTabsWidget;
+	private readonly _tabDragAndDrop: TerminalTabsDragAndDrop;
 	private _tabListContainer: HTMLElement;
 	private _tabListDomElement: HTMLElement;
-	private _sashDisposables: IDisposable[] | undefined;
+	private readonly _sashDisposables = this._register(new DisposableStore());
 
 	private _plusButton: HTMLElement | undefined;
 	private _chatEntry: TerminalTabsChatEntry | undefined;
@@ -73,6 +82,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _panelOrientation: Orientation | undefined;
 	private _emptyAreaDropTargetCount = 0;
+	private _hiddenChatTerminalCount = 0;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -87,8 +97,11 @@ export class TerminalTabbedView extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@ITerminalEditingService private readonly _terminalEditingService: ITerminalEditingService,
+		@IListService private readonly _listService: IListService,
 	) {
 		super();
+		this._location = this._terminalConfigurationService.config.tabs.location;
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
@@ -101,8 +114,13 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
+		this._tabList = this._createTabsWidget();
 		this._tabListDomElement = this._tabList.getHTMLElement();
+		this._tabDragAndDrop = this._register(this._instantiationService.createInstance(TerminalTabsDragAndDrop, instances => {
+			const indexes = instances.map(instance => this._terminalGroupService.instances.indexOf(instance)).filter(index => index >= 0);
+			this._tabList.setSelection(indexes);
+			this._tabList.setFocus(indexes.slice(0, 1));
+		}));
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
@@ -115,38 +133,64 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = TerminalContextKeys.tabsFocus.bindTo(contextKeyService);
 		this._terminalTabsMouseContextKey = TerminalContextKeys.tabsMouse.bindTo(contextKeyService);
 
-		this._tabTreeIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 0 : 1;
-		this._terminalContainerIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 1 : 0;
+		this._tabTreeIndex = this._location === 'left' || this._location === 'top' ? 0 : 1;
+		this._terminalContainerIndex = 1 - this._tabTreeIndex;
 
 		this._register(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
-				e.affectsConfiguration(TerminalSettingId.TabsHideCondition)) {
-				this._refreshShowTabs();
-			} else if (e.affectsConfiguration(TerminalSettingId.TabsLocation)) {
-				this._tabTreeIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 0 : 1;
-				this._terminalContainerIndex = this._terminalConfigurationService.config.tabs.location === 'left' ? 1 : 0;
-				if (this._shouldShowTabs()) {
-					this._splitView.swapViews(0, 1);
-					this._removeSashListener();
-					this._addSashListener();
-					this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
+			if (e.affectsConfiguration(TerminalSettingId.TabsLocation) && this._location !== this._terminalConfigurationService.config.tabs.location) {
+				const selection = this._tabList.getSelectedElements();
+				const focused = this._tabList.getFocusedElements();
+				const activeElement = dom.getActiveElement();
+				const hadTabsFocus = this._tabContainer.contains(activeElement);
+				const horizontal = this._isHorizontal;
+				const editing = this._terminalEditingService.getEditingTerminal();
+				if (editing) {
+					this._terminalEditingService.getEditableData(editing)?.onFinish('', false);
 				}
+				this._location = this._terminalConfigurationService.config.tabs.location;
+				this._tabTreeIndex = this._location === 'left' || this._location === 'top' ? 0 : 1;
+				this._terminalContainerIndex = 1 - this._tabTreeIndex;
+				if (horizontal !== this._isHorizontal) {
+					this._tabsDisposables.clear();
+					dom.clearNode(this._tabListElement);
+					this._tabList = this._createTabsWidget();
+					this._tabListDomElement = this._tabList.getHTMLElement();
+					this._tabList.setSelection(selection.map(instance => this._terminalGroupService.instances.indexOf(instance)).filter(index => index >= 0));
+					this._tabList.setFocus(focused.map(instance => this._terminalGroupService.instances.indexOf(instance)).filter(index => index >= 0));
+				}
+				this._removeSashListener();
+				this._splitView.el.remove();
+				this._layoutDisposables.clear();
+				this._splitView = this._createSplitView(parentElement);
+				this._setupSplitView(terminalOuterContainer);
+				this.layout(this._width ?? 0, this._height ?? 0);
+				if (hadTabsFocus) {
+					if (this._shouldShowTabs()) {
+						this._focusTabsWidget();
+					} else {
+						this.focus();
+					}
+				} else if (dom.isHTMLElement(activeElement) && this._terminalContainer.contains(activeElement)) {
+					activeElement.focus();
+				}
+			}
+			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
+				e.affectsConfiguration(TerminalSettingId.TabsHideCondition) ||
+				e.affectsConfiguration(TerminalSettingId.TabsLocation)) {
+				this._refreshShowTabs();
 			}
 		}));
 		this._register(Event.any(this._terminalGroupService.onDidChangeInstances, this._terminalGroupService.onDidChangeGroups)(() => {
-			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
+			this._refreshShowTabs(true);
 		}));
 
 		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances, this._terminalService.onDidDisposeInstance)(() => {
 			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
 		}));
 
 		this._register(contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
 				this._refreshShowTabs();
-				this._updateChatTerminalsEntry();
 			}
 		}));
 		this._attachEventListeners(parentElement, this._terminalContainer);
@@ -160,9 +204,25 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 
-		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
+		this._splitView = this._createSplitView(parentElement);
 		this._setupSplitView(terminalOuterContainer);
 		this._updateChatTerminalsEntry();
+	}
+
+	private get _isHorizontal(): boolean {
+		return this._location === 'top' || this._location === 'bottom';
+	}
+
+	private _createTabsWidget(): ITerminalTabsWidget {
+		return this._tabsDisposables.add(this._isHorizontal
+			? this._instantiationService.createInstance(TerminalTabsBar, this._tabListElement, undefined)
+			: this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
+	}
+
+	private _createSplitView(parent: HTMLElement): SplitView {
+		this._tabContainer.classList.toggle('horizontal-tabs', this._isHorizontal);
+		this._tabContainer.classList.toggle('tabs-bottom', this._location === 'bottom');
+		return this._layoutDisposables.add(new SplitView(parent, { orientation: this._isHorizontal ? Orientation.VERTICAL : Orientation.HORIZONTAL, proportionalLayout: false }));
 	}
 
 	private _shouldShowTabs(): boolean {
@@ -193,13 +253,14 @@ export class TerminalTabbedView extends Disposable {
 		return false;
 	}
 
-	private _refreshShowTabs() {
+	private _refreshShowTabs(forceLayout = false) {
+		const hadTabsFocus = this._tabContainer.contains(dom.getActiveElement());
+		const previousViewCount = this._splitView.length;
+		const chatEntryChanged = this._updateChatTerminalsEntry();
 		if (this._shouldShowTabs()) {
 			if (this._splitView.length === 1) {
 				this._addTabTree();
 				this._addSashListener();
-				this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
-				this.rerenderTabs();
 			}
 		} else {
 			if (this._splitView.length === 2 && !this._terminalTabsMouseContextKey.get()) {
@@ -208,10 +269,24 @@ export class TerminalTabbedView extends Disposable {
 				this._removeSashListener();
 			}
 		}
+		if ((forceLayout || previousViewCount !== this._splitView.length || chatEntryChanged) && this._width !== undefined && this._height !== undefined) {
+			this.layout(this._width, this._height);
+		}
+		if (hadTabsFocus && !this._tabContainer.contains(dom.getActiveElement())) {
+			if (this._shouldShowTabs()) {
+				this._focusTabsWidget();
+			} else {
+				this.focus();
+			}
+		}
 	}
 
-	private _updateChatTerminalsEntry(): void {
+	private _updateChatTerminalsEntry(): boolean {
+		const count = this._terminalChatService.getToolSessionTerminalInstances(true).length;
+		const changed = count !== this._hiddenChatTerminalCount;
+		this._hiddenChatTerminalCount = count;
 		this._chatEntry?.update();
+		return changed;
 	}
 
 	private _getLastListWidth(): number {
@@ -280,16 +355,18 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _setupSplitView(terminalOuterContainer: HTMLElement): void {
-		this._register(this._splitView.onDidSashReset(() => this._handleOnDidSashReset()));
-		this._register(this._splitView.onDidSashChange(() => this._handleOnDidSashChange()));
+		if (!this._isHorizontal) {
+			this._layoutDisposables.add(this._splitView.onDidSashReset(() => this._handleOnDidSashReset()));
+			this._layoutDisposables.add(this._splitView.onDidSashChange(() => this._handleOnDidSashChange()));
+		}
 
 		if (this._shouldShowTabs()) {
 			this._addTabTree();
 		}
 		this._splitView.addView({
 			element: terminalOuterContainer,
-			layout: width => this._terminalGroupService.groups.forEach(tab => tab.layout(width, this._height || 0)),
-			minimumSize: 120,
+			layout: size => this._terminalGroupService.groups.forEach(group => group.layout(this._isHorizontal ? this._width ?? 0 : size, this._isHorizontal ? size : this._height ?? 0)),
+			minimumSize: this._isHorizontal ? 0 : 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.High
@@ -303,9 +380,9 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabContainer,
-			layout: width => this._tabList.layout(this._height || 0, width),
-			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
-			maximumSize: TerminalTabsListSizes.MaximumWidth,
+			layout: size => this._layoutTabs(this._isHorizontal ? this._width ?? 0 : size, this._isHorizontal ? size : this._height ?? 0),
+			minimumSize: this._isHorizontal ? TerminalTabsBar.HEIGHT : TerminalTabsListSizes.NarrowViewWidth,
+			maximumSize: this._isHorizontal ? TerminalTabsBar.HEIGHT : TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
@@ -318,44 +395,50 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _addSashListener() {
-		let interval: IDisposable;
-		this._sashDisposables = [
-			this._splitView.sashes[0].onDidStart(e => {
-				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
-					this.rerenderTabs();
-				}, 100);
-			}),
-			this._splitView.sashes[0].onDidEnd(e => {
-				interval.dispose();
-			})
-		];
+		if (this._isHorizontal) {
+			return;
+		}
+		this._sashDisposables.clear();
+		const interval = this._sashDisposables.add(new MutableDisposable());
+		this._sashDisposables.add(this._splitView.sashes[0].onDidStart(() => {
+			interval.value = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => this.rerenderTabs(), 100);
+		}));
+		this._sashDisposables.add(this._splitView.sashes[0].onDidEnd(() => interval.clear()));
 	}
 
 	private _removeSashListener() {
-		if (this._sashDisposables) {
-			dispose(this._sashDisposables);
-			this._sashDisposables = undefined;
-		}
+		this._sashDisposables.clear();
 	}
 
 	private _updateHasText() {
-		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
+		const hasText = this._isHorizontal || this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
 		this._tabContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._updateChatTerminalsEntry();
+		this._chatEntry?.update();
 	}
 
 	layout(width: number, height: number): void {
-		const chatItemHeight = this._chatEntry?.element.style.display === 'none' ? 0 : this._chatEntry?.element.clientHeight;
-		this._height = height - (chatItemHeight ?? 0);
-		this._width = width;
-		this._splitView.layout(width);
-		if (this._shouldShowTabs()) {
-			this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
+		this._height = Math.max(0, height);
+		this._width = Math.max(0, width);
+		this._splitView.layout(this._isHorizontal ? this._height : this._width);
+		if (this._splitView.length === 2) {
+			this._splitView.resizeView(this._tabTreeIndex, this._isHorizontal ? TerminalTabsBar.HEIGHT : this._getLastListWidth());
 		}
 		this._updateHasText();
+		if (this._splitView.length === 2) {
+			const size = this._splitView.getViewSize(this._tabTreeIndex);
+			this._layoutTabs(this._isHorizontal ? this._width : size, this._isHorizontal ? size : this._height);
+		}
 	}
 
+	private _layoutTabs(width: number, height: number): void {
+		const chat = this._chatEntry?.element;
+		const chatVisible = chat && chat.style.display !== 'none';
+		this._tabList.layout(
+			Math.max(0, height - (!this._isHorizontal && chatVisible ? chat.clientHeight : 0)),
+			Math.max(0, width - (this._isHorizontal && chatVisible ? chat.clientWidth : 0))
+		);
+	}
 
 	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._tabContainer, 'mouseleave', async (event: MouseEvent) => {
@@ -405,7 +488,7 @@ export class TerminalTabbedView extends Disposable {
 			if (!this._shouldHandleEmptyAreaDrop(event)) {
 				return;
 			}
-			void this._handleContainerDrop(event);
+			void this._handleContainerDrop(event).catch(onUnexpectedError);
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalGroupService.activeInstance;
@@ -441,10 +524,13 @@ export class TerminalTabbedView extends Disposable {
 				}
 
 				// Put the focused item first as it's used as the first positional argument
-				const selectedInstances = this._tabList.getSelectedElements();
+				const selectedInstances = getSelectedTerminalTabInstances(this._tabList);
 				const focusedInstance = this._tabList.getFocusedElements()?.[0];
 				if (focusedInstance) {
-					selectedInstances.splice(selectedInstances.findIndex(e => e.instanceId === focusedInstance.instanceId), 1);
+					const index = selectedInstances.indexOf(focusedInstance);
+					if (index !== -1) {
+						selectedInstances.splice(index, 1);
+					}
 					selectedInstances.unshift(focusedInstance);
 				}
 
@@ -468,6 +554,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.FOCUS_IN, () => {
 			this._terminalTabsFocusContextKey.set(true);
+			this._terminalGroupService.lastAccessedMenu = 'tab-list';
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.FOCUS_OUT, () => {
 			this._terminalTabsFocusContextKey.set(false);
@@ -497,69 +584,27 @@ export class TerminalTabbedView extends Disposable {
 		event.preventDefault();
 		event.stopPropagation();
 		this._resetEmptyAreaDropState();
-		const primaryBackend = this._terminalService.getPrimaryBackend();
-		const resources = getTerminalResourcesFromDragEvent(event);
-		let sourceInstances: ITerminalInstance[] | undefined;
-		const promises: Promise<IProcessDetails | undefined>[] = [];
-		if (resources) {
-			for (const uri of resources) {
-				const instance = this._terminalService.getInstanceFromResource(uri);
-				if (instance) {
-					if (sourceInstances) {
-						sourceInstances.push(instance);
-					} else {
-						sourceInstances = [instance];
-					}
-					this._terminalService.moveToTerminalView(instance);
-				} else if (primaryBackend) {
-					const terminalIdentifier = parseTerminalUri(uri);
-					if (terminalIdentifier.instanceId) {
-						promises.push(primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
-					}
-				}
-			}
-		}
-		if (promises.length) {
-			const processes = (await Promise.all(promises)).filter((process): process is IProcessDetails => !!process);
-			let lastInstance: ITerminalInstance | undefined;
-			for (const attachPersistentProcess of processes) {
-				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
-			}
-			if (lastInstance) {
-				this._terminalService.setActiveInstance(lastInstance);
-			}
-			return;
-		}
-		if (!sourceInstances || !sourceInstances.length) {
-			sourceInstances = this._tabList.getSelectedElements();
-			if (!sourceInstances.length) {
-				return;
-			}
-		}
-		this._terminalGroupService.moveGroupToEnd(sourceInstances);
-		this._terminalService.setActiveInstance(sourceInstances[0]);
-		const indexes = sourceInstances
-			.map(instance => this._terminalGroupService.instances.indexOf(instance))
-			.filter(index => index >= 0);
-		if (indexes.length) {
-			this._tabList.setSelection(indexes);
-			this._tabList.setFocus([indexes[0]]);
-		}
+		await this._tabDragAndDrop.drop(new NativeDragAndDropData(), undefined, undefined, undefined, event);
 	}
 
 	private _getTabActions(): IAction[] {
+		this._tabActionsDisposables.clear();
+		const locations: { location: ITerminalConfiguration['tabs']['location']; label: string }[] = [
+			{ location: 'left', label: localize('moveTabsLeft', "Move Tabs Left") },
+			{ location: 'right', label: localize('moveTabsRight', "Move Tabs Right") },
+			{ location: 'top', label: localize('moveTabsTop', "Move Tabs to Top") },
+			{ location: 'bottom', label: localize('moveTabsBottom', "Move Tabs to Bottom") }
+		];
 		return [
 			new Separator(),
-			this._configurationService.inspect(TerminalSettingId.TabsLocation).userValue === 'left' ?
-				new Action('moveRight', localize('moveTabsRight', "Move Tabs Right"), undefined, undefined, async () => {
-					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'right');
-				}) :
-				new Action('moveLeft', localize('moveTabsLeft', "Move Tabs Left"), undefined, undefined, async () => {
-					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'left');
-				}),
-			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
-				this._configurationService.updateValue(TerminalSettingId.TabsEnabled, false);
-			})
+			...locations.filter(({ location }) => location !== this._location).map(({ location, label }) => this._tabActionsDisposables.add(new Action(`moveTabs.${location}`, label, undefined, true, async () => {
+				await this._configurationService.updateValue(TerminalSettingId.TabsLocation, location);
+				this.focusTabs();
+			}))),
+			this._tabActionsDisposables.add(new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
+				await this._configurationService.updateValue(TerminalSettingId.TabsEnabled, false);
+				this.focus();
+			}))
 		];
 	}
 
@@ -570,16 +615,31 @@ export class TerminalTabbedView extends Disposable {
 		this._tabList.refresh(false);
 	}
 
+	getSelectedTabInstances(): ITerminalInstance[] | undefined {
+		if (!this._shouldShowTabs() || (this._tabList instanceof TerminalTabList && this._listService.lastFocusedList !== this._tabList)) {
+			return undefined;
+		}
+		return getSelectedTerminalTabInstances(this._tabList);
+	}
+
 	focusTabs(): void {
 		if (!this._shouldShowTabs()) {
 			return;
 		}
-		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabList.getSelection();
-		this._tabList.domFocus();
-		if (selected) {
-			this._tabList.setFocus(selected);
+		if (selected.length) {
+			this._tabList.setFocus(selected.slice(0, 1));
+		} else {
+			const active = this._terminalGroupService.activeInstance;
+			const activeIndex = active ? this._terminalGroupService.instances.indexOf(active) : -1;
+			this._tabList.setFocus(activeIndex >= 0 ? [activeIndex] : []);
 		}
+		this._focusTabsWidget();
+	}
+
+	private _focusTabsWidget(): void {
+		this._terminalTabsFocusContextKey.set(true);
+		this._tabList.domFocus();
 	}
 
 	focus() {
