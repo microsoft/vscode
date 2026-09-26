@@ -366,4 +366,7 @@ export interface ICloudSandboxAgentHostService {
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Renew a live connection's sealed credential, sharing its refresh and retry budget. */
+	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;
 }

@@ -83,6 +83,7 @@ export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Da
 export class CloudSandboxCredentialRefreshState {
 	unhealthyCycles = 0;
 	hasRefreshed = false;
+	lastRefreshAt: number | undefined;
 	nextRefreshAt: number | undefined;
 	stopped = false;
 }
@@ -110,7 +111,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	 */
 	private readonly _cts = new CancellationTokenSource();
 
-	private _refreshInFlight: Promise<void> | undefined;
+	private _refreshInFlight: Promise<boolean> | undefined;
 
 	constructor(
 		private readonly _address: string,
@@ -141,21 +142,35 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	}
 
 	/** Share an in-flight refresh or refresh expired credentials before opening a replacement transport. */
-	async ensureUnexpiredCredentials(): Promise<void> {
+	ensureUnexpiredCredentials(): Promise<void> {
+		return this._ensureCredentials(false);
+	}
+
+	/** Repair rejected or missing connection setup even when the cached ticket has not expired. */
+	refreshConnectionCredentials(): Promise<void> {
+		return this._ensureCredentials(true);
+	}
+
+	private async _ensureCredentials(refreshConnection: boolean): Promise<void> {
 		if (this._cts.token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (this._hasUnexpiredCredentials()) {
+		if (!refreshConnection && this._hasUnexpiredCredentials()) {
 			return;
 		}
 		const awaitingRetry = this._refreshState.hasRefreshed && this._refreshState.unhealthyCycles > 0
 			&& this._refreshState.nextRefreshAt !== undefined && Date.now() < this._refreshState.nextRefreshAt;
-		if (!this._refreshInFlight && (this._refreshState.stopped || awaitingRetry)) {
-			throw new Error('No unexpired sandbox credentials are available; credential refresh is stopped or waiting to retry.');
+		const rateLimited = refreshConnection && this._refreshState.lastRefreshAt !== undefined
+			&& Date.now() < this._refreshState.lastRefreshAt + MIN_CREDENTIAL_REFRESH_DELAY_MS;
+		if (!this._refreshInFlight && (this._refreshState.stopped || awaitingRetry || rateLimited)) {
+			throw new Error('Sandbox credential refresh is stopped or waiting to retry.');
 		}
-		await raceCancellationError(this._refresh(), this._cts.token);
+		const refreshed = await raceCancellationError(this._refresh(), this._cts.token);
 		if (!this._hasUnexpiredCredentials()) {
 			throw new Error('Sandbox credential refresh did not provide credentials with a usable future expiry.');
+		}
+		if (refreshConnection && !refreshed) {
+			throw new Error('Sandbox connection setup could not be refreshed.');
 		}
 	}
 
@@ -191,22 +206,23 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		this._arm(delayMs);
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(): Promise<boolean> {
 		if (this._refreshInFlight) {
 			return this._refreshInFlight;
 		}
 		this._timer.clear();
 		this._refreshState.hasRefreshed = true;
+		this._refreshState.lastRefreshAt = Date.now();
 		const pending = this._doRefresh();
 		this._refreshInFlight = pending;
 		try {
-			await pending;
+			return await pending;
 		} finally {
 			this._refreshInFlight = undefined;
 		}
 	}
 
-	private async _doRefresh(): Promise<void> {
+	private async _doRefresh(): Promise<boolean> {
 		let result: CloudSandboxConnectResult;
 		try {
 			result = await this._apiService.reconnect(this._request, this._clientId, this._cts.token);
@@ -215,29 +231,29 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// failure: counting it would log a warning for an ordinary disconnect and could report
 			// the loop as having given up when it was simply torn down.
 			if (this._cts.token.isCancellationRequested || isCancellationError(err) || err instanceof CancellationError) {
-				return;
+				return false;
 			}
 			// A rejected request (deleted environment, revoked token) fails identically however
 			// often it is repeated, so retrying only adds load without any prospect of recovery.
 			if (!isRetryableCloudSandboxError(err)) {
 				this._stop('permanentError', toErrorMessage(err), err);
-				return;
+				return false;
 			}
 			this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${this._address}; retrying`, err);
 			this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'consecutiveFailures', 'credential refresh kept failing');
-			return;
+			return false;
 		}
 
 		// The connection went away while the request was in flight; its credentials are moot.
 		if (this._cts.token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		if (result.kind === 'waking') {
 			// `/reconnect` refreshes an already-connected client, so a waking environment here is the
 			// sandbox disappearing underneath us rather than a wake worth waiting out.
 			this._armUnhealthy(Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS), 'environmentWaking', 'environment kept reporting waking');
-			return;
+			return false;
 		}
 
 		const previousToken = this._creds.token;
@@ -254,7 +270,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			if (!sealedTokenMatchesKey || reusedKeyChanged) {
 				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
 				this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
-				return;
+				return false;
 			}
 		}
 		this._creds.token = reusesSealedToken
@@ -267,14 +283,15 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// No basis for scheduling. Keep the connection alive on a conservative interval, but
 			// count the cycles so an endless stream of unschedulable tokens still terminates.
 			this._armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
-			return;
+			return false;
 		}
 		if (delayMs <= MIN_CREDENTIAL_REFRESH_DELAY_MS) {
 			// Already at (or past) its refresh point, so the next cycle would re-mint immediately.
 			this._armUnhealthy(delayMs, 'unusableToken', 'refreshed tokens kept expiring immediately');
-			return;
+			return this._hasUnexpiredCredentials();
 		}
 		this._refreshState.unhealthyCycles = 0;
 		this._arm(delayMs);
+		return true;
 	}
 }
