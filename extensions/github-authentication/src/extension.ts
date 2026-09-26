@@ -14,7 +14,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(new GitHubAuthenticationProvider(context, uriHandler));
 
-	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(new GitHubAuthenticationProviderFactory(context, uriHandler));
+	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(
+		context.globalState,
+		context.secrets,
+		new GitHubAuthenticationProviderFactory(context, uriHandler)
+	);
 	context.subscriptions.push(githubEnterpriseAuthProvider);
 	const updateEnterpriseConfiguration = async () => {
 		const setting = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');

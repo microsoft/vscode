@@ -20,6 +20,8 @@ GitHub.com accounts use the `github` provider and do not need this setting. Acco
 
 The enterprise provider owns registration separately from its host-bound authentication engine. Changing the configured instance releases the retired engine and notifies consumers after the replacement registration is ready. Public GitHub remains available if enterprise initialization fails.
 
+The provider remembers the original credential namespace for each configured instance. Equivalent changes to hostname casing or trailing slashes preserve saved tokens and Microsoft account links across configuration updates and restarts. A different instance cannot claim a namespace already owned by another instance.
+
 ## Session provenance
 
 The proposed `authIssuers` API exposes optional `AuthenticationSession.authorizationServer` provenance. This built-in extension supplies it on every returned session and every added, changed, or removed session event, including sessions restored from saved tokens or brokered through Microsoft:
