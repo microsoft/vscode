@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesFuzzy, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
@@ -200,6 +200,17 @@ suite('Filters', () => {
 
 	test('matchesSubString performance (#35346)', function () {
 		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+	});
+
+	test('matchesFuzzy - wildcard match', function () {
+		filterOk(matchesFuzzy, 'b', 'abc', [{ start: 1, end: 2 }]);
+		filterOk(matchesFuzzy, '*b', 'abc', [{ start: 0, end: 2 }]);
+		filterOk(matchesFuzzy, '*', 'abc', [{ start: 0, end: 3 }]);
+	});
+
+	test('matchesFuzzy - consecutive wildcards behave like a single one', function () {
+		assert.deepStrictEqual(matchesFuzzy('**b', 'abc'), matchesFuzzy('*b', 'abc'));
+		assert.deepStrictEqual(matchesFuzzy('***', 'abc'), matchesFuzzy('*', 'abc'));
 	});
 
 	test('WordFilter', () => {
