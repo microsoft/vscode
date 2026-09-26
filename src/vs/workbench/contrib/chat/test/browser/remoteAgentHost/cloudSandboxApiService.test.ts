@@ -192,6 +192,35 @@ suite('CloudSandboxApiService connection credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const request = { environmentId: 'env-1', sessionId: 'session-1' };
 
+	for (const failure of ['signed out', 'already cancelled', 'cancelled in flight', 'HTTP error', 'network error'] as const) {
+		test(`credential request accounting includes only issued requests when ${failure}`, async () => {
+			const progress: string[] = [];
+			const source = store.add(new CancellationTokenSource());
+			if (failure === 'already cancelled') {
+				source.cancel();
+			}
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: failure === 'signed out' ? async () => [] : undefined,
+				onRequest: () => {
+					if (failure === 'cancelled in flight') {
+						source.cancel();
+						throw new CancellationError();
+					}
+					if (failure === 'network error') {
+						throw new Error('network unavailable');
+					}
+					return jsonResponse({}, 403);
+				},
+			});
+			await assert.rejects(service.connect({ ...request, onRequest: event => progress.push(event) }, source.token));
+			const issued = failure !== 'signed out' && failure !== 'already cancelled';
+			assert.deepStrictEqual({ progress, requests: requestedUrls.length }, {
+				progress: issued ? ['issued'] : [], requests: issued ? 1 : 0,
+			});
+		});
+	}
+
 	function clientToken(clientId: string): ICloudSandboxClientToken {
 		const groupPrefix = `user.u1.env.env-1.client.${clientId}`;
 		return {
@@ -211,6 +240,8 @@ suite('CloudSandboxApiService connection credentials', () => {
 
 	for (const action of ['connect', 'reconnect'] as const) {
 		test(`${action} preserves valid credentials and the scoped request`, async () => {
+			const progress: string[] = [];
+			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
 			const token = clientToken('client-1');
 			const { service, requestedUrls } = createService(store, {
 				tasks: [], repositories: new Map(),
@@ -218,17 +249,19 @@ suite('CloudSandboxApiService connection credentials', () => {
 			});
 
 			const result = action === 'connect'
-				? await service.connect(request, CancellationToken.None)
-				: await service.reconnect(request, 'client-1', CancellationToken.None);
+				? await service.connect(observedRequest, CancellationToken.None)
+				: await service.reconnect(observedRequest, 'client-1', CancellationToken.None);
 
 			assert.deepStrictEqual({
 				result,
+				progress,
 				requests: requestedUrls.map(url => {
 					const parsed = new URL(url);
 					return { path: parsed.pathname, query: Object.fromEntries(parsed.searchParams) };
 				}),
 			}, {
 				result: { kind: 'token', token },
+				progress: ['issued'],
 				requests: [{
 					path: `/agents/environments/env-1/${action}`,
 					query: { ...(action === 'reconnect' ? { client_id: 'client-1' } : {}), session_id: 'session-1' },
@@ -237,16 +270,18 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 
 		test(`${action} preserves a waking response`, async () => {
+			const progress: string[] = [];
+			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
 			const { service } = createService(store, {
 				tasks: [], repositories: new Map(),
 				onRequest: () => jsonResponse({}, 202, { 'retry-after': '5' }),
 			});
 
 			const result = action === 'connect'
-				? await service.connect(request, CancellationToken.None)
-				: await service.reconnect(request, 'client-1', CancellationToken.None);
+				? await service.connect(observedRequest, CancellationToken.None)
+				: await service.reconnect(observedRequest, 'client-1', CancellationToken.None);
 
-			assert.deepStrictEqual(result, { kind: 'waking', waking: { retryAfterSeconds: 5 } });
+			assert.deepStrictEqual({ result, progress }, { result: { kind: 'waking', waking: { retryAfterSeconds: 5 } }, progress: ['issued', 'waking'] });
 		});
 	}
 

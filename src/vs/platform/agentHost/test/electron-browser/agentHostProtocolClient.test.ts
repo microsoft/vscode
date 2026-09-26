@@ -2840,6 +2840,48 @@ suite('AgentHostProtocolClient', () => {
 			await connectPromise;
 		}
 
+		test('observes only the first post-readiness session request per recovery without issuing extra requests', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.firstSessionRequest') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			for (let index = 0; index < 2; index++) {
+				const listing = client.listSessions();
+				const request = await waitForRequestAtWithin(transports[0], 'listSessions', index);
+				await timeout(10);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [] } });
+				await listing;
+			}
+			transports[0].fireClose();
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			const failed = assert.rejects(client.listSessions(), /session list unavailable/);
+			const request = await waitForRequestAtWithin(replacement, 'listSessions', 0);
+			await timeout(15);
+			replacement.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'session list unavailable' } });
+			await failed;
+			client.dispose();
+
+			assert.deepStrictEqual({
+				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs })),
+				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
+			}, {
+				diagnostics: [
+					{ outcome: 'started', durationMs: undefined }, { outcome: 'succeeded', durationMs: 10 },
+					{ outcome: 'started', durationMs: undefined }, { outcome: 'failed', durationMs: 15 },
+				],
+				requests: 3,
+			});
+		}));
+
 		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
 			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const blocked = new DeferredPromise<void>();
