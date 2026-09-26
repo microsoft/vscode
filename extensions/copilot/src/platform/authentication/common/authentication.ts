@@ -19,6 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { CopilotToken } from './copilotToken';
 import { ICopilotTokenManager } from './copilotTokenManager';
 import { ICopilotTokenStore } from './copilotTokenStore';
+import { authenticationSessionIdentityEquals } from './enterprise';
 
 // Minimum set of scopes needed for Copilot to work
 export const GITHUB_SCOPE_USER_EMAIL = ['user:email'];
@@ -339,7 +340,9 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 
 		if (
 			anyGitHubSessionBefore?.accessToken !== this._anyGitHubSession?.accessToken ||
-			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken
+			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken ||
+			!authenticationSessionIdentityEquals(anyGitHubSessionBefore, this._anyGitHubSession) ||
+			!authenticationSessionIdentityEquals(permissiveGitHubSessionBefore, this._permissiveGitHubSession)
 		) {
 			this._onDidAccessTokenChange.fire();
 			this._logService.debug('Auth state changed (identity change), minting a new CopilotToken...');
