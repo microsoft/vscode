@@ -35,6 +35,7 @@ import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
 import { SearchModelLocation, RenderableMatch, ISearchTreeFileMatch, ISearchTreeMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 import { searchComparer } from '../searchCompare.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { escapeIconsWithHighlights } from '../../../../../base/common/iconLabels.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -304,10 +305,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					start: preview.before.length,
 					end: preview.before.length + preview.inside.length
 				}];
+				const escaped = escapeIconsWithHighlights(previewText, match);
 				picks.push({
-					label: `${previewText}`,
+					label: escaped.text,
 					highlights: {
-						label: match
+						label: escaped.highlights
 					},
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(searchActivityBarIcon),
