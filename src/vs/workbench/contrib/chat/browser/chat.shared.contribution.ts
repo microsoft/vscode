@@ -2365,6 +2365,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.TerminalOutputReflow]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.terminal.outputReflow', "Controls whether terminal output in chat reflows to fit the available width. When disabled, previews use the source terminal's column count, or 80 columns for captured output, and scroll horizontally when needed. This does not resize the terminal running the command."),
+		},
 		[ChatConfiguration.CompressOutputEnabled]: {
 			type: 'boolean',
 			default: false,
