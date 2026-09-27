@@ -8,6 +8,8 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { URITransformer } from '../../../../../base/common/uriIpc.js';
 import { IMessagePassingProtocol } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ProxyIdentifier, SerializableObjectWithBuffers } from '../../common/proxyIdentifier.js';
@@ -355,5 +357,94 @@ suite('RPCProtocol', () => {
 
 		assert.deepStrictEqual(result.references.map(reference => reference?.type), value.references.map(reference => reference.type));
 		assert.deepStrictEqual(result, value);
+	});
+
+	test('keeps nested buffers and large strings externalized in literal reference-shaped metadata', () => {
+		const value = {
+			'$$ref$$': 0,
+			payload: VSBuffer.wrap(new Uint8Array([1, 2, 3])),
+			history: Array.from({ length: 8 }, () => ({ '$$ref$$': -1, text: 'x'.repeat(64 * 1024) }))
+		};
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value);
+
+		assert.deepStrictEqual({
+			smallJson: jsonString.length < 2 * 1024,
+			bufferCount: referencedBuffers.length
+		}, { smallJson: true, bufferCount: 9 });
+		assert.deepStrictEqual(parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null), value);
+	});
+
+	test('preserves nested buffers in literal reference-shaped requests and replies', async () => {
+		const value = {
+			'$$ref$$': 0,
+			payload: VSBuffer.wrap(new Uint8Array([1, 2, 3])),
+			nested: { '$$ref$$': { value: 4 } }
+		};
+		delegate = (arg: SerializableObjectWithBuffers<typeof value>) => new SerializableObjectWithBuffers(arg.value);
+
+		const result: SerializableObjectWithBuffers<typeof value> = await bProxy.$m(new SerializableObjectWithBuffers(value), undefined);
+
+		assert.deepStrictEqual(result.value, value);
+	});
+
+	for (const preserveUndefined of [true, false]) {
+		test(`preserves literal reference values with preserveUndefined=${preserveUndefined}`, () => {
+			const references = [0, -1, 'literal', false, null, NaN, undefined, [], { value: 0 }, { '$$ref$$': 0 }, () => undefined, Symbol('ignored')];
+			const value = references.map(reference => ({ '$$ref$$': reference, sibling: 'retained' }));
+			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value, null, false, preserveUndefined);
+
+			assert.deepStrictEqual(parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null), JSON.parse(JSON.stringify(value)));
+		});
+
+		test(`preserves nested undefined values in literal reference-shaped metadata with preserveUndefined=${preserveUndefined}`, () => {
+			const value = { '$$ref$$': 0, nested: { omitted: undefined, items: [undefined] } };
+			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value, null, false, preserveUndefined);
+
+			assert.deepStrictEqual(parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null), {
+				'$$ref$$': 0,
+				nested: { items: preserveUndefined ? new Array(1) : [null] }
+			});
+		});
+	}
+
+	test('transforms incoming URIs inside literal reference-shaped metadata', () => {
+		const value = { '$$ref$$': 0, uri: URI.file('/original').toJSON() };
+		const transformer = new URITransformer({
+			transformIncoming: uri => ({ ...uri, path: '/transformed' }),
+			transformOutgoing: uri => uri,
+			transformOutgoingScheme: scheme => scheme
+		});
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value);
+		const result: typeof value = parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, transformer);
+
+		assert.deepStrictEqual({ reference: result.$$ref$$, uri: URI.revive(result.uri).toString() }, {
+			reference: 0,
+			uri: URI.file('/transformed').toString()
+		});
+	});
+
+	test('rejects cycles through literal reference-shaped metadata', () => {
+		const value: { '$$ref$$': number; self?: object } = { '$$ref$$': 0 };
+		value.self = value;
+
+		assert.throws(() => stringifyJsonWithBufferRefs(value), TypeError);
+		assert.strictEqual(stringifyJsonWithBufferRefs(value, null, true).jsonString, 'null');
+	});
+
+	test('normalizes literal reference values only once', () => {
+		const keys: string[] = [];
+		const reference = {
+			text: 'literal',
+			toJSON: (key: string): object => {
+				keys.push(key);
+				return reference;
+			}
+		};
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs({ '$$ref$$': reference });
+
+		assert.deepStrictEqual({
+			keys,
+			result: parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null)
+		}, { keys: ['$$ref$$'], result: { '$$ref$$': { text: 'literal' } } });
 	});
 });

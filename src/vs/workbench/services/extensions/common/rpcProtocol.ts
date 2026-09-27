@@ -42,18 +42,26 @@ class StringifiedJsonWithBufferRefs {
 
 export function stringifyJsonWithBufferRefs<T>(obj: T, replacer: JSONStringifyReplacer | null = null, useSafeStringify = false, preserveUndefined = true): StringifiedJsonWithBufferRefs {
 	const foundBuffers: VSBuffer[] = [];
-	const serialized = (useSafeStringify ? safeStringify : JSON.stringify)(obj, (key, value) => {
+	const generatedReferences = new WeakSet<object>([undefinedRef]);
+	const serialized = (useSafeStringify ? safeStringify : JSON.stringify)(obj, function (this: object, key, value) {
+		if (key === refSymbolName && !generatedReferences.has(this)) {
+			// Continue traversing literal references without invoking their toJSON a second time.
+			return { value: { toJSON: () => value } };
+		}
 		if (typeof value === 'undefined' && preserveUndefined) {
 			return undefinedRef; // JSON.stringify normally converts 'undefined' to 'null'
-		} else if ((typeof value === 'string' && value.length >= largeStringLength) || (typeof value === 'object' && value !== null && Object.getOwnPropertyDescriptor(value, refSymbolName)?.enumerable)) {
+		} else if (typeof value === 'string' && value.length >= largeStringLength) {
 			// JSON encoding also preserves lone surrogates when moving strings into UTF-8 buffers.
-			const json = typeof value === 'string' ? JSON.stringify(value) : stringify(value, replacer);
-			const bufferIndex = foundBuffers.push(VSBuffer.fromString(json)) - 1;
-			return { [refSymbolName]: bufferIndex, type: 'json' };
+			const bufferIndex = foundBuffers.push(VSBuffer.fromString(JSON.stringify(value))) - 1;
+			const reference = { [refSymbolName]: bufferIndex, type: 'json' };
+			generatedReferences.add(reference);
+			return reference;
 		} else if (typeof value === 'object') {
 			if (value instanceof VSBuffer) {
 				const bufferIndex = foundBuffers.push(value) - 1;
-				return { [refSymbolName]: bufferIndex };
+				const reference = { [refSymbolName]: bufferIndex };
+				generatedReferences.add(reference);
+				return reference;
 			}
 			if (replacer) {
 				return replacer(key, value);
@@ -73,6 +81,13 @@ export function parseJsonAndRestoreBufferRefs(jsonString: string, buffers: reado
 			const ref = value[refSymbolName];
 			if (typeof ref === 'number') {
 				return value.type === 'json' ? JSON.parse(buffers[ref].toString()) : buffers[ref];
+			}
+			if (ref && typeof ref === 'object') {
+				if (Object.hasOwn(ref, 'value')) {
+					value[refSymbolName] = ref.value;
+				} else {
+					delete value[refSymbolName];
+				}
 			}
 
 			if (uriTransformer && (<MarshalledObject>value).$mid === MarshalledId.Uri) {
