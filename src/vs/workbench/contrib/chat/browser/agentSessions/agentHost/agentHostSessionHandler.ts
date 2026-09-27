@@ -1140,6 +1140,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	/** Observations of turns awaited by {@link _invokeAgent}; see {@link _createTurnObservation}. */
 	private readonly _turnObservations = this._register(new DisposableSet<DisposableStore>());
+	/** Cancelled when this handler is disposed, so waits that outlive a replaced connection settle. */
+	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
@@ -1868,7 +1870,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// scratch dir, not a user workspace. If the user declines, abort without
 			// starting a session.
 			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
+			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
 			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
@@ -5798,6 +5800,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onFailureStage?.('authentication');
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
+				if (this._isInvocationAbandoned(cancellationToken)) {
+					throw new CancellationError();
+				}
 				if (authenticated) {
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
@@ -5843,8 +5848,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// also settles on `onDidError` — a failed subscribe flips the
 			// subscription via `setError`, which fires `onDidError` but NOT
 			// `onDidChange`, so an `onDidChange`-only wait would hang for the
-			// full turn timeout (issue #5242).
-			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+			// full turn timeout (issue #5242). The handler's lifetime token
+			// settles the wait if this handler is disposed first, because
+			// disposing a subscription does not fire either event.
+			await this._whenSubscriptionHydrated(newSub, this._lifetime.token);
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
 		}
 
 		const rawState = this._requireRawSessionState(session.toString());
@@ -7255,6 +7265,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	override dispose(): void {
+		this._lifetime.dispose(true);
 		for (const [, session] of this._activeSessions) {
 			session.dispose();
 		}

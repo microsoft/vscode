@@ -44,7 +44,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -3072,6 +3072,72 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('a handler disposed while waiting for the new session to hydrate settles the invocation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const created = new DeferredPromise<void>();
+			const createSession = agentHostService.createSession.bind(agentHostService);
+			agentHostService.createSession = async config => {
+				const session = await createSession(config);
+				// The new session's state has not arrived yet.
+				agentHostService.sessionStates.delete(session.toString());
+				agentHostService.pendingSubscriptions.add(session.toString());
+				void created.complete();
+				return session;
+			};
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-dispose-while-hydrating' });
+			const pending = startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			await created.p;
+			await timeout(0);
+
+			// Disposing the subscription fires neither onDidChange nor onDidError,
+			// so the hydration wait must settle from the handler's own lifetime.
+			sessionHandler.dispose();
+			const { turnPromise } = await pending;
+			const outcome = await turnPromise.then(() => 'resolved', error => isCancellationError(error) ? 'cancelled' : String(error));
+
+			assert.deepStrictEqual({
+				outcome,
+				turnStarted: agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/turnStarted').length,
+			}, {
+				outcome: 'cancelled',
+				turnStarted: 0,
+			});
+		}));
+
+		test('a handler disposed during authentication does not retry creating the session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const authenticating = new DeferredPromise<void>();
+			const authenticated = new DeferredPromise<boolean>();
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveAuthentication: () => {
+					void authenticating.complete();
+					return authenticated.p;
+				},
+			}));
+			let createSessionCalls = 0;
+			agentHostService.createSession = async () => {
+				createSessionCalls++;
+				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication required');
+			};
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-dispose-while-authenticating' });
+			const pending = startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			await authenticating.p;
+
+			sessionHandler.dispose();
+			await authenticated.complete(true);
+			const { turnPromise } = await pending;
+			const outcome = await turnPromise.then(() => 'resolved', error => isCancellationError(error) ? 'cancelled' : String(error));
+
+			assert.deepStrictEqual({ outcome, createSessionCalls }, { outcome: 'cancelled', createSessionCalls: 1 });
+		}));
+
 		test('disposing one chat does not tear down a sibling peer chat subscription (peer chat never loads after reload)', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -5194,6 +5260,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('workspace trust', () => {
 
+		test('a handler disposed while resolving trust folders does not prompt for trust', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = true;
+			const backendSession = AgentSession.uri('copilot', 'trust-folders-dispose');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/trust-folders-dispose' });
+			const inflight = new DeferredPromise<void>();
+			agentHostService.inflightCreates.set(backendSession.toString(), inflight.p);
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const invocation = registered.impl.invoke(makeRequest({ message: 'Hello', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(0);
+
+			// e.g. the remote connection was replaced while this session's state was still loading.
+			sessionHandler.dispose();
+			await inflight.complete();
+			const result = await invocation;
+
+			assert.deepStrictEqual({
+				result,
+				trustPrompts: trustController.workspaceTrustCalls + trustController.resourcesTrustCalls,
+				createSessionCalls: agentHostService.createSessionCalls.length,
+			}, { result: {}, trustPrompts: 0, createSessionCalls: 0 });
+		}));
 		test('aborts the turn without creating a session when trust is declined', async () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController, instantiationService } = createContribution(disposables);
 			const exported: IAgentHostFirstResponseDiagnostic[] = [];
