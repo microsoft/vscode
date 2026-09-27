@@ -45,6 +45,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
@@ -59,7 +60,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -877,6 +878,36 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('row feedback', () => {
+		test('keeps custom group toolbar at the trailing edge', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+			const session = createTestSession('session').session;
+			const harness = createListHarness(disposables, [session], {
+				groups: [group],
+				memberships: new Map([[session.sessionId, group.id]]),
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+
+			const groupHeader = container.querySelector<HTMLElement>('.session-group');
+			assert.ok(groupHeader);
+			const labelContainer = groupHeader.querySelector<HTMLElement>('.session-section-label-container');
+			assert.ok(labelContainer);
+			assert.deepStrictEqual({
+				labelContainerParent: labelContainer.parentElement?.classList.contains('session-group'),
+				labelParent: labelContainer.querySelector('.session-section-label')?.parentElement?.classList.contains('session-section-label-container'),
+				flexGrow: mainWindow.getComputedStyle(labelContainer).flexGrow,
+			}, {
+				labelContainerParent: true,
+				labelParent: true,
+				flexGrow: '1',
+			});
+		});
+
 		test('aligns workspace and custom group rows with session rows', () => {
 			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
 			const sessions = Array.from({ length: 6 }, (_, index) => {
@@ -2084,6 +2115,53 @@ suite('Sessions - SessionsList', () => {
 				onOpen,
 			},
 			updatedAt: createdSession.updatedAt.get(),
+		});
+	});
+
+	test('remote session hover shows the remote name after the session type', () => {
+		const localSession = createSession('Fix remote reconnection', { workspaceLabel: 'Workspace' });
+		const remoteSession: ISession = {
+			...localSession,
+			remoteConnectionStatus: constObservable({ kind: 'connected' }),
+		};
+		const provider = upcastPartial<ISessionsProvider>({
+			label: 'Remote Mac',
+			sessionTypes: [upcastPartial<ISessionType>({ id: 'test', label: 'Copilot CLI' })],
+		});
+		const createProvidersService = (provider: ISessionsProvider) => new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return provider as T;
+			}
+		};
+		const providersService = createProvidersService(provider);
+		const createHoverData = (session: ISession) => getSessionSummaryHoverData(
+			session,
+			providersService,
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<IPreferencesService>({}),
+		);
+		const remoteData = createHoverData(remoteSession);
+		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
+		const disconnectedData = getSessionSummaryHoverData(
+			remoteSession,
+			createProvidersService({ ...provider, sessionTypes: [] }),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<IPreferencesService>({}),
+		);
+		const disconnectedTitleLine = new SessionSummaryHoverWidget(disconnectedData).domNode.querySelector('.session-summary-hover-title')?.textContent;
+
+		assert.deepStrictEqual({
+			titleLine,
+			remoteName: remoteData.remoteName,
+			disconnectedTitleLine,
+			localRemoteName: createHoverData(localSession).remoteName,
+		}, {
+			titleLine: 'Fix remote reconnection · Copilot CLI · Remote Mac',
+			remoteName: 'Remote Mac',
+			disconnectedTitleLine: 'Fix remote reconnection · Remote Mac',
+			localRemoteName: undefined,
 		});
 	});
 

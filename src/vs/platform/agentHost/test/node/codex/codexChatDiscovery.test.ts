@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
-import { AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -47,6 +47,9 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
+import { AgentHostLaunchKind } from '../../../common/agentHostTelemetry.js';
+import { TestAgentHostStartupTelemetryService } from '../testAgentHostStartupTelemetryService.js';
 
 const codexHome = URI.file('/codex-discovery/custom-home');
 
@@ -88,6 +91,7 @@ class CatalogClient extends mock<ICodexAppServerClient>() {
 	activeLists = 0;
 	maxActiveLists = 0;
 	nextList: (() => Promise<Thread[]>) | undefined;
+	nextCursor: string | null = null;
 	readonly requests: (ClientRequestParams<ClientRequestMethod>)[] = [];
 	override async request<M extends ClientRequestMethod, R>(method: M, _params: ClientRequestParams<M>): Promise<R> {
 		if (method === 'thread/read') {
@@ -114,7 +118,7 @@ class CatalogClient extends mock<ICodexAppServerClient>() {
 		const next = this.nextList;
 		this.nextList = undefined;
 		try {
-			return { data: next ? await next() : this.threads, nextCursor: null } as R;
+			return { data: next ? await next() : this.threads, nextCursor: this.nextCursor } as R;
 		} finally {
 			this.activeLists--;
 		}
@@ -139,7 +143,7 @@ class DiscoveryFileSystem extends InMemoryFileSystemProvider {
 	}
 }
 
-function createHarness(store: DisposableStore, sessionData = createSessionDataService()) {
+function createHarness(store: DisposableStore, sessionData = createSessionDataService(), startupPerformance: IAgentHostStartupPerformance = NullAgentHostStartupPerformance, downloader = new RecordingAgentSdkDownloader()) {
 	const instantiation = store.add(new TestInstantiationService());
 	const log = new NullLogService();
 	const files = store.add(new FileService(log));
@@ -147,7 +151,6 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	store.add(files.registerProvider(Schemas.file, filesystem));
 	const state = store.add(new AgentHostStateManager(log));
 	const config = store.add(new AgentConfigurationService(state, log));
-	const downloader = new RecordingAgentSdkDownloader();
 	instantiation.stub(ILogService, log);
 	instantiation.stub(IFileService, files);
 	instantiation.stub(IAgentConfigurationService, config);
@@ -165,6 +168,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	instantiation.stub(INativeEnvironmentService, { userHome: URI.file('/codex-discovery/user') });
 	instantiation.stub(IProductService, { version: '1.0.0-test' });
 	instantiation.stub(ITelemetryService, NullTelemetryService);
+	instantiation.stub(IAgentHostStartupPerformance, startupPerformance);
 	const agent = store.add(instantiation.createInstance(CodexAgent));
 	const internal = agent as unknown as ITestCodexAgent;
 	// Stub the native process boundary while retaining real discovery, metadata mapping and file services.
@@ -184,6 +188,132 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 
 suite('Codex chat discovery', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [active, sdkAvailable] of [[false, false], [true, false], [true, true]]) {
+		test(`startup telemetry snapshots activation ${active} and SDK availability ${sdkAvailable} without additional work`, async () => {
+			const store = disposables.add(new DisposableStore());
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+			const setupChecked = new DeferredPromise<void>();
+			const downloader = new class extends RecordingAgentSdkDownloader {
+				checks = 0;
+				override async isSdkResolvableWithoutDownload(): Promise<boolean> {
+					this.checks++;
+					if (this.checks === 1) {
+						void setupChecked.complete();
+					}
+					return super.isSdkResolvableWithoutDownload();
+				}
+			};
+			downloader.resolvableWithoutDownload = sdkAvailable;
+			let downloads = 0;
+			downloader.loadSdkRootResult = async () => {
+				downloads++;
+				throw new Error('unexpected download');
+			};
+			const { agent, internal, client } = createHarness(store, undefined, startupPerformance, downloader);
+			internal._activated = active;
+			client.threads = [];
+			await setupChecked.p;
+			const setupChecks = downloader.checks;
+			const first = await agent.listChatsToMigrate();
+			const initialChecks = downloader.checks - setupChecks;
+			const initialRequests = client.listCalls;
+			internal._activated = true;
+			downloader.resolvableWithoutDownload = true;
+			await agent.listChatsToMigrate();
+
+			assert.deepStrictEqual({
+				deferred: first === AgentChatMigrationDeferred,
+				initialChecks,
+				initialRequests,
+				totalChecks: downloader.checks - setupChecks,
+				totalRequests: client.listCalls,
+				downloads,
+				contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [
+					data?.provider, data?.activationState, data?.sdkAvailability,
+				]),
+			}, {
+				deferred: !active || !sdkAvailable,
+				initialChecks: active ? 1 : 0,
+				initialRequests: active && sdkAvailable ? 1 : 0,
+				totalChecks: active ? 2 : 1,
+				totalRequests: active && sdkAvailable ? 2 : 1,
+				downloads: 0,
+				contexts: [['codex', active ? 'active' : 'inactive', active ? (sdkAvailable ? 'available' : 'unavailable') : 'unknown']],
+			});
+		});
+	}
+
+	test('startup telemetry keeps SDK availability unknown when its existing check fails', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const downloader = new class extends RecordingAgentSdkDownloader {
+			override async isSdkResolvableWithoutDownload(): Promise<boolean> {
+				throw new Error('SDK lookup failed');
+			}
+		};
+		const { agent, client } = createHarness(store, undefined, startupPerformance, downloader);
+		await assert.rejects(agent.listChatsToMigrate(), /SDK lookup failed/);
+		assert.deepStrictEqual({
+			requests: client.listCalls,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.activationState, data?.sdkAvailability]),
+		}, { requests: 0, contexts: [['active', 'unknown']] });
+	});
+
+	test('startup telemetry counts provider threads before subagent filtering without extra requests', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client, events } = createHarness(store, undefined, startupPerformance);
+		client.threads = [...Array.from({ length: 100 }, (_, i) => thread(`startup-${i}`)), { ...thread('child'), parentThreadId: 'parent' }];
+		await agent.startChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			requests: client.listCalls,
+			discovered: events.flat().length,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.activationState, data?.sdkAvailability]),
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.name, data?.provider, data?.outcome, data?.scannedSessionCount, data?.pageCount, data?.truncated]),
+		}, {
+			requests: 1,
+			discovered: 100,
+			contexts: [['active', 'available']],
+			timings: [['sessionDiscoveryScan', 'codex', 'success', 101, 1, false]],
+		});
+	});
+
+	test('startup telemetry flags a repeated provider cursor as a partial scan', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client } = createHarness(store, undefined, startupPerformance);
+		client.nextCursor = 'repeated';
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual(telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.outcome, data?.scannedSessionCount, data?.pageCount, data?.truncated]), [
+			['partial', 2, 2, true],
+		]);
+	});
+
+	test('startup telemetry preserves enumeration failure and a later empty result as different outcomes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client } = createHarness(store, undefined, startupPerformance);
+		client.nextList = async () => { throw new Error('catalog unavailable'); };
+		const failed = await agent.listChatsToMigrate();
+		client.threads = [];
+		const empty = await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			failed,
+			empty,
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.outcome, data?.scannedSessionCount, data?.pageCount]),
+		}, {
+			failed: undefined,
+			empty: [],
+			timings: [['error', undefined, 0], ['success', 0, 1]],
+		});
+	});
 
 	test('publishes external creation and title/recency updates after the initial catalog without another start', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());

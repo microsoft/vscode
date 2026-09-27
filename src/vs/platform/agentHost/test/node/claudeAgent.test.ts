@@ -69,6 +69,9 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
+import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -1120,7 +1123,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1153,6 +1156,7 @@ function createTestContext(
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
 		[ILogService, logService],
+		[IAgentHostStartupPerformance, overrides?.startupPerformance ?? NullAgentHostStartupPerformance],
 		[ICopilotApiService, overrides?.copilotApiService ?? api],
 		[IClaudeProxyService, overrides?.claudeProxyService ?? proxy],
 		[ISessionDataService, sessionData],
@@ -1262,6 +1266,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	return [
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+		[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
@@ -1307,6 +1312,41 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 suite('ClaudeAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('startup telemetry counts all SDK sessions before migration filtering', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.sessionList = Array.from({ length: 101 }, (_, i) => ({ sessionId: `startup-${i}`, cwd: '/work', summary: '', lastModified: 1 }));
+		const migrated = await agent.listChatsToMigrate();
+		await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			migrated,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.name, data?.provider, data?.outcome, data?.scannedSessionCount]),
+		}, {
+			migrated: [],
+			contexts: [['claude', 'notRequired', 'available']],
+			timings: [['sessionMigrationScan', 'claude', 'success', 101]],
+		});
+	});
+
+	test('startup telemetry captures a missing Claude SDK without downloading it or replacing the initial snapshot', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		const first = await agent.listChatsToMigrate();
+		const initialSdkLists = sdk.listSessionsCallCount;
+		sdk.canLoadWithoutDownloadResult = true;
+		await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			deferred: first === AgentChatMigrationDeferred,
+			initialSdkLists,
+			downloads: sdk.ensureAvailableCalls,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
+		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
+	});
 
 	test('getDescriptor advertises the Claude provider', () => {
 		const { agent } = createTestContext(disposables);
@@ -4308,6 +4348,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -5686,6 +5727,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		services.set(IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService()));
+		services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
 
@@ -8563,6 +8605,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[IAgentHostCustomizationEnablementService, {
 				_serviceBrand: undefined,
 				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
