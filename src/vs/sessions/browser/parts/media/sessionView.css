@@ -12,8 +12,11 @@
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
 
-/* Session header, tabs, and chat content are all hosted in this centered
- * inner container so alignment is controlled in one place. */
+/* Shared inset for the header content, transcript, and composer. */
+.session-view {
+	--session-view-content-horizontal-padding: var(--vscode-spacing-size320);
+}
+
 .session-view .session-view-centered-content {
 	height: 100%;
 	margin: 0 auto;

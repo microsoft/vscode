@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -15,9 +15,17 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
-import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
+import { Menus } from '../../../../browser/menus.js';
 import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+
+MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {
+	submenu: Menus.SessionItemSettings,
+	title: localize2('sessionItemSettings', "Settings"),
+	group: '2_settings',
+	order: 1,
+	when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+});
 
 /**
  * Registers the {@link AgentHostSettingsFileSystemProvider} with the
@@ -56,8 +64,8 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 			id: 'sessionsViewPane.openHostSettings',
 			title: localize2('openHostSettings', "Open Host Settings"),
 			menu: [{
-				id: SessionItemContextMenuId,
-				group: '2_settings',
+				id: Menus.SessionItemSettings,
+				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}],

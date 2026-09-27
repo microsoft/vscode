@@ -10,6 +10,7 @@ import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjec
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { mainWindow } from '../../../../browser/window.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
@@ -275,6 +276,212 @@ suite('ObjectTree', function () {
 			tree.setChildren(null, [{ element: 0 }, { element: 1 }]);
 
 			assert.strictEqual(container.querySelectorAll('.monaco-list-row.test-tree-row').length, 2);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('tracks the sticky scroll DOM node across runtime toggles', function () {
+		const disabledContainer = document.createElement('div');
+		disabledContainer.style.width = '200px';
+		disabledContainer.style.height = '100px';
+		const enabledContainer = document.createElement('div');
+		enabledContainer.style.width = '200px';
+		enabledContainer.style.height = '100px';
+
+		const disabledTree = new ObjectTree<number>('disabled', disabledContainer, new Delegate(), [new Renderer()]);
+		const enabledTree = new ObjectTree<number>('enabled', enabledContainer, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		const stickyScrollDomNodeChanges: Array<HTMLElement | undefined> = [];
+		const stickyScrollDomNodeListener = enabledTree.onDidChangeStickyScrollDomNode(node => stickyScrollDomNodeChanges.push(node));
+		try {
+			disabledTree.layout(100);
+			enabledTree.layout(100);
+			enabledTree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			const stickyScrollDomNode = enabledTree.stickyScrollDomNode;
+			const stickyRowsBeforeScroll = stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length;
+			enabledTree.scrollTop = 1;
+			const stickyRowsAfterScroll = stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length;
+			const isRealContainer = enabledContainer.querySelector('.monaco-tree-sticky-container') === stickyScrollDomNode;
+			const stableBeforeToggle = enabledTree.stickyScrollDomNode === stickyScrollDomNode;
+			enabledTree.updateOptions({ enableStickyScroll: false });
+			const stickyScrollDomNodeWhenDisabled = enabledTree.stickyScrollDomNode;
+			const oldDomNodeRemoved = stickyScrollDomNode ? !enabledContainer.contains(stickyScrollDomNode) : false;
+			enabledTree.updateOptions({ enableStickyScroll: true });
+			const replacementStickyScrollDomNode = enabledTree.stickyScrollDomNode;
+
+			assert.deepStrictEqual({
+				disabled: disabledTree.stickyScrollDomNode,
+				isRealContainer,
+				stableBeforeToggle,
+				stickyRowsBeforeScroll,
+				stickyRowsAfterScroll,
+				stickyScrollDomNodeWhenDisabled,
+				oldDomNodeRemoved,
+				replacementIsRealContainer: enabledContainer.querySelector('.monaco-tree-sticky-container') === replacementStickyScrollDomNode,
+				replacementIsNew: replacementStickyScrollDomNode !== stickyScrollDomNode,
+				replacementStickyRows: replacementStickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length,
+				changeKinds: stickyScrollDomNodeChanges.map(node => node ? 'enabled' : 'disabled'),
+			}, {
+				disabled: undefined,
+				isRealContainer: true,
+				stableBeforeToggle: true,
+				stickyRowsBeforeScroll: 0,
+				stickyRowsAfterScroll: 1,
+				stickyScrollDomNodeWhenDisabled: undefined,
+				oldDomNodeRemoved: true,
+				replacementIsRealContainer: true,
+				replacementIsNew: true,
+				replacementStickyRows: 1,
+				changeKinds: ['disabled', 'enabled'],
+			});
+		} finally {
+			stickyScrollDomNodeListener.dispose();
+			disabledTree.dispose();
+			enabledTree.dispose();
+		}
+	});
+
+	test('shows the default sticky node after its source row starts scrolling out', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			const stickyText = () => container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+			const states = [stickyText()];
+			tree.scrollTop = 1;
+			states.push(stickyText());
+
+			assert.deepStrictEqual(states, [undefined, '0']);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('evaluates a custom sticky source range once per scroll update', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+		const providerCalls: { element: number; defaultRange: { start: number; end: number } }[] = [];
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeSourceRangeProvider: (element, defaultRange) => {
+				providerCalls.push({ element, defaultRange });
+				return { start: 5, end: 15 };
+			},
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			tree.scrollTop = 5;
+			const stickyAtRangeStart = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+			tree.scrollTop = 6;
+			const stickyAfterRangeStart = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+
+			assert.deepStrictEqual({
+				stickyAtRangeStart,
+				stickyAfterRangeStart,
+				providerCalls,
+			}, {
+				stickyAtRangeStart: undefined,
+				stickyAfterRangeStart: '0',
+				providerCalls: [
+					{ element: 0, defaultRange: { start: 0, end: 20 } },
+					{ element: 0, defaultRange: { start: 0, end: 20 } },
+				],
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('shrinks a sticky node to its final pixel before the next root', async function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100, children: [{ element: 1 }, { element: 10 }] },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+			]);
+
+			tree.scrollTop = 1;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			tree.scrollTop = 59;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const stickyBeforeBoundary = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+			const positionBeforeBoundary = stickyBeforeBoundary?.style.top;
+			const visibleHeightBeforeBoundary = stickyBeforeBoundary ? Number.parseFloat(stickyBeforeBoundary.style.top) + Number.parseFloat(stickyBeforeBoundary.style.height) : undefined;
+			tree.scrollTop = 60;
+			const positionAtBoundary = container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.style.top;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const stickyAfterBoundary = container.querySelector('.monaco-tree-sticky-row');
+
+			assert.deepStrictEqual({
+				positionBeforeBoundary,
+				visibleHeightBeforeBoundary,
+				positionAtBoundary,
+				stickyAfterBoundary: !!stickyAfterBoundary,
+			}, {
+				positionBeforeBoundary: '-19px',
+				visibleHeightBeforeBoundary: 1,
+				positionAtBoundary: undefined,
+				stickyAfterBoundary: false,
+			});
 		} finally {
 			tree.dispose();
 		}

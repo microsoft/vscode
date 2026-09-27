@@ -19,6 +19,7 @@ jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 90
+    cancelTimeoutInMinutes: 10
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -46,7 +47,7 @@ jobs:
             displayName: Publish Log Files
             sbomEnabled: false
             isProduction: false
-            condition: succeededOrFailed()
+            condition: always()
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
           artifactName: vscode_client_win32_$(VSCODE_ARCH)_setup

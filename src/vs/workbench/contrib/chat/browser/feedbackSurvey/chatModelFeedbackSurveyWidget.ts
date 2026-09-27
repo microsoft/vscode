@@ -18,6 +18,8 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platf
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatModelFeedbackSurveyStepKind, IChatModelFeedbackSurveyTextStep } from '../../common/feedbackSurvey/chatModelFeedbackSurveyConfig.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../widget/chatCard.js';
+import { ChatCardListbox } from '../widget/chatCardListbox.js';
 import { ChatModelFeedbackSurveyStatus, IChatModelFeedbackSurveyService, IChatModelFeedbackSurveyState } from './chatModelFeedbackSurveyService.js';
 import './media/chatModelFeedbackSurvey.css';
 
@@ -149,9 +151,9 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 			return;
 		}
 
-		const panel = dom.append(this.container, dom.$('.chat-feedback-survey-container'));
-		const header = dom.append(panel, dom.$('.chat-feedback-survey-header'));
-		const title = dom.append(header, dom.$('.chat-feedback-survey-title'));
+		const panel = dom.append(this.container, dom.$(`.chat-feedback-survey-container.${CHAT_CARD_LARGE_CLASS}`));
+		const header = dom.append(panel, dom.$(`.chat-feedback-survey-header.${CHAT_CARD_HEADER_CLASS}`));
+		const title = dom.append(header, dom.$(`.chat-feedback-survey-title.${CHAT_CARD_TITLE_CLASS}`));
 		title.textContent = state.isSubmitted
 			? localize('chat.feedbackSurvey.acknowledgement', "Thanks, your feedback has been recorded.")
 			: step.title;
@@ -192,40 +194,22 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 
 	private renderCloseButton(header: HTMLElement): Button {
 		const label = localize('chat.feedbackSurvey.dismiss', "Dismiss Survey");
-		const close = this.renderDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		close.label = `$(${Codicon.closeSmall.id})`;
-		close.element.classList.add('chat-feedback-survey-close');
-		close.element.setAttribute('aria-label', label);
-		this.renderDisposables.add(this.hoverService.setupDelayedHover(close.element, { content: label }));
+		const close = createChatCardIconButton(this.renderDisposables, header, this.hoverService, {
+			icon: Codicon.closeSmall,
+			ariaLabel: label,
+			hoverContent: label,
+		});
 		this.renderDisposables.add(close.onDidClick(() => this.dismiss()));
 		return close;
 	}
 
 	/** Renders the options as a single select list, matching the ask question tool. */
 	private renderChoiceStep(response: IChatResponseViewModel, body: HTMLElement, instanceId: string, stepId: string, options: readonly { id: string; label: string }[], title: string): HTMLElement {
-		const list = dom.append(body, dom.$('.chat-feedback-survey-list'));
-		list.setAttribute('role', 'listbox');
-		list.setAttribute('aria-label', title);
-		list.tabIndex = 0;
-
-		const items: HTMLElement[] = [];
-		let activeIndex = 0;
-
-		const setActive = (index: number) => {
-			activeIndex = index;
-			items.forEach((item, i) => {
-				const isActive = i === index;
-				item.classList.toggle('active', isActive);
-				item.setAttribute('aria-selected', String(isActive));
-			});
-			list.setAttribute('aria-activedescendant', items[index].id);
-		};
+		const listbox = new ChatCardListbox(dom.append(body, dom.$('.chat-feedback-survey-list')), title, 'active');
 
 		options.forEach((option, index) => {
-			const item = dom.append(list, dom.$('.chat-feedback-survey-list-item'));
-			item.id = `chat-feedback-survey-option-${instanceId}-${stepId}-${index}`;
-			item.setAttribute('role', 'option');
-			item.setAttribute('aria-selected', 'false');
+			const item = dom.append(listbox.domNode, dom.$('.chat-feedback-survey-list-item'));
+			listbox.addOption(item, `chat-feedback-survey-${instanceId}-${stepId}`);
 
 			const label = dom.append(item, dom.$('.chat-feedback-survey-list-label'));
 			label.textContent = option.label;
@@ -234,32 +218,31 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 				dom.EventHelper.stop(e, true);
 				this.surveyService.answerChoice(response, stepId, option.id);
 			}));
-			items.push(item);
 		});
 
-		setActive(0);
+		listbox.setActive(0);
 
-		this.renderDisposables.add(dom.addDisposableListener(list, dom.EventType.KEY_DOWN, e => {
+		this.renderDisposables.add(dom.addDisposableListener(listbox.domNode, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.DownArrow) {
 				event.preventDefault();
-				setActive(activeIndex === items.length - 1 ? 0 : activeIndex + 1);
+				listbox.setActive(listbox.wrappedIndex(listbox.activeIndex + 1));
 			} else if (event.keyCode === KeyCode.UpArrow) {
 				event.preventDefault();
-				setActive(activeIndex === 0 ? items.length - 1 : activeIndex - 1);
+				listbox.setActive(listbox.wrappedIndex(listbox.activeIndex - 1));
 			} else if (event.keyCode === KeyCode.Home) {
 				event.preventDefault();
-				setActive(0);
+				listbox.setActive(0);
 			} else if (event.keyCode === KeyCode.End) {
 				event.preventDefault();
-				setActive(items.length - 1);
+				listbox.setActive(listbox.length - 1);
 			} else if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
 				event.preventDefault();
-				this.surveyService.answerChoice(response, stepId, options[activeIndex].id);
+				this.surveyService.answerChoice(response, stepId, options[listbox.activeIndex].id);
 			}
 		}));
 
-		return list;
+		return listbox.domNode;
 	}
 
 	private renderTextStep(response: IChatResponseViewModel, state: IChatModelFeedbackSurveyState, body: HTMLElement, step: IChatModelFeedbackSurveyTextStep): HTMLElement {

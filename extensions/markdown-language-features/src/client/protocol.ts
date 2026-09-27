@@ -10,7 +10,7 @@ import type * as md from 'vscode-markdown-languageservice';
 
 
 export type ResolvedDocumentLinkTarget =
-	| { readonly kind: 'file'; readonly uri: vscode.Uri; position?: lsp.Position; fragment?: string }
+	| { readonly kind: 'file'; readonly uri: vscode.Uri; positionOrRange?: lsp.Position | lsp.Range; fragment?: string }
 	| { readonly kind: 'folder'; readonly uri: vscode.Uri }
 	| { readonly kind: 'external'; readonly uri: vscode.Uri };
 
@@ -36,5 +36,5 @@ export const getUpdatePastedLinksEdit = new RequestType<{ pasteIntoDoc: string; 
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 
-export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget, any>('markdown/resolveLinkTarget');
+export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget | undefined, any>('markdown/resolveLinkTarget');
 //#endregion

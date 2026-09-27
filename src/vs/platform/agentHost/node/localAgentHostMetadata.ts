@@ -52,18 +52,18 @@ export async function prepareLocalAgentHostEndpointMetadataDirectory(userDataPat
 	await prepareOwnerOnlyDirectory(getEntriesDirectory(userDataPath));
 }
 
-async function prepareOwnerOnlyDirectory(directory: string): Promise<void> {
+export async function prepareOwnerOnlyDirectory(directory: string): Promise<void> {
 	await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
 	const stat = await fs.promises.lstat(directory);
 	if (!stat.isDirectory() || stat.isSymbolicLink()) {
-		throw new Error(`Local agent host endpoint directory is not a directory: ${directory}`);
+		throw new Error(`Owner-only path is not a directory: ${directory}`);
 	}
 
 	if (process.platform === 'win32') {
 		await applyWindowsOwnerOnlyAcl(directory);
 	} else {
 		if (process.getuid && stat.uid !== process.getuid()) {
-			throw new Error(`Local agent host endpoint directory is not owned by the current user: ${directory}`);
+			throw new Error(`Directory is not owned by the current user: ${directory}`);
 		}
 		await fs.promises.chmod(directory, 0o700);
 	}

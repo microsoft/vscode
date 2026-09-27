@@ -4,12 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../base/browser/dom.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
-import { getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ExternalSessionBanner, getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
 
 suite('Sessions - External Session Banner', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hides immediately when the current external session is adopted', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const layoutChanges: boolean[] = [];
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {
+			onDidChangeLayout: visible => layoutChanges.push(visible),
+		}));
+		const isExternal = observableValue('external', true);
+		const session = new class extends mock<ISession>() {
+			override readonly resource = URI.parse('test://external');
+			override readonly isExternal = isExternal;
+			override readonly updatedAt = constObservable(new Date());
+		};
+		layoutChanges.length = 0;
+		banner.setSession(session);
+		const before = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isExternal.set(false, undefined);
+		assert.deepStrictEqual({
+			before,
+			after: { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') },
+			layoutChanges,
+		}, {
+			before: { visible: true, hidden: false },
+			after: { visible: false, hidden: true },
+			layoutChanges: [true, false],
+		});
+	});
+
+	test('selects the configured external session visibility mode', () => {
+		assert.deepStrictEqual({
+			configuredRecent: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Recent),
+			configuredLast7Days: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Last7Days),
+			initialMode: getExternalSessionBannerSelectedMode(ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Recent),
+		}, {
+			configuredRecent: ChatExternalSessionsMode.Recent,
+			configuredLast7Days: ChatExternalSessionsMode.Last7Days,
+			initialMode: ChatExternalSessionsMode.Last24Hours,
+		});
+	});
 
 	test('matches external session visibility time boundaries', () => {
 		const day = 24 * 60 * 60 * 1000;
@@ -59,7 +104,7 @@ suite('Sessions - External Session Banner', () => {
 			{
 				type: 'warning',
 				message: 'This session may no longer appear in Code - OSS',
-				detail: 'Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
+				detail: 'Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
 				primaryButton: '&&Save Anyway',
 			}
 		);

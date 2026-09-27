@@ -10,6 +10,7 @@ import { LanguageModelTextPart } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { decodeStatefulMarker, StatefulMarkerContainer } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../platform/endpoint/common/thinkingDataContainer';
+import { thinkingOriginFromMetadata } from '../../../platform/thinking/common/thinking';
 import { SafetyRules } from '../../prompts/node/base/safetyRules';
 import { EditorIntegrationRules } from '../../prompts/node/panel/editorIntegrationRules';
 import { imageDataPartToTSX, ToolResult } from '../../prompts/node/panel/toolCalling';
@@ -69,7 +70,8 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
 				const thinkingElements = thinkingGroups.map(group => {
 					const encrypted = typeof group.metadata.encrypted_content === 'string' ? group.metadata.encrypted_content : undefined;
-					return <ThinkingDataContainer thinking={{ id: group.id, text: group.text, metadata: group.metadata, encrypted }} />;
+					// Read the per-part provenance metadata back onto the envelope.
+					return <ThinkingDataContainer thinking={{ id: group.id, text: group.text, metadata: group.metadata, encrypted }} originApi={thinkingOriginFromMetadata(group.metadata)} />;
 				});
 				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content}{thinkingElements}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {

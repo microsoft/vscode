@@ -305,6 +305,117 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	test('drops workflow names when the host refuses them and keeps the fallback for later polls', async () => {
+		await withServer(async server => {
+			const checkRun = { __typename: 'CheckRun', databaseId: 1, name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true };
+			const expectedSuitesResponse = gitHubGraphQLResponse({
+				repository: {
+					object: {
+						oid: 'head-1',
+						checkSuites: {
+							nodes: [{ id: 'CS1', status: 'COMPLETED', conclusion: 'SUCCESS', app: { name: 'Build' }, checkRuns: { totalCount: 1 } }],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(undefined, [{
+						type: 'FORBIDDEN',
+						message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+					}]),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'retry must omit the refused workflow-name subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'later polls must not retry the refused subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			// The Agent Merge subscription shape, which always loads expected suites.
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined }],
+					requirednessComplete: true,
+					expectedSuites: [{ id: 'CS1', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true }],
+					expectedSuitesComplete: true,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps checks usable when only the expected check suites are refused', async () => {
+		await withServer(async server => {
+			const checkRun = {
+				__typename: 'CheckRun',
+				databaseId: 1,
+				name: 'CI',
+				status: 'COMPLETED',
+				conclusion: 'SUCCESS',
+				isRequired: true,
+				checkSuite: { workflowRun: { workflow: { name: 'Code OSS' } } },
+			};
+			const refusal = gitHubGraphQLResponse(undefined, [{
+				type: 'FORBIDDEN',
+				message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+			}]);
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(request.graphQl?.query?.includes('workflowRun'), 'a refused expected-suites request must not disable workflow names'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			// Checks stay readable, and the missing suites are reported incomplete.
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: 'Code OSS' }],
+					requirednessComplete: true,
+					expectedSuites: [],
+					expectedSuitesComplete: false,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
 	test('fully paginates current-head checks and normalizes mergeability', async () => {
 		await withServer(async server => {
 			server.enqueue(

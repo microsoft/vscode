@@ -4,10 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
-import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, type IAgentSandboxFileSystemSetting, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
+import { AgentSandboxEnabledValue, type IAgentSandboxFileSystemSetting } from '../../../sandbox/common/settings.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+
+suite('VS Code sandbox read roots', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('grants the local harness its terminal output root', () => {
+		const terminalOutputDirectory = URI.file('/cache/terminal-output');
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ terminalOutputDirectory }), [terminalOutputDirectory]);
+	});
+
+	test('grants only the current session attachments and an optional shell init root', () => {
+		const sessionDataDirectory = URI.file('/data/agentSessionData/session-1');
+		const shellInitDirectory = URI.file('/data/agentHost/shellInit/session-1');
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ sessionDataDirectory, shellInitDirectory }), [
+			URI.file('/data/agentSessionData/session-1/attachments'),
+			shellInitDirectory,
+		]);
+	});
+
+	test('does not grant session storage or host internals by default', () => {
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({}), []);
+	});
+});
 
 /**
  * Build the host-side `sandbox` root-config bag (the shape the workbench
@@ -39,7 +63,7 @@ function sandbox(
 			: platform === 'darwin'
 				? AgentHostSandboxKey.MacFileSystem
 				: AgentHostSandboxKey.LinuxFileSystem;
-		cfg[fsKey] = fs as Record<string, unknown>;
+		cfg[fsKey] = fs;
 	}
 	if (hosts?.allowedHosts?.length) {
 		cfg[AgentHostSandboxKey.AllowedNetworkDomains] = [...hosts.allowedHosts];
@@ -66,8 +90,8 @@ function expectedSandboxConfig(options?: {
 		addCurrentWorkingDirectory: true,
 		allowDevToolAccess: true,
 		auth: {
-			git: false,
-			gh: false,
+			git: true,
+			gh: true,
 		},
 		userPolicy: {
 			filesystem: {
@@ -78,7 +102,7 @@ function expectedSandboxConfig(options?: {
 			},
 			network: {
 				allowOutbound: options?.allowOutbound === true,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			},
 		},
 	};
@@ -117,6 +141,12 @@ suite('buildSandboxConfigForSdk', () => {
 		test('enables outbound network through the separate allowNetwork policy', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, true)), expectedSandboxConfig({ allowOutbound: true }));
+			}
+		});
+
+		test('preserves an explicit outbound network restriction', () => {
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, false)), expectedSandboxConfig({ allowOutbound: false }));
 			}
 		});
 
@@ -228,7 +258,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
 					allowOutbound: false,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -237,7 +267,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -245,8 +275,42 @@ suite('buildSandboxConfigForSdk', () => {
 		test('ignores empty host lists', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
 				allowOutbound: false,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			});
+		});
+	});
+
+	suite('extraReadonlyPaths', () => {
+
+		test('grants read access to host-generated paths', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				readonlyPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('keeps user denyRead winning over a host-generated path', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { denyRead: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				deniedPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('does not downgrade a path the user already made readwrite', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowWrite: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
+				readwritePaths: ['/work'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('changes nothing when omitted or empty', () => {
+			const base = buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }));
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), []), base);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), undefined), base);
+		});
+
+		test('stays undefined when sandboxing is off, regardless of extra paths', () => {
+			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), ['/data/shellInit/s1']), undefined);
 		});
 	});
 });

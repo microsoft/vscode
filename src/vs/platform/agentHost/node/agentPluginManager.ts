@@ -12,7 +12,25 @@ import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentP
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
-const DEFAULT_MAX_PLUGINS = 20;
+/**
+ * Cap on the total number of materialized plugin revisions kept on disk,
+ * across all plugins. Bounds disk usage; the LRU decides which revisions
+ * survive, so a plugin that is actively synced keeps more of its history
+ * than one that has gone idle.
+ */
+const DEFAULT_MAX_PLUGIN_REVISIONS = 64;
+
+/**
+ * Revisions retained per plugin URI before older ones are evicted.
+ *
+ * A client's nonce is a hash of the bundle's contents, so it is not
+ * monotonic: a customization set that changes and then changes back
+ * produces a nonce that was already synced. Retaining only the current
+ * revision turned every such cycle into a full re-copy of the bundle over
+ * the agent host connection. Keeping a short history makes those cycles
+ * cache hits instead.
+ */
+const MAX_REVISIONS_PER_PLUGIN = 8;
 
 /** On-disk cache entry format. */
 interface ICacheEntry {
@@ -34,9 +52,12 @@ interface ICacheEntry {
  * plugin are serialized and cannot clobber each other.
  *
  * Older nonces of a plugin are evicted opportunistically: when the manager
- * starts up and again after each fresh sync of the same plugin. If a stale
- * nonce directory cannot be removed (e.g. it is still locked), it is retained
- * in the LRU and retried on a later cleanup pass.
+ * starts up and again after each fresh sync of the same plugin. Up to
+ * {@link MAX_REVISIONS_PER_PLUGIN} revisions are retained so that a
+ * customization set which cycles back to a previously synced state is a cache
+ * hit rather than a full re-copy. If a stale nonce directory cannot be removed
+ * (e.g. it is still locked), it is retained in the LRU and retried on a later
+ * cleanup pass.
  *
  * The LRU (which records each plugin's URI and nonce) is persisted to a JSON
  * file in the base path so it survives process restarts.
@@ -46,7 +67,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	private readonly _basePath: URI;
 	private readonly _cachePath: URI;
-	private readonly _maxPlugins: number;
+	private readonly _maxRevisions: number;
 
 	/** Serializes concurrent sync operations per plugin URI. */
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -64,11 +85,11 @@ export class AgentPluginManager implements IAgentPluginManager {
 		userDataPath: URI,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-		maxPlugins: number = DEFAULT_MAX_PLUGINS,
+		maxRevisions: number = DEFAULT_MAX_PLUGIN_REVISIONS,
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentPlugins');
 		this._cachePath = URI.joinPath(this._basePath, 'cache.json');
-		this._maxPlugins = maxPlugins;
+		this._maxRevisions = maxRevisions;
 	}
 
 	get basePath(): URI {
@@ -121,6 +142,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		if (ref.nonce && this._findEntry(ref.uri, ref.nonce) && await this._fileService.exists(destDir)) {
 			this._touchLru(ref.uri, ref.nonce);
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
+			// Persist the reordering: retention now keeps several revisions per
+			// plugin, so an unpersisted touch would reload in the pre-hit order
+			// and evict the revision that was most recently used.
+			await this._persistCache();
 			return destDir;
 		}
 
@@ -211,16 +236,17 @@ export class AgentPluginManager implements IAgentPluginManager {
 	}
 
 	/**
-	 * Attempts to evict every nonce of {@link uri} except the most recently used
-	 * one. Entries whose directory cannot be removed are left in the LRU so they
-	 * can be retried later, once whatever was holding them has released them.
+	 * Attempts to evict revisions of {@link uri} beyond the most recent
+	 * {@link MAX_REVISIONS_PER_PLUGIN}. Entries whose directory cannot be
+	 * removed are left in the LRU so they can be retried later, once whatever
+	 * was holding them has released them.
 	 */
 	private async _cleanupStaleNoncesFor(uri: string): Promise<void> {
 		const entries = this._lru.filter(entry => entry.uri === uri);
-		// `entries` preserves LRU order; the last is the current revision.
-		const stale = entries.slice(0, -1);
+		// `entries` preserves LRU order; the tail holds the revisions we keep.
+		const stale = entries.slice(0, -MAX_REVISIONS_PER_PLUGIN);
 		for (const entry of stale) {
-			this._logService.info(`[AgentPluginManager] Evicting stale nonce for plugin: ${uri}`);
+			this._logService.info(`[AgentPluginManager] Evicting stale nonce ${entry.nonce || 'default'} for plugin: ${uri}`);
 			if (await this._tryDeleteDir(this._dirFor(entry.uri, entry.nonce))) {
 				this._removeEntryRef(entry);
 			}
@@ -233,9 +259,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 		// are kept in the LRU so they can be retried on a later eviction
 		// pass; the cap may be exceeded temporarily in that case.
 		let i = 0;
-		while (this._lru.length > this._maxPlugins && i < this._lru.length) {
+		while (this._lru.length > this._maxRevisions && i < this._lru.length) {
 			const candidate = this._lru[i];
-			this._logService.info(`[AgentPluginManager] Evicting plugin: ${candidate.uri}`);
+			this._logService.info(`[AgentPluginManager] Evicting revision ${candidate.nonce || 'default'} of plugin: ${candidate.uri}`);
 			if (await this._tryDeleteDir(this._dirFor(candidate.uri, candidate.nonce))) {
 				this._lru.splice(i, 1);
 				if (!this._lru.some(entry => entry.uri === candidate.uri)) {
@@ -277,8 +303,36 @@ export class AgentPluginManager implements IAgentPluginManager {
 			this._logService.warn('[AgentPluginManager] Failed to load cache from disk', err);
 		}
 
+		await this._pruneMissingEntries();
 		await this._cleanupStaleNonces();
 		await this._persistCache();
+	}
+
+	/**
+	 * Drops entries whose directory is gone (deleted out from under us, or a
+	 * copy that never completed). Such an entry can never produce a cache hit,
+	 * so leaving it in place would waste a per-plugin retention slot and a slot
+	 * against the global cap.
+	 */
+	private async _pruneMissingEntries(): Promise<void> {
+		const present = await Promise.all(this._lru.map(async entry => {
+			try {
+				await this._fileService.stat(this._dirFor(entry.uri, entry.nonce));
+				return true;
+			} catch (err) {
+				// Only a confirmed absence justifies dropping the entry.
+				// `exists()` reports false for transient I/O and permission
+				// failures too, which would evict a still-valid revision and
+				// force a full re-copy of the bundle later.
+				return toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND;
+			}
+		}));
+		for (let i = this._lru.length - 1; i >= 0; i--) {
+			if (!present[i]) {
+				this._logService.trace(`[AgentPluginManager] Dropping cache entry with no directory: ${this._lru[i].uri}`);
+				this._lru.splice(i, 1);
+			}
+		}
 	}
 
 	private async _persistCache(): Promise<void> {

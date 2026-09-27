@@ -49,10 +49,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._logService.debug('[GitHubService] Initializing reusable GitHub service');
 		this.endpoint = options.endpoint;
 		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, this._logService));
-		this.credentials = this._register(new GitHubCredentialService(this.transport, options.tokenProvider, options.endpoint, this._logService));
-		this.capabilities = this._register(new GitHubHostCapabilitiesService(this.transport, options.endpoint, this._logService));
+		this.credentials = this._register(new GitHubCredentialService(undefined, undefined, this.transport, options.tokenProvider, options.endpoint, this._logService));
+		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, options.endpoint, this._logService));
 
-		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, options.endpoint);
+		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, options.endpoint, this._logService);
 		this.pullRequests = this._register(new PullRequestResourceService(
 			undefined,
 			undefined,

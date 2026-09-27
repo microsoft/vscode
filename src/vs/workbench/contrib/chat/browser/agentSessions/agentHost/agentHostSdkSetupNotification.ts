@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -18,14 +19,14 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { hasAnyModelTargetingSessionType } from '../sessionTypeAvailability.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 
 // #region State
 
 /** Everything one agent's {@link AgentSdkSetupState} is decided from. */
 export interface IAgentSdkSetupStateInputs {
-	/** The experimentation flag this whole feature stays behind. */
+	/** The experimentation flag the missing-account routes stay behind. Not the download offer. */
 	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether the user is signed in to GitHub (Copilot models already work). */
 	readonly signedIn: boolean;
@@ -40,28 +41,30 @@ export interface IAgentSdkSetupStateInputs {
 
 /**
  * The whole decision, as one pure function: what the banner renders and what the
- * funnel records are two readings of this one state. A signed-in user already
- * has Copilot models, so there is nothing to offer and BYOK stays undiscoverable
- * for them (a deliberate v1 cut).
+ * funnel records are two readings of this one state.
+ *
+ * The download is offered before any other check, because it applies to
+ * everyone: we fetch a large SDK onto the user's machine, and that is worth
+ * saying whether or not they have models already.
  */
 export function getAgentSdkSetupState(inputs: IAgentSdkSetupStateInputs): AgentSdkSetupState | undefined {
+	if (inputs.download === 'notDownloaded') {
+		// A request we sent covers the gap before the host answers it, so standing
+		// consent (or a click) never flashes the offer it has already satisfied.
+		return inputs.downloadRequested ? undefined : 'downloadOffered';
+	}
+	if (inputs.download === 'downloadOnUse' || inputs.download === 'downloading') {
+		return undefined;
+	}
+	// Everything below explains a missing account, which is the signed-out
+	// experiment and stays behind its flag.
 	if (!inputs.allowSignedOutWhenUsable || !inputs.entitlementResolved || inputs.signedIn) {
 		return undefined;
 	}
-	// Ahead of the download status because models are the honest end state: an
-	// agent that can enumerate a catalog has an account, whatever a status claims.
 	if (inputs.hasModels) {
 		return 'resolved';
 	}
-	switch (inputs.download) {
-		// A fetch in flight has nothing to ask for — the host drives its own
-		// progress notification while it runs.
-		case 'downloading': return undefined;
-		// A request we sent covers the gap before the host answers it, so standing
-		// consent (or a click) never flashes the offer it has already satisfied.
-		case 'notDownloaded': return inputs.downloadRequested ? undefined : 'downloadOffered';
-		case 'ready': return 'noAccount';
-	}
+	return 'noAccount';
 }
 
 /**
@@ -84,25 +87,39 @@ export function getAgentSdkSetupStateToReport(previous: AgentSdkSetupState | und
 
 // #region Banner
 
+/** Trusted for the commands its links address, and nothing else. */
+function setupMarkdown(value: string): MarkdownString {
+	return new MarkdownString(value, { isTrusted: { enabledCommands: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID] } });
+}
+
 /**
  * The "no account" second line: one whole sentence per combination of routes,
  * never assembled from localized fragments, because clause order is not stable
- * across languages. The GitHub clause is unconditional — every agent behind this
- * banner reaches models through our Copilot proxy once signed in, which is
- * workbench knowledge rather than something an agent could declare.
+ * across languages. The routes share one "or" list, ranked as the buttons rank
+ * them and led by the unconditional GitHub clause: reaching models through our
+ * Copilot proxy is workbench knowledge, not something an agent declares.
  */
-function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): string {
-	const provider = setup.signInProviderName;
-	if (provider && setup.setupDocsUrl) {
-		return localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {0} to use your {0} subscription, or read the instructions for other ways to set up {1}.", provider, displayName);
+function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): IMarkdownString {
+	// Both nouns are the host's, and this string is trusted for two commands, so
+	// they are escaped rather than interpolated raw: `[]()` in a name would
+	// otherwise synthesize a link to either one.
+	const name = escapeMarkdownSyntaxTokens(displayName);
+	const provider = setup.signInProviderName && escapeMarkdownSyntaxTokens(setup.signInProviderName);
+	// `command:` hrefs, so a link in the copy takes the same route a button would —
+	// funnel step and URL validation included. Both carry the agent id and nothing
+	// else: the docs command resolves the URL from the agent's own declaration.
+	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent).toString();
+	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent).toString() : undefined;
+	if (provider && docs) {
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({3}) on their docs.", name, reload, provider, docs));
 	}
 	if (provider) {
-		return localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, or sign in to {0} to use your {0} subscription.", provider);
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload, provider));
 	}
-	if (setup.setupDocsUrl) {
-		return localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models, or read the instructions for other ways to set up {0}.", displayName);
+	if (docs) {
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({2}) on their docs.", name, reload, docs));
 	}
-	return localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models.");
+	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload));
 }
 
 /**
@@ -143,19 +160,13 @@ export function agentSdkSetupNotificationId(agent: string): string {
 }
 
 /**
- * Whether a setup banner is currently being offered for the given session type.
- *
- * The pickers ask because the banner lives *inside* a session of the type it is
- * scoped to: a harness with no models yet is greyed out by the ordinary
- * availability rule, hiding the one thing telling the user how to fix that.
- * Matching the setup id specifically matters — an unscoped notification (a quota
- * warning, say) applies to every type and would un-grey all of them.
+ * Whether an agent advertised demand-driven setup for the given session type.
+ * Pickers use the capability itself rather than a currently visible banner:
+ * an already-authenticated account has no banner, but still needs selection to
+ * activate the agent and enumerate its models.
  */
-export function hasAgentSdkSetupNotification(chatInputNotificationService: IChatInputNotificationService, sessionType: string): boolean {
-	return chatInputNotificationService.getActiveNotification(notification =>
-		notification.id.startsWith(AGENT_SDK_SETUP_NOTIFICATION_ID_PREFIX)
-		&& isChatInputNotificationApplicableToSessionType(notification, sessionType)
-	) !== undefined;
+export function hasAgentSdkSetupForSessionType(setups: readonly IAgentSdkSetupInfo[], sessionType: string): boolean {
+	return setups.some(setup => agentSdkSetupSessionType(setup.agent) === sessionType);
 }
 
 /**
@@ -167,7 +178,7 @@ export function hasAgentSdkSetupNotification(chatInputNotificationService: IChat
  * never tie the SDK to an account: it is the same SDK behind the Copilot proxy,
  * a subscription or a BYO key.
  */
-export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displayName: string, state: AgentSdkSetupState | undefined): IChatInputNotification | undefined {
+export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displayName: string, state: AgentSdkSetupState | undefined, hasModels = false): IChatInputNotification | undefined {
 	// Nothing to ask of a user who is already set up. An empty `displayName` means
 	// the host has not described this agent yet, and "Download the  Agent" is worse
 	// than none; the next root-state change is moments away.
@@ -192,14 +203,13 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 		return {
 			...base,
 			message: localize('agentHost.sdkSetup.download', "Download the {0} Agent", displayName),
-			description: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName),
+			description: hasModels
+				? localize('agentHost.sdkSetup.downloadDescription.withModels', "Click Download or send a message to download the {0} Agent SDK.", displayName)
+				: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName),
 			actions: [action(localize('agentHost.sdkSetup.downloadAction', "Download"), AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID)],
 		};
 	}
 	const actions: IChatInputNotificationAction[] = [];
-	if (setup.setupDocsUrl) {
-		actions.push(action(localize('agentHost.sdkSetup.docsAction', "Setup Instructions"), AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID));
-	}
 	if (setup.signInProviderName) {
 		actions.push(action(localize('agentHost.sdkSetup.signInAction', "Sign in to {0}", setup.signInProviderName), AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID));
 	}
@@ -220,6 +230,7 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 
 export const AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID = 'workbench.action.chat.agentHost.downloadAgentSdk';
 export const AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID = 'workbench.action.chat.agentHost.openAgentSetupDocs';
+export const AGENT_SDK_SETUP_RELOAD_COMMAND_ID = 'workbench.action.chat.agentHost.reloadAgentConfiguration';
 export const AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToGitHubForAgent';
 export const AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToAgent';
 
@@ -239,6 +250,7 @@ function registerAgentSdkSetupCommand(id: string, run: (setupService: IAgentSdkS
 
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, (setupService, agent) => setupService.requestDownload(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, (setupService, agent) => setupService.openSetupDocs(agent));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, (setupService, agent) => setupService.requestReload(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signInToGitHub(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signIn(agent));
 
@@ -307,13 +319,14 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 			if (!displayName) {
 				continue;
 			}
+			const hasModels = hasAnyModelTargetingSessionType(this._languageModelsService, agentSdkSetupSessionType(setup.agent));
 			const state = getAgentSdkSetupState({
 				allowSignedOutWhenUsable,
 				signedIn,
 				entitlementResolved,
 				download: setup.download,
 				downloadRequested: this._agentSdkSetupService.isDownloadPending(setup.agent),
-				hasModels: hasAnyModelTargetingSessionType(this._languageModelsService, agentSdkSetupSessionType(setup.agent)),
+				hasModels,
 			});
 			// Before the render decision below, because `resolved` — the step the
 			// funnel exists to count — is exactly the state that renders nothing.
@@ -322,7 +335,7 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 				this._lastReported.set(setup.agent, toReport);
 				this._agentSdkSetupService.reportSetupState(setup.agent, toReport);
 			}
-			const notification = createAgentSdkSetupNotification(setup, displayName, state);
+			const notification = createAgentSdkSetupNotification(setup, displayName, state, hasModels);
 			if (!notification) {
 				continue;
 			}

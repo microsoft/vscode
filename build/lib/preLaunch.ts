@@ -40,7 +40,7 @@ async function getElectron() {
 	// directory is being removed and re-extracted. Skip the refresh when the
 	// already-present Electron matches the expected version; any detection
 	// failure falls back to a (re)download to preserve the previous behavior.
-	if (await isExpectedElectronInstalled()) {
+	if (!process.env['VSCODE_FORCE_PRELAUNCH'] && await isExpectedElectronInstalled()) {
 		return;
 	}
 	await runProcess(npm, ['run', 'electron']);
@@ -48,7 +48,7 @@ async function getElectron() {
 
 async function isExpectedElectronInstalled(): Promise<boolean> {
 	try {
-		const { getElectronVersion } = await import('./util.ts');
+		const { getElectronVersion } = await import('./electronVersion.ts');
 		const { electronVersion } = getElectronVersion();
 		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
 		return installedVersion === electronVersion;

@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -16,7 +16,7 @@ exchanges:
             createdBefore: '2999-01-01T00:00:00Z'
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -31,7 +31,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with createdBefore \"2999-01-01T00:00:00Z\", then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-16T00:05:45.643Z","modifiedAt":"2026-08-16T00:05:45.208Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call list_sessions exactly once with createdBefore \"2999-01-01T00:00:00Z\", then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-09-24T04:51:45.533Z","modifiedAt":"2026-09-24T04:51:45.559Z","changes":{"additions":0,"deletions":0,"files":0}}]}'
     response:
       content: filtered
       stopReason: end_turn

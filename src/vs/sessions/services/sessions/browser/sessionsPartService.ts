@@ -32,11 +32,15 @@ export interface ISessionsPartService {
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
 
 	/**
-	 * Fires with the session id of a grid slot that received keyboard focus. The
-	 * view service listens to promote that session to the active session. Only
-	 * fires for non-placeholder slots.
+	 * Controls whether mounted session views may render independently of the part's grid visibility.
 	 */
-	readonly onDidFocusSession: Event<string>;
+	setContentVisible(visible: boolean): void;
+
+	/**
+	 * Fires with the session id of a focused grid slot, or undefined for the empty new-session slot.
+	 * The view service promotes that slot to active.
+	 */
+	readonly onDidFocusSession: Event<string | undefined>;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session
@@ -64,6 +68,11 @@ export interface ISessionsPartService {
 	 * `undefined` if no matching slot is currently mounted in the grid.
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined;
+
+	/**
+	 * Returns the session view that currently contains DOM focus.
+	 */
+	getFocusedSessionView(): SessionView | undefined;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

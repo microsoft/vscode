@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IBrowserViewGroupFilter, IBrowserViewGroupService } from '../common/browserViewGroup.js';
-import { IBrowserViewOwner } from '../common/browserView.js';
+import { IBrowserViewCreationContext } from '../common/browserView.js';
 import { BrowserViewGroup } from './browserViewGroup.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
@@ -35,9 +35,9 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 		super();
 	}
 
-	async createGroup(owner: IBrowserViewOwner, filter?: IBrowserViewGroupFilter): Promise<string> {
+	async createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string> {
 		const id = generateUuid();
-		const group = this.instantiationService.createInstance(BrowserViewGroup, id, owner, filter);
+		const group = this.instantiationService.createInstance(BrowserViewGroup, id, filter, targetContext);
 		this.groups.set(id, group);
 
 		Event.once(group.onDidDestroy)(() => {

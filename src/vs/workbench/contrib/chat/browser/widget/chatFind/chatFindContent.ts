@@ -49,6 +49,27 @@ function isErrorDetailsRendered(item: IChatResponseViewModel): boolean {
 }
 
 /**
+ * Plaintext options for indexing. `omitMarkdownSyntax` matters because a response commonly lists
+ * its edits as markdown links, and only the label is rendered: without it the link target is
+ * indexed too, producing matches that exist in no DOM node and so can never be revealed.
+ */
+const FIND_PLAINTEXT_OPTIONS = { omitMarkdownSyntax: true } as const;
+
+/**
+ * Restores the whitespace `renderAsPlaintext` trims off the ends of a part.
+ *
+ * Parts that the renderer merges into a single block are concatenated when indexed, so a trimmed
+ * boundary fuses the tail of one part onto the head of the next: `See ` + `foo.ts` + ` for details`
+ * would be indexed as `Seefoo.tsfor details`, which matches nothing on screen and hides the text
+ * that is really there. A newline is restored where the source had one, matching how the DOM side
+ * separates blocks; otherwise a single space.
+ */
+function withSourceEdgeWhitespace(source: string, text: string): string {
+	const edge = (whitespace: string | undefined) => whitespace ? (whitespace.includes('\n') ? '\n' : ' ') : '';
+	return edge(/^\s+/.exec(source)?.[0]) + text + edge(/\s+$/.exec(source)?.[0]);
+}
+
+/**
  * Extracts the text a response actually *renders*, for Find to index.
  *
  * Deliberately not the accessible view's extraction: that one describes a response to a screen
@@ -66,7 +87,13 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 	if (isErrorDetailsRendered(item)) {
 		// The message is rendered as markdown, so index its plaintext form rather than the raw
 		// source; otherwise syntax characters would be counted but absent from the DOM.
-		parts.push({ partIndex: -1, text: renderAsPlaintext(new MarkdownString(item.errorDetails!.message)) });
+		parts.push({ partIndex: -1, text: renderAsPlaintext(new MarkdownString(item.errorDetails!.message), FIND_PLAINTEXT_OPTIONS) });
+	}
+
+	if (item.errorDetails?.responseIsFiltered) {
+		// A filtered response renders none of its content: the renderer drops the references
+		// slot, the response body and the code citations, leaving only the error message above.
+		return parts;
 	}
 
 	item.response.value.forEach((part, partIndex) => {
@@ -75,9 +102,9 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 				// No code fences or link formatting: the ``` markers are consumed by the code
 				// block, and an empty link renders as an empty anchor, so both would contribute
 				// text that is counted here but absent from the DOM.
-				const text = renderAsPlaintext(part.content);
+				const text = renderAsPlaintext(part.content, FIND_PLAINTEXT_OPTIONS);
 				if (text.trim()) {
-					parts.push({ partIndex, text });
+					parts.push({ partIndex, text: withSourceEdgeWhitespace(part.content.value, text) });
 				}
 				break;
 			}
@@ -100,8 +127,8 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 			}
 			case 'elicitation2':
 			case 'elicitationSerialized': {
-				const title = isMarkdownString(part.title) ? renderAsPlaintext(part.title) : part.title;
-				const message = isMarkdownString(part.message) ? renderAsPlaintext(part.message) : part.message;
+				const title = isMarkdownString(part.title) ? renderAsPlaintext(part.title, FIND_PLAINTEXT_OPTIONS) : part.title;
+				const message = isMarkdownString(part.message) ? renderAsPlaintext(part.message, FIND_PLAINTEXT_OPTIONS) : part.message;
 				const text = [title, message].filter(value => typeof value === 'string' && value.trim()).join('\n');
 				if (text.trim()) {
 					parts.push({ partIndex, text });

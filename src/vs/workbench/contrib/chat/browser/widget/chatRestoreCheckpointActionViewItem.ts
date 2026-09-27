@@ -57,7 +57,7 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 		// the ActionBar roving-tabindex pattern; keyboard users can use Escape to
 		// cancel the inline confirmation.
 		cancelButton.tabIndex = -1;
-		dom.reset(cancelButton, ...renderLabelWithIcons(`$(close)`));
+		dom.reset(cancelButton, ...renderLabelWithIcons(`$(close-compact)`));
 		cancelButton.title = this._cancelLabel;
 		cancelButton.setAttribute('aria-label', this._cancelLabel);
 		this._register(dom.addDisposableListener(cancelButton, dom.EventType.CLICK, e => {

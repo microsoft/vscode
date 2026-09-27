@@ -4,24 +4,321 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
-import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
-import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
+import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
+import { IChatTipService } from '../../../browser/chatTipService.js';
+import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { clearChatMarks } from '../../../common/chatPerf.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
+import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
+import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
+import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTranscriptProgressWidget() {
+		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = mockObject<IInstantiationService>()();
+		instantiationService.createInstance.callsFake((ctor: typeof ChatContentMarkdownRenderer | typeof Link, element?: HTMLElement, link?: ILinkDescriptor, options?: ILinkOptions) => {
+			if (ctor === ChatContentMarkdownRenderer) {
+				return { render: () => ({ element: dom.$('span'), dispose: () => { } }) };
+			}
+			if (ctor === Link) {
+				return new Link(element!, link!, options, upcastPartial<IHoverService>({}), upcastPartial<IOpenerService>({}));
+			}
+			return { domNode: dom.$('.progress-container', undefined, element!), iconElement: dom.$('div'), dispose: () => { } };
+		});
+		const widgetStore = store.add(new DisposableStore());
+		const contextKeyService = store.add(new MockContextKeyService());
+		const inputEnablement: boolean[] = [];
+		const transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: widgetStore,
+			container,
+			listContainer: dom.append(container, dom.$('.interactive-list')),
+			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction,
+			instantiationService,
+			contextKeyService,
+			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			_readOnlyContextKey: ChatContextKeys.readOnly.bindTo(contextKeyService),
+			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
+			updateChatViewVisibility: () => { },
+		}) as ChatWidget;
+		return { widget, container, contextKeyService, inputEnablement, transcriptProgressAction };
+	}
+
+	test('only preparation disables input and completion or cancellation re-enables it', () => {
+		const { widget, inputEnablement } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Connecting');
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		widget.setTranscriptProgress('Preparing again', undefined, { onCancel: () => widget.setTranscriptProgress(undefined) });
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual(inputEnablement, [false, true, false, true]);
+	});
+
+	test('disabled input blocks editing and attachment controls but leaves Stop focusable', () => {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const editorContainer = dom.append(container, dom.$('div'));
+		const editor = dom.append(editorContainer, mainWindow.document.createElement('textarea'));
+		editor.value = 'Existing draft';
+		const attachmentsContainer = dom.append(container, dom.$('div'));
+		const toolbar = dom.append(container, dom.$('div'));
+		const secondaryToolbarContainer = dom.append(container, dom.$('div'));
+		const stop = dom.append(container, dom.$('button'));
+		let dropDisabled = false;
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			inputEnabled: true,
+			_inputEditorElement: editorContainer,
+			_inputEditor: {
+				updateOptions: (options: { readOnly: boolean }) => { editor.readOnly = options.readOnly; },
+				hasWidgetFocus: () => mainWindow.document.activeElement === editor,
+				focus: () => editor.focus(),
+			},
+			attachmentsContainer,
+			inputActionsToolbar: { getElement: () => toolbar },
+			secondaryToolbarContainer,
+			executeToolbar: { focus: () => stop.focus() },
+			dnd: { setDisabledOverlay: (disabled: boolean) => { dropDisabled = disabled; } },
+		});
+		const state = () => ({
+			readOnly: editor.readOnly,
+			inert: [editorContainer, attachmentsContainer, toolbar, secondaryToolbarContainer].map(element => element.inert),
+			dropDisabled,
+			focused: mainWindow.document.activeElement === stop ? 'stop' : mainWindow.document.activeElement === editor ? 'editor' : 'none',
+			value: editor.value,
+		});
+		input.focus();
+		input.setInputEnabled(false);
+		const disabled = state();
+		editor.focus();
+		const cannotFocusEditor = mainWindow.document.activeElement === stop;
+		input.setInputEnabled(true);
+		input.focus();
+		assert.deepStrictEqual({ disabled, cannotFocusEditor, enabled: state() }, {
+			disabled: { readOnly: true, inert: [true, true, true, true], dropDisabled: true, focused: 'stop', value: 'Existing draft' },
+			cannotFocusEditor: true,
+			enabled: { readOnly: false, inert: [false, false, false, false], dropDisabled: false, focused: 'editor', value: 'Existing draft' },
+		});
+	});
+
+	test('transcript progress shows a keyboard-accessible detail action outside the live region', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		let opened = 0;
+		widget.setTranscriptProgress('Building', 'Building container', { detail: { label: 'Show Log', run: () => opened++ } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		const status = container.querySelector('[role=status]')!;
+		link.focus();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+		link.click();
+
+		assert.deepStrictEqual({
+			label: link.textContent,
+			tabIndex: link.tabIndex,
+			focused: mainWindow.document.activeElement === link,
+			opened,
+			linkInLiveRegion: status.contains(link),
+			linkHidden: !!link.closest('[aria-hidden=true]'),
+			statusLabel: status.getAttribute('aria-label'),
+			shimmer: !!container.querySelector('.shimmer-progress'),
+		}, {
+			label: 'Show Log',
+			tabIndex: 0,
+			focused: true,
+			opened: 3,
+			linkInLiveRegion: false,
+			linkHidden: false,
+			statusLabel: 'Building container',
+			shimmer: true,
+		});
+	});
+
+	test('transcript progress cancellation uses the latest callback without a separate button', () => {
+		const { widget, container, contextKeyService } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { onCancel: () => calls.push('old') });
+		const status = container.querySelector('[role=status]');
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => calls.push('new') });
+		const active = contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key);
+		const cancelled = widget.cancelTranscriptProgress();
+		widget.setTranscriptProgress('Started', undefined, { complete: true, onCancel: () => calls.push('completed') });
+
+		assert.deepStrictEqual({
+			calls,
+			sameStatus: container.querySelector('[role=status]') === status,
+			active,
+			cancelled,
+			completedActive: widget.isTranscriptProgressActive,
+			completedContext: contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key),
+			cancelCompleted: widget.cancelTranscriptProgress(),
+			customButton: !!container.querySelector('.monaco-button'),
+			complete: !!container.querySelector('.show-checkmarks'),
+		}, { calls: ['new'], sameStatus: true, active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
+	});
+
+	test('transcript progress updates preserve detail focus and use the latest action', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => calls.push('old') } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		link.focus();
+		widget.setTranscriptProgress('Starting', undefined, { detail: { label: 'Show Log', run: () => calls.push('new') } });
+		const focusedAfterUpdate = mainWindow.document.activeElement === link;
+		link.click();
+		widget.setTranscriptProgress(undefined);
+		const hiddenAfterClearing = !!link.closest('[hidden]');
+		link.click();
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		assert.deepStrictEqual({
+			sameLink: container.querySelector('a') === link,
+			focusedAfterUpdate,
+			hiddenAfterClearing,
+			hiddenWithoutAction: !!link.closest('[hidden]'),
+			calls,
+		}, {
+			sameLink: true,
+			focusedAfterUpdate: true,
+			hiddenAfterClearing: true,
+			hiddenWithoutAction: true,
+			calls: ['new'],
+		});
+	});
+
+	test('progress rendered by the transcript supplies an inline action without a duplicate overlay', () => {
+		const { widget, container, contextKeyService, transcriptProgressAction } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Preparing', undefined, { inTranscript: true, onCancel: () => { } });
+		const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+		const hiddenWithoutLog = progress.hidden;
+		widget.setTranscriptProgress('Starting', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('old') }, onCancel: () => { } });
+		widget.setTranscriptProgress('Initializing', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('new') }, onCancel: () => calls.push('cancel') });
+		transcriptProgressAction.get()?.run();
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual({
+			hiddenWithoutLog,
+			hiddenWithLog: progress.hidden,
+			actionLabel: transcriptProgressAction.get()?.label,
+			readOnly: contextKeyService.getContextKeyValue(ChatContextKeys.readOnly.key),
+			calls,
+		}, {
+			hiddenWithoutLog: true,
+			hiddenWithLog: true,
+			actionLabel: 'Show Log',
+			readOnly: true,
+			calls: ['new', 'cancel'],
+		});
+		widget.setTranscriptProgress(undefined);
+		assert.deepStrictEqual({ hidden: progress.hidden, action: transcriptProgressAction.get() }, { hidden: true, action: undefined });
+	});
+
+	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
+		const { widget } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		assert.deepStrictEqual(await Promise.all([
+			widget.acceptInput('follow up'),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Queued }),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering }),
+			widget.acceptInput(undefined, { cancelCurrentRequest: true }),
+		]), [undefined, undefined, undefined, undefined]);
+	});
+
+	test('transcript progress context is independent of request context and clears with its callback', () => {
+		const { widget, contextKeyService } = createTranscriptProgressWidget();
+		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		const hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		const states: boolean[] = [];
+		const record = () => states.push(widget.isTranscriptProgressActive && !!contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key));
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		record();
+		requestInProgress.set(true);
+		hasActiveRequest.set(true);
+		record();
+		requestInProgress.set(false);
+		hasActiveRequest.set(false);
+		record();
+		widget.setTranscriptProgress('Starting');
+		record();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress(undefined);
+		record();
+		assert.deepStrictEqual(states, [true, true, true, false, false]);
+	});
+
+	test('transcript progress clearing hides the detail action and preserves the message-only API', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		let opened = false;
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => opened = true }, onCancel: () => { } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		widget.setTranscriptProgress(undefined);
+		link.click();
+		const cleared = {
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			linkHidden: !!link.closest('[hidden]'),
+			active: widget.isTranscriptProgressActive,
+			opened,
+		};
+		widget.setTranscriptProgress('Connecting');
+
+		assert.deepStrictEqual({
+			cleared,
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			linkHidden: !!link.closest('[hidden]'),
+			statusLabel: container.querySelector('[role=status]')!.getAttribute('aria-label'),
+			shimmer: !!container.querySelector('.shimmer-progress'),
+		}, {
+			cleared: { hidden: true, linkHidden: true, active: false, opened: false },
+			hidden: false,
+			linkHidden: true,
+			statusLabel: 'Connecting',
+			shimmer: true,
+		});
+	});
 
 	class RecordingEditorService extends TestEditorService {
 		readonly saveAllCalls: (ISaveAllEditorsOptions | undefined)[] = [];
@@ -72,6 +369,65 @@ suite('ChatWidget', () => {
 		};
 	}
 
+	test('forwards sticky scroll DOM state from the list widget', () => {
+		const stickyScrollDomNode = mainWindow.document.createElement('div');
+		const onDidChangeStickyScrollDomNode = store.add(new Emitter<HTMLElement | undefined>()).event;
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			listWidget: { stickyScrollDomNode, onDidChangeStickyScrollDomNode },
+		}) as ChatWidget;
+
+		assert.deepStrictEqual({
+			domNode: widget.stickyScrollDomNode,
+			event: widget.onDidChangeStickyScrollDomNode,
+		}, {
+			domNode: stickyScrollDomNode,
+			event: onDidChangeStickyScrollDomNode,
+		});
+	});
+
+	test('does not send a picker fallback over an existing agent host conversation model', () => {
+		const savedModelId = 'agent-host-codex:@provider=openai:future-model';
+		const fallbackModelId = 'agent-host-codex:@provider=vscode-proxy:default-model';
+		const configuration = { thinkingLevel: 'medium' };
+		const scenarios = [
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: fallbackModelId },
+			{ provider: 'codex', hasRequests: false, intendedModelId: savedModelId },
+			{ provider: undefined, hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: undefined },
+		];
+		const selections = scenarios.map(scenario => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				_lockedAgent: { value: { agentHostProviderId: scenario.provider } },
+				viewModel: {
+					value: {
+						model: {
+							inputModel: { intendedModel: scenario.intendedModelId ? { modelId: scenario.intendedModelId } : undefined },
+							getRequests: () => scenario.hasRequests ? [{}] : [],
+						},
+					},
+				},
+				input: {
+					value: {
+						currentLanguageModel: fallbackModelId,
+						getModelConfiguration: () => configuration,
+					},
+				},
+			});
+			return widget.getSelectedModelRequestOptions();
+		});
+
+		const selectedFallback = { userSelectedModelId: fallbackModelId, userSelectedModelConfiguration: configuration };
+		assert.deepStrictEqual(selections, [
+			{ userSelectedModelId: undefined, userSelectedModelConfiguration: undefined },
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+		]);
+	});
+
 	test('saves non-untitled editors before sending by default', async () => {
 		const configurationService = new TestConfigurationService();
 		const editorService = store.add(new RecordingEditorService());
@@ -84,6 +440,208 @@ suite('ChatWidget', () => {
 			includeUntitled: false,
 			reason: SaveReason.EXPLICIT,
 		}]);
+	});
+
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			input: { value: input },
+			inputPart: { value: input },
+			contribs: { value: [] },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		return widget;
+	}
+
+	test('editing a steering request passes its model and configuration to the input', async () => {
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh' };
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		const input = mockObject<ChatInputPart>()({
+			element: mainWindow.document.createElement('div'),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: Event.None,
+		});
+		input.requestModelByIdentifier.resolves(true);
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+			modelId,
+			modelConfiguration,
+			pendingKind: ChatRequestQueueKind.Steering,
+		});
+		const widget = createStartEditingWidget(input, request, configurationService);
+
+		widget.startEditing(request.id);
+
+		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	function createFakeInputPart(name: string) {
+		const onDidFocus = store.add(new Emitter<void>());
+		const entriesMap = observableValue(`${name}.entriesMap`, ToolAndToolSetEnablementMap.fromMap(new Map()));
+		const counts = { updateContext: 0, dispose: 0 };
+		const part = upcastPartial<ChatInputPart>({
+			element: mainWindow.document.createElement('div'),
+			inputUri: URI.parse(`chat-input:/${name}`),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
+				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
+				updateContext: () => { counts.updateContext++; },
+			}),
+			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({ entriesMap }),
+			selectedLanguageModel: observableValue(`${name}.model`, undefined),
+			height: observableValue(`${name}.height`, 0),
+			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidLoadInputState: Event.None,
+			onDidFocus: onDidFocus.event,
+			onDidAcceptFollowup: Event.None,
+			onDidChangeCurrentChatMode: Event.None,
+			onDidClickOverlay: Event.None,
+			render: () => { },
+			layout: () => { },
+			setChatMode: () => { },
+			setPermissionLevel: () => { },
+			setEditing: () => { },
+			toggleChatInputOverlay: () => { },
+			renderAttachedContext: () => { },
+			setValue: () => { },
+			focus: () => { },
+			dispose: () => { counts.dispose++; },
+		});
+		return { part, onDidFocus, entriesMap, counts };
+	}
+
+	test('releases the inline request edit input and its subscriptions when editing finishes', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const main = createFakeInputPart('main');
+		const inline = createFakeInputPart('inline');
+		const onDidChangeAgents = store.add(new Emitter<void>());
+		const onDidChangeContext = store.add(new Emitter<void>());
+		let scopedServiceDisposed = false;
+		let disposedTipPresenters = 0;
+		const instantiationService = {
+			createChild: () => ({ createInstance: () => inline.part, dispose: () => { scopedServiceDisposed = true; } }),
+			createInstance: (ctor: unknown) => ctor === ChatInputPart ? main.part : { dispose: () => { disposedTipPresenters++; } },
+		};
+		const inlineInputHolder = store.add(new MutableDisposable<ChatInputPart>());
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+		});
+		const rowContainer = mainWindow.document.createElement('div');
+		const requestTimestampContainer = dom.append(rowContainer, dom.$('div'));
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store.add(new DisposableStore()) },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			inputPartDisposable: { value: store.add(new MutableDisposable()) },
+			inlineInputPartDisposable: { value: inlineInputHolder },
+			mainPasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			inlinePasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			_gettingStartedTip: { value: store.add(new MutableDisposable()) },
+			customizationMigrationNotice: { value: store.add(new MutableDisposable()) },
+			_onDidChangeActiveInputEditor: { value: { fire: () => { } } },
+			_onDidChangeContentHeight: { value: { fire: () => { } } },
+			inputContainer: { value: undefined, writable: true },
+			location: { value: ChatAgentLocation.Chat },
+			viewContext: { value: {} },
+			viewOptions: { value: {} },
+			instantiationService: { value: instantiationService },
+			chatPasteTargetService: { value: { registerTarget: () => Disposable.None } },
+			chatAgentService: { value: { onDidChangeAgents: onDidChangeAgents.event } },
+			contextKeyService: { value: { onDidChangeContext: onDidChangeContext.event } },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			logService: { value: new NullLogService() },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('chat-session:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			contribs: { value: [] },
+			refreshParsedInput: { value: () => { } },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request, rowContainer, requestTimestampContainer }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		const createInput = (ChatWidget.prototype as unknown as { createInput(container: HTMLElement): void }).createInput;
+		createInput.call(widget, mainWindow.document.createElement('div'));
+
+		widget.startEditing(request.id);
+		const whileEditing = { input: widget.input === inline.part, focusListener: inline.onDidFocus.hasListeners() };
+		main.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+		widget.finishedEditing();
+		const updatesAfterEdit = main.counts.updateContext + inline.counts.updateContext;
+		inline.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+
+		assert.deepStrictEqual({
+			whileEditing,
+			input: widget.input === main.part,
+			inlineDisposed: inline.counts.dispose > 0,
+			inlineInputHeld: inlineInputHolder.value !== undefined,
+			disposedTipPresenters,
+			scopedServiceDisposed,
+			inlineFocusListener: inline.onDidFocus.hasListeners(),
+			mainFocusListener: main.onDidFocus.hasListeners(),
+			toolUpdatesFromInlineInput: main.counts.updateContext + inline.counts.updateContext - updatesAfterEdit,
+			rowChildren: rowContainer.childElementCount,
+		}, {
+			whileEditing: { input: true, focusListener: true },
+			input: true,
+			inlineDisposed: true,
+			inlineInputHeld: false,
+			disposedTipPresenters: 0,
+			scopedServiceDisposed: true,
+			inlineFocusListener: false,
+			mainFocusListener: true,
+			toolUpdatesFromInlineInput: 0,
+			rowChildren: 1,
+		});
 	});
 
 	test('confirms before cancelling changed request edits', async () => {
@@ -141,6 +699,188 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('tracks unvisited completions and needs-input precedence', () => {
+		const active = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: false,
+			containsFocus: true,
+			requestWasActive: false,
+			requestBecameActive: true,
+			hasUnvisitedCompletion: false,
+		});
+		const completedWhileWindowBlurred = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: active.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
+		});
+		const windowRefocusedElsewhere = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: completedWhileWindowBlurred.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: completedWhileWindowBlurred.hasUnvisitedCompletion,
+		});
+		const chatRefocused = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: true,
+			requestWasActive: windowRefocusedElsewhere.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: windowRefocusedElsewhere.hasUnvisitedCompletion,
+		});
+		const needsInput = computeChatSessionStateIndicatorState({
+			requestNeedsInput: true,
+			isIdle: false,
+			containsFocus: true,
+			requestWasActive: chatRefocused.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: chatRefocused.hasUnvisitedCompletion,
+		});
+		const fastUnfocusedCompletion = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: false,
+			requestBecameActive: true,
+			hasUnvisitedCompletion: false,
+		});
+
+		assert.deepStrictEqual({ active, completedWhileWindowBlurred, windowRefocusedElsewhere, chatRefocused, needsInput, fastUnfocusedCompletion }, {
+			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
+			completedWhileWindowBlurred: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			windowRefocusedElsewhere: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			chatRefocused: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+			fastUnfocusedCompletion: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+		});
+	});
+
+	test('keeps queued work active unless an error or cancellation strands it', () => {
+		const base = {
+			requestInProgress: false,
+			requestNeedsInput: false,
+			pendingRequestCount: 1,
+			lastResponseIsCanceled: false,
+			lastResponseHasError: false,
+		};
+
+		assert.deepStrictEqual({
+			queued: computeChatModelIsIdle(base),
+			canceled: computeChatModelIsIdle({ ...base, lastResponseIsCanceled: true }),
+			failed: computeChatModelIsIdle({ ...base, lastResponseHasError: true }),
+			drained: computeChatModelIsIdle({ ...base, pendingRequestCount: 0 }),
+		}, {
+			queued: false,
+			canceled: true,
+			failed: true,
+			drained: true,
+		});
+	});
+
+	test('coalesces a queued request handoff without an idle completion state', async () => {
+		const onDidChange = store.add(new Emitter<'pendingChanged' | 'addRequest'>());
+		const states: ReturnType<typeof computeChatSessionStateIndicatorState>[] = [];
+		let pendingRequestCount = 1;
+		let requestInProgress = false;
+		store.add(Event.accumulate(onDidChange.event)(events => {
+			states.push(computeChatSessionStateIndicatorState({
+				requestNeedsInput: false,
+				isIdle: computeChatModelIsIdle({
+					requestInProgress,
+					requestNeedsInput: false,
+					pendingRequestCount,
+					lastResponseIsCanceled: false,
+					lastResponseHasError: false,
+				}),
+				containsFocus: false,
+				requestWasActive: true,
+				requestBecameActive: events.includes('addRequest'),
+				hasUnvisitedCompletion: false,
+			}));
+		}));
+
+		pendingRequestCount = 0;
+		onDidChange.fire('pendingChanged');
+		requestInProgress = true;
+		onDidChange.fire('addRequest');
+		await timeout(10);
+
+		assert.deepStrictEqual(states, [{
+			state: 'inProgress',
+			requestActive: true,
+			hasUnvisitedCompletion: false,
+		}]);
+	});
+
+	test('sticky request click survives synchronous template disposal during reveal', () => {
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: upcastPartial<IParsedChatRequest>({}),
+		});
+		const stickyRow = mainWindow.document.createElement('div');
+		stickyRow.classList.add('monaco-tree-sticky-row');
+		const rowContainer = mainWindow.document.createElement('div');
+		stickyRow.appendChild(rowContainer);
+		const stickyTemplate = upcastPartial<IChatListItemTemplate>({ currentElement: request, rowContainer });
+		const realTemplate = upcastPartial<IChatListItemTemplate>({});
+		let revealedRequest: IChatRequestViewModel | undefined;
+		let requestedTemplateId: string | undefined;
+		let clickedTemplate: IChatListItemTemplate | undefined;
+		const widget = Object.create(ChatWidget.prototype) as unknown as {
+			handleRequestClick(item: IChatListItemTemplate): void;
+		};
+		Object.defineProperties(widget, {
+			listWidget: {
+				value: {
+					reveal: (element: IChatRequestViewModel) => {
+						revealedRequest = element;
+						stickyTemplate.currentElement = undefined;
+					},
+					getTemplateDataForRequestId: (requestId: string) => {
+						requestedTemplateId = requestId;
+						return realTemplate;
+					},
+				},
+			},
+			clickedRequest: { value: (item: IChatListItemTemplate) => clickedTemplate = item },
+		});
+
+		widget.handleRequestClick(stickyTemplate);
+
+		assert.deepStrictEqual({
+			revealedRequest,
+			requestedTemplateId,
+			clickedTemplate,
+		}, {
+			revealedRequest: request,
+			requestedTemplateId: request.id,
+			clickedTemplate: realTemplate,
+		});
+	});
+
+	test('only unlocks request revision for edited user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetRequestRevision(false, false),
+			shouldUnlockChatPetRequestRevision(false, true),
+			shouldUnlockChatPetRequestRevision(true, false),
+			shouldUnlockChatPetRequestRevision(true, true),
+		], [false, false, false, true]);
+	});
+
+	test('only unlocks queue or steering for queued user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetQueueOrSteeringMessage(false, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(false, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Steering),
+		], [false, false, false, true, true]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
@@ -212,6 +952,79 @@ suite('ChatWidget', () => {
 		]);
 	});
 
+	test('host can lift the default chat width cap', () => {
+		const inputWidths: number[] = [];
+		const layoutWidths: number[] = [];
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			maximumWidth: 950,
+			viewOptions: {},
+			_location: { location: ChatAgentLocation.Chat },
+			chatSuggestNextWidget: { height: 0 },
+			inputPartDisposable: {
+				value: {
+					setMaxHeight: () => { },
+					layout: (width: number) => inputWidths.push(width),
+				}
+			},
+			_layoutListForInputHeight: () => { },
+			_onDidLayout: { fire: ({ width }: { width: number }) => layoutWidths.push(width) },
+		});
+
+		widget.layout(600, 1400);
+		widget.setMaximumWidth(Number.POSITIVE_INFINITY);
+		widget.layout(600, 1400);
+
+		assert.deepStrictEqual({ inputWidths, layoutWidths }, {
+			inputWidths: [950, 1400],
+			layoutWidths: [950, 1400],
+		});
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
+	});
+
+	test('re-lays out embedded editors when chat item padding changes', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let layouts = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			bodyDimension: { width: 800, height: 600 },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+			},
+			_layoutListForInputHeight: () => layouts++,
+		});
+
+		widget.setContentHorizontalPadding(88);
+
+		assert.deepStrictEqual({ rendererOptions, layouts }, {
+			rendererOptions: [{ contentHorizontalPadding: 88 }],
+			layouts: 1,
+		});
+	});
+
 	test('captures and restores transcript scroll state', () => {
 		const listWidget = {
 			scrollTop: 200,
@@ -259,6 +1072,276 @@ suite('ChatWidget', () => {
 		onDidLayout.dispose();
 		assert.deepStrictEqual(widths, [320, 480]);
 	});
+});
+
+suite('ChatWidget - acceptInput submission', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(resource: URI) {
+		const hasActiveRequest = observableValue('hasActiveRequest', false);
+		const requestInProgress = observableValue('requestInProgress', false);
+		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
+		const model = upcastPartial<IChatModel>({
+			sessionResource: resource,
+			onDidDispose: store.add(new Emitter<void>()).event,
+			hasActiveRequest,
+			requestInProgress,
+			requestNeedsInput,
+			inputModel: upcastPartial<IChatModel['inputModel']>({}),
+			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
+			getPendingRequests: () => [],
+		});
+		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
+		store.add(toDisposable(() => clearChatMarks(resource)));
+		return { model, viewModel };
+	}
+
+	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
+		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
+		const widgetStore = store.add(new DisposableStore());
+		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const attachments = new ChatRequestVariableSet();
+		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: [] };
+		const input = mockObject<ChatInputPart>()({
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
+			currentModeKind: ChatModeKind.Ask,
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
+			currentLanguageModel: undefined,
+			hasPendingProgrammaticModelSelection: false,
+			generating: undefined,
+			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
+				entriesMap: observableValue('tools', ToolAndToolSetEnablementMap.fromEntries([])),
+			}),
+		});
+		input.getAttachedContext.returns(attachments);
+		input.getAttachedAndImplicitContext.returns(attachments);
+		const editorService = mockObject<IEditorService>()();
+		editorService.saveAll.resolves({ success: true, editors: [] });
+		const chatService = mockObject<IChatService>()();
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'submitted-request',
+			session: original.model,
+			onDidChange: store.add(new Emitter<ChatResponseModelChangeReason>()).event,
+			response: upcastPartial<IChatResponseModel['response']>({ value: [] }),
+			isComplete: true,
+		});
+		const sent: ChatSendResultSent = {
+			kind: 'sent',
+			data: upcastPartial<IChatSendRequestData>({
+				responseCreatedPromise: Promise.resolve(response),
+				responseCompletePromise: Promise.resolve(),
+			}),
+		};
+		chatService.sendRequest.resolves(sent);
+		const chatSubmitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()();
+		chatSubmitRequestHandlerService.tryHandle.resolves(false);
+		const chatAttachmentResolveService = mockObject<IChatAttachmentResolveService>()();
+		chatAttachmentResolveService.resolveDirectoryImages.resolves([]);
+		const parser = upcastPartial<ChatRequestParser>({
+			parseChatRequest: () => parsedInput,
+			parseChatRequestWithReferences: () => parsedInput,
+		});
+		const instantiationService = mockObject<IInstantiationService>()();
+		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
+			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService(), {
+				_serviceBrand: undefined,
+				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
+				report: () => { },
+				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
+			})) : parser);
+		const viewOptions: IChatWidgetViewOptions = {};
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: widgetStore },
+			_viewModel: { value: original.viewModel },
+			_location: { value: { location: ChatAgentLocation.Chat } },
+			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
+			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
+			onDidChangeViewModel: { value: onDidChangeViewModel.event },
+			onDidHide: { value: Event.None },
+			visible: { value: true },
+			input: { value: input },
+			inputPartDisposable: { value: store.add(new MutableDisposable<ChatInputPart>()) },
+			contribs: { value: [] },
+			parsedChatRequest: { value: parsedInput },
+			viewOptions: { value: viewOptions },
+			configurationService: { value: new TestConfigurationService() },
+			editorService: { value: editorService },
+			chatService: { value: chatService },
+			chatSubmitRequestHandlerService: { value: chatSubmitRequestHandlerService },
+			chatAttachmentResolveService: { value: chatAttachmentResolveService },
+			customizationHarnessService: { value: mockObject<ICustomizationHarnessService>()() },
+			dialogService: { value: mockObject<IDialogService>()() },
+			instantiationService: { value: instantiationService },
+			chatTipService: { value: mockObject<IChatTipService>()() },
+			chatPetService: { value: { unlockAchievement: () => { } } },
+			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
+			logService: { value: { debug: () => { } } },
+			telemetryService: { value: NullTelemetryService },
+			listWidget: { value: { setScrollLock: () => { } } },
+			updateChatViewVisibility: { value: () => { } },
+		});
+		const options: IChatAcceptInputOptions = { preserveInput: true };
+		return { widget, options, original, chatService, response, sent };
+	}
+
+	for (const explicit of [false, true]) {
+		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {
+			const h = createChatUserInteractionTestHarness(store);
+			const fixture = createSubmissionWidget(options => h.createInteraction(options));
+			const queued = new DeferredPromise<ChatSendResult>();
+			const entered = new DeferredPromise<void>();
+			fixture.chatService.sendRequest.callsFake(async (_resource: URI, _message: string, options: IChatSendRequestOptions) => {
+				options.onDidCreateResponse?.(undefined, 'queued');
+				entered.complete();
+				return { kind: 'queued', deferred: queued.p };
+			});
+			const sending = fixture.widget.acceptInput('Test request', { ...fixture.options, queue: explicit ? ChatRequestQueueKind.Queued : undefined });
+			await entered.p;
+			h.assertFinished('queued');
+			assert.deepStrictEqual([queued.isSettled, h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [false, undefined, undefined]);
+			assert.deepStrictEqual(h.otelRoutes.map(route => route.resource), [fixture.original.model.sessionResource]);
+			await queued.complete(fixture.sent);
+			assert.strictEqual(await sending, fixture.response);
+			h.assertFinished('queued');
+		});
+	}
+});
+
+suite('ChatWidget - first visible progress lifecycle', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class CountingDisposableStore extends DisposableStore {
+		readonly entries = new Set<IDisposable>();
+
+		override add<T extends IDisposable>(item: T): T {
+			this.entries.add(item);
+			return super.add(item);
+		}
+
+		override delete<T extends IDisposable>(item: T): void {
+			this.entries.delete(item);
+			super.delete(item);
+		}
+
+		override clear(): void {
+			super.clear();
+			this.entries.clear();
+		}
+	}
+
+	function createWidget() {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const widgetStore = disposables.add(new CountingDisposableStore());
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		let submit: () => Promise<IChatResponseModel | undefined> = async () => response.response;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			...Object.getOwnPropertyDescriptors(view.widget),
+			_store: { value: widgetStore },
+			_location: { value: { location: ChatAgentLocation.Chat } },
+			container: { value: h.element },
+			input: { value: { currentModeInfo: { kind: ChatModeKind.Agent } } },
+			instantiationService: { value: h.instantiationService },
+			_acceptInput: { value: () => submit() },
+		});
+		disposables.add(toDisposable(() => clearChatMarks(response.response.session.sessionResource)));
+		return {
+			...h, ...view, widgetStore, response,
+			accept: () => widget.acceptInput('Test request', { preserveInput: true }),
+			submitWith: (callback: typeof submit) => { submit = callback; },
+			assertFinished: (...results: ChatUserInteractionTimingResult[]) => {
+				h.assertFinished(...results);
+				assert.strictEqual(widgetStore.entries.size, 0);
+			},
+		};
+	}
+
+	test('removes per-interaction stores and listeners after every completed turn', async () => {
+		const fixture = createWidget();
+		for (let i = 0; i < 10; i++) {
+			fixture.response.progress([]);
+			await fixture.accept();
+			fixture.response.progress();
+			fixture.frame(2);
+			fixture.assertFinished(...Array<ChatUserInteractionTimingResult>(i + 1).fill('success'));
+		}
+		assert.strictEqual(new Set(fixture.starts).size, 10);
+	});
+
+	test('navigation cancels even after the first render callback has been scheduled', async () => {
+		const fixture = createWidget();
+		fixture.response.progress();
+		await fixture.accept();
+		fixture.bind(fixture.createResponse(URI.parse('agent-host-copilotcli:/other')).response);
+		fixture.frame(2);
+		fixture.assertFinished('navigated');
+	});
+
+	for (const stage of ['initially hidden', 'preparation', 'before progress', 'during render', 'disposed'] as const) {
+		test(`${stage} ends measurement without stopping submission or installing late listeners`, async () => {
+			const fixture = createWidget();
+			const pending = new DeferredPromise<IChatResponseModel>();
+			fixture.submitWith(() => pending.p);
+			if (stage === 'initially hidden') {
+				fixture.hide();
+			}
+			const accepting = fixture.accept();
+			if (stage === 'preparation') {
+				fixture.hide();
+			}
+			if (stage === 'disposed') {
+				fixture.widgetStore.dispose();
+			}
+			await pending.complete(fixture.response.response);
+			assert.strictEqual(await accepting, fixture.response.response);
+			if (stage === 'before progress') {
+				fixture.hide();
+			}
+			fixture.response.progress();
+			if (stage === 'during render') {
+				fixture.frame();
+				fixture.hide();
+			}
+			fixture.show();
+			fixture.frame(2);
+			fixture.assertFinished(stage === 'disposed' ? 'disposed' : 'hidden');
+		});
+	}
+
+	test('uses the committed response session for attribution after preparation', async () => {
+		const fixture = createWidget();
+		const committed = fixture.createResponse(URI.parse('agent-host-copilotcli:/committed'));
+		fixture.submitWith(async () => {
+			fixture.bind(committed.response);
+			return committed.response;
+		});
+		await fixture.accept();
+		committed.complete();
+		assert.strictEqual(fixture.events[0].data.chatSessionId, 'agent-host-copilotcli:/committed');
+		assert.strictEqual(committed.hasListeners(), false);
+		fixture.assertFinished('completedWithoutProgress');
+	});
+
+	for (const error of [undefined, new CancellationError(), new Error('Submission failed')]) {
+		test(`cleans up when submission ${error ? `throws ${error.name}` : 'is not dispatched'}`, async () => {
+			const fixture = createWidget();
+			fixture.submitWith(async () => {
+				if (error) {
+					throw error;
+				}
+				return undefined;
+			});
+			if (error) {
+				await assert.rejects(fixture.accept(), error);
+			} else {
+				await fixture.accept();
+			}
+			fixture.assertFinished(error instanceof CancellationError ? 'cancelled' : error ? 'error' : 'notDispatched');
+		});
+	}
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {

@@ -180,7 +180,7 @@ suite('ChatModelFeedbackSurveyWidget', () => {
 		assert.deepStrictEqual({ initial, afterDown, activeDescendant: list.getAttribute('aria-activedescendant') }, {
 			initial: ['true', 'false', 'false'],
 			afterDown: ['false', 'true', 'false'],
-			activeDescendant: 'chat-feedback-survey-option-instance-1-routing-1',
+			activeDescendant: 'chat-feedback-survey-instance-1-routing-option-1',
 		});
 	});
 

@@ -6,7 +6,7 @@
 .monaco-action-bar .update-indicator {
 	display: flex;
 	align-items: center;
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	white-space: nowrap;
 	padding: 0px 8px;
 	height: 22px;

@@ -12,7 +12,8 @@
 	bottom: var(--prompt-timeline-bottom, 0);
 	width: var(--prompt-timeline-rail-width, 36px);
 	pointer-events: none;
-	z-index: 10;
+	/* Clear the tree sticky-scroll surface (13) and its native scrollbar (14). */
+	z-index: 15;
 }
 
 /* Anchors the rail overlay to the chat widget container (added/removed with the rail's lifecycle).
@@ -651,6 +652,34 @@
 	pointer-events: none;
 	transition: opacity 140ms ease, transform 140ms ease;
 	z-index: 20;
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar {
+	width: var(--prompt-timeline-scrollbar-gutter);
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar-track {
+	background: var(--vscode-scrollbar-background);
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar-thumb {
+	min-height: var(--vscode-spacing-size200);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+	background-clip: padding-box;
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.prompt-timeline-gutter-panel::-webkit-scrollbar-corner {
+	display: none;
 }
 
 .prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel {
