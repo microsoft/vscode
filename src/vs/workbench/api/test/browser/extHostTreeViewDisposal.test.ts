@@ -6,7 +6,6 @@
 import assert from 'assert';
 import type { TreeDataProvider, TreeItem } from 'vscode';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { markAsDisposed } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -45,9 +44,6 @@ suite('ExtHostTreeViews registration lifetime', () => {
 		const provider = new Provider();
 		const view = service.createTreeView('disposed', { treeDataProvider: provider }, nullExtensionDescription);
 		await view.dispose();
-		// The plain API facade has no tracked dispose implementation. Remove only the
-		// test tracker's reference; any product-owned store references remain observable.
-		markAsDisposed(view);
 		return new WeakRef(provider);
 	}
 
