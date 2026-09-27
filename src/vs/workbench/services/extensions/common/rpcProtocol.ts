@@ -31,6 +31,7 @@ function safeStringify(obj: any, replacer: JSONStringifyReplacer | null): string
 
 const refSymbolName = '$$ref$$';
 const undefinedRef = { [refSymbolName]: -1 } as const;
+const largeStringLength = 64 * 1024;
 
 class StringifiedJsonWithBufferRefs {
 	constructor(
@@ -39,11 +40,16 @@ class StringifiedJsonWithBufferRefs {
 	) { }
 }
 
-export function stringifyJsonWithBufferRefs<T>(obj: T, replacer: JSONStringifyReplacer | null = null, useSafeStringify = false): StringifiedJsonWithBufferRefs {
+export function stringifyJsonWithBufferRefs<T>(obj: T, replacer: JSONStringifyReplacer | null = null, useSafeStringify = false, preserveUndefined = true): StringifiedJsonWithBufferRefs {
 	const foundBuffers: VSBuffer[] = [];
 	const serialized = (useSafeStringify ? safeStringify : JSON.stringify)(obj, (key, value) => {
-		if (typeof value === 'undefined') {
+		if (typeof value === 'undefined' && preserveUndefined) {
 			return undefinedRef; // JSON.stringify normally converts 'undefined' to 'null'
+		} else if ((typeof value === 'string' && value.length >= largeStringLength) || (typeof value === 'object' && value !== null && Object.getOwnPropertyDescriptor(value, refSymbolName)?.enumerable)) {
+			// JSON encoding also preserves lone surrogates when moving strings into UTF-8 buffers.
+			const json = typeof value === 'string' ? JSON.stringify(value) : stringify(value, replacer);
+			const bufferIndex = foundBuffers.push(VSBuffer.fromString(json)) - 1;
+			return { [refSymbolName]: bufferIndex, type: 'json' };
 		} else if (typeof value === 'object') {
 			if (value instanceof VSBuffer) {
 				const bufferIndex = foundBuffers.push(value) - 1;
@@ -66,7 +72,7 @@ export function parseJsonAndRestoreBufferRefs(jsonString: string, buffers: reado
 		if (value) {
 			const ref = value[refSymbolName];
 			if (typeof ref === 'number') {
-				return buffers[ref];
+				return value.type === 'json' ? JSON.parse(buffers[ref].toString()) : buffers[ref];
 			}
 
 			if (uriTransformer && (<MarshalledObject>value).$mid === MarshalledId.Uri) {
@@ -738,7 +744,7 @@ class MessageIO {
 				} else if (typeof arg === 'undefined') {
 					massagedArgs[i] = { type: ArgType.Undefined };
 				} else if (arg instanceof SerializableObjectWithBuffers) {
-					const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(arg.value, replacer);
+					const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(arg.value, replacer, false, arg.options?.preserveUndefined);
 					massagedArgs[i] = { type: ArgType.SerializedObjectWithBuffers, value: VSBuffer.fromString(jsonString), buffers: referencedBuffers };
 				} else {
 					massagedArgs[i] = { type: ArgType.String, value: VSBuffer.fromString(stringify(arg, replacer)) };
@@ -840,7 +846,7 @@ class MessageIO {
 		} else if (res instanceof VSBuffer) {
 			return this._serializeReplyOKVSBuffer(req, res);
 		} else if (res instanceof SerializableObjectWithBuffers) {
-			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(res.value, replacer, true);
+			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(res.value, replacer, true, res.options?.preserveUndefined);
 			return this._serializeReplyOKJSONWithBuffers(req, jsonString, referencedBuffers);
 		} else {
 			return this._serializeReplyOKJSON(req, safeStringify(res, replacer));

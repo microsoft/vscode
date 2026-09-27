@@ -165,7 +165,7 @@ function simulateWireTransfer<T>(obj: T): T {
 	}
 
 	if (obj instanceof SerializableObjectWithBuffers) {
-		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(obj);
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(obj, null, false, obj.options?.preserveUndefined);
 		return parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null);
 	} else {
 		return JSON.parse(JSON.stringify(obj));

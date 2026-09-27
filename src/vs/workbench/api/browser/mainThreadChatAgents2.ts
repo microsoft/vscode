@@ -42,7 +42,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/const
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
-import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
@@ -363,10 +363,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
 					};
 
-					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, request, {
+					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, request, new SerializableObjectWithBuffers({
 						history,
 						chatSessionContext,
-					}, token);
+					}, { preserveUndefined: false }), token);
 
 					// Suppress expected operational errors (rate limiting, quota exceeded, and other
 					// user-actionable conditions flagged via `isExpectedError`) from error telemetry
@@ -418,13 +418,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				return this._proxy.$provideFollowups(request, handle, new SerializableObjectWithBuffers(result, { preserveUndefined: false }), new SerializableObjectWithBuffers({ history }, { preserveUndefined: false }), token);
 			},
 			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+				return this._proxy.$provideChatTitle(handle, new SerializableObjectWithBuffers(history, { preserveUndefined: false }), token);
 			},
 			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+				return this._proxy.$provideChatSummary(handle, new SerializableObjectWithBuffers(history, { preserveUndefined: false }), token);
 			},
 		};
 
@@ -698,7 +698,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatParticipantDetectionProviders.set(handle, this._chatAgentService.registerChatParticipantDetectionProvider(handle,
 			{
 				provideParticipantDetection: async (request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation; participants: IChatParticipantMetadata[] }, token: CancellationToken) => {
-					return await this._proxy.$detectChatParticipant(handle, request, { history }, options, token);
+					return await this._proxy.$detectChatParticipant(handle, request, new SerializableObjectWithBuffers({ history }, { preserveUndefined: false }), options, token);
 				}
 			}
 		));

@@ -22,7 +22,7 @@ import { IChatProgress, IChatService } from '../../../contrib/chat/common/chatSe
 import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentImplementation, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { IChatAgentImplementation, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentService } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../contrib/chat/common/customizationHarnessService.js';
@@ -33,9 +33,11 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { stringifyJsonWithBufferRefs } from '../../../services/extensions/common/rpcProtocol.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatAgents2 } from '../../browser/mainThreadChatAgents2.js';
-import { IChatUsageDto, IExtensionChatAgentMetadata } from '../../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentHistoryEntryDto, IChatUsageDto, IExtensionChatAgentMetadata } from '../../common/extHost.protocol.js';
 
 suite('MainThreadChatAgents2', function () {
 
@@ -48,18 +50,44 @@ suite('MainThreadChatAgents2', function () {
 	let agentImpl: IChatAgentImplementation;
 	let warnings: string[];
 	let resolveInvoke: (result: unknown) => void;
+	let historyContexts: Record<string, SerializableObjectWithBuffers<{ history: IChatAgentHistoryEntryDto[] } | IChatAgentHistoryEntryDto[]>>;
+	let followupResult: Parameters<ExtHostChatAgentsShape2['$provideFollowups']>[2] | undefined;
+	let participantDetector: Parameters<IChatAgentService['registerChatParticipantDetectionProvider']>[1] | undefined;
 
 	setup(async function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		warnings = [];
+		historyContexts = {};
+		followupResult = undefined;
+		participantDetector = undefined;
 
 		// `$invokeAgent` is kept pending so the `_pendingProgress` entry registered at
 		// the start of `invoke` stays alive while we route a usage chunk through it.
 		const invokePromise = new Promise<unknown>(resolve => { resolveInvoke = resolve; });
 		const proxy = {
 			$acceptActiveChatSession: () => { },
-			$invokeAgent: () => invokePromise,
+			$invokeAgent: (...args: Parameters<ExtHostChatAgentsShape2['$invokeAgent']>) => {
+				historyContexts.invoke = args[2];
+				return invokePromise;
+			},
+			$provideFollowups: (...args: Parameters<ExtHostChatAgentsShape2['$provideFollowups']>) => {
+				followupResult = args[2];
+				historyContexts.followups = args[3];
+				return Promise.resolve([]);
+			},
+			$provideChatTitle: (...args: Parameters<ExtHostChatAgentsShape2['$provideChatTitle']>) => {
+				historyContexts.title = args[1];
+				return Promise.resolve(undefined);
+			},
+			$provideChatSummary: (...args: Parameters<ExtHostChatAgentsShape2['$provideChatSummary']>) => {
+				historyContexts.summary = args[1];
+				return Promise.resolve(undefined);
+			},
+			$detectChatParticipant: (...args: Parameters<ExtHostChatAgentsShape2['$detectChatParticipant']>) => {
+				historyContexts.detection = args[2];
+				return Promise.resolve(undefined);
+			},
 			$onDidChangePlugins: () => { },
 		};
 		const extHostContext = new class implements IExtHostContext {
@@ -78,6 +106,10 @@ suite('MainThreadChatAgents2', function () {
 			override getAgentsByName() { return []; }
 			override registerAgentImplementation(_id: string, impl: IChatAgentImplementation): IDisposable {
 				capturedImpl = impl;
+				return { dispose() { } };
+			}
+			override registerChatParticipantDetectionProvider(_handle: number, provider: Parameters<IChatAgentService['registerChatParticipantDetectionProvider']>[1]): IDisposable {
+				participantDetector = provider;
 				return { dispose() { } };
 			}
 		};
@@ -115,7 +147,7 @@ suite('MainThreadChatAgents2', function () {
 
 		mainThread = disposables.add(instantiationService.createInstance(MainThreadChatAgents2, extHostContext));
 
-		await mainThread.$registerAgent(1, new ExtensionIdentifier('test.ext'), AGENT_ID, { hasFollowups: false } as IExtensionChatAgentMetadata, undefined);
+		await mainThread.$registerAgent(1, new ExtensionIdentifier('test.ext'), AGENT_ID, { hasFollowups: true } as IExtensionChatAgentMetadata, undefined);
 		agentImpl = capturedImpl!;
 	});
 
@@ -193,5 +225,44 @@ suite('MainThreadChatAgents2', function () {
 
 		assert.strictEqual(forwarded.filter(p => p.kind === 'usage').length, 0);
 		assert.ok(warnings.some(w => w.includes('req-orphan')), `expected a warning mentioning the requestId, got: ${JSON.stringify(warnings)}`);
+	});
+
+	test('uses buffer-backed JSON for every chat-history RPC', async () => {
+		const sessionResource = URI.parse('vscode-chat:/large-history');
+		const request = makeRequest('current', sessionResource);
+		const text = 'x'.repeat(128 * 1024);
+		const history: IChatAgentHistoryEntry[] = Array.from({ length: 32 }, (_, index) => ({
+			request: makeRequest(`previous-${index}`, sessionResource),
+			response: [],
+			result: { metadata: { text } }
+		}));
+		const result = history[history.length - 1].result;
+		const invocation = agentImpl.invoke(request, () => { }, history, CancellationToken.None);
+
+		try {
+			await agentImpl.provideFollowups!(request, result, history, CancellationToken.None);
+			await agentImpl.provideChatTitle!(history, CancellationToken.None);
+			await agentImpl.provideChatSummary!(history, CancellationToken.None);
+			mainThread.$registerChatParticipantDetectionProvider(2);
+			assert.ok(participantDetector);
+			await participantDetector.provideParticipantDetection(request, history, { location: ChatAgentLocation.Chat, participants: [] }, CancellationToken.None);
+
+			assert.deepStrictEqual(Object.keys(historyContexts).sort(), ['detection', 'followups', 'invoke', 'summary', 'title']);
+			for (const context of Object.values(historyContexts)) {
+				assert.ok(context instanceof SerializableObjectWithBuffers);
+				const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(context.value, null, false, context.options?.preserveUndefined);
+				assert.deepStrictEqual({
+					smallJson: jsonString.length < 16 * 1024,
+					bufferCount: referencedBuffers.length,
+					preserveUndefined: context.options?.preserveUndefined,
+					history: Array.isArray(context.value) ? context.value : context.value.history
+				}, { smallJson: true, bufferCount: 32, preserveUndefined: false, history });
+			}
+			assert.ok(followupResult instanceof SerializableObjectWithBuffers);
+			assert.deepStrictEqual(followupResult.value, result);
+		} finally {
+			resolveInvoke({});
+			await invocation;
+		}
 	});
 });

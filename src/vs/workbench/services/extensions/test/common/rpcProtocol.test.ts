@@ -11,7 +11,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMessagePassingProtocol } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ProxyIdentifier, SerializableObjectWithBuffers } from '../../common/proxyIdentifier.js';
-import { RPCProtocol } from '../../common/rpcProtocol.js';
+import { parseJsonAndRestoreBufferRefs, RPCProtocol, stringifyJsonWithBufferRefs } from '../../common/rpcProtocol.js';
 
 suite('RPCProtocol', () => {
 
@@ -289,5 +289,71 @@ suite('RPCProtocol', () => {
 			assert.strictEqual(bufferValues[3], 4);
 			done(null);
 		}, done);
+	});
+
+	test('externalizes large strings instead of aggregating them into RPC JSON', () => {
+		const text = 'x'.repeat(128 * 1024);
+		const history = Array.from({ length: 32 }, (_, index) => ({
+			requestId: `request-${index}`,
+			result: { metadata: { text } }
+		}));
+
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(history);
+
+		assert.deepStrictEqual({
+			smallJson: jsonString.length < 8 * 1024,
+			bufferCount: referencedBuffers.length
+		}, { smallJson: true, bufferCount: 32 });
+		assert.deepStrictEqual(parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null), history);
+	});
+
+	test('only externalizes strings at or above the large-string threshold', () => {
+		const value = { small: 's'.repeat(64 * 1024 - 1), large: 'l'.repeat(64 * 1024) };
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value);
+
+		assert.strictEqual(referencedBuffers.length, 1);
+		assert.deepStrictEqual(parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null), value);
+	});
+
+	test('transfers large strings losslessly in buffer-backed requests and replies', async () => {
+		const value = {
+			text: '"\\\u0000\u2028\ud800x\udfff\ud83d\ude80'.repeat(8192),
+			buffer: VSBuffer.wrap(new Uint8Array([1, 2, 3])),
+			nested: { text: 'short' }
+		};
+		delegate = (arg: SerializableObjectWithBuffers<typeof value>) => new SerializableObjectWithBuffers(arg.value);
+
+		const result: SerializableObjectWithBuffers<typeof value> = await bProxy.$m(new SerializableObjectWithBuffers(value), undefined);
+
+		assert.deepStrictEqual(result.value, value);
+	});
+
+	test('buffer-backed JSON can retain standard undefined normalization', async () => {
+		const value = {
+			text: 'x'.repeat(128 * 1024),
+			omitted: undefined,
+			items: [undefined, 1, Number.NaN]
+		};
+		delegate = (arg: SerializableObjectWithBuffers<typeof value>) => new SerializableObjectWithBuffers(arg.value);
+
+		const result: SerializableObjectWithBuffers<typeof value> = await bProxy.$m(new SerializableObjectWithBuffers(value, { preserveUndefined: false }), undefined);
+
+		assert.deepStrictEqual(result.value, JSON.parse(JSON.stringify(value)));
+	});
+
+	test('preserves literal reference-shaped metadata', () => {
+		const value = {
+			text: 'x'.repeat(64 * 1024),
+			references: [
+				{ '$$ref$$': 0, type: 'json' },
+				{ '$$ref$$': 0, type: 'string' },
+				{ '$$ref$$': -1 }
+			]
+		};
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(value, null, false, false);
+		const result: typeof value = parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null);
+
+		assert.deepStrictEqual(result.references.map(reference => reference?.type), value.references.map(reference => reference.type));
+		assert.deepStrictEqual(result, value);
 	});
 });

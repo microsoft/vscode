@@ -76,10 +76,11 @@ export function getStringIdentifierForProxy(nid: number): string {
 }
 
 /**
- * Marks the object as containing buffers that should be serialized more efficiently.
+ * Marks the object as containing buffers or large strings that should be serialized more efficiently.
  */
 export class SerializableObjectWithBuffers<T> {
 	constructor(
-		public readonly value: T
+		public readonly value: T,
+		public readonly options?: { preserveUndefined: boolean }
 	) { }
 }

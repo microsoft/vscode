@@ -27,7 +27,7 @@ import { ChatRequestHooks } from '../../contrib/chat/common/promptSyntax/hookSch
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatSessionCustomizationSourceFolderDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
@@ -894,13 +894,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 	}
 
-	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
+	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: SerializableObjectWithBuffers<{ history: IChatAgentHistoryEntryDto[] }>, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
 		const detector = this._participantDetectionProviders.get(handle);
 		if (!detector) {
 			return undefined;
 		}
 
-		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
+		const { request, location, history } = await this._createRequest(requestDto, context.value, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
 		const tools = await this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id, token);
@@ -983,7 +983,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentInvokeResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, contextDto: SerializableObjectWithBuffers<{ history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }>, token: CancellationToken): Promise<IChatAgentInvokeResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -993,6 +993,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		let inFlightRequest: InFlightChatRequest | undefined;
 
 		try {
+			const context = contextDto.value;
 			const { request, location, history } = await this._createRequest(requestDto, context, agent.extension);
 
 			// Init session disposables
@@ -1179,16 +1180,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeActiveChatPanelSessionResource.fire(sessionResource);
 	}
 
-	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
+	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: SerializableObjectWithBuffers<IChatAgentResult>, context: SerializableObjectWithBuffers<{ history: IChatAgentHistoryEntryDto[] }>, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
 		const request = revive<IChatAgentRequest>(requestDto);
-		const convertedHistory = await this.prepareHistoryTurns(agent.extension, agent.id, context);
+		const convertedHistory = await this.prepareHistoryTurns(agent.extension, agent.id, context.value);
 
-		const ehResult = typeConvert.ChatAgentResult.to(result);
+		const ehResult = typeConvert.ChatAgentResult.to(result.value);
 		return (await agent.provideFollowups(ehResult, { history: convertedHistory, yieldRequested: false }, token))
 			.filter(f => {
 				// The followup must refer to a participant that exists from the same extension
@@ -1281,23 +1282,25 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+	async $provideChatTitle(handle: number, contextDto: SerializableObjectWithBuffers<IChatAgentHistoryEntryDto[]>, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
+		const context = contextDto.value;
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
 		const sessionResource = context[0]?.request.sessionResource ? URI.revive(context[0].request.sessionResource) : undefined;
 		return await agent.provideTitle({ history, sessionResource, yieldRequested: false }, token);
 	}
 
-	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+	async $provideChatSummary(handle: number, contextDto: SerializableObjectWithBuffers<IChatAgentHistoryEntryDto[]>, token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
+		const context = contextDto.value;
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
 		const sessionResource = context[0]?.request.sessionResource ? URI.revive(context[0].request.sessionResource) : undefined;
 		return await agent.provideSummary({ history, sessionResource, yieldRequested: false }, token);
